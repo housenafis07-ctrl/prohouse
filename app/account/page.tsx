@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
@@ -74,7 +74,9 @@ export default function AccountPage() {
       if (!mounted) return
       if (profileError) setError(profileError.message)
       const value: Profile = data ?? { phone: user.phone ?? null, full_name: null, account_type: 'individual', partner_type: null, company_name: null, inn: null, bank_name: null, bank_account: null, mfo: null, oked: null, director_full_name: null }
-      setProfile(value); setForm(value); setLoading(false)
+      setProfile(value)
+      setForm(value)
+      setLoading(false)
     }
     load()
     return () => { mounted = false }
@@ -87,21 +89,31 @@ export default function AccountPage() {
     if (!form) return
     if (!form.full_name?.trim()) { setError('F.I.O. ni kiriting.'); return }
     if (form.account_type === 'partner' && !form.inn?.trim()) { setError('INN ni kiriting.'); return }
-    setSaving(true); setError(''); setSuccess('')
+    setSaving(true)
+    setError('')
+    setSuccess('')
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/register'); return }
       const { data, error: updateError } = await supabase.from('profiles').update({ full_name: form.full_name?.trim() || null, account_type: form.account_type || 'individual', partner_type: form.account_type === 'partner' ? form.partner_type : null, company_name: form.company_name?.trim() || null, inn: form.inn?.trim() || null, bank_name: form.bank_name?.trim() || null, bank_account: form.bank_account?.trim() || null, mfo: form.mfo?.trim() || null, oked: form.oked?.trim() || null, director_full_name: form.director_full_name?.trim() || null }).eq('id', user.id).select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').single()
       if (updateError) throw updateError
-      setProfile(data); setForm(data); setEditing(false); setSuccess('Profil ma’lumotlari saqlandi.')
-    } catch (e) { setError(e instanceof Error ? e.message : 'Profilni saqlashda xatolik') }
-    finally { setSaving(false) }
+      setProfile(data)
+      setForm(data)
+      setEditing(false)
+      setSuccess('Profil ma’lumotlari saqlandi.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Profilni saqlashda xatolik')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function signOut() {
     const supabase = createClient()
-    await supabase.auth.signOut(); router.replace('/'); router.refresh()
+    await supabase.auth.signOut()
+    router.replace('/')
+    router.refresh()
   }
 
   if (loading) return <main className="min-h-screen bg-slate-50 px-4 py-12"><div className="mx-auto max-w-5xl rounded-3xl bg-white p-8 text-center shadow-sm">Yuklanmoqda...</div></main>
@@ -115,13 +127,13 @@ export default function AccountPage() {
   const completed = [hasPhone, hasName, hasPartnerData].filter(Boolean).length
   const completion = Math.round((completed / 3) * 100)
 
-  const actions = useMemo(() => isPartner ? [
+  const actions = isPartner ? [
     { icon: 'plus' as const, title: 'E’lon joylashtirish', text: 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings', primary: true },
     { icon: 'home' as const, title: 'E’lonlarni ko‘rish', text: 'Bozordagi yangi uylar va boshqa takliflarni ko‘ring.', href: '/listings', primary: false },
   ] : [
     { icon: 'home' as const, title: 'Uy topishni boshlash', text: 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
     { icon: 'user' as const, title: 'Profilni to‘ldirish', text: 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
-  ], [isPartner])
+  ]
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10">
