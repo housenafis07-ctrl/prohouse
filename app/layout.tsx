@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import GlobalNavigationFix from "./components/GlobalNavigationFix";
 
 export const metadata: Metadata = {
   title: "Prohouse — Ko‘chmas mulk platformasi",
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="uz">
-      <body>{children}</body>
+      <body>
+        <GlobalNavigationFix />
+        {children}
+      </body>
     </html>
   );
 }
