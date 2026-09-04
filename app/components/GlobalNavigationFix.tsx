@@ -8,19 +8,45 @@ export default function GlobalNavigationFix() {
   const router = useRouter()
 
   useEffect(() => {
-    const onClick = async (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null
-      const accountButton = target?.closest('.account-btn')
-      if (!accountButton) return
-      event.preventDefault()
+    const supabase = createClient()
+    let mounted = true
 
-      const supabase = createClient()
+    const syncNavigation = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      router.push(user ? '/account' : '/register')
+      if (!mounted) return
+      const button = document.querySelector('.account-btn') as HTMLButtonElement | null
+      if (!button) return
+
+      const oldLogout = document.querySelector('.global-logout-btn')
+      if (oldLogout) oldLogout.remove()
+
+      if (user) {
+        button.textContent = 'Kabinet'
+        button.onclick = () => router.push('/account')
+
+        const logout = document.createElement('button')
+        logout.type = 'button'
+        logout.className = 'global-logout-btn account-btn'
+        logout.textContent = 'Chiqish'
+        logout.onclick = async () => {
+          await supabase.auth.signOut()
+          router.refresh()
+          await syncNavigation()
+        }
+        button.parentElement?.appendChild(logout)
+      } else {
+        button.textContent = 'Kirish / Ro‘yxatdan o‘tish'
+        button.onclick = () => router.push('/register')
+      }
     }
 
-    document.addEventListener('click', onClick)
-    return () => document.removeEventListener('click', onClick)
+    void syncNavigation()
+    const { data: listener } = supabase.auth.onAuthStateChange(() => { void syncNavigation() })
+
+    return () => {
+      mounted = false
+      listener.subscription.unsubscribe()
+    }
   }, [router])
 
   return null
