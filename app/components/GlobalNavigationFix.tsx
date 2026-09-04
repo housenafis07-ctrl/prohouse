@@ -1,44 +1,42 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 export default function GlobalNavigationFix() {
-  const router = useRouter()
-
   useEffect(() => {
     const supabase = createClient()
     let mounted = true
     let currentUserId: string | null = null
-    let syncing = false
 
     const applyNavigation = () => {
-      if (!mounted || syncing) return
+      if (!mounted) return
       const button = document.querySelector('.account-btn') as HTMLAnchorElement | HTMLButtonElement | null
       if (!button) return
 
-      syncing = true
-      try {
-        if (currentUserId) {
-          // Logged-in state: the homepage button is the logout action.
-          button.textContent = 'Chiqish'
-          button.setAttribute('href', '#')
+      const loggedIn = Boolean(currentUserId)
+      const desiredText = loggedIn ? 'Chiqish' : 'Kirish / Ro‘yxatdan o‘tish'
+      const desiredHref = loggedIn ? '#' : '/register'
+
+      // Only mutate the DOM when something actually changed. This is
+      // important because the observer watches the same DOM we update.
+      if (button.textContent !== desiredText) button.textContent = desiredText
+      if (button.getAttribute('href') !== desiredHref) button.setAttribute('href', desiredHref)
+
+      if (loggedIn) {
+        if (button.dataset.authAction !== 'logout') {
+          button.dataset.authAction = 'logout'
           button.onclick = async (event) => {
             event.preventDefault()
-            await supabase.auth.signOut()
-          }
-        } else {
-          // Logged-out state: route to the phone login/registration page.
-          button.textContent = 'Kirish / Ro‘yxatdan o‘tish'
-          button.setAttribute('href', '/register')
-          button.onclick = (event) => {
-            event.preventDefault()
-            router.push('/register')
+            const { error } = await supabase.auth.signOut()
+            if (error) console.error('Logout failed:', error)
           }
         }
-      } finally {
-        syncing = false
+      } else {
+        if (button.dataset.authAction !== 'login') {
+          button.dataset.authAction = 'login'
+          button.onclick = null
+        }
       }
     }
 
@@ -49,8 +47,9 @@ export default function GlobalNavigationFix() {
       applyNavigation()
     }
 
-    // The header can mount after this component. Observe the DOM so the
-    // account button changes immediately, without requiring F5.
+    // The header may mount after this component. Observe only for the
+    // appearance/replacement of the account button, while applyNavigation
+    // avoids writing unchanged DOM values and therefore cannot loop forever.
     const observer = new MutationObserver(() => applyNavigation())
     observer.observe(document.body, { childList: true, subtree: true })
 
@@ -61,16 +60,12 @@ export default function GlobalNavigationFix() {
       applyNavigation()
     })
 
-    // Also catch the case where the header is replaced during client routing.
-    const interval = window.setInterval(applyNavigation, 500)
-
     return () => {
       mounted = false
       observer.disconnect()
-      window.clearInterval(interval)
       listener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [])
 
   return null
 }
