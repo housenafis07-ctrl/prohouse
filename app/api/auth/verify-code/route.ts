@@ -42,23 +42,31 @@ export async function POST(request: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
+  // Test rejimida Phone Provider / SMS kerak emas.
+  // Sessiya email/password orqali yaratiladi; foydalanuvchining haqiqiy
+  // telefon raqami esa profiles jadvalida saqlanadi.
+  const testEmail = `${normalizedPhone.slice(1)}@test.prohouse.local`
+
   const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
 
-  let user = usersData.users.find((item) => item.phone === normalizedPhone)
+  let user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
 
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({
-      phone: normalizedPhone,
-      phone_confirm: true,
+      email: testEmail,
+      email_confirm: true,
       password: TEST_CODE,
+      user_metadata: { phone: normalizedPhone },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
   } else {
     const { data, error } = await admin.auth.admin.updateUserById(user.id, {
+      email: testEmail,
+      email_confirm: true,
       password: TEST_CODE,
-      phone_confirm: true,
+      user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
@@ -77,7 +85,7 @@ export async function POST(request: Request) {
   })
 
   const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({
-    phone: normalizedPhone,
+    email: testEmail,
     password: TEST_CODE,
   })
 
