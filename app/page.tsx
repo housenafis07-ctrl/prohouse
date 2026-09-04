@@ -116,7 +116,9 @@ export default function Home() {
   }
 
   return <main>
-    <header className="header"><div className="container nav">
+    <header className="header">
+      <div className="utility-bar"><div className="container utility-inner"><div className="utility-left"><span>⌖ Toshkent</span></div><div className="utility-links"><Link href="#partners">{lang==='uz'?'Hamkorlar uchun':'Для партнёров'}</Link><Link href="#post-listing" className="utility-post">{text.post}</Link></div></div></div>
+      <div className="container nav">
       <Link className="brand" href="/"><span className="brand-mark">⌂</span><span>Pro<span>house</span></span></Link>
       <nav className="main-nav">
         <button className="nav-link active" type="button" onClick={()=>openModal('buy')}>{text.buy}</button>
@@ -126,12 +128,13 @@ export default function Home() {
         <button className="nav-link" type="button" onClick={()=>openModal('mortgage')}>{text.mortgage}</button>
         <button className="nav-link" type="button" onClick={()=>openModal('services')}>{text.services}</button>
         <button className="nav-link" type="button" onClick={()=>openModal('agents')}>{text.agents}</button>
-        <Link className="nav-link" href="#partners">{lang==='uz'?'Hamkorlar uchun':'Для партнёров'}</Link>
-        <Link className="nav-link" href="#post-listing">{text.post}</Link>
         <button className="nav-link" type="button" onClick={()=>openModal('all')}>{text.all}⌄</button>
       </nav>
       <div className="nav-actions"><button className="language-btn" type="button" onClick={()=>setLanguage(lang==='uz'?'ru':'uz')}>{lang==='uz'?'O‘z/Ru':'Ru/O‘z'}</button><span className="location-pill">⌖ Toshkent⌄</span><button className="round-btn" type="button">♡</button><button className="round-btn" type="button">♧</button><button className="account-btn" type="button">{lang==='uz'?'Kirish / Ro‘yxatdan o‘tish':'Войти / Регистрация'}</button></div>
-    </div></header>
+      </div>
+    </header>
+
+    <style>{`\n      .utility-bar{height:38px;background:#fff;border-bottom:1px solid var(--line)}\n      .utility-inner{height:100%;display:flex;align-items:center;justify-content:space-between}\n      .utility-left{font-size:11px;color:#71808a;font-weight:700}\n      .utility-links{display:flex;align-items:center;gap:24px}\n      .utility-links a{font-size:11px;color:#71808a;text-decoration:none;font-weight:700;white-space:nowrap}\n      .utility-links a:hover{color:var(--green-dark)}\n      .utility-links .utility-post{color:var(--green-dark);font-weight:800}\n      .header{height:110px}\n      .nav{height:72px}\n      @media(max-width:900px){.utility-bar{height:36px}.utility-inner{padding:0 14px}.utility-left{display:none}.utility-links{width:100%;justify-content:flex-end;gap:16px}.utility-links a{font-size:10px}.header{height:108px}.nav{height:72px}.main-nav{gap:12px}.nav-actions .location-pill{display:none}}\n      @media(max-width:640px){.utility-inner{padding:0 12px}.utility-links{justify-content:space-between;gap:10px}.utility-links a{font-size:10px}.header{height:102px}.nav{height:66px;gap:12px}.main-nav{overflow-x:auto;flex:none;max-width:calc(100vw - 80px);scrollbar-width:none}.main-nav::-webkit-scrollbar{display:none}.brand{font-size:18px}.brand-mark{width:28px;height:28px;font-size:17px}.nav-actions{gap:2px}.nav-actions .round-btn{display:none}.account-btn{padding:9px 10px;font-size:10px}}\n    `}</style>
 
     <section className="hero-modern"><div className="hero-bg"/><div className="container hero-inner">
       <div className="hero-content"><span className="hero-kicker">{text.kicker}</span><h1>{text.hero}<br/><span>{text.hero2}</span></h1><p>{text.heroText}<br/>{text.heroText2}</p></div>
