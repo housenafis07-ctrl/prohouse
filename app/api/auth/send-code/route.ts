@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 
 export async function POST() {
   if (process.env.AUTH_TEST_MODE !== 'true') {
-    return NextResponse.status(503).json({ error: 'SMS xizmati hali sozlanmagan.' })
+    return NextResponse.json(
+      { error: 'SMS xizmati hali sozlanmagan.' },
+      { status: 503 },
+    )
   }
 
   return NextResponse.json({
