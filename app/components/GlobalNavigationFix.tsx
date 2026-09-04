@@ -14,34 +14,37 @@ export default function GlobalNavigationFix() {
     const syncNavigation = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!mounted) return
-      const button = document.querySelector('.account-btn') as HTMLButtonElement | null
+
+      const button = document.querySelector('.account-btn') as HTMLElement | null
       if (!button) return
 
       const oldLogout = document.querySelector('.global-logout-btn')
       if (oldLogout) oldLogout.remove()
 
       if (user) {
-        button.textContent = 'Kabinet'
-        button.onclick = () => router.push('/account')
-
-        const logout = document.createElement('button')
-        logout.type = 'button'
-        logout.className = 'global-logout-btn account-btn'
-        logout.textContent = 'Chiqish'
-        logout.onclick = async () => {
+        // Authenticated state: show a clear logout action on the homepage.
+        button.textContent = 'Chiqish'
+        button.setAttribute('href', '#')
+        button.onclick = async (event) => {
+          event.preventDefault()
           await supabase.auth.signOut()
           router.refresh()
           await syncNavigation()
         }
-        button.parentElement?.appendChild(logout)
       } else {
         button.textContent = 'Kirish / Ro‘yxatdan o‘tish'
-        button.onclick = () => router.push('/register')
+        button.setAttribute('href', '/register')
+        button.onclick = (event) => {
+          event.preventDefault()
+          router.push('/register')
+        }
       }
     }
 
     void syncNavigation()
-    const { data: listener } = supabase.auth.onAuthStateChange(() => { void syncNavigation() })
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void syncNavigation()
+    })
 
     return () => {
       mounted = false
