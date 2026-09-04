@@ -11,31 +11,31 @@ export default function GlobalNavigationFix() {
 
     const applyNavigation = () => {
       if (!mounted) return
-      const button = document.querySelector('.account-btn') as HTMLAnchorElement | HTMLButtonElement | null
+      const button = document.querySelector('.account-btn') as HTMLButtonElement | null
       if (!button) return
 
       const loggedIn = Boolean(currentUserId)
       const desiredText = loggedIn ? 'Chiqish' : 'Kirish / Ro‘yxatdan o‘tish'
-      const desiredHref = loggedIn ? '#' : '/register'
 
-      // Only mutate the DOM when something actually changed. This is
-      // important because the observer watches the same DOM we update.
       if (button.textContent !== desiredText) button.textContent = desiredText
-      if (button.getAttribute('href') !== desiredHref) button.setAttribute('href', desiredHref)
+
+      const desiredAction = loggedIn ? 'logout' : 'login'
+      if (button.dataset.authAction === desiredAction) return
+
+      button.dataset.authAction = desiredAction
 
       if (loggedIn) {
-        if (button.dataset.authAction !== 'logout') {
-          button.dataset.authAction = 'logout'
-          button.onclick = async (event) => {
-            event.preventDefault()
-            const { error } = await supabase.auth.signOut()
-            if (error) console.error('Logout failed:', error)
-          }
+        button.onclick = async (event) => {
+          event.preventDefault()
+          const { error } = await supabase.auth.signOut()
+          if (error) console.error('Logout failed:', error)
         }
       } else {
-        if (button.dataset.authAction !== 'login') {
-          button.dataset.authAction = 'login'
-          button.onclick = null
+        // This is a <button>, not an <a>, so setting href does not navigate.
+        // Use a real browser navigation for the login/register route.
+        button.onclick = (event) => {
+          event.preventDefault()
+          window.location.assign('/register')
         }
       }
     }
@@ -47,9 +47,6 @@ export default function GlobalNavigationFix() {
       applyNavigation()
     }
 
-    // The header may mount after this component. Observe only for the
-    // appearance/replacement of the account button, while applyNavigation
-    // avoids writing unchanged DOM values and therefore cannot loop forever.
     const observer = new MutationObserver(() => applyNavigation())
     observer.observe(document.body, { childList: true, subtree: true })
 
