@@ -53,7 +53,7 @@ export default function RegisterPage() {
       const response = await fetch('/api/auth/send-code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ phone }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'SMS yuborilmadi')
-      setSent(true); setMessage('SMS kodi yuborildi.')
+      setSent(true); setMessage(data.testMode ? 'Test rejimi: 321321 kodidan foydalaning.' : 'SMS kodi yuborildi.')
     } catch (e) { setMessage(e instanceof Error ? e.message : 'SMS yuborishda xatolik') }
     finally { setLoading(false) }
   }
@@ -68,8 +68,9 @@ export default function RegisterPage() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Kod noto‘g‘ri')
       const supabase = createClient()
-      const { error } = await supabase.auth.signInWithOtp({ phone })
-      if (error) throw error
+      if (!data.session?.access_token || !data.session?.refresh_token) throw new Error('Sessiya ma’lumotlari qaytmadi.')
+      const { error: sessionError } = await supabase.auth.setSession({ access_token:data.session.access_token, refresh_token:data.session.refresh_token })
+      if (sessionError) throw sessionError
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData.session?.user?.id
       if (userId) {
