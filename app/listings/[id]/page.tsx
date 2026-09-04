@@ -138,7 +138,7 @@ export default function ListingDetailPage() {
           <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Sotuvchi bilan bog‘lanish</h2><button onClick={() => setContactOpen(false)} className="text-2xl text-slate-400">×</button></div>
           <p className="mt-3 text-sm text-slate-500">{listing.seller_name ?? 'Sotuvchi'} bilan bog‘lanish usulini tanlang.</p>
           <button className="mt-5 w-full rounded-xl bg-emerald-600 py-3 font-semibold text-white">☎ Telefon raqamini ko‘rsatish</button>
-          <button className="mt-3 w-full rounded-xl border border-slate-200 py-3 font-semibold">💬 Prohouse chat</button>
+          <Link href={`/chat?listing=${encodeURIComponent(listing.id)}`} onClick={() => setContactOpen(false)} className="mt-3 block w-full rounded-xl border border-slate-200 py-3 text-center font-semibold text-slate-700 hover:bg-slate-50">💬 Prohouse chat</Link>
         </div>
       </div>}
     </main>
