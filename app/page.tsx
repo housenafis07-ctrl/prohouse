@@ -22,7 +22,7 @@ export default function Home() {
           <nav className="main-nav">
             <a className="active" href="#">Sotib olish</a><a href="#">Ijara</a><a href="#">Yangi uylar</a><a href="#">Uy qurish</a><a href="#">Ipoteka</a><a href="#">Xizmatlar</a><a href="#">Rieltorlar</a><a href="#">Barchasi⌄</a>
           </nav>
-          <div className="nav-actions"><span className="location-pill">⌖ Toshkent⌄</span><button className="round-btn">♡</button><button className="round-btn">♧</button><button className="account-btn">Kirish / Ro‘yxatdan o‘tish</button></div>
+          <div className="nav-actions"><button className="language-btn" type="button" aria-label="Tilni tanlash">O‘z/Ru</button><span className="location-pill">⌖ Toshkent⌄</span><button className="round-btn">♡</button><button className="round-btn">♧</button><button className="account-btn">Kirish / Ro‘yxatdan o‘tish</button></div>
         </div>
       </header>
 
