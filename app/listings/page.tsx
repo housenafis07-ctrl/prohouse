@@ -75,6 +75,14 @@ export default function ListingsPage() {
     const saved = window.localStorage.getItem('prohouse-lang') as Lang | null
     if (saved === 'uz' || saved === 'ru') setLang(saved)
 
+    const params = new URLSearchParams(window.location.search)
+    const requestedTab = params.get('tab')
+    const requestedType = params.get('type')
+    if (requestedTab === 'sale' || requestedTab === 'rent' || requestedTab === 'daily' || requestedTab === 'all') setTab(requestedTab)
+    if (requestedTab === 'new') { setTab('sale'); setType('new_building') }
+    if (requestedType) setType(requestedType)
+    if (params.get('mortgage') === 'true') setMortgage(true)
+
     let mounted = true
     const loadListings = async () => {
       try {
@@ -163,7 +171,7 @@ export default function ListingsPage() {
 
           <section id="results">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="text-sm text-slate-500">{loading ? '...' : `${filtered.length} ${text.found}`}</div><select className="rounded-xl border bg-white px-3 py-2 text-sm" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">{text.newest}</option><option value="priceLow">{text.priceLow}</option><option value="priceHigh">{text.priceHigh}</option></select></div>
-            {filtered.length === 0 ? <div className="rounded-2xl bg-white p-12 text-center text-slate-500">E’lonlar topilmadi.</div> : <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{filtered.map(item => <article key={item.id} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-1 hover:shadow-lg">
+            {filtered.length === 0 ? <div className="rounded-2xl bg-white p-12 text-center text-slate-500">{lang === 'uz' ? 'E’lonlar topilmadi.' : 'Объявления не найдены.'}</div> : <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{filtered.map(item => <article key={item.id} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-1 hover:shadow-lg">
               <div className="relative aspect-[4/3] bg-slate-100">{item.image_url ? <img src={item.image_url} alt={displayTitle(item)} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-400">Prohouse</div>}{item.is_featured && <span className="absolute left-3 top-3 rounded-lg bg-amber-400 px-2 py-1 text-xs font-black text-slate-900">VIP</span>}{item.is_verified && <span className="absolute right-3 top-3 rounded-lg bg-white/95 px-2 py-1 text-xs font-bold text-emerald-700">✓ {text.verified}</span>}</div>
               <div className="p-4"><h2 className="line-clamp-2 font-bold">{displayTitle(item)}</h2><div className="mt-2 text-lg font-black text-emerald-600">{money(item.price, item.currency)}</div><div className="mt-2 text-sm text-slate-500">{item.area_m2 ? `${item.area_m2} m²` : ''}{item.rooms ? ` • ${item.rooms} xona` : ''}{item.floor ? ` • ${item.floor}/${item.floors_total}` : ''}</div><div className="mt-4 flex items-center justify-between text-xs text-slate-500"><span>{item.district || item.city}</span><button className="rounded-lg bg-emerald-50 px-3 py-2 font-bold text-emerald-700">{text.view}</button></div></div>
             </article>)}</div>}
