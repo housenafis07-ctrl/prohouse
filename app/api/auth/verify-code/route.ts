@@ -5,7 +5,10 @@ const TEST_CODE = process.env.AUTH_TEST_OTP || '321321'
 
 export async function POST(request: Request) {
   if (process.env.AUTH_TEST_MODE !== 'true') {
-    return NextResponse.status(503).json({ error: 'SMS tasdiqlash xizmati hali sozlanmagan.' })
+    return NextResponse.json(
+      { error: 'SMS tasdiqlash xizmati hali sozlanmagan.' },
+      { status: 503 },
+    )
   }
 
   const { phone, code } = await request.json()
@@ -13,17 +16,26 @@ export async function POST(request: Request) {
   const normalizedCode = String(code || '')
 
   if (!/^\+998\d{9}$/.test(normalizedPhone)) {
-    return NextResponse.status(400).json({ error: 'Telefon raqami noto‘g‘ri.' })
+    return NextResponse.json(
+      { error: 'Telefon raqami noto‘g‘ri.' },
+      { status: 400 },
+    )
   }
 
   if (normalizedCode !== TEST_CODE) {
-    return NextResponse.status(401).json({ error: 'Tasdiqlash kodi noto‘g‘ri.' })
+    return NextResponse.json(
+      { error: 'Tasdiqlash kodi noto‘g‘ri.' },
+      { status: 401 },
+    )
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.status(500).json({ error: 'Supabase server kaliti sozlanmagan.' })
+    return NextResponse.json(
+      { error: 'Supabase server kaliti sozlanmagan.' },
+      { status: 500 },
+    )
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -31,7 +43,7 @@ export async function POST(request: Request) {
   })
 
   const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  if (listError) return NextResponse.status(500).json({ error: listError.message })
+  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
 
   let user = usersData.users.find((item) => item.phone === normalizedPhone)
 
@@ -41,18 +53,26 @@ export async function POST(request: Request) {
       phone_confirm: true,
       password: TEST_CODE,
     })
-    if (error) return NextResponse.status(500).json({ error: error.message })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
   } else {
     const { data, error } = await admin.auth.admin.updateUserById(user.id, {
       password: TEST_CODE,
       phone_confirm: true,
     })
-    if (error) return NextResponse.status(500).json({ error: error.message })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
   }
 
-  const authClient = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '', {
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  if (!publishableKey) {
+    return NextResponse.json(
+      { error: 'Supabase publishable key sozlanmagan.' },
+      { status: 500 },
+    )
+  }
+
+  const authClient = createClient(supabaseUrl, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
@@ -62,7 +82,10 @@ export async function POST(request: Request) {
   })
 
   if (signInError || !sessionData.session) {
-    return NextResponse.status(500).json({ error: signInError?.message || 'Sessiya yaratilmadi.' })
+    return NextResponse.json(
+      { error: signInError?.message || 'Sessiya yaratilmadi.' },
+      { status: 500 },
+    )
   }
 
   return NextResponse.json({
