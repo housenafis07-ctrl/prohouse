@@ -25,6 +25,35 @@ const partnerLabels: Record<string, string> = {
   llc: 'Mas’uliyati cheklangan jamiyat — MChJ',
 }
 
+type FieldProps = {
+  label: string
+  value: string | null
+  form: Profile
+  field: keyof Profile
+  editing: boolean
+  required?: boolean
+  disabled?: boolean
+  onChange: (field: keyof Profile, value: string) => void
+}
+
+function ProfileField({ label, value, form, field, editing, required = false, disabled = false, onChange }: FieldProps) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</label>
+      {editing && !disabled ? (
+        <input
+          value={String(form[field] ?? '')}
+          onChange={e => onChange(field, e.target.value)}
+          required={required}
+          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-emerald-500"
+        />
+      ) : (
+        <p className="mt-2 font-bold text-slate-900">{value || '—'}</p>
+      )}
+    </div>
+  )
+}
+
 export default function AccountPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -98,13 +127,6 @@ export default function AccountPage() {
   const isPartner = profile.account_type === 'partner'
   const display = editing ? form : profile
 
-  const Field = ({ label, value, field, required = false, disabled = false }: { label: string; value: string | null; field: keyof Profile; required?: boolean; disabled?: boolean }) => (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</label>
-      {editing && !disabled ? <input value={String(form[field] ?? '')} onChange={e => setField(field, e.target.value)} required={required} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-emerald-500" /> : <p className="mt-2 font-bold text-slate-900">{value || '—'}</p>}
-    </div>
-  )
-
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12">
       <div className="mx-auto max-w-3xl">
@@ -124,17 +146,17 @@ export default function AccountPage() {
           <form onSubmit={saveProfile} className="p-6 sm:p-8">
             {editing && <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Telefon raqami tasdiqlangan akkauntga bog‘langan va bu yerda o‘zgartirilmaydi.</div>}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="F.I.O." value={display.full_name} field="full_name" required />
-              <Field label="Telefon raqami" value={display.phone} field="phone" disabled />
+              <ProfileField label="F.I.O." value={display.full_name} form={form} field="full_name" editing={editing} required onChange={setField} />
+              <ProfileField label="Telefon raqami" value={display.phone} form={form} field="phone" editing={editing} disabled onChange={setField} />
               <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Akkaunt turi</p><p className="mt-2 font-bold text-slate-900">{isPartner ? 'Hamkor' : 'Jismoniy shaxs'}</p></div>
               {isPartner && <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Hamkor turi</p>{editing ? <select value={form.partner_type || ''} onChange={e => setField('partner_type', e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold"><option value="self_employed">O‘zini o‘zi band qilgan — O‘BQ</option><option value="sole_proprietor">Yakka tartibdagi tadbirkor — YaTT</option><option value="llc">Mas’uliyati cheklangan jamiyat — MChJ</option></select> : <p className="mt-2 font-bold text-slate-900">{partnerLabels[profile.partner_type || ''] || '—'}</p>}</div>}
-              {isPartner && <Field label="INN" value={display.inn} field="inn" required />}
-              {isPartner && <Field label="Tashkilot" value={display.company_name} field="company_name" />}
-              {isPartner && <Field label="Rahbar F.I.O." value={display.director_full_name} field="director_full_name" />}
-              {isPartner && <Field label="Bank nomi" value={display.bank_name} field="bank_name" />}
-              {isPartner && <Field label="Hisob raqami" value={display.bank_account} field="bank_account" />}
-              {isPartner && <Field label="MFO" value={display.mfo} field="mfo" />}
-              {isPartner && <Field label="OKED" value={display.oked} field="oked" />}
+              {isPartner && <ProfileField label="INN" value={display.inn} form={form} field="inn" editing={editing} required onChange={setField} />}
+              {isPartner && <ProfileField label="Tashkilot" value={display.company_name} form={form} field="company_name" editing={editing} onChange={setField} />}
+              {isPartner && <ProfileField label="Rahbar F.I.O." value={display.director_full_name} form={form} field="director_full_name" editing={editing} onChange={setField} />}
+              {isPartner && <ProfileField label="Bank nomi" value={display.bank_name} form={form} field="bank_name" editing={editing} onChange={setField} />}
+              {isPartner && <ProfileField label="Hisob raqami" value={display.bank_account} form={form} field="bank_account" editing={editing} onChange={setField} />}
+              {isPartner && <ProfileField label="MFO" value={display.mfo} form={form} field="mfo" editing={editing} onChange={setField} />}
+              {isPartner && <ProfileField label="OKED" value={display.oked} form={form} field="oked" editing={editing} onChange={setField} />}
             </div>
 
             {error && <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div>}
