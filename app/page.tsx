@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 
 type Lang = 'uz' | 'ru'
+type ModalMode = 'buy' | 'rent' | 'all' | null
 type Listing = {
   id: string
   title: string
@@ -53,10 +55,34 @@ const t = {
 
 const money = (value: number, currency: string) => `${new Intl.NumberFormat('ru-RU').format(value)} ${currency === 'USD' ? 'у.е.' : 'сўм'}`
 
+const modalCategories = {
+  uz: [
+    ['▥', 'Kvartiralar', 'Kvartira', 'apartment'],
+    ['⌂', 'Xususiy uylar', 'Uy', 'house'],
+    ['▦', 'Yangi binolar', 'Yangi bino', 'new_building'],
+    ['⌁', 'Yer uchastkalari', 'Yer', 'land'],
+    ['▣', 'Tijorat mulki', 'Tijorat', 'commercial'],
+    ['₿', 'Ipoteka uchun', 'Ipoteka', 'apartment'],
+    ['♙', 'Rieltor orqali', 'Rieltor', 'all'],
+    ['••', 'Barcha takliflar', 'Barchasi', 'all'],
+  ],
+  ru: [
+    ['▥', 'Квартиры', 'Квартира', 'apartment'],
+    ['⌂', 'Частные дома', 'Дом', 'house'],
+    ['▦', 'Новостройки', 'Новостройка', 'new_building'],
+    ['⌁', 'Земельные участки', 'Земля', 'land'],
+    ['▣', 'Коммерческая недвижимость', 'Коммерция', 'commercial'],
+    ['₿', 'Ипотека', 'Ипотека', 'apartment'],
+    ['♙', 'Через риелтора', 'Риелтор', 'all'],
+    ['••', 'Все предложения', 'Все', 'all'],
+  ],
+} as const
+
 export default function Home() {
   const [lang, setLang] = useState<Lang>('uz')
   const [listings, setListings] = useState<Listing[]>(fallback)
   const [tab, setTab] = useState('sale')
+  const [modal, setModal] = useState<ModalMode>(null)
   const text = t[lang]
 
   useEffect(() => {
@@ -70,6 +96,14 @@ export default function Home() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!modal) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setModal(null) }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [modal])
+
   const setLanguage = (next: Lang) => { setLang(next); window.localStorage.setItem('prohouse-lang', next) }
   const featured = useMemo(() => listings.filter(x => x.is_featured).slice(0,3), [listings])
   const latest = useMemo(() => listings.filter(x => !x.is_featured).slice(0,4), [listings])
@@ -77,8 +111,17 @@ export default function Home() {
 
   return <main>
     <header className="header"><div className="container nav">
-      <a className="brand" href="#"><span className="brand-mark">⌂</span><span>Pro<span>house</span></span></a>
-      <nav className="main-nav"><a className="active" href="#">{text.buy}</a><a href="#">{text.rent}</a><a href="#">{text.new}</a><a href="#">{text.build}</a><a href="#">{text.mortgage}</a><a href="#">{text.services}</a><a href="#">{text.agents}</a><a href="#">{text.all}⌄</a></nav>
+      <Link className="brand" href="/"><span className="brand-mark">⌂</span><span>Pro<span>house</span></span></Link>
+      <nav className="main-nav">
+        <button className="nav-link active" type="button" onClick={() => setModal('buy')}>{text.buy}</button>
+        <button className="nav-link" type="button" onClick={() => setModal('rent')}>{text.rent}</button>
+        <Link className="nav-link" href="/listings?type=new_building">{text.new}</Link>
+        <button className="nav-link" type="button" onClick={() => setModal('all')}>{text.build}</button>
+        <Link className="nav-link" href="/listings?type=apartment&mortgage=true">{text.mortgage}</Link>
+        <button className="nav-link" type="button" onClick={() => setModal('all')}>{text.services}</button>
+        <button className="nav-link" type="button" onClick={() => setModal('all')}>{text.agents}</button>
+        <button className="nav-link" type="button" onClick={() => setModal('all')}>{text.all}⌄</button>
+      </nav>
       <div className="nav-actions"><button className="language-btn" type="button" onClick={() => setLanguage(lang === 'uz' ? 'ru' : 'uz')} aria-label="Tilni tanlash">{lang === 'uz' ? 'O‘z/Ru' : 'Ru/O‘z'}</button><span className="location-pill">⌖ Toshkent⌄</span><button className="round-btn">♡</button><button className="round-btn">♧</button><button className="account-btn">{lang === 'uz' ? 'Kirish / Ro‘yxatdan o‘tish' : 'Войти / Регистрация'}</button></div>
     </div></header>
 
@@ -86,26 +129,36 @@ export default function Home() {
       <div className="hero-content"><span className="hero-kicker">{text.kicker}</span><h1>{text.hero}<br/><span>{text.hero2}</span></h1><p>{text.heroText}<br/>{text.heroText2}</p></div>
       <aside className="hero-stats"><div><b>10 000+</b><span>{text.active}</span></div><div><b>1 200+</b><span>{text.verified}</span></div><div><b>12+</b><span>{text.bank}</span></div><div><b>✓</b><span>{text.guarantee}</span></div></aside>
       <div className="search-card modern-search"><div className="search-tabs">{[['sale',text.sale],['rent',text.rent],['daily',text.daily],['new',text.new]].map(([key,label]) => <button key={key} className={tab===key?'selected':''} onClick={() => setTab(key)}>{label}</button>)}</div>
-        <div className="search-row"><div className="field"><small>{text.location}</small><strong>⌖ Toshkent</strong></div><div className="field"><small>{text.district}</small><strong>{text.allDistricts}⌄</strong></div><div className="field"><small>{text.type}</small><strong>{text.allTypes}⌄</strong></div><div className="field"><small>{text.price}</small><strong>{text.anyPrice}⌄</strong></div><button className="search-btn">⌕ {text.search}</button></div>
-        <div className="quick-filters"><button>♙ {text.owner}</button><button>▣ {text.mortgageOk}</button><button>⌂ {text.construction}</button><button>◷ {text.week}</button><button>□ {text.month}</button><button className="all-filter">☷ {text.filters}</button></div>
+        <div className="search-row"><div className="field"><small>{text.location}</small><strong>⌖ Toshkent</strong></div><div className="field"><small>{text.district}</small><strong>{text.allDistricts}⌄</strong></div><div className="field"><small>{text.type}</small><strong>{text.allTypes}⌄</strong></div><div className="field"><small>{text.price}</small><strong>{text.anyPrice}⌄</strong></div><Link className="search-btn" href={`/listings?tab=${tab}`}>⌕ {text.search}</Link></div>
+        <div className="quick-filters"><button>♙ {text.owner}</button><button>▣ {text.mortgageOk}</button><button>⌂ {text.construction}</button><button>◷ {text.week}</button><button>□ {text.month}</button><button className="all-filter" type="button" onClick={() => setModal('all')}>☷ {text.filters}</button></div>
       </div>
     </div></section>
 
-    <section className="container category-row">{text.categories.map((category,i)=><a href="#" className="category" key={category}><span className={`cat-icon c${i}`}>{['▥','⌂','⌁','▣','▥','₿','♙','••'][i]}</span><b>{category}</b></a>)}</section>
+    <section className="container category-row">{text.categories.map((category,i)=><button type="button" className="category" key={category} onClick={() => setModal(i===0?'buy':'all')}><span className={`cat-icon c${i}`}>{['▥','⌂','⌁','▣','▥','₿','♙','••'][i]}</span><b>{category}</b></button>)}</section>
 
-    <section className="container marketplace-section"><div className="section-head"><div><h2>♛ {text.top}</h2><p>{text.topSub}</p></div><a href="#">{lang==='uz'?'Barchasini ko‘rish →':'Смотреть все →'}</a></div><div className="market-layout"><div className="listing-grid top-grid">{featured.map(p=><PropertyCard key={p.id} p={p} title={display(p)} lang={lang}/>)}</div><MapCard text={text}/></div></section>
+    <section className="container marketplace-section"><div className="section-head"><div><h2>♛ {text.top}</h2><p>{text.topSub}</p></div><Link href="/listings">{lang==='uz'?'Barchasini ko‘rish →':'Смотреть все →'}</Link></div><div className="market-layout"><div className="listing-grid top-grid">{featured.map(p=><PropertyCard key={p.id} p={p} title={display(p)} lang={lang}/>)}</div><MapCard text={text}/></div></section>
 
     <section className="container marketplace-section latest-section"><div className="section-head"><div><h2>{text.latest}</h2><p>{lang==='uz'?'Topildi:':'Найдено:'} <strong>{listings.length ? '86 146' : '0'}</strong> {text.found}</p></div><div className="sort">{lang==='uz'?'Saralash:':'Сортировка:'} <b>{text.newest}⌄</b> <button>▦</button><button>☷</button></div></div><div className="market-layout"><div className="listing-grid latest-grid">{latest.map(p=><PropertyCard key={p.id} p={p} compact title={display(p)} lang={lang}/>)}</div><div className="side-stack"><MortgageCard text={text}/><AppCard lang={lang}/></div></div></section>
 
     <section className="why-section"><div className="container"><div className="section-head"><div><h2>{text.why}</h2><p>{text.whySub}</p></div></div><div className="why-grid">{[["◈",text.trust,text.trustText],["▥",text.choice,text.choiceText],["⌖",text.mapSearch,text.mapText],["₿",text.ipoteka,text.ipotekaText],["♙",text.agentsPro,text.agentsText],["✓",text.safe,text.safeText]].map(([icon,title,desc])=><div className="why-card" key={title}><span>{icon}</span><b>{title}</b><p>{desc}</p></div>)}</div></div></section>
-
     <section className="container partners"><span>{text.partners}</span><div><b>IPOTEKA BANK</b><b>HAMKORBANK</b><b>TBC BANK</b><b>XALQ BANKI</b><b>O‘ZBEKINVEST</b><b>KAPITALBANK</b></div></section>
     <section className="container cta"><div><span className="muted-label">{text.sellerKicker}</span><h2>{text.sellerTitle}</h2><p>{text.sellerText}</p></div><button className="green-btn">{text.post} →</button></section>
-    <footer><div className="container footer-grid"><div><a className="brand" href="#"><span className="brand-mark">⌂</span><span>Pro<span>house</span></span></a><p>{text.footer}</p></div><div><b>{text.property}</b><a href="#">{text.buy}</a><a href="#">{text.rent}</a><a href="#">{text.new}</a><a href="#">{text.build}</a></div><div><b>{text.services}</b><a href="#">{text.mortgage}</a><a href="#">{lang==='uz'?'Baholash':'Оценка'}</a><a href="#">{lang==='uz'?'Sug‘urta':'Страхование'}</a><a href="#">{lang==='uz'?'Notarius':'Нотариус'}</a></div><div><b>Prohouse</b><a href="#">{text.about}</a><a href="#">{lang==='uz'?'Yangiliklar':'Новости'}</a><a href="#">{text.help}</a><a href="#">{text.contact}</a></div><div><b>{lang==='uz'?'Yangiliklardan xabardor bo‘ling':'Будьте в курсе новостей'}</b><div className="subscribe"><input placeholder={lang==='uz'?'Email manzilingiz':'Ваш email'}/><button>{lang==='uz'?'Obuna':'Подписаться'}</button></div><p>Telegram · Instagram · YouTube</p></div></div><div className="container footer-bottom">© 2026 Prohouse. {lang==='uz'?'Barcha huquqlar himoyalangan.':'Все права защищены.'}</div></footer>
+    <footer><div className="container footer-grid"><div><Link className="brand" href="/"><span className="brand-mark">⌂</span><span>Pro<span>house</span></span></Link><p>{text.footer}</p></div><div><b>{text.property}</b><Link href="/listings">{text.buy}</Link><Link href="/listings?tab=rent">{text.rent}</Link><Link href="/listings?type=new_building">{text.new}</Link><a href="#">{text.build}</a></div><div><b>{text.services}</b><a href="#">{text.mortgage}</a><a href="#">{lang==='uz'?'Baholash':'Оценка'}</a><a href="#">{lang==='uz'?'Sug‘urta':'Страхование'}</a><a href="#">{lang==='uz'?'Notarius':'Нотариус'}</a></div><div><b>Prohouse</b><a href="#">{text.about}</a><a href="#">{lang==='uz'?'Yangiliklar':'Новости'}</a><a href="#">{text.help}</a><a href="#">{text.contact}</a></div><div><b>{lang==='uz'?'Yangiliklardan xabardor bo‘ling':'Будьте в курсе новостей'}</b><div className="subscribe"><input placeholder={lang==='uz'?'Email manzilingiz':'Ваш email'}/><button>{lang==='uz'?'Obuna':'Подписаться'}</button></div><p>Telegram · Instagram · YouTube</p></div></div><div className="container footer-bottom">© 2026 Prohouse. {lang==='uz'?'Barcha huquqlar himoyalangan.':'Все права защищены.'}</div></footer>
+
+    {modal && <div className="property-modal-overlay" role="presentation" onMouseDown={() => setModal(null)}><section className="property-modal" role="dialog" aria-modal="true" aria-labelledby="property-modal-title" onMouseDown={event => event.stopPropagation()}>
+      <button className="modal-close" type="button" onClick={() => setModal(null)} aria-label="Yopish">×</button>
+      <div className="modal-heading"><span className="modal-kicker">PROHOUSE</span><h2 id="property-modal-title">{modal === 'buy' ? text.buy : modal === 'rent' ? text.rent : text.all} <span>— {lang === 'uz' ? 'nima izlayapsiz?' : 'что вы ищете?'}</span></h2><p>{lang === 'uz' ? 'Kerakli toifani tanlang va mos e’lonlarni ko‘ring.' : 'Выберите категорию и смотрите подходящие предложения.'}</p></div>
+      <div className="modal-category-grid">{modalCategories[lang].map(([icon,title,short,type], index) => {
+        const tabParam = modal === 'rent' ? 'rent' : modal === 'buy' ? 'sale' : 'all'
+        const typeParam = type === 'all' ? '' : `&type=${type}`
+        return <Link key={`${title}-${index}`} href={`/listings?tab=${tabParam}${typeParam}`} className="modal-category" onClick={() => setModal(null)}><span className={`modal-icon mi-${index}`}>{icon}</span><strong>{title}</strong><small>{short}</small><span className="modal-arrow">→</span></Link>
+      })}</div>
+      <div className="modal-footer"><span>✓ {lang === 'uz' ? 'Tasdiqlangan e’lonlar' : 'Проверенные объявления'}</span><span>⌖ Toshkent</span><Link href={`/listings?tab=${modal === 'rent' ? 'rent' : modal === 'buy' ? 'sale' : 'all'}`} onClick={() => setModal(null)}>{lang === 'uz' ? 'Barchasini ko‘rish →' : 'Смотреть все →'}</Link></div>
+    </section></div>}
   </main>
 }
 
 function PropertyCard({ p, compact=false, title, lang }: { p: Listing; compact?: boolean; title: string; lang: Lang }) { const seller = p.seller_name || (p.seller_type==='realtor' ? (lang==='uz'?'Rieltor':'Риелтор') : (lang==='uz'?'Sotuvchi':'Владелец')); return <article className={`property-card ${compact?'compact':''}`}><div className="property-image" style={{backgroundImage:`url(${p.image_url})`}}><span className={`badge ${p.is_featured?'':'top'}`}>{p.is_featured?'VIP':'TOP'}</span><button className="heart">♡</button></div><div className="property-body"><h3>{money(p.price,p.currency)}</h3><p className="property-title">{title}</p><p className="location">⌖ {p.city}{p.district?`, ${p.district}`:''}</p><div className="meta">{p.area_m2?`${p.area_m2} m² · `:''}{p.rooms!==null?`${p.rooms} ${lang==='uz'?'xona':'комн.'} · `:''}{p.floor&&p.floors_total?`${p.floor}/${p.floors_total} ${lang==='uz'?'qavat':'эт.'}`:''}</div><div className="seller">◉ {seller} {p.is_verified&&<span>✓</span>}</div></div></article> }
-function MapCard({text}: {text: typeof t.uz}) { return <aside className="map-card"><div className="map-toolbar"><span>✓ {text.mapSearch}</span><b>＋</b><b>−</b></div><div className="map-art"><span className="map-city">Toshkent</span>{[[25,32,'850 mln'],[54,25,'1.2 mlrd'],[72,52,'950 mln'],[35,68,'620 mln'],[59,76,'1.6 mlrd']].map(([x,y,label])=><span className="map-pin" style={{left:`${x}%`,top:`${y}%`}} key={`${x}-${y}`}><i/>{label}</span>)}</div><button className="map-open">{text.map} →</button></aside> }
-function MortgageCard({text}: {text: typeof t.uz}) { return <div className="side-card mortgage-card"><span className="side-icon">₿</span><div><h3>{text.mortgage}</h3><p>{text.ipotekaText}</p><button>{text.search} →</button></div></div> }
+function MapCard({text}: {text: typeof t.uz}) { return <aside className="map-card"><div className="map-toolbar"><span>✓ {text.mapSearch}</span><b>＋</b><b>−</b></div><div className="map-art"><span className="map-city">Toshkent</span>{[[25,32,'850 mln'],[54,25,'1.2 mlrd'],[72,52,'950 mln'],[35,68,'620 mln'],[59,76,'1.6 mlrd']].map(([x,y,label])=><span className="map-pin" style={{left:`${x}%`,top:`${y}%`}} key={`${x}-${y}`}><i/>{label}</span>)}</div><Link className="map-open" href="/listings">{text.map} →</Link></aside> }
+function MortgageCard({text}: {text: typeof t.uz}) { return <div className="side-card mortgage-card"><span className="side-icon">₿</span><div><h3>{text.mortgage}</h3><p>{text.ipotekaText}</p><Link className="side-button" href="/listings?type=apartment&mortgage=true">{text.search} →</Link></div></div> }
 function AppCard({lang}: {lang: Lang}) { return <div className="side-card app-card"><div><h3>Prohouse {lang==='uz'?'ilovasi':'приложение'}</h3><p>{lang==='uz'?'Uy izlash endi yanada qulay.':'Искать жильё стало ещё удобнее.'}</p><span>App Store · Google Play</span></div><div className="phone">▯</div></div> }
