@@ -5,6 +5,7 @@ import RentalNavigationFix from "./components/RentalNavigationFix";
 import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 import PurchaseNavigationFix from "./components/PurchaseNavigationFix";
 import NewBuildingsNavigationFix from "./components/NewBuildingsNavigationFix";
+import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
 
 export const metadata: Metadata = {
   title: "Prohouse — Ko‘chmas mulk platformasi",
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <DailySearchNavigationFix />
         <PurchaseNavigationFix />
         <NewBuildingsNavigationFix />
+        <HomeBuildingNavigationFix />
         {children}
       </body>
     </html>
