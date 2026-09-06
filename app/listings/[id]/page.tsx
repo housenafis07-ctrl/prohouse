@@ -1,13 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
+type ListingImage = { image_url: string; sort_order: number | null }
 type Listing = {
   id: string
   title: string
+  title_ru?: string | null
+  description?: string | null
   listing_type: string
   property_type: string
   price: number
@@ -18,129 +21,110 @@ type Listing = {
   floors_total: number | null
   district: string | null
   city: string
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
   seller_type: string
   seller_name: string | null
   is_mortgage_available: boolean
   is_verified: boolean
   is_featured: boolean
-  description?: string | null
-  published_at?: string | null
-  image_url?: string
-  images?: string[]
-}
-
-const demo: Record<string, Listing> = {
-  '1': { id: '1', title: '2 xonali zamonaviy kvartira', listing_type: 'sale', property_type: 'apartment', price: 860000000, currency: 'UZS', area_m2: 58, rooms: 2, floor: 5, floors_total: 9, district: 'Yunusobod', city: 'Toshkent', seller_type: 'owner', seller_name: 'Sotuvchi', is_mortgage_available: true, is_verified: true, is_featured: true, image_url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=90', images: ['https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=90', 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=85', 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=85'] },
-  '2': { id: '2', title: 'Yangi qurilgan premium uy', listing_type: 'sale', property_type: 'new_building', price: 1240000000, currency: 'UZS', area_m2: 120, rooms: 4, floor: 2, floors_total: 2, district: 'Mirzo Ulug‘bek', city: 'Toshkent', seller_type: 'developer', seller_name: 'Prohouse Developer', is_mortgage_available: true, is_verified: true, is_featured: true, image_url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=90', images: ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=90'] },
+  published_at: string | null
+  listing_images?: ListingImage[]
 }
 
 const money = (value: number, currency: string) => `${new Intl.NumberFormat('ru-RU').format(value)} ${currency === 'USD' ? 'у.е.' : 'so‘m'}`
 
-export default function ListingDetailPage() {
-  const params = useParams<{ id: string }>()
-  const id = params?.id
-  const [listing, setListing] = useState<Listing | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [activeImage, setActiveImage] = useState(0)
-  const [saved, setSaved] = useState(false)
-  const [contactOpen, setContactOpen] = useState(false)
+function Map({ latitude, longitude }: { latitude: number | null; longitude: number | null }) {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    if (latitude == null || longitude == null) return
+    const id = 'prohouse-leaflet-js'
+    const init = () => setReady(true)
+    if ((window as any).L) init()
+    else {
+      const existing = document.getElementById(id) as HTMLScriptElement | null
+      if (existing) existing.addEventListener('load', init)
+      else {
+        const script = document.createElement('script')
+        script.id = id
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        script.async = true
+        script.onload = init
+        document.body.appendChild(script)
+      }
+    }
+    return () => { const script = document.getElementById(id); script?.removeEventListener('load', init) }
+  }, [latitude, longitude])
 
   useEffect(() => {
+    if (!ready || latitude == null || longitude == null || !(window as any).L) return
+    const L = (window as any).L
+    const element = document.getElementById('listing-detail-map')
+    if (!element || element.dataset.ready === '1') return
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+    if (!document.querySelector('link[href*="leaflet@1.9.4"]')) document.head.appendChild(link)
+    const map = L.map(element).setView([latitude, longitude], 15)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
+    L.marker([latitude, longitude]).addTo(map)
+    element.dataset.ready = '1'
+    setTimeout(() => map.invalidateSize(), 100)
+    return () => { map.remove(); delete element.dataset.ready }
+  }, [ready, latitude, longitude])
+
+  if (latitude == null || longitude == null) return <div className="flex h-[360px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Bu e’lon uchun xaritada aniq joylashuv belgilanmagan.</div>
+  return <div><div id="listing-detail-map" className="h-[360px] w-full rounded-2xl border border-slate-200 bg-slate-100" /><a className="mt-3 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:border-emerald-500 hover:text-emerald-600" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`}>Xaritani katta ko‘rish →</a></div>
+}
+
+export default function ListingDetailPage() {
+  const params = useParams<{ id: string }>()
+  const [listing, setListing] = useState<Listing | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [lang, setLang] = useState<'uz' | 'ru'>('uz')
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('prohouse-lang')
+    if (saved === 'ru') setLang('ru')
     let mounted = true
     const load = async () => {
       try {
         const supabase = createClient()
-        const { data, error } = await supabase
-          .from('listings')
-          .select('*, listing_images(image_url,sort_order)')
-          .eq('id', id)
-          .maybeSingle()
-        if (!error && data && mounted) {
-          const images = (data.listing_images ?? [])
-            .slice()
-            .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-            .map((item: any) => item.image_url)
-            .filter(Boolean)
-          setListing({ ...data, image_url: images[0], images })
-          setLoading(false)
-          return
-        }
-      } catch {
-        // Demo fallback keeps the page usable before the database is populated.
-      }
-      if (mounted) {
-        setListing(demo[id] ?? demo['1'])
-        setLoading(false)
+        const { data, error } = await supabase.from('listings').select('*, listing_images(image_url,sort_order)').eq('id', params.id).maybeSingle()
+        if (error) throw error
+        if (!data) throw new Error('E’lon topilmadi')
+        if (mounted) setListing(data as Listing)
+      } catch (e: any) {
+        if (mounted) setError(e?.message || 'E’lonni yuklashda xatolik yuz berdi.')
+      } finally {
+        if (mounted) setLoading(false)
       }
     }
-    if (id) load()
+    if (params.id) void load()
     return () => { mounted = false }
-  }, [id])
+  }, [params.id])
 
-  const images = useMemo(() => listing?.images?.length ? listing.images : listing?.image_url ? [listing.image_url] : [], [listing])
-  const currentImage = images[activeImage] ?? ''
+  if (loading) return <main className="min-h-screen bg-[#f6f7f8] p-8 text-center text-slate-500">Yuklanmoqda...</main>
+  if (error || !listing) return <main className="min-h-screen bg-[#f6f7f8] p-8"><div className="mx-auto max-w-3xl rounded-2xl bg-white p-8 text-center"><h1 className="text-xl font-black">{error || 'E’lon topilmadi'}</h1><Link href="/listings" className="mt-5 inline-flex rounded-xl bg-emerald-500 px-5 py-3 font-bold text-white">E’lonlarga qaytish</Link></div></main>
 
-  if (loading) return <main className="min-h-screen bg-slate-50 px-4 py-12"><div className="mx-auto max-w-6xl rounded-2xl bg-white p-10 text-center text-slate-500">Yuklanmoqda...</div></main>
-  if (!listing) return <main className="min-h-screen bg-slate-50 px-4 py-12"><div className="mx-auto max-w-6xl rounded-2xl bg-white p-10 text-center">E’lon topilmadi</div></main>
+  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  const title = lang === 'ru' ? (listing.title_ru || listing.title) : listing.title
+  const typeLabel: Record<string, string> = { apartment: 'Kvartira', house: 'Xususiy uy', new_building: 'Yangi bino', commercial: 'Tijorat', land: 'Yer' }
 
-  return (
-    <main className="min-h-screen bg-slate-50 pb-16">
-      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
-        <div className="mb-5 flex items-center gap-2 text-sm text-slate-500">
-          <Link href="/" className="hover:text-emerald-600">Bosh sahifa</Link><span>›</span>
-          <Link href="/listings" className="hover:text-emerald-600">E’lonlar</Link><span>›</span><span className="truncate text-slate-700">{listing.title}</span>
+  return <main className="min-h-screen bg-[#f6f7f8] text-slate-900">
+    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6"><Link href="/listings" className="font-black text-emerald-600">← Prohouse</Link><button onClick={() => { const next = lang === 'uz' ? 'ru' : 'uz'; setLang(next); window.localStorage.setItem('prohouse-lang', next) }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">{lang === 'uz' ? 'O‘z / Ru' : 'Ru / O‘z'}</button></div></header>
+    <div className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6">
+      <div className="mb-5 text-sm text-slate-500"><Link href="/listings" className="hover:text-emerald-600">E’lonlar</Link> <span className="mx-2">›</span> {title}</div>
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid lg:grid-cols-[1.35fr_.65fr]">
+          <div className="bg-slate-100">{images.length ? <img src={images[0].image_url} alt={title} className="h-[420px] w-full object-cover sm:h-[520px]"/> : <div className="flex h-[420px] items-center justify-center text-slate-400">Rasm mavjud emas</div>}</div>
+          <div className="p-6 sm:p-8"><div className="flex flex-wrap gap-2">{listing.is_featured && <span className="rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-black">TOP</span>}{listing.is_verified && <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">✓ Tasdiqlangan</span>}</div><h1 className="mt-4 text-2xl font-black sm:text-3xl">{title}</h1><p className="mt-3 text-2xl font-black text-emerald-600">{money(listing.price, listing.currency)}</p><p className="mt-3 text-sm text-slate-500">⌖ {listing.city}{listing.district ? `, ${listing.district}` : ''}{listing.address ? `, ${listing.address}` : ''}</p><div className="mt-6 grid grid-cols-2 gap-3">{listing.area_m2 != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Maydon</span><b className="mt-1 block">{listing.area_m2} m²</b></div>}{listing.rooms != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Xonalar</span><b className="mt-1 block">{listing.rooms}</b></div>}{listing.floor != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Qavat</span><b className="mt-1 block">{listing.floor}/{listing.floors_total}</b></div>}<div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Mulk turi</span><b className="mt-1 block">{typeLabel[listing.property_type] || listing.property_type}</b></div></div><div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-700">Sotuvchi</p><p className="mt-1 font-black">{listing.seller_name || 'Sotuvchi'}</p>{listing.is_verified && <p className="mt-1 text-xs text-emerald-700">✓ Tasdiqlangan profil</p>}</div></div>
         </div>
-
-        <section className="grid gap-5 lg:grid-cols-[1.65fr_1fr]">
-          <div>
-            <div className="relative overflow-hidden rounded-2xl bg-slate-200 shadow-sm">
-              {currentImage && <img src={currentImage} alt={listing.title} className="h-[420px] w-full object-cover sm:h-[540px]" />}
-              {listing.is_featured && <span className="absolute left-4 top-4 rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-slate-900">TOP</span>}
-              <button aria-label="Saqlash" onClick={() => setSaved(!saved)} className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-xl shadow">{saved ? '♥' : '♡'}</button>
-            </div>
-            {images.length > 1 && <div className="mt-3 grid grid-cols-4 gap-3">{images.map((image, index) => <button key={image} onClick={() => setActiveImage(index)} className={`overflow-hidden rounded-xl border-2 ${activeImage === index ? 'border-emerald-500' : 'border-transparent'}`}><img src={image} alt="" className="h-20 w-full object-cover" /></button>)}</div>}
-          </div>
-
-          <aside className="rounded-2xl bg-white p-6 shadow-sm sm:p-7 lg:sticky lg:top-5 lg:h-fit">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {listing.is_verified && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">✓ Tasdiqlangan</span>}
-              {listing.is_mortgage_available && <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Ipotekaga mumkin</span>}
-            </div>
-            <h1 className="text-2xl font-bold leading-tight text-slate-900 sm:text-3xl">{listing.title}</h1>
-            <p className="mt-2 text-sm text-slate-500">{listing.city}{listing.district ? `, ${listing.district}` : ''}</p>
-            <div className="mt-6 text-3xl font-extrabold text-slate-900">{money(listing.price, listing.currency)}</div>
-            <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Maydon</span><b>{listing.area_m2 ?? '—'} m²</b></div>
-              <div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Xonalar</span><b>{listing.rooms ?? '—'}</b></div>
-              <div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Qavat</span><b>{listing.floor ?? '—'} / {listing.floors_total ?? '—'}</b></div>
-              <div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Turi</span><b>{listing.property_type === 'apartment' ? 'Kvartira' : listing.property_type === 'house' ? 'Xususiy uy' : listing.property_type === 'new_building' ? 'Yangi bino' : 'Ko‘chmas mulk'}</b></div>
-            </div>
-            <button onClick={() => setContactOpen(true)} className="mt-6 w-full rounded-xl bg-emerald-600 px-5 py-3.5 font-bold text-white transition hover:bg-emerald-700">☎ Sotuvchi bilan bog‘lanish</button>
-            <button onClick={() => setSaved(!saved)} className="mt-3 w-full rounded-xl border border-slate-200 px-5 py-3.5 font-semibold text-slate-700 hover:bg-slate-50">{saved ? '♥ Saqlangan' : '♡ Saqlash'}</button>
-            <div className="mt-5 border-t pt-5 text-sm text-slate-500">Sotuvchi: <b className="text-slate-800">{listing.seller_name ?? 'Sotuvchi'}</b></div>
-          </aside>
-        </section>
-
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1.65fr_1fr]">
-          <div className="rounded-2xl bg-white p-6 shadow-sm sm:p-7">
-            <h2 className="text-xl font-bold text-slate-900">E’lon haqida</h2>
-            <p className="mt-4 leading-7 text-slate-600">{listing.description || 'Ko‘chmas mulk haqida batafsil ma’lumot tez orada qo‘shiladi. Hozircha asosiy parametrlar va sotuvchi ma’lumotlari yuqorida ko‘rsatilgan.'}</p>
-          </div>
-          <div className="rounded-2xl bg-white p-6 shadow-sm sm:p-7">
-            <h2 className="text-xl font-bold text-slate-900">Xavfsiz bitim</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">Tasdiqlangan e’lon va sotuvchi bilan bog‘laning. Muhim hujjatlarni tekshirmasdan oldindan to‘lov qilmang.</p>
-          </div>
-        </section>
-      </div>
-
-      {contactOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center" onClick={() => setContactOpen(false)}>
-        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Sotuvchi bilan bog‘lanish</h2><button onClick={() => setContactOpen(false)} className="text-2xl text-slate-400">×</button></div>
-          <p className="mt-3 text-sm text-slate-500">{listing.seller_name ?? 'Sotuvchi'} bilan bog‘lanish usulini tanlang.</p>
-          <button className="mt-5 w-full rounded-xl bg-emerald-600 py-3 font-semibold text-white">☎ Telefon raqamini ko‘rsatish</button>
-          <Link href={`/chat?listing=${encodeURIComponent(listing.id)}`} onClick={() => setContactOpen(false)} className="mt-3 block w-full rounded-xl border border-slate-200 py-3 text-center font-semibold text-slate-700 hover:bg-slate-50">💬 Prohouse chat</Link>
-        </div>
-      </div>}
-    </main>
-  )
+      </section>
+      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]"><div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Tavsif</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{listing.description || 'Tavsif kiritilmagan.'}</p></div><div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Joylashuv</h2><p className="mt-1 mb-4 text-sm text-slate-500">E’lon beruvchi belgilagan joylashuv</p><Map latitude={listing.latitude ?? null} longitude={listing.longitude ?? null}/></div></section>
+      <section className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-6"><h2 className="text-lg font-black">Xavfsiz bitim</h2><p className="mt-1 text-sm text-slate-600">ProHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.</p></section>
+    </div>
+  </main>
 }
