@@ -91,7 +91,8 @@ export default function GlobalNavigationFix() {
       })
 
       const bottom = document.createElement('div')
-      bottom.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px;'
+      bottom.style.cssText = 'display:grid;grid-template-columns:1fr;gap:18px;margin-top:18px;'
+
       const makeGroup = (headingText: string, items: string[]) => {
         const box = document.createElement('div')
         box.style.cssText = 'border:1px solid #dbe3ea;border-radius:12px;padding:20px;min-height:108px;box-sizing:border-box;'
@@ -113,8 +114,64 @@ export default function GlobalNavigationFix() {
         return box
       }
 
+      const makeHomeServices = (headingText: string) => {
+        const box = document.createElement('div')
+        box.style.cssText = 'border:1px solid #dbe3ea;border-radius:12px;padding:20px;box-sizing:border-box;'
+        const heading = document.createElement('h3')
+        heading.textContent = headingText
+        heading.style.cssText = 'margin:0 0 14px;font-size:19px;font-weight:900;color:#334155;'
+        box.appendChild(heading)
+
+        const serviceGrid = document.createElement('div')
+        serviceGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;'
+
+        const services = isRussian
+          ? [
+              ['🛍️','Товары','Товары для дома'],
+              ['🔧','Ремонт','Ремонт и обслуживание'],
+              ['🧹','Клининг','Уборка дома и квартиры'],
+              ['🎨','Дизайн-проект','Интерьер и проектирование'],
+              ['🧰','Мастер на час','Мелкий бытовой ремонт'],
+            ]
+          : [
+              ['🛍️','Tovarlar','Uy uchun kerakli mahsulotlar'],
+              ['🔧','Ta’mirlash','Ta’mirlash va xizmat ko‘rsatish'],
+              ['🧹','Klining','Uy va kvartira tozaligi'],
+              ['🎨','Dizayn-loyiha','Interyer va loyihalash'],
+              ['🧰','Soatbay usta','Mayda maishiy ta’mirlash'],
+            ]
+
+        services.forEach(([icon, name, sub]) => {
+          const card = document.createElement('button')
+          card.type = 'button'
+          card.style.cssText = 'display:flex;align-items:center;gap:13px;min-height:82px;padding:15px;border:1px solid #dbe3ea;border-radius:12px;background:#fff;text-align:left;color:#0f172a;cursor:pointer;box-sizing:border-box;transition:.15s;'
+          card.onmouseenter = () => { card.style.borderColor = '#10b981'; card.style.background = '#f8fffb'; card.style.transform = 'translateY(-1px)' }
+          card.onmouseleave = () => { card.style.borderColor = '#dbe3ea'; card.style.background = '#fff'; card.style.transform = 'translateY(0)' }
+          card.onclick = () => window.alert(isRussian ? 'Этот сервис скоро будет доступен на Prohouse.' : 'Bu xizmat tez orada Prohouse’da ishga tushadi.')
+
+          const iconEl = document.createElement('span')
+          iconEl.textContent = icon
+          iconEl.style.cssText = 'display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:#ecfdf5;font-size:24px;flex:none;'
+          const copy = document.createElement('span')
+          const nameEl = document.createElement('strong')
+          nameEl.textContent = name
+          nameEl.style.cssText = 'display:block;font-size:15px;font-weight:900;line-height:1.25;'
+          const subEl = document.createElement('span')
+          subEl.textContent = sub
+          subEl.style.cssText = 'display:block;margin-top:4px;color:#64748b;font-size:12px;line-height:1.3;'
+          copy.appendChild(nameEl)
+          copy.appendChild(subEl)
+          card.appendChild(iconEl)
+          card.appendChild(copy)
+          serviceGrid.appendChild(card)
+        })
+
+        box.appendChild(serviceGrid)
+        return box
+      }
+
       bottom.appendChild(makeGroup(isRussian ? 'Проведение сделки' : 'Bitimni amalga oshirish', isRussian ? ['Договор купли-продажи','Регистрация и расчёты','Электронная регистрация','Безопасные расчёты'] : ['Oldi-sotdi shartnomasi','Ro‘yxatdan o‘tkazish va hisob-kitob','Elektron ro‘yxatdan o‘tkazish','Xavfsiz hisob-kitob']))
-      bottom.appendChild(makeGroup(isRussian ? 'Сервисы для дома' : 'Uy uchun xizmatlar', isRussian ? ['Товары','Ремонт','Клининг','Дизайн-проект','Мастер на час'] : ['Tovarlar','Ta’mirlash','Klining','Dizayn-loyiha','Soatbay usta']))
+      bottom.appendChild(makeHomeServices(isRussian ? 'Сервисы для дома' : 'Uy uchun xizmatlar'))
 
       modal.appendChild(close)
       modal.appendChild(title)
@@ -147,7 +204,7 @@ export default function GlobalNavigationFix() {
         }
       }
 
-      // Xizmatlar / Услуги opens a Domclick-style service menu instead of /listings.
+      // Xizmatlar / Услуги opens a Prohouse service menu.
       listingLinks.forEach((link) => {
         const text = link.textContent?.trim() || ''
         if (text === 'Услуги' || text === 'Xizmatlar') {
