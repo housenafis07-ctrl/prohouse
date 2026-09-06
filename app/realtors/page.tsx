@@ -13,29 +13,52 @@ const advice = {
     title: 'Rieltorni qanday tanlash kerak?',
     intro: 'Yaxshi rieltor sizga obyekt topishdan tashqari hujjatlarni tekshirish, muzokara va bitim jarayonini xavfsiz tashkil qilishda yordam beradi.',
     items: [
-      ['Reyting va sharhlar', 'Mijozlarning real tajribasini ko‘ring. Ko‘p va sifatli sharhlar mutaxassisning tajribasi haqida yaxshi signal beradi.'],
-      ['Profil', 'Tasdiqlangan profil, fotosurat, ish tajribasi va mutaxassislik yo‘nalishi ko‘rsatilgan rieltorni tanlang.'],
-      ['E’lonlar', 'Rieltorning faol e’lonlarini ko‘ring. E’lonlar soni va sifati uning bozordagi faolligini baholashga yordam beradi.'],
-      ['Bitimlar tajribasi', 'So‘nggi davrdagi bitimlar soni va aynan siz izlayotgan ko‘chmas mulk turidagi tajribasiga e’tibor bering.'],
-      ['Muloqot va shaffoflik', 'Komissiya, xizmat doirasi va bitim bosqichlarini oldindan aniq kelishib oling.'],
+      { title: 'Reyting va sharhlar', body: 'Mijozlarning real tajribasini ko‘ring. Ko‘p va sifatli sharhlar mutaxassisning tajribasi va xizmat darajasi haqida yaxshi signal beradi.', image: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Profil', body: 'Tasdiqlangan profil, professional fotosurat, ish tajribasi va mutaxassislik yo‘nalishi ko‘rsatilgan rieltorni tanlang.', image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=900&q=80' },
+      { title: 'E’lonlar', body: 'Rieltorning faol e’lonlarini ko‘ring. E’lonlar soni, sifati va yangilanib turishi uning bozordagi faolligini baholashga yordam beradi.', image: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Bitimlar tajribasi', body: 'So‘nggi davrdagi bitimlar soni va aynan siz izlayotgan ko‘chmas mulk turidagi tajribasiga e’tibor bering.', image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Muloqot va shaffoflik', body: 'Komissiya, xizmat doirasi, hujjatlar va bitim bosqichlarini oldindan aniq kelishib oling. Muhim kelishuvlarni yozma ravishda tasdiqlash ma’qul.', image: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=900&q=80' },
     ],
-    link: 'https://agencies.domclick.ru/faq/choice-agent',
   },
   agent: {
     title: 'Muvaffaqiyatli rieltor bo‘lish uchun nimalarga e’tibor berish kerak?',
-    intro: 'Prohouse reytingida rieltorning ko‘rinishi va ishonchliligini oshirish uchun profil, sharhlar, bitimlar va faol e’lonlar muhim.',
+    intro: 'Prohouse’da rieltorning ko‘rinishi va ishonchliligini oshirish uchun profil, sharhlar, bitimlar va faol e’lonlar muhim.',
     items: [
-      ['Profilni to‘ldiring', 'Fotosurat, o‘zingiz haqingizdagi ma’lumot, tajriba va mutaxassislik yo‘nalishlarini to‘liq ko‘rsating.'],
-      ['Tasdiqlangan profil', 'Shaxs va professional ma’lumotlar tasdiqlangan bo‘lsa, mijoz uchun ishonch darajasi yuqoriroq bo‘ladi.'],
-      ['Sharhlar', 'Har bir muvaffaqiyatli bitimdan keyin mijoz fikrini olishga harakat qiling va sharhlarga professional javob bering.'],
-      ['Bitimlar', 'So‘nggi 12 oydagi faol bitimlar tajriba va bozorni yaxshi bilishingizni ko‘rsatadi.'],
-      ['Faol e’lonlar', 'Dolzarb, sifatli va muntazam yangilanadigan e’lonlar mijozga sizning faolligingizni ko‘rsatadi.'],
+      { title: 'Profilni to‘ldiring', body: 'Fotosurat, o‘zingiz haqingizdagi ma’lumot, tajriba va mutaxassislik yo‘nalishlarini to‘liq ko‘rsating. Mijoz sizni birinchi qarashdayoq tushunishi kerak.', image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Tasdiqlangan profil', body: 'Shaxs va professional ma’lumotlar tasdiqlangan bo‘lsa, mijoz uchun ishonch darajasi yuqoriroq bo‘ladi.', image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Sharhlar', body: 'Har bir muvaffaqiyatli bitimdan keyin mijoz fikrini olishga harakat qiling va sharhlarga professional javob bering.', image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Bitimlar', body: 'So‘nggi 12 oydagi faol bitimlar tajriba va bozorni yaxshi bilishingizni ko‘rsatadi. Mijozga aynan qaysi yo‘nalishda kuchli ekaningizni ko‘rsating.', image: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=900&q=80' },
+      { title: 'Faol e’lonlar', body: 'Dolzarb, sifatli va muntazam yangilanadigan e’lonlar mijozga sizning faolligingiz va professional yondashuvingizni ko‘rsatadi.', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=900&q=80' },
     ],
-    link: 'https://agencies.domclick.ru/faq/agent',
   },
 } as const
 
 type AdviceKey = keyof typeof advice
+
+const ruAdvice = {
+  choice: {
+    title: 'Как выбрать риелтора?',
+    intro: 'Хороший риелтор помогает не только найти объект, но и проверить документы, провести переговоры и безопасно организовать сделку.',
+    items: [
+      ['Рейтинг и отзывы', 'Изучите реальный опыт клиентов. Большое количество качественных отзывов — хороший сигнал об опыте специалиста.'],
+      ['Профиль', 'Выбирайте риелтора с подтверждённым профилем, фотографией, опытом работы и понятной специализацией.'],
+      ['Объявления', 'Посмотрите активные объявления риелтора. Их количество и качество помогают оценить активность специалиста на рынке.'],
+      ['Опыт сделок', 'Обратите внимание на количество недавних сделок и опыт именно с тем типом недвижимости, который вы ищете.'],
+      ['Общение и прозрачность', 'Заранее согласуйте комиссию, объём услуг, документы и этапы сделки. Важные договорённости лучше фиксировать письменно.'],
+    ],
+  },
+  agent: {
+    title: 'Что важно знать риелтору?',
+    intro: 'На Prohouse профиль, отзывы, сделки и активные объявления помогают риелтору выглядеть профессионально и вызывать доверие клиентов.',
+    items: [
+      ['Заполните профиль', 'Добавьте фотографию, информацию о себе, опыт и направления специализации. Клиент должен сразу понимать, с кем он работает.'],
+      ['Подтверждённый профиль', 'Подтверждённые личные и профессиональные данные повышают уровень доверия со стороны клиента.'],
+      ['Отзывы', 'После успешной сделки просите клиента оставить отзыв и профессионально отвечайте на полученные отзывы.'],
+      ['Сделки', 'Активные сделки за последние 12 месяцев показывают опыт и знание рынка. Подчеркните направления, в которых вы сильнее всего.'],
+      ['Активные объявления', 'Актуальные, качественные и регулярно обновляемые объявления показывают клиенту вашу активность и профессиональный подход.'],
+    ],
+  },
+} as const
 
 export default function RealtorsPage() {
   const [lang, setLang] = useState<'uz' | 'ru'>('uz')
@@ -45,6 +68,7 @@ export default function RealtorsPage() {
 
   const visibleAgents = useMemo(() => agents.filter(a => !search || `${a.name} ${a.agency}`.toLowerCase().includes(search.toLowerCase())), [search])
   const ru = lang === 'ru'
+  const currentAdvice = adviceKey ? advice[adviceKey] : null
 
   return (
     <main className="min-h-screen bg-[#f1f3f5] text-slate-900">
@@ -95,7 +119,27 @@ export default function RealtorsPage() {
         </div>
       </section>
 
-      {adviceKey && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e => { if (e.target === e.currentTarget) setAdviceKey(null) }}><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-7 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">Prohouse maslahatlari</p><h2 className="mt-1 text-2xl font-black">{advice[adviceKey].title}</h2><p className="mt-3 text-sm leading-6 text-slate-600">{advice[adviceKey].intro}</p></div><button onClick={() => setAdviceKey(null)} className="rounded-full bg-slate-100 px-3 py-2 font-bold">×</button></div><div className="mt-6 grid gap-3">{advice[adviceKey].items.map(([title, body]) => <div key={title} className="rounded-2xl bg-slate-50 p-4"><h3 className="font-black">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{body}</p></div>)}</div><div className="mt-6 flex flex-wrap gap-3"><a href={advice[adviceKey].link} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white">DomClick manbasini ko‘rish →</a><button onClick={() => setAdviceKey(null)} className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold">Yopish</button></div></div></div>}
+      {adviceKey && currentAdvice && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={e => { if (e.target === e.currentTarget) setAdviceKey(null) }}>
+        <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white shadow-2xl">
+          <div className="relative overflow-hidden rounded-t-3xl bg-slate-950 px-7 py-8 text-white">
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center opacity-30" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-400">Prohouse maslahatlari</p><h2 className="mt-2 text-2xl font-black sm:text-3xl">{ru ? ruAdvice[adviceKey].title : currentAdvice.title}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-white/80">{ru ? ruAdvice[adviceKey].intro : currentAdvice.intro}</p></div>
+              <button onClick={() => setAdviceKey(null)} className="shrink-0 rounded-full bg-white/15 px-3 py-2 font-bold text-white backdrop-blur hover:bg-white/25">×</button>
+            </div>
+          </div>
+          <div className="grid gap-4 p-6 sm:grid-cols-2">
+            {currentAdvice.items.map((item, index) => {
+              const translated = ru ? ruAdvice[adviceKey].items[index] : null
+              return <article key={item.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <img src={item.image} alt="" className="h-40 w-full object-cover" />
+                <div className="p-5"><div className="mb-2 flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-black text-emerald-700">{index + 1}</span><h3 className="font-black">{translated?.[0] ?? item.title}</h3></div><p className="text-sm leading-6 text-slate-600">{translated?.[1] ?? item.body}</p></div>
+              </article>
+            })}
+          </div>
+          <div className="flex justify-end border-t border-slate-200 px-6 py-5"><button onClick={() => setAdviceKey(null)} className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-black text-white hover:bg-emerald-700">{ru ? 'Закрыть' : 'Yopish'}</button></div>
+        </div>
+      </div>}
     </main>
   )
 }
