@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import GlobalNavigationFix from "./components/GlobalNavigationFix";
 import RentalNavigationFix from "./components/RentalNavigationFix";
+import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 
 export const metadata: Metadata = {
   title: "Prohouse — Ko‘chmas mulk platformasi",
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <GlobalNavigationFix />
         <RentalNavigationFix />
+        <DailySearchNavigationFix />
         {children}
       </body>
     </html>
