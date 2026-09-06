@@ -13,6 +13,21 @@ const mortgageIcons = [
   '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M19 19a19 19 0 0 1 31 8" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="m48 17 3 10-11-1" fill="currentColor"/><path d="M45 45a19 19 0 0 1-31-8" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="m16 47-3-10 11 1" fill="currentColor"/></svg>',
 ]
 
+function replaceMortgageServiceLabel(dialog: Element) {
+  const walker = document.createTreeWalker(dialog, NodeFilter.SHOW_TEXT)
+  const nodes: Text[] = []
+  let node: Node | null
+  while ((node = walker.nextNode())) nodes.push(node as Text)
+  nodes.forEach(textNode => {
+    if (textNode.nodeValue?.includes('Ipotekani xizmat ko‘rsatish')) {
+      textNode.nodeValue = textNode.nodeValue.replace('Ipotekani xizmat ko‘rsatish', 'Uyni ta\'mirlashga')
+    }
+    if (textNode.nodeValue?.includes('Обслуживание ипотеки')) {
+      textNode.nodeValue = textNode.nodeValue.replace('Обслуживание ипотеки', 'На реконструкции')
+    }
+  })
+}
+
 function polishMortgageIcons() {
   const dialog = document.querySelector('[role="dialog"][aria-label]')
   if (!dialog) return
@@ -32,6 +47,7 @@ function polishMortgageIcons() {
       svg.style.display = 'block'
     }
   })
+  replaceMortgageServiceLabel(dialog)
 }
 
 export default function HomeBuildingNavigationFix() {
