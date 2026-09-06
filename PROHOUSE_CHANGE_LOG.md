@@ -1,0 +1,1 @@
+Change prepared in feature/remove-duplicate-search-tabs: removed the duplicate search-panel tabs (Sotuv / Ijara / Kunlik / Yangi uylar) while leaving the remaining search filters and navigation logic unchanged.
