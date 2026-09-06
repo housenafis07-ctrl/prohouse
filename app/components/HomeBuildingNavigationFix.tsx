@@ -19,7 +19,7 @@ function polishMortgageIcons() {
   const cards = Array.from(dialog.querySelectorAll(':scope .grid > a'))
   cards.slice(0, mortgageIcons.length).forEach((card, index) => {
     const icon = card.querySelector(':scope > div:first-child') as HTMLElement | null
-    if (!icon) return
+    if (!icon || icon.querySelector('svg')) return
     icon.innerHTML = mortgageIcons[index]
     icon.style.color = '#059669'
     icon.style.background = 'linear-gradient(135deg,#ecfdf5,#eff6ff)'
@@ -29,6 +29,7 @@ function polishMortgageIcons() {
     if (svg) {
       svg.style.width = '34px'
       svg.style.height = '34px'
+      svg.style.display = 'block'
     }
   })
 }
