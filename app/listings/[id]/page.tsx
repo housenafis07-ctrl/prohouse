@@ -33,49 +33,94 @@ type Listing = {
   listing_images?: ListingImage[]
 }
 
-const money = (value: number, currency: string) => `${new Intl.NumberFormat('ru-RU').format(value)} ${currency === 'USD' ? 'у.е.' : 'so‘m'}`
+const money = (value: number, currency: string) => `${new Intl.NumberFormat('ru-RU').format(value)} ${currency === 'USD' ? '$' : 'so‘m'}`
 
-function Map({ latitude, longitude }: { latitude: number | null; longitude: number | null }) {
+function Map({ latitude, longitude, price, currency, title }: { latitude: number | null; longitude: number | null; price: number; currency: string; title: string }) {
   const [ready, setReady] = useState(false)
+  const mapId = 'listing-detail-map'
+
   useEffect(() => {
     if (latitude == null || longitude == null) return
-    const id = 'prohouse-leaflet-js'
+
+    const scriptId = 'prohouse-leaflet-js'
     const init = () => setReady(true)
-    if ((window as any).L) init()
-    else {
-      const existing = document.getElementById(id) as HTMLScriptElement | null
-      if (existing) existing.addEventListener('load', init)
-      else {
-        const script = document.createElement('script')
-        script.id = id
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-        script.async = true
-        script.onload = init
-        document.body.appendChild(script)
-      }
+
+    if ((window as any).L) {
+      init()
+      return
     }
-    return () => { const script = document.getElementById(id); script?.removeEventListener('load', init) }
+
+    const existing = document.getElementById(scriptId) as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', init)
+      return () => existing.removeEventListener('load', init)
+    }
+
+    const script = document.createElement('script')
+    script.id = scriptId
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    script.async = true
+    script.onload = init
+    document.body.appendChild(script)
+
+    return () => script.removeEventListener('load', init)
   }, [latitude, longitude])
 
   useEffect(() => {
     if (!ready || latitude == null || longitude == null || !(window as any).L) return
+
     const L = (window as any).L
-    const element = document.getElementById('listing-detail-map')
-    if (!element || element.dataset.ready === '1') return
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-    if (!document.querySelector('link[href*="leaflet@1.9.4"]')) document.head.appendChild(link)
-    const map = L.map(element).setView([latitude, longitude], 15)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
-    L.marker([latitude, longitude]).addTo(map)
-    element.dataset.ready = '1'
-    setTimeout(() => map.invalidateSize(), 100)
-    return () => { map.remove(); delete element.dataset.ready }
-  }, [ready, latitude, longitude])
+    const element = document.getElementById(mapId)
+    if (!element) return
+
+    const css = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+    if (!document.querySelector(`link[href="${css}"]`)) {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = css
+      document.head.appendChild(link)
+    }
+
+    const point: [number, number] = [Number(latitude), Number(longitude)]
+    const map = L.map(element).setView(point, 14)
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map)
+
+    const formatted = new Intl.NumberFormat('ru-RU', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(price)
+    const suffix = currency === 'USD' ? '$' : 'so‘m'
+    const period = title ? '' : ''
+
+    const marker = L.marker(point, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="background:#10b981;color:#fff;border:2px solid #fff;border-radius:999px;padding:7px 11px;box-shadow:0 3px 12px rgba(0,0,0,.2);font-size:12px;font-weight:800;white-space:nowrap">${formatted} ${suffix}${period}</div>`,
+        iconAnchor: [18, 18],
+      }),
+    }).addTo(map)
+
+    marker.bindPopup(`<b>${money(price, currency)}</b><br/>${title}`)
+
+    const timer = window.setTimeout(() => map.invalidateSize(), 100)
+    return () => {
+      window.clearTimeout(timer)
+      map.remove()
+    }
+  }, [ready, latitude, longitude, price, currency, title])
 
   if (latitude == null || longitude == null) return <div className="flex h-[360px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">Bu e’lon uchun xaritada aniq joylashuv belgilanmagan.</div>
-  return <div><div id="listing-detail-map" className="h-[360px] w-full rounded-2xl border border-slate-200 bg-slate-100" /><a className="mt-3 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:border-emerald-500 hover:text-emerald-600" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`}>Xaritani katta ko‘rish →</a></div>
+
+  return (
+    <div>
+      <div id={mapId} className="h-[360px] w-full rounded-2xl border border-slate-200 bg-slate-100" />
+      <a className="mt-3 inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:border-emerald-500 hover:text-emerald-600" target="_blank" rel="noreferrer" href={`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=14/${latitude}/${longitude}`}>Xaritani katta ko‘rish →</a>
+    </div>
+  )
 }
 
 export default function ListingDetailPage() {
@@ -123,7 +168,7 @@ export default function ListingDetailPage() {
           <div className="p-6 sm:p-8"><div className="flex flex-wrap gap-2">{listing.is_featured && <span className="rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-black">TOP</span>}{listing.is_verified && <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">✓ Tasdiqlangan</span>}</div><h1 className="mt-4 text-2xl font-black sm:text-3xl">{title}</h1><p className="mt-3 text-2xl font-black text-emerald-600">{money(listing.price, listing.currency)}</p><p className="mt-3 text-sm text-slate-500">⌖ {listing.city}{listing.district ? `, ${listing.district}` : ''}{listing.address ? `, ${listing.address}` : ''}</p><div className="mt-6 grid grid-cols-2 gap-3">{listing.area_m2 != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Maydon</span><b className="mt-1 block">{listing.area_m2} m²</b></div>}{listing.rooms != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Xonalar</span><b className="mt-1 block">{listing.rooms}</b></div>}{listing.floor != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Qavat</span><b className="mt-1 block">{listing.floor}/{listing.floors_total}</b></div>}<div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Mulk turi</span><b className="mt-1 block">{typeLabel[listing.property_type] || listing.property_type}</b></div></div><div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-700">Sotuvchi</p><p className="mt-1 font-black">{listing.seller_name || 'Sotuvchi'}</p>{listing.is_verified && <p className="mt-1 text-xs text-emerald-700">✓ Tasdiqlangan profil</p>}</div></div>
         </div>
       </section>
-      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]"><div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Tavsif</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{listing.description || 'Tavsif kiritilmagan.'}</p></div><div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Joylashuv</h2><p className="mt-1 mb-4 text-sm text-slate-500">E’lon beruvchi belgilagan joylashuv</p><Map latitude={listing.latitude ?? null} longitude={listing.longitude ?? null}/></div></section>
+      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_1fr]"><div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Tavsif</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{listing.description || 'Tavsif kiritilmagan.'}</p></div><div className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-black">Joylashuv</h2><p className="mt-1 mb-4 text-sm text-slate-500">E’lon beruvchi belgilagan joylashuv</p><Map latitude={listing.latitude ?? null} longitude={listing.longitude ?? null} price={listing.price} currency={listing.currency} title={title}/></div></section>
       <section className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-6"><h2 className="text-lg font-black">Xavfsiz bitim</h2><p className="mt-1 text-sm text-slate-600">ProHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.</p></section>
     </div>
   </main>
