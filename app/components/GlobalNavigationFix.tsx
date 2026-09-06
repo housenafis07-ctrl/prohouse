@@ -16,12 +16,29 @@ export default function GlobalNavigationFix() {
 
       const loggedIn = Boolean(currentUserId)
       const desiredText = loggedIn ? 'Chiqish' : 'Kirish / Ro‘yxatdan o‘tish'
-
       if (button.textContent !== desiredText) button.textContent = desiredText
+
+      const navActions = button.parentElement
+      if (navActions) {
+        let postLink = navActions.querySelector('.global-post-listing') as HTMLAnchorElement | null
+        if (loggedIn) {
+          if (!postLink) {
+            postLink = document.createElement('a')
+            postLink.className = 'global-post-listing'
+            postLink.href = '/listings/new'
+            postLink.textContent = 'E’lon joylashtirish'
+            postLink.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:12px;padding:10px 14px;background:#059669;color:#fff;font-size:12px;font-weight:800;text-decoration:none;'
+            postLink.onmouseenter = () => { postLink!.style.background = '#047857' }
+            postLink.onmouseleave = () => { postLink!.style.background = '#059669' }
+            navActions.insertBefore(postLink, button)
+          }
+        } else if (postLink) {
+          postLink.remove()
+        }
+      }
 
       const desiredAction = loggedIn ? 'logout' : 'login'
       if (button.dataset.authAction === desiredAction) return
-
       button.dataset.authAction = desiredAction
 
       if (loggedIn) {
@@ -31,8 +48,6 @@ export default function GlobalNavigationFix() {
           if (error) console.error('Logout failed:', error)
         }
       } else {
-        // This is a <button>, not an <a>, so setting href does not navigate.
-        // Use a real browser navigation for the login/register route.
         button.onclick = (event) => {
           event.preventDefault()
           window.location.assign('/register')
