@@ -37,6 +37,13 @@ const demo: Listing[] = [
 ]
 
 const money = (value:number, currency:string) => `${new Intl.NumberFormat('ru-RU').format(value)} ${currency === 'USD' ? 'у.е.' : 'so‘m'}`
+const mapPrice = (item:Listing) => {
+  const formatted = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }).format(item.price)
+  const suffix = item.currency === 'USD' ? '$' : 'so‘m'
+  if (item.listing_type === 'daily') return `${formatted} ${suffix}/kun`
+  if (item.listing_type === 'rent') return `${formatted} ${suffix}/oy`
+  return `${formatted} ${suffix}`
+}
 const titleOf = (item:Listing, lang:'uz'|'ru') => lang === 'ru' ? (item.title_ru || item.title) : item.title
 
 function ListingsMap({ items, lang }:{items:Listing[]; lang:'uz'|'ru'}) {
@@ -88,14 +95,15 @@ function ListingsMap({ items, lang }:{items:Listing[]; lang:'uz'|'ru'}) {
         const lat = Number(item.latitude)
         const lng = Number(item.longitude)
         points.push([lat, lng])
-        const marker = L.circleMarker([lat, lng], {
-          radius: 10,
-          weight: 3,
-          color: '#047857',
-          fillColor: '#10b981',
-          fillOpacity: 0.95,
+        const marker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: 'prohouse-price-marker',
+            html: `<div style="background:#10b981;color:#fff;border:2px solid #fff;border-radius:999px;padding:7px 11px;box-shadow:0 3px 12px rgba(0,0,0,.22);font-size:12px;font-weight:800;white-space:nowrap;line-height:1">${mapPrice(item)}</div>`,
+            iconSize: undefined,
+            iconAnchor: [0, 18],
+          }),
         }).addTo(map)
-        marker.bindPopup(`<div style="min-width:180px"><b>${money(item.price, item.currency)}</b><br/>${titleOf(item, lang)}<br/><a href="/listings/${item.id}" style="color:#059669;font-weight:700">E’lonni ochish →</a></div>`)
+        marker.bindPopup(`<div style="min-width:200px"><b style="font-size:15px">${money(item.price, item.currency)}${item.listing_type === 'rent' ? ' / oy' : item.listing_type === 'daily' ? ' / kun' : ''}</b><br/><span>${titleOf(item, lang)}</span><br/><a href="/listings/${item.id}" style="display:inline-block;margin-top:7px;color:#059669;font-weight:700">E’lonni ochish →</a></div>`)
       })
       if (points.length === 1) map.setView(points[0], 14)
       else map.fitBounds(points, { padding: [28, 28], maxZoom: 14 })
@@ -233,7 +241,7 @@ export default function ListingsPage() {
               const image = item.listing_images?.slice().sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0]?.image_url
               return <article key={item.id} role="link" tabIndex={0} onClick={() => openListing(item.id)} onKeyDown={event => onCardKeyDown(event, item.id)} className="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500">
                 <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">{image ? <img src={image} alt={titleOf(item, lang)} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"/> : <div className="flex h-full items-center justify-center text-slate-400">Rasm yo‘q</div>}{item.is_featured && <span className="absolute left-3 top-3 rounded-lg bg-amber-400 px-2 py-1 text-xs font-black">TOP</span>}{item.is_verified && <span className="absolute right-3 top-3 rounded-lg bg-white px-2 py-1 text-xs font-bold text-emerald-700">✓ {lang === 'ru' ? 'Проверено' : 'Tasdiqlangan'}</span>}</div>
-                <div className="p-4"><h2 className="text-lg font-black">{money(item.price,item.currency)}</h2><p className="mt-1 line-clamp-2 text-sm font-bold">{titleOf(item,lang)}</p><p className="mt-2 text-xs text-slate-500">⌖ {item.city}{item.district ? `, ${item.district}` : ''}</p><div className="mt-3 flex flex-wrap gap-1.5 text-xs"><span className="rounded-md bg-slate-100 px-2 py-1">{item.property_type}</span>{item.area_m2 != null && <span className="rounded-md bg-slate-100 px-2 py-1">{item.area_m2} m²</span>}{item.rooms != null && <span className="rounded-md bg-slate-100 px-2 py-1">{item.rooms} {lang === 'ru' ? 'комн.' : 'xona'}</span>}</div><div className="mt-4 border-t pt-3 text-xs font-semibold text-slate-600">{item.seller_name || 'Sotuvchi'}</div></div>
+                <div className="p-4"><h2 className="text-lg font-black">{money(item.price,item.currency)}{item.listing_type === 'rent' ? ' / oy' : item.listing_type === 'daily' ? ' / kun' : ''}</h2><p className="mt-1 line-clamp-2 text-sm font-bold">{titleOf(item,lang)}</p><p className="mt-2 text-xs text-slate-500">⌖ {item.city}{item.district ? `, ${item.district}` : ''}</p><div className="mt-3 flex flex-wrap gap-1.5 text-xs"><span className="rounded-md bg-slate-100 px-2 py-1">{item.property_type}</span>{item.area_m2 != null && <span className="rounded-md bg-slate-100 px-2 py-1">{item.area_m2} m²</span>}{item.rooms != null && <span className="rounded-md bg-slate-100 px-2 py-1">{item.rooms} {lang === 'ru' ? 'комн.' : 'xona'}</span>}</div><div className="mt-4 border-t pt-3 text-xs font-semibold text-slate-600">{item.seller_name || 'Sotuvchi'}</div></div>
               </article>
             })}
           </div>
