@@ -23,7 +23,7 @@ export default function BuildHome() {
       <div className="mx-auto flex min-h-[72px] max-w-[1400px] items-center gap-8 px-4">
         <Link href="/" className="flex items-center text-2xl font-black"><span className="mr-2 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">⌂</span>Pro<span className="text-emerald-500">house</span></Link>
         <nav className="hidden flex-1 items-center gap-6 text-sm font-semibold lg:flex">
-          <Link href="/listings?tab=sale">Sotib olish</Link><Link href="/listings?tab=rent">Ijara</Link><Link href="/listings?tab=sale&type=new_building">Yangi uylar</Link><Link className="text-emerald-700" href="/uy-qurish">Uy qurish</Link><Link href="/listings">Xizmatlar</Link><Link href="/realtors">Rieltorlar</Link>
+          <Link href="/listings?tab=sale">Sotib olish</Link><Link href="/listings?tab=rent">Ijara</Link><Link href="/listings?tab=sale&type=new_building">Yangi uylar</Link><Link className="text-emerald-700" href="/uy-qurish">Uy qurish</Link><Link href="/?mortgage=open">Ipoteka</Link><Link href="/listings">Xizmatlar</Link><Link href="/realtors">Rieltorlar</Link>
         </nav>
         <Link href="/account" className="ml-auto rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white">Shaxsiy kabinet</Link>
       </div>
