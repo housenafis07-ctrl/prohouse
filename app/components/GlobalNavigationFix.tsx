@@ -15,8 +15,6 @@ export default function GlobalNavigationFix() {
       if (!button) return
 
       const loggedIn = Boolean(currentUserId)
-      // On the public homepage the second action is the user's cabinet,
-      // not logout. Logout remains available inside the cabinet itself.
       const desiredText = loggedIn ? 'Shaxsiy kabinet' : 'Kirish / Ro‘yxatdan o‘tish'
       if (button.textContent !== desiredText) button.textContent = desiredText
 
@@ -39,6 +37,9 @@ export default function GlobalNavigationFix() {
         }
       }
 
+      // On the homepage the secondary authenticated action is the cabinet.
+      // Logout stays inside the cabinet so the two homepage buttons have clear purposes:
+      // 1) E’lon joylashtirish, 2) Shaxsiy kabinet.
       const desiredAction = loggedIn ? 'account' : 'login'
       if (button.dataset.authAction !== desiredAction) {
         button.dataset.authAction = desiredAction
@@ -55,21 +56,32 @@ export default function GlobalNavigationFix() {
         }
       }
 
-      // The account page should also expose the primary seller action.
+      // The personal cabinet must also have a clearly visible listing action.
+      // Inject it into the existing “Keyingi qadamlar” block without replacing
+      // the React-rendered account UI.
       if (loggedIn && window.location.pathname === '/account') {
-        const accountLink = document.querySelector('.account-post-listing') as HTMLAnchorElement | null
-        if (!accountLink) {
-          const candidates = Array.from(document.querySelectorAll('a'))
-          const cabinetLink = candidates.find(a => a.textContent?.trim() === 'Kabinet' || a.getAttribute('href') === '/account')
-          if (cabinetLink?.parentElement) {
+        const existing = document.querySelector('.account-post-listing') as HTMLAnchorElement | null
+        if (!existing) {
+          const heading = Array.from(document.querySelectorAll('h2')).find(h => h.textContent?.trim() === 'Keyingi qadamlar')
+          const section = heading?.closest('section')
+          const container = section?.querySelector('div.mt-4')
+          if (container) {
             const link = document.createElement('a')
             link.className = 'account-post-listing'
             link.href = '/listings/new'
             link.textContent = 'E’lon joylashtirish'
-            link.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:12px;padding:8px 12px;background:#059669;color:#fff;font-size:13px;font-weight:800;text-decoration:none;margin-left:10px;'
-            link.onmouseenter = () => { link.style.background = '#047857' }
-            link.onmouseleave = () => { link.style.background = '#059669' }
-            cabinetLink.parentElement.appendChild(link)
+            link.style.cssText = 'display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;border:1px solid #a7f3d0;border-radius:16px;padding:16px;background:#ecfdf5;color:#065f46;font-size:14px;font-weight:800;text-decoration:none;margin-bottom:12px;'
+            link.onmouseenter = () => { link.style.background = '#d1fae5' }
+            link.onmouseleave = () => { link.style.background = '#ecfdf5' }
+            const icon = document.createElement('span')
+            icon.textContent = '+'
+            icon.style.cssText = 'display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:#d1fae5;color:#059669;font-size:22px;font-weight:900;flex:none;'
+            const text = document.createElement('span')
+            text.innerHTML = '<span style="display:block">E’lon joylashtirish</span><span style="display:block;margin-top:3px;font-size:12px;font-weight:500;color:#047857">Mulkingizni Prohouse’da soting yoki ijaraga bering.</span>'
+            link.textContent = ''
+            link.appendChild(icon)
+            link.appendChild(text)
+            container.insertBefore(link, container.firstChild)
           }
         }
       }
