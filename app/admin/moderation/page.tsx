@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 
@@ -66,7 +66,7 @@ const propertyLabel = (t: string | null) => ({ apartment: 'Kvartira', house: 'Xu
 const sellerTypeLabel = (t: string) => ({ owner: 'Mulk egasi', realtor: 'Rieltor', agency: 'Agentlik', developer: 'Quruvchi', company: 'Kompaniya' }[t] || t)
 const dateTime = (v: string | null | undefined) => v ? new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : '—'
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
+function Field({ label, value }: { label: string; value: ReactNode }) {
   return <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</div><div className="mt-1 break-words font-bold text-slate-900">{value ?? '—'}</div></div>
 }
 
@@ -86,10 +86,7 @@ function Gallery({ listing }: { listing: Listing }) {
       <div className="relative flex min-h-[420px] items-center justify-center sm:min-h-[520px]">
         {failed[current.id] ? <div className="p-8 text-center text-sm text-slate-500">Bu rasmni yuklab bo‘lmadi.<br /><span className="text-xs">Storage URL tekshirilishi kerak.</span></div> : <img src={current.image_url} alt={`${listing.title} — ${selected + 1}-rasm`} className="max-h-[620px] w-full object-contain" onError={() => setFailed(v => ({ ...v, [current.id]: true }))} />}
         <div className="absolute left-4 top-4 rounded-full bg-black/70 px-3 py-1.5 text-xs font-bold text-white">{selected + 1} / {images.length}</div>
-        {images.length > 1 && <>
-          <button type="button" onClick={() => setSelected(v => v === 0 ? images.length - 1 : v - 1)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">‹</button>
-          <button type="button" onClick={() => setSelected(v => v === images.length - 1 ? 0 : v + 1)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">›</button>
-        </>}
+        {images.length > 1 && <><button type="button" aria-label="Oldingi rasm" onClick={() => setSelected(v => v === 0 ? images.length - 1 : v - 1)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">‹</button><button type="button" aria-label="Keyingi rasm" onClick={() => setSelected(v => v === images.length - 1 ? 0 : v + 1)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">›</button></>}
       </div>
     </div>
     <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8">
