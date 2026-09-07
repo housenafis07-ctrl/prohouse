@@ -42,7 +42,6 @@ export default function GlobalNavigationFix() {
 
       const cards = isRussian
         ? [
-            ['🔑','Сдача жилья в аренду','Сервис для собственников','/listings/new'],
             ['🏷️','Оценка недвижимости','Быстрая оценка стоимости',''],
             ['🔎','Оценка недвижимости для ипотеки','Оценка объекта для банка',''],
             ['🛡️','Сделка с гарантией','Безопасное проведение сделки',''],
@@ -50,7 +49,6 @@ export default function GlobalNavigationFix() {
             ['🏠','Ипотечное страхование','Страхование недвижимости',''],
           ]
         : [
-            ['🔑','Uy-joyni ijaraga berish','Mulk egalari uchun xizmat','/listings/new'],
             ['🏷️','Ko‘chmas mulkni baholash','Mulk qiymatini tez baholash',''],
             ['🔎','Ipoteka uchun baholash','Bank uchun obyekt bahosi',''],
             ['🛡️','Kafolatli bitim','Bitimni xavfsiz amalga oshirish',''],
