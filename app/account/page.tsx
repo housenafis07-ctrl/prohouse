@@ -129,7 +129,6 @@ export default function AccountPage() {
 
   const actions = isPartner ? [
     { icon: 'plus' as const, title: 'E’lon joylashtirish', text: 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings', primary: true },
-    { icon: 'home' as const, title: 'E’lonlarni ko‘rish', text: 'Bozordagi yangi uylar va boshqa takliflarni ko‘ring.', href: '/listings', primary: false },
   ] : [
     { icon: 'home' as const, title: 'Uy topishni boshlash', text: 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
     { icon: 'user' as const, title: 'Profilni to‘ldirish', text: 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
