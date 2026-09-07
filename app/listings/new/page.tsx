@@ -13,7 +13,7 @@ type ImageItem = { file: File; preview: string }
 
 const sectionLabels: Record<string, string> = { sale: 'Sotib olish', rent: 'Ijara', new_building: 'Yangi uylar', services: 'Xizmatlar', realtors: 'Rieltorlar' }
 const typeLabels: Record<string, string> = { apartment: 'Kvartira', house: 'Xususiy uy', land: 'Yer uchastkasi', commercial: 'Tijorat mulki', new_building: 'Yangi bino' }
-const serviceCodes = new Set(['services_construction','services_repair','services_design','services_furniture','services_plumbing','services_electric','services_cleaning','services_moving','services_rent','services_valuation','services_mortgage_valuation','services_guaranteed_deal','services_cash_deal','services_insurance','services_goods','services_handyman','services_other'])
+const serviceCodes = new Set(['services_construction','services_repair','services_design','services_furniture','services_plumbing','services_electric','services_cleaning','services_moving','services_valuation','services_mortgage_valuation','services_guaranteed_deal','services_cash_deal','services_insurance','services_goods','services_handyman','services_other'])
 const realtorCodes = new Set(['realtor_agent','realtor_agency','realtor_company','realtors_agents','realtors_agencies'])
 
 const districtLabel = (value: string) => value.replace(/ tumani$/i, '').replace(/ shahri$/i, '')
@@ -55,7 +55,8 @@ export default function NewListingPage() {
   const update = (key: keyof typeof form, value: string) => setForm(v => ({ ...v, [key]: value }))
   const trusted = Boolean(profile?.trusted_profile)
   const selectedTaxonomy = taxonomy.find(x => x.code === form.taxonomy_code) ?? null
-  const categories = taxonomy.filter(x => x.parent_code && sectionLabels[x.section_code])
+  // services_rent is intentionally excluded: rental of a property belongs to the Ijara section, not Xizmatlar.
+  const categories = taxonomy.filter(x => x.parent_code && sectionLabels[x.section_code] && x.code !== 'services_rent')
   const grouped = Object.entries(sectionLabels).map(([section, label]) => ({ section, label, items: categories.filter(x => x.section_code === section) })).filter(x => x.items.length)
   const mode = selectedTaxonomy?.listing_type === 'service' || serviceCodes.has(selectedTaxonomy?.code || '') ? 'service' : selectedTaxonomy?.listing_type === 'realtor' || realtorCodes.has(selectedTaxonomy?.code || '') ? 'realtor' : 'property'
 
