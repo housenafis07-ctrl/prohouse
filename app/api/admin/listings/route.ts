@@ -14,7 +14,7 @@ function authorized(request: NextRequest) {
   return Boolean(configured && supplied && supplied === configured)
 }
 
-const select = 'id,listing_code,title,title_ru,description,listing_type,property_type,status,price,currency,area_m2,rooms,floor,floors_total,city,district,neighborhood,address,latitude,longitude,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,created_at,updated_at,taxonomy_code,moderation_note,moderation_updated_at,owner_id,profiles:owner_id(full_name,phone,company_name,account_type,partner_type,inn),partner_listing_taxonomy(taxonomy_code:code,name_uz,name_ru,section_code,parent_code,is_mortgage_filter,is_new_construction_filter),listing_images(image_url,sort_order)'
+const select = 'id,listing_code,title,title_ru,description,listing_type,property_type,status,price,currency,area_m2,rooms,floor,floors_total,city,district,neighborhood,address,latitude,longitude,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,created_at,updated_at,taxonomy_code,moderation_note,moderation_updated_at,owner_id,partner_listing_taxonomy(name_uz,name_ru,section_code,parent_code,is_mortgage_filter,is_new_construction_filter),listing_images(image_url,sort_order)'
 
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -44,9 +44,10 @@ export async function PATCH(request: NextRequest) {
     if (action === 'reject' && !reason) return NextResponse.json({ error: 'Rad etish sababini kiriting.' }, { status: 400 })
 
     const supabase = adminClient()
+    const now = new Date().toISOString()
     const patch = action === 'approve'
-      ? { status: 'active', is_verified: true, published_at: new Date().toISOString(), moderation_note: null, moderation_updated_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-      : { status: 'rejected', is_verified: false, published_at: null, moderation_note: reason, moderation_updated_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      ? { status: 'active', is_verified: true, published_at: now, moderation_note: null, moderation_updated_at: now, updated_at: now }
+      : { status: 'rejected', is_verified: false, published_at: null, moderation_note: reason, moderation_updated_at: now, updated_at: now }
 
     const { data, error } = await supabase
       .from('listings')
