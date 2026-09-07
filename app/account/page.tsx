@@ -127,19 +127,17 @@ export default function AccountPage() {
   const completed = [hasPhone, hasName, hasPartnerData].filter(Boolean).length
   const completion = Math.round((completed / 3) * 100)
 
-  // Hamkor kabinetida faqat 2 ta amal bo‘ladi: e’lon berish va e’lonlarni ko‘rish.
-  // Uchinchi, takroriy “E’lon joylashtirish” kartasi ataylab mavjud emas.
-  const partnerActions = [
-    { icon: 'plus' as const, title: 'E’lon joylashtirish', text: 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings', primary: true },
-    { icon: 'home' as const, title: 'E’lonlarni ko‘rish', text: 'Bozordagi yangi uylar va boshqa takliflarni ko‘ring.', href: '/listings', primary: false },
-  ]
-
-  const individualActions = [
-    { icon: 'home' as const, title: 'Uy topishni boshlash', text: 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
-    { icon: 'user' as const, title: 'Profilni to‘ldirish', text: 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
-  ]
-
-  const actions = isPartner ? partnerActions : individualActions
+  // Hamkor kabinetida aynan 2 ta amal bor: e’lon joylashtirish va e’lonlarni ko‘rish.
+  // Bu massiv ataylab shu ikki kartadan boshqa hech qanday hamkor amalini chiqarmaydi.
+  const actions = isPartner
+    ? [
+        { icon: 'plus' as const, title: 'E’lon joylashtirish', text: 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings', primary: true },
+        { icon: 'home' as const, title: 'E’lonlarni ko‘rish', text: 'Bozordagi yangi uylar va boshqa takliflarni ko‘ring.', href: '/listings', primary: false },
+      ]
+    : [
+        { icon: 'home' as const, title: 'Uy topishni boshlash', text: 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
+        { icon: 'user' as const, title: 'Profilni to‘ldirish', text: 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
+      ]
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10">
@@ -204,7 +202,7 @@ export default function AccountPage() {
             <section className="rounded-3xl bg-white p-6 shadow-sm">
               <h2 className="text-lg font-extrabold text-slate-900">Keyingi qadamlar</h2>
               <div className="mt-4 space-y-3">
-                {actions.map(action => <Link key={action.title} href={action.href} className={`flex gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 ${action.primary ? 'border-emerald-100 bg-emerald-50' : 'border-slate-100 bg-slate-50'}`}><StatusIcon type={action.icon} /><span><span className="block font-extrabold text-slate-900">{action.title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{action.text}</span></span></Link>)}
+                {actions.map((action, index) => <Link key={`${action.title}-${index}`} href={action.href} className={`flex gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 ${action.primary ? 'border-emerald-100 bg-emerald-50' : 'border-slate-100 bg-slate-50'}`}><StatusIcon type={action.icon} /><span><span className="block font-extrabold text-slate-900">{action.title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{action.text}</span></span></Link>)}
               </div>
             </section>
 
