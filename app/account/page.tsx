@@ -55,7 +55,7 @@ export default function AccountPage() {
       const { data, error: profileError } = await supabase.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').eq('id', user.id).maybeSingle()
       if (!mounted) return
       if (profileError) setError(profileError.message)
-      const value: Profile = data ?? { phone: user.phone ?? null, full_name: null, account_type: 'individual', partner_type: null, company_name: null, bank_name: null, bank_account: null, mfo: null, inn: null, oked: null, director_full_name: null }
+      const value: Profile = data ?? { phone: user.phone ?? null, full_name: null, account_type: 'individual', partner_type: null, company_name: null, inn: null, bank_name: null, bank_account: null, mfo: null, oked: null, director_full_name: null }
       setProfile(value); setForm(value); setLoading(false)
     }
     load(); return () => { mounted = false }
@@ -88,7 +88,7 @@ export default function AccountPage() {
   const completion = Math.round(([hasPhone, hasName, hasPartnerData].filter(Boolean).length / 3) * 100)
   const actions = isPartner ? [
     { icon: 'plus' as const, title: 'E’lon joylashtirish', text: 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings/new', primary: true },
-    { icon: 'home' as const, title: 'E’lonlarni ko‘rish', text: 'Bozordagi yangi uylar va boshqa takliflarni ko‘ring.', href: '/listings', primary: false },
+    { icon: 'home' as const, title: 'Mening e’lonlarim', text: 'Joylashtirgan e’lonlaringizni ko‘ring, tahrirlang va holatini boshqaring.', href: '/account/listings', primary: false },
   ] : [
     { icon: 'home' as const, title: 'Uy topishni boshlash', text: 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
     { icon: 'user' as const, title: 'Profilni to‘ldirish', text: 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
