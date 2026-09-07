@@ -127,13 +127,19 @@ export default function AccountPage() {
   const completed = [hasPhone, hasName, hasPartnerData].filter(Boolean).length
   const completion = Math.round((completed / 3) * 100)
 
-  const actions = isPartner ? [
+  // Hamkor kabinetida faqat 2 ta amal bo‘ladi: e’lon berish va e’lonlarni ko‘rish.
+  // Uchinchi, takroriy “E’lon joylashtirish” kartasi ataylab mavjud emas.
+  const partnerActions = [
     { icon: 'plus' as const, title: 'E’lon joylashtirish', text: 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings', primary: true },
     { icon: 'home' as const, title: 'E’lonlarni ko‘rish', text: 'Bozordagi yangi uylar va boshqa takliflarni ko‘ring.', href: '/listings', primary: false },
-  ] : [
+  ]
+
+  const individualActions = [
     { icon: 'home' as const, title: 'Uy topishni boshlash', text: 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
     { icon: 'user' as const, title: 'Profilni to‘ldirish', text: 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
   ]
+
+  const actions = isPartner ? partnerActions : individualActions
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10">
