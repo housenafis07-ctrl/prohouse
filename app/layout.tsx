@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata } from "react";
 import "./globals.css";
-import GlobalNavigationFix from "./components/GlobalNavigationFix";
+import GlobalNavigationGate from "./components/GlobalNavigationGate";
 import RentalNavigationFix from "./components/RentalNavigationFix";
 import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 import PurchaseNavigationFix from "./components/PurchaseNavigationFix";
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="uz">
       <body>
-        <GlobalNavigationFix />
+        <GlobalNavigationGate />
         <RentalNavigationFix />
         <DailySearchNavigationFix />
         <PurchaseNavigationFix />
