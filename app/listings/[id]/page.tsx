@@ -32,9 +32,23 @@ function Map({ latitude, longitude, price, currency, title }: { latitude: number
 
 export default function ListingDetailPage() {
   const params = useParams<{ id: string }>(); const router = useRouter()
-  const [listing, setListing] = useState<Listing | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [lang, setLang] = useState<'uz' | 'ru'>('uz'); const [activeImage, setActiveImage] = useState(0); const [contacting, setContacting] = useState<'call' | 'chat' | null>(null); const [contactError, setContactError] = useState(''); const [phoneRevealed, setPhoneRevealed] = useState(false); const [revealedPhone, setRevealedPhone] = useState('')
+  const [listing, setListing] = useState<Listing | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [lang, setLang] = useState<'uz' | 'ru'>('uz'); const [activeImage, setActiveImage] = useState(0); const [contacting, setContacting] = useState<'call' | 'chat' | null>(null); const [contactError, setContactError] = useState(''); const [phoneRevealed, setPhoneRevealed] = useState(false); const [revealedPhone, setRevealedPhone] = useState(''); const [favorite, setFavorite] = useState(false); const [favoriteBusy, setFavoriteBusy] = useState(false)
 
   useEffect(() => { const saved = window.localStorage.getItem('prohouse-lang'); if (saved === 'ru') setLang('ru'); let mounted = true; const load = async () => { try { const supabase = createClient(); const { data, error } = await supabase.from('listings').select('*, listing_images(image_url,sort_order)').eq('id', params.id).eq('status', 'active').maybeSingle(); if (error) throw error; if (!data) throw new Error('E’lon topilmadi yoki hozir faol emas'); if (mounted) { setListing(data as Listing); setActiveImage(0) } } catch (e: any) { if (mounted) setError(e?.message || 'E’lonni yuklashda xatolik yuz berdi.') } finally { if (mounted) setLoading(false) } }; if (params.id) void load(); return () => { mounted = false } }, [params.id])
+  useEffect(() => { if (!listing) return; (async()=>{ try { const response=await fetch(`/api/listings/events?listingId=${encodeURIComponent(listing.id)}`); if(response.ok){const result=await response.json();setFavorite(Boolean(result.favorite))} } catch {} })() }, [listing])
+
+  const toggleFavorite = async () => {
+    if (!listing || favoriteBusy) return
+    setFavoriteBusy(true)
+    try {
+      const next = !favorite
+      const response = await fetch('/api/listings/events', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ listingId:listing.id, action:next?'favorite':'unfavorite' }) })
+      const result = await response.json().catch(()=>({}))
+      if (response.status===401) { router.push(`/register?redirect=/listings/${listing.id}`); return }
+      if (!response.ok) throw new Error(result.error||'Saqlanganlar bilan ishlashda xatolik.')
+      setFavorite(next)
+    } catch(e) { setContactError(e instanceof Error?e.message:'Saqlashda xatolik yuz berdi.') } finally { setFavoriteBusy(false) }
+  }
 
   const contact = async (type: 'call' | 'chat') => {
     if (!listing || contacting) return; setContactError(''); setContacting(type)
@@ -42,25 +56,19 @@ export default function ListingDetailPage() {
       const response = await fetch('/api/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId: listing.id, leadType: type }) })
       const result = await response.json()
       if (!response.ok) { if (response.status === 401) { router.push(`/register?redirect=/listings/${listing.id}`); return }; throw new Error(result.error || 'Murojaatni yuborib bo‘lmadi.') }
-      if (type === 'call') {
-        if (!result.phone) throw new Error('Sotuvchi telefon raqami kiritilmagan.')
-        setRevealedPhone(result.phone)
-        setPhoneRevealed(true)
-        return
-      }
+      if (type === 'call') { if (!result.phone) throw new Error('Sotuvchi telefon raqami kiritilmagan.'); setRevealedPhone(result.phone); setPhoneRevealed(true); return }
       router.push(`/chat?listingId=${listing.id}&conversationId=${result.conversationId}`)
     } catch (e: any) { setContactError(e?.message || 'Xatolik yuz berdi.') } finally { setContacting(null) }
   }
 
   const callSeller = () => { if (revealedPhone) window.location.href = `tel:${revealedPhone}` }
-
   if (loading) return <main className="min-h-screen bg-[#f6f7f8] p-8 text-center text-slate-500">Yuklanmoqda...</main>
   if (error || !listing) return <main className="min-h-screen bg-[#f6f7f8] p-8"><div className="mx-auto max-w-3xl rounded-2xl bg-white p-8 text-center"><h1 className="text-xl font-black">{error || 'E’lon topilmadi'}</h1><Link href="/listings" className="mt-5 inline-flex rounded-xl bg-emerald-500 px-5 py-3 font-bold text-white">E’lonlarga qaytish</Link></div></main>
 
   const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)); const safeImageIndex = Math.min(activeImage, Math.max(images.length - 1, 0)); const title = lang === 'ru' ? (listing.title_ru || listing.title) : listing.title; const typeLabel: Record<string, string> = { apartment: 'Kvartira', house: 'Xususiy uy', new_building: 'Yangi bino', commercial: 'Tijorat', land: 'Yer' }; const previousImage = () => setActiveImage(i => images.length ? (i - 1 + images.length) % images.length : 0); const nextImage = () => setActiveImage(i => images.length ? (i + 1) % images.length : 0)
 
   return <main className="min-h-screen bg-[#f6f7f8] text-slate-900">
-    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6"><Link href="/listings" className="font-black text-emerald-600">← Prohouse</Link><button onClick={() => { const next = lang === 'uz' ? 'ru' : 'uz'; setLang(next); window.localStorage.setItem('prohouse-lang', next) }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">{lang === 'uz' ? 'O‘z / Ru' : 'Ru / O‘z'}</button></div></header>
+    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6"><Link href="/listings" className="font-black text-emerald-600">← Prohouse</Link><div className="flex items-center gap-2"><button onClick={toggleFavorite} disabled={favoriteBusy} className={`rounded-xl border px-4 py-2 text-sm font-extrabold ${favorite?'border-rose-200 bg-rose-50 text-rose-700':'border-slate-200 bg-white text-slate-700'} disabled:opacity-50`}>{favorite?'♥ Saqlangan':'♡ Saqlash'}</button><button onClick={() => { const next = lang === 'uz' ? 'ru' : 'uz'; setLang(next); window.localStorage.setItem('prohouse-lang', next) }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">{lang === 'uz' ? 'O‘z / Ru' : 'Ru / O‘z'}</button></div></div></header>
     <div className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6"><div className="mb-5 text-sm text-slate-500"><Link href="/listings" className="hover:text-emerald-600">E’lonlar</Link> <span className="mx-2">›</span> {title}</div>
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="grid lg:grid-cols-[1.35fr_.65fr]"><div className="bg-slate-100"><div className="relative h-[420px] sm:h-[520px]">{images.length ? <img src={images[safeImageIndex].image_url} alt={title} className="h-full w-full object-cover"/> : <div className="flex h-full items-center justify-center text-slate-400">Rasm mavjud emas</div>}{images.length > 1 && <><button aria-label="Oldingi rasm" onClick={previousImage} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow-lg">‹</button><button aria-label="Keyingi rasm" onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow-lg">›</button><div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/65 px-3 py-1.5 text-xs font-bold text-white">{safeImageIndex + 1} / {images.length}</div></>}</div>{images.length > 1 && <div className="flex gap-2 overflow-x-auto border-t border-slate-200 bg-white p-3">{images.map((image, index) => <button key={`${image.image_url}-${index}`} onClick={() => setActiveImage(index)} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${safeImageIndex === index ? 'border-emerald-500' : 'border-transparent'}`}><img src={image.image_url} alt={`${title} — ${index + 1}`} className="h-full w-full object-cover"/></button>)}</div>}</div>
         <div className="p-6 sm:p-8"><div className="flex flex-wrap gap-2">{listing.is_featured && <span className="rounded-lg bg-amber-400 px-2.5 py-1 text-xs font-black">TOP</span>}{listing.is_verified && <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">✓ Tasdiqlangan</span>}{listing.is_trusted_seller && <TrustedBadge/>}</div><h1 className="mt-4 text-2xl font-black sm:text-3xl">{title}</h1><p className="mt-3 text-2xl font-black text-emerald-600">{money(listing.price, listing.currency)}</p><p className="mt-3 text-sm text-slate-500">⌖ {listing.city}{listing.district ? `, ${listing.district}` : ''}{listing.address ? `, ${listing.address}` : ''}</p><div className="mt-6 grid grid-cols-2 gap-3">{listing.area_m2 != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Maydon</span><b className="mt-1 block">{listing.area_m2} m²</b></div>}{listing.rooms != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Xonalar</span><b className="mt-1 block">{listing.rooms}</b></div>}{listing.floor != null && <div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Qavat</span><b className="mt-1 block">{listing.floor}/{listing.floors_total}</b></div>}<div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Mulk turi</span><b className="mt-1 block">{typeLabel[listing.property_type] || listing.property_type}</b></div></div>
