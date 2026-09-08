@@ -72,7 +72,11 @@ function ChatPageContent() {
       if (messageError) { if (mounted) setError(messageError.message); return }
       if (mounted) setMessages((data ?? []).map(message => ({ id: message.id, text: message.body, mine: message.sender_id === userId, time: new Date(message.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) })))
       await supabase.from('messages').update({ read_at: new Date().toISOString() }).eq('conversation_id', activeConversationId).neq('sender_id', userId).is('read_at', null)
-      if (mounted) setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, unread: 0 } : item))
+      await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', userId).eq('conversation_id', activeConversationId).is('read_at', null)
+      if (mounted) {
+        setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, unread: 0 } : item))
+        setNotifications(current => current.map(item => item.conversation_id === activeConversationId ? { ...item, read_at: new Date().toISOString() } : item))
+      }
     }
     void loadMessages()
     return () => { mounted = false }
