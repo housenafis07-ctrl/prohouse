@@ -102,7 +102,18 @@ function ChatPageContent() {
     setSending(true); setError('')
     const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversationId, sender_id: userId, body: value }).select('id,sender_id,body,created_at').single()
     if (sendError) setError(sendError.message)
-    else if (data) { setMessages(current => current.some(message => message.id === data.id) ? current : [...current, { id: data.id, text: data.body, mine: true, time: new Date(data.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) }]); setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, lastMessage: data.body, updated_at: data.created_at } : item)); setText('') }
+    else if (data) {
+      setMessages(current => current.some(message => message.id === data.id) ? current : [...current, { id: data.id, text: data.body, mine: true, time: new Date(data.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) }])
+      setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, lastMessage: data.body, updated_at: data.created_at } : item))
+      setText('')
+      // Push yuborish xabar INSERT muvaffaqiyatli bo‘lgandan keyin amalga oshiriladi.
+      // Push ishlamasa ham chat xabarining o‘zi muvaffaqiyatli yuborilgan holatda qoladi.
+      void fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: data.id }),
+      }).catch(() => {})
+    }
     setSending(false)
   }
 
