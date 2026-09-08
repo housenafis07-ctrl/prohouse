@@ -20,6 +20,18 @@ export async function POST(request: Request) {
     ? data.ownership_type
     : null
 
+  // The listings INSERT RLS policy requires seller_role='owner' for
+  // individual accounts. Resolve it from the trusted profile instead of
+  // accepting seller_role from the browser payload.
+  let sellerRole: string | null = null
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('account_type')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
+  if (profile?.account_type === 'individual') sellerRole = 'owner'
+
   // P1.1: enforce the individual 3-free-listing allowance on the server
   // immediately before an unsubmitted listing enters moderation.
   if (status === 'moderation') {
@@ -53,6 +65,7 @@ export async function POST(request: Request) {
       draft_data: data,
       submitted_at: status === 'moderation' ? new Date().toISOString() : null,
     }
+    if (sellerRole) insertData.seller_role = sellerRole
     if (ownershipType) insertData.ownership_type = ownershipType
 
     const { data: created, error } = await supabase
