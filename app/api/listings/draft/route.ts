@@ -31,14 +31,33 @@ export async function POST(request: Request) {
   if (!listingId) {
     const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
     if (!taxonomyCode) return NextResponse.json({ error: 'TAXONOMY_REQUIRED' }, { status: 400 })
+
+    // The listings INSERT RLS policy distinguishes individual owners from
+    // partner accounts using seller_role. The wizard does not expose this
+    // field, so derive it from the authenticated profile instead of allowing
+    // the client to bypass or accidentally omit the required value.
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('account_type')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
+
+    const sellerRole = profile?.account_type === 'individual' ? 'owner' : null
+
     const { data: created, error } = await supabase.from('listings').insert({
-      owner_id: user.id, taxonomy_code: taxonomyCode,
+      owner_id: user.id,
+      taxonomy_code: taxonomyCode,
+      seller_role: sellerRole,
       title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : 'Qoralama e’lon',
       description: typeof data.description === 'string' ? data.description : null,
       listing_type: typeof data.listing_type === 'string' ? data.listing_type : 'sale',
-      property_type: typeof data.property_type === 'string' ? data.property_type : 'apartment', status,
+      property_type: typeof data.property_type === 'string' ? data.property_type : 'apartment',
+      status,
       price: Number.isFinite(Number(data.price)) ? Number(data.price) : 0,
-      currency: data.currency === 'USD' ? 'USD' : 'UZS', draft_step: step, draft_data: data,
+      currency: data.currency === 'USD' ? 'USD' : 'UZS',
+      draft_step: step,
+      draft_data: data,
       submitted_at: status === 'moderation' ? new Date().toISOString() : null,
     }).select('id,listing_code,status,draft_step').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -46,7 +65,8 @@ export async function POST(request: Request) {
   }
 
   const { data: updated, error } = await supabase.from('listings').update({
-    draft_step: step, draft_data: data,
+    draft_step: step,
+    draft_data: data,
     ...(typeof data.title === 'string' && data.title.trim() ? { title: data.title.trim() } : {}),
     ...(typeof data.description === 'string' ? { description: data.description } : {}),
     ...(data.price !== undefined && Number.isFinite(Number(data.price)) ? { price: Number(data.price) } : {}),
