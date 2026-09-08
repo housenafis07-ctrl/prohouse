@@ -98,3 +98,33 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ listing: updated })
 }
+
+export async function DELETE(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  const url = new URL(request.url)
+  const listingId = url.searchParams.get('listingId')
+  if (!listingId) return NextResponse.json({ error: 'LISTING_ID_REQUIRED' }, { status: 400 })
+
+  const { data: listing, error: findError } = await supabase
+    .from('listings')
+    .select('id,status')
+    .eq('id', listingId)
+    .eq('owner_id', user.id)
+    .maybeSingle()
+  if (findError) return NextResponse.json({ error: findError.message }, { status: 400 })
+  if (!listing) return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
+  if (!['draft', 'rejected'].includes(listing.status)) {
+    return NextResponse.json({ error: 'ONLY_DRAFT_OR_REJECTED_CAN_BE_CANCELLED' }, { status: 409 })
+  }
+
+  const { error } = await supabase
+    .from('listings')
+    .update({ status: 'archived', published_at: null, updated_at: new Date().toISOString() })
+    .eq('id', listingId)
+    .eq('owner_id', user.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ success: true, status: 'archived' })
+}
