@@ -39,6 +39,7 @@ export default function AccountNavigation() {
           {unreadCount > 0 && <span aria-label={`${unreadCount} ta o‘qilmagan xabar`} className="absolute -right-1 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black leading-none text-white ring-2 ring-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
         </Link>
         <Link href="/account/trusted-profile" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">✓ Ishonchli profil</Link>
+        <Link href="/account/monetization" className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-extrabold text-amber-700 hover:bg-amber-100">★ Promotion</Link>
         <Link href="/account/wallet" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">Hisob va tranzaksiyalar</Link>
       </div>
     </nav>
