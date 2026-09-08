@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
+export const runtime = 'nodejs'
 
 export async function GET() {
-  const key = process.env.VAPID_PUBLIC_KEY
-  if (!key) return NextResponse.json({ error: 'Push notifications are not configured' }, { status: 503 })
-  return NextResponse.json({ publicKey: key })
+  try {
+    const admin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    )
+    const { data, error } = await admin.rpc('get_push_config').maybeSingle()
+    if (error || !data?.public_key) return NextResponse.json({ error: 'Push notifications are not configured' }, { status: 503 })
+    return NextResponse.json({ publicKey: data.public_key })
+  } catch {
+    return NextResponse.json({ error: 'Push notifications are not configured' }, { status: 503 })
+  }
 }
