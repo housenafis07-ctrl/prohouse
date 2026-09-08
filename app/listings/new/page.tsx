@@ -15,6 +15,7 @@ const sectionLabels: Record<string, string> = { sale: 'Sotib olish', rent: 'Ijar
 const typeLabels: Record<string, string> = { apartment: 'Kvartira', house: 'Xususiy uy', land: 'Yer uchastkasi', commercial: 'Tijorat mulki', new_building: 'Yangi bino' }
 const serviceCodes = new Set(['services_construction','services_repair','services_design','services_furniture','services_plumbing','services_electric','services_cleaning','services_moving','services_valuation','services_mortgage_valuation','services_guaranteed_deal','services_cash_deal','services_insurance','services_goods','services_handyman','services_other'])
 const realtorCodes = new Set(['realtor_agent','realtor_agency','realtor_company','realtors_agents','realtors_agencies'])
+const individualPropertyTypes = new Set(['sale','rent','daily','new_building'])
 
 const districtLabel = (value: string) => value.replace(/ tumani$/i, '').replace(/ shahri$/i, '')
 
@@ -22,6 +23,7 @@ export default function NewListingPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [taxonomy, setTaxonomy] = useState<Taxonomy[]>([])
+  const [listingCount, setListingCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -37,14 +39,16 @@ export default function NewListingPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/register'); return }
-      const [{ data: p }, { data: t, error: te }] = await Promise.all([
+      const [{ data: p }, { data: t, error: te }, { count: lc }] = await Promise.all([
         supabase.from('profiles').select('full_name,phone,account_type,partner_type,trusted_profile').eq('id', user.id).maybeSingle(),
         supabase.from('partner_listing_taxonomy').select('code,name_uz,name_ru,section_code,parent_code,listing_type,property_type,is_mortgage_filter,is_new_construction_filter,sort_order').eq('is_active', true).eq('allows_partner_listing', true).order('sort_order'),
+        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).in('status', ['draft','moderation','active','reserved','rejected']),
       ])
       if (!mounted) return
       if (te) setError(te.message)
       setProfile(p ?? { full_name: null, phone: user.phone ?? null, account_type: 'individual', partner_type: null, trusted_profile: false })
       setTaxonomy((t ?? []) as Taxonomy[])
+      setListingCount(lc ?? 0)
       setLoading(false)
     })()
     return () => { mounted = false }
@@ -55,8 +59,10 @@ export default function NewListingPage() {
   const update = (key: keyof typeof form, value: string) => setForm(v => ({ ...v, [key]: value }))
   const trusted = Boolean(profile?.trusted_profile)
   const selectedTaxonomy = taxonomy.find(x => x.code === form.taxonomy_code) ?? null
-  // services_rent is intentionally excluded: rental of a property belongs to the Ijara section, not Xizmatlar.
-  const categories = taxonomy.filter(x => x.parent_code && sectionLabels[x.section_code] && x.code !== 'services_rent')
+  const isIndividual = profile?.account_type === 'individual'
+  const isPartner = profile?.account_type === 'partner'
+  // Rental of a property belongs to the Ijara section, not Xizmatlar.
+  const categories = taxonomy.filter(x => x.parent_code && sectionLabels[x.section_code] && x.code !== 'services_rent' && (!isIndividual || individualPropertyTypes.has(x.listing_type || '')))
   const grouped = Object.entries(sectionLabels).map(([section, label]) => ({ section, label, items: categories.filter(x => x.section_code === section) })).filter(x => x.items.length)
   const mode = selectedTaxonomy?.listing_type === 'service' || serviceCodes.has(selectedTaxonomy?.code || '') ? 'service' : selectedTaxonomy?.listing_type === 'realtor' || realtorCodes.has(selectedTaxonomy?.code || '') ? 'realtor' : 'property'
 
@@ -84,7 +90,8 @@ export default function NewListingPage() {
     e.preventDefault()
     if (!profile) return
     setError(''); setSuccess('')
-    if (profile.account_type !== 'partner') return setError('E’lon joylashtirish faqat hamkorlar uchun.')
+    if (!isPartner && !(isIndividual && mode === 'property')) return setError('Jismoniy shaxs faqat o‘z ko‘chmas mulkini joylashtirishi mumkin.')
+    if (isIndividual && listingCount >= 3) return setError('3 ta bepul e’lon limiti tugagan. Mavjud e’lonlardan birini yoping yoki hamkor sifatida ro‘yxatdan o‘ting.')
     if (!selectedTaxonomy) return setError('Bo‘lim va bo‘linmani tanlang.')
     const price = Number(form.price.replace(/\s/g, ''))
     if (!form.title.trim()) return setError('E’lon sarlavhasini kiriting.')
@@ -117,7 +124,7 @@ export default function NewListingPage() {
         address: form.address.trim() || null,
         latitude: location.latitude,
         longitude: location.longitude,
-        seller_type: 'realtor',
+        seller_type: isIndividual ? 'owner' : 'realtor',
         seller_name: form.company_name.trim() || profile.full_name?.trim() || null,
         seller_phone: form.contact_phone.trim() || profile.phone || null,
         is_verified: false,
@@ -144,7 +151,8 @@ export default function NewListingPage() {
       setSuccess(`E’lon moderatsiyaga yuborildi. ID: ${listing.listing_code}`)
       setTimeout(() => router.push('/account/listings'), 700)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'E’lonni saqlashda xatolik.')
+      const message = e instanceof Error ? e.message : 'E’lonni saqlashda xatolik.'
+      setError(message.includes('INDIVIDUAL_LISTING_LIMIT') ? '3 ta bepul e’lon limiti tugagan. Mavjud e’lonlardan birini yoping yoki hamkor sifatida ro‘yxatdan o‘ting.' : message)
     } finally { setSaving(false) }
   }
 
@@ -154,9 +162,9 @@ export default function NewListingPage() {
   return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-5xl">
     <header className="mb-5 flex items-center justify-between"><Link href="/account" className="text-sm font-extrabold text-emerald-700">← Shaxsiy kabinet</Link><Link href="/listings" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">E’lonlarni ko‘rish</Link></header>
     <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
-      <div className="bg-slate-900 px-6 py-7 text-white sm:px-8"><p className="text-sm font-semibold text-slate-300">Prohouse hamkor kabineti</p><h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">E’lon joylashtirish</h1><p className="mt-2 text-sm text-slate-300">E’loningiz qaysi bo‘lim va bo‘linmaga tegishli ekanini tanlang.</p></div>
-      {profile.account_type !== 'partner' ? <div className="p-8"><div className="rounded-2xl bg-amber-50 p-5 text-sm text-amber-800">Bu sahifa hamkorlar uchun mo‘ljallangan.</div></div> : <form onSubmit={submit} className="space-y-8 p-6 sm:p-8">
-        <div><h2 className="text-lg font-extrabold">1. E’lon bo‘limi va bo‘linmasi</h2><div className="mt-5 space-y-5">{grouped.map(g => <div key={g.section} className="rounded-2xl border p-4"><h3 className="font-extrabold">{g.label}</h3><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{g.items.map(item => <button type="button" key={item.code} onClick={() => selectTaxonomy(item)} className={`rounded-2xl border p-4 text-left ${form.taxonomy_code === item.code ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white'}`}><span className="block font-extrabold">{item.name_uz}</span><span className="mt-1 block text-xs text-slate-500">{item.listing_type === 'service' ? 'Xizmat' : item.listing_type === 'realtor' ? 'Rieltor' : item.listing_type === 'daily' ? 'Kunlik ijara' : item.listing_type === 'rent' ? 'Ijara' : item.is_new_construction_filter ? 'Yangi qurilish' : item.is_mortgage_filter ? 'Ipotekaga mumkin' : typeLabels[item.property_type || ''] || ''}</span></button>)}</div></div>)}</div>{selectedTaxonomy && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm"><b>{selectedTaxonomy.name_uz}</b>{mode === 'service' && <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-emerald-700">Xizmat e’loni</span>}{mode === 'realtor' && <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-emerald-700">Rieltor e’loni</span>}</div>}</div>
+      <div className="bg-slate-900 px-6 py-7 text-white sm:px-8"><p className="text-sm font-semibold text-slate-300">{isPartner ? 'Prohouse hamkor kabineti' : 'Prohouse shaxsiy kabineti'}</p><h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">E’lon joylashtirish</h1><p className="mt-2 text-sm text-slate-300">{isIndividual ? `Jismoniy shaxs uchun ${listingCount}/3 ta bepul e’lon ishlatilgan.` : 'E’loningiz qaysi bo‘lim va bo‘linmaga tegishli ekanini tanlang.'}</p></div>
+      {isIndividual && listingCount >= 3 ? <div className="p-8"><div className="rounded-2xl border border-amber-100 bg-amber-50 p-5"><p className="font-extrabold text-amber-900">Bepul e’lon limiti tugagan</p><p className="mt-1 text-sm text-amber-800">Jismoniy shaxs sifatida 3 ta e’longacha bepul joylashtirishingiz mumkin. Yangi e’lon uchun mavjud e’lonlardan birini yoping yoki hamkor sifatida ro‘yxatdan o‘ting.</p><div className="mt-4 flex flex-wrap gap-3"><Link href="/account/listings" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">Mening e’lonlarim</Link><Link href="/register?type=partner" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Hamkor bo‘lish</Link></div></div></div> : <form onSubmit={submit} className="space-y-8 p-6 sm:p-8">
+        <div><h2 className="text-lg font-extrabold">1. E’lon bo‘limi va bo‘linmasi</h2><div className="mt-5 space-y-5">{grouped.map(g => <div key={g.section} className="rounded-2xl border p-4"><h3 className="font-extrabold">{g.label}</h3><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{g.items.map(item => <button type="button" key={item.code} onClick={() => selectTaxonomy(item)} className={`rounded-2xl border p-4 text-left ${form.taxonomy_code === item.code ? 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 bg-white'}`}><span className="block font-extrabold">{item.name_uz}</span><span className="mt-1 block text-xs text-slate-500">{item.listing_type === 'service' ? 'Xizmat' : item.listing_type === 'realtor' ? 'Rieltor' : item.listing_type === 'daily' ? 'Kunlik ijara' : item.listing_type === 'rent' ? 'Ijara' : item.is_new_construction_filter ? 'Yangi qurilish' : item.is_mortgage_filter ? 'Ipotekaga mumkin' : typeLabels[item.property_type || ''] || ''}</span></button>)}</div></div>)}</div>{selectedTaxonomy && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm"><b>{selectedTaxonomy.name_uz}</b>{mode === 'service' && <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-emerald-700">Xizmat e’loni</span>}{mode === 'realtor' && <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-emerald-700">Rieltor e’loni</span>}{isIndividual && <span className="ml-2 rounded-full bg-white px-2 py-1 text-xs font-bold text-emerald-700">Egadan</span>}</div>}</div>
         <div><h2 className="text-lg font-extrabold">2. E’lon ma’lumotlari</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><label><span className="text-sm font-bold">E’lon sarlavhasi *</span><input value={form.title} onChange={e => update('title', e.target.value)} className="mt-2 w-full rounded-xl border px-4 py-3" placeholder={mode === 'service' ? 'Masalan: Professional ta’mirlash xizmati' : mode === 'realtor' ? 'Masalan: Toshkent bo‘yicha tajribali rieltor' : 'Masalan: 3 xonali shinam kvartira'} required /></label><label><span className="text-sm font-bold">Narx *</span><input inputMode="numeric" value={form.price} onChange={e => update('price', e.target.value)} className="mt-2 w-full rounded-xl border px-4 py-3" placeholder={mode === 'service' ? 'Kelishiladi' : '850000000'} required /></label><label className="sm:col-span-2"><span className="text-sm font-bold">Tavsif</span><textarea value={form.description} onChange={e => update('description', e.target.value)} rows={5} className="mt-2 w-full rounded-xl border px-4 py-3" placeholder={mode === 'service' ? 'Xizmat, narx, kafolat va ish tartibi haqida...' : mode === 'realtor' ? 'Tajriba, hududlar va ko‘rsatiladigan xizmatlar haqida...' : 'Uy va mulk haqida batafsil ma’lumot...'} /></label></div></div>
         {(mode === 'service' || mode === 'realtor') && <div><h2 className="text-lg font-extrabold">3. Aloqa va xizmat ma’lumotlari</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><label><span className="text-sm font-bold">Aloqa telefoni *</span><input value={form.contact_phone} onChange={e => update('contact_phone', e.target.value)} placeholder={profile.phone || '+998 90 000 00 00'} className="mt-2 w-full rounded-xl border px-4 py-3" /></label><label><span className="text-sm font-bold">Kompaniya / mutaxassis</span><input value={form.company_name} onChange={e => update('company_name', e.target.value)} placeholder={profile.full_name || 'Nom'} className="mt-2 w-full rounded-xl border px-4 py-3" /></label>{mode === 'realtor' && <label><span className="text-sm font-bold">Tajriba (yil)</span><input value={form.experience_years} onChange={e => update('experience_years', e.target.value)} className="mt-2 w-full rounded-xl border px-4 py-3" /></label>}<label><span className="text-sm font-bold">Xizmat hududi</span><input value={form.service_area} onChange={e => update('service_area', e.target.value)} placeholder="Toshkent shahri va viloyati" className="mt-2 w-full rounded-xl border px-4 py-3" /></label></div></div>}
         {mode === 'property' && <div><h2 className="text-lg font-extrabold">3. Manzil</h2><div className="mt-4 grid gap-4 sm:grid-cols-2">
