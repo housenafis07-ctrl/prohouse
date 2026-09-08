@@ -18,36 +18,26 @@ export default function AccountNavigation() {
         return
       }
 
-      const { data: participantRows } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', user.id)
-
-      const conversationIds = (participantRows ?? []).map(row => row.conversation_id)
-      if (!conversationIds.length) {
-        if (mounted) setUnreadCount(0)
-        return
-      }
-
-      const { count } = await supabase
-        .from('messages')
+      const { count, error } = await supabase
+        .from('notifications')
         .select('id', { count: 'exact', head: true })
-        .in('conversation_id', conversationIds)
-        .neq('sender_id', user.id)
+        .eq('user_id', user.id)
         .is('read_at', null)
 
-      if (mounted) setUnreadCount(count ?? 0)
+      if (mounted) setUnreadCount(error ? 0 : (count ?? 0))
     }
 
     void loadUnread()
 
     const channel = supabase
-      .channel(`account-unread-${Date.now()}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        void loadUnread()
+      .channel(`account-notifications-${Date.now()}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => {
+        const row = payload.new as { user_id?: string; read_at?: string | null }
+        if (row.user_id && row.read_at == null) void loadUnread()
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => {
-        void loadUnread()
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, payload => {
+        const row = payload.new as { user_id?: string }
+        if (row.user_id) void loadUnread()
       })
       .subscribe()
 
@@ -72,7 +62,7 @@ export default function AccountNavigation() {
           {unreadCount > 0 && (
             <span
               aria-label={`${unreadCount} ta o‘qilmagan xabar`}
-              className="absolute -right-1 -top-2 flex min-w-5 h-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black leading-none text-white ring-2 ring-white"
+              className="absolute -right-1 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black leading-none text-white ring-2 ring-white"
             >
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
