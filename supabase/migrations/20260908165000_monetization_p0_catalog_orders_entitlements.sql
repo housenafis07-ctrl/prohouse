@@ -1,6 +1,22 @@
 -- Prohouse Monetization P0: catalog + order/payment abstraction + entitlements.
 -- No payment gateway is connected in this phase. Existing listing/wallet data is preserved.
 
+-- Production may not yet contain the legacy monetization_products table. Create the
+-- minimal compatible catalog first, then extend it below. This keeps the migration
+-- self-contained and avoids depending on an unmerged/previous migration.
+create table if not exists public.monetization_products (
+  code text primary key,
+  name text not null,
+  description text,
+  price_uzs numeric(18,2) not null default 0 check (price_uzs >= 0),
+  duration_days integer not null default 1 check (duration_days > 0),
+  boost_rank integer not null default 0 check (boost_rank >= 0),
+  badge text,
+  active boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.monetization_products
   add column if not exists product_type text,
   add column if not exists audience text not null default 'all',
@@ -112,7 +128,7 @@ alter table public.monetization_orders enable row level security;
 alter table public.monetization_order_items enable row level security;
 alter table public.monetization_entitlements enable row level security;
 
-drop policy if exists monetization_orders_select_own on public.monetization_orders;
+ drop policy if exists monetization_orders_select_own on public.monetization_orders;
 create policy monetization_orders_select_own on public.monetization_orders
 for select to authenticated using (user_id=(select auth.uid()));
 
