@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
@@ -9,7 +9,7 @@ type Message = { id: string; text: string; mine: boolean; time: string }
 type Conversation = { id: string; listing_id: string | null; updated_at: string; title: string; lastMessage: string; unread: number }
 type Notification = { id: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string; conversation_id: string | null }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const searchParams = useSearchParams()
   const requestedConversationId = searchParams.get('conversationId')
   const listingId = searchParams.get('listingId')
@@ -117,4 +117,12 @@ export default function ChatPage() {
       <section className="flex min-h-[calc(100vh-128px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-200 p-5"><p className="text-xs font-bold uppercase tracking-wide text-emerald-600">E’lon bo‘yicha chat</p><div className="mt-1 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-lg font-black text-emerald-700">P</div><div><h1 className="font-extrabold">{activeConversation?.title || 'Suhbatni tanlang'}</h1><p className="text-xs text-slate-500">{activeConversation ? 'Sotuvchi/hamkor bilan yozishma' : 'E’lon sahifasidan chatni boshlang'}</p></div></div></div><div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4 sm:p-6">{error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : !activeConversationId ? <p className="py-16 text-center text-sm text-slate-400">Chap tomondan suhbatni tanlang.</p> : messages.length === 0 ? <p className="py-16 text-center text-sm text-slate-400">Hali xabarlar yo‘q.</p> : messages.map(message => <div key={message.id} className={`flex ${message.mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm shadow-sm ${message.mine ? 'rounded-br-md bg-emerald-600 text-white' : 'rounded-bl-md bg-white text-slate-700'}`}><p className="leading-6">{message.text}</p><p className={`mt-1 text-[10px] ${message.mine ? 'text-emerald-100' : 'text-slate-400'}`}>{message.time}</p></div></div>)}</div><div className="border-t border-slate-200 bg-white p-3 sm:p-4"><div className="flex items-end gap-2"><textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() } }} disabled={!activeConversationId} rows={1} placeholder="Xabaringizni yozing..." className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:bg-slate-50"/><button onClick={() => void send()} disabled={sending || !activeConversationId} className="h-11 shrink-0 rounded-xl bg-emerald-600 px-5 font-bold text-white hover:bg-emerald-700 disabled:opacity-60">{sending ? 'Yuborilmoqda...' : 'Yuborish'}</button></div><p className="mt-2 text-[11px] text-slate-400">Enter — yuborish · Shift+Enter — yangi qator</p></div></section>
     </div>
   </main>
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-slate-50 p-6"><p className="text-sm font-medium text-slate-500">Chat yuklanmoqda...</p></main>}>
+      <ChatPageContent />
+    </Suspense>
+  )
 }
