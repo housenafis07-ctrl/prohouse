@@ -1,0 +1,64 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/utils/supabase/server'
+
+const allowedStatuses = new Set(['draft', 'moderation'])
+
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
+
+  const listingId = typeof body.listingId === 'string' ? body.listingId : null
+  const step = Math.max(1, Math.min(7, Number(body.step) || 1))
+  const data = body.data && typeof body.data === 'object' ? body.data : {}
+  const status = typeof body.status === 'string' && allowedStatuses.has(body.status) ? body.status : 'draft'
+
+  if (!listingId) {
+    const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
+    if (!taxonomyCode) return NextResponse.json({ error: 'TAXONOMY_REQUIRED' }, { status: 400 })
+
+    const { data: created, error } = await supabase
+      .from('listings')
+      .insert({
+        owner_id: user.id,
+        taxonomy_code: taxonomyCode,
+        title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : 'Qoralama e’lon',
+        description: typeof data.description === 'string' ? data.description : null,
+        listing_type: typeof data.listing_type === 'string' ? data.listing_type : 'sale',
+        property_type: typeof data.property_type === 'string' ? data.property_type : 'apartment',
+        status,
+        price: Number.isFinite(Number(data.price)) ? Number(data.price) : 0,
+        currency: data.currency === 'USD' ? 'USD' : 'UZS',
+        draft_step: step,
+        draft_data: data,
+        submitted_at: status === 'moderation' ? new Date().toISOString() : null,
+      })
+      .select('id,listing_code,status,draft_step')
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    return NextResponse.json({ listing: created })
+  }
+
+  const { data: updated, error } = await supabase
+    .from('listings')
+    .update({
+      draft_step: step,
+      draft_data: data,
+      ...(typeof data.title === 'string' && data.title.trim() ? { title: data.title.trim() } : {}),
+      ...(typeof data.description === 'string' ? { description: data.description } : {}),
+      ...(data.price !== undefined && Number.isFinite(Number(data.price)) ? { price: Number(data.price) } : {}),
+      ...(data.currency === 'UZS' || data.currency === 'USD' ? { currency: data.currency } : {}),
+      ...(status === 'moderation' ? { status: 'moderation', submitted_at: new Date().toISOString() } : { status: 'draft' }),
+    })
+    .eq('id', listingId)
+    .eq('owner_id', user.id)
+    .select('id,listing_code,status,draft_step')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ listing: updated })
+}
