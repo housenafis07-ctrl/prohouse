@@ -5,6 +5,11 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
+type PushConfig = {
+  public_key: string | null
+  private_key: string | null
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -16,8 +21,9 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
-    const { data: pushConfig, error: configError } = await admin.rpc('get_push_config').maybeSingle()
-    if (configError || !pushConfig?.public_key || !pushConfig?.private_key) {
+    const { data: rawPushConfig, error: configError } = await admin.rpc('get_push_config').maybeSingle()
+    const pushConfig = rawPushConfig as unknown as PushConfig | null
+    if (configError || !pushConfig?.public_key || !pushConfig.private_key) {
       return NextResponse.json({ ok: false, configured: false }, { status: 503 })
     }
 
