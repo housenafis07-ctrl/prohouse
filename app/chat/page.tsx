@@ -83,6 +83,14 @@ function ChatPageContent() {
     const channel = supabase.channel(`prohouse-user-${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
         const row = payload.new as any
+        setConversations(current => {
+          const item = current.find(conversation => conversation.id === row.conversation_id)
+          if (!item) return current
+          return current.map(conversation => conversation.id === row.conversation_id
+            ? { ...conversation, lastMessage: row.body, updated_at: row.created_at, unread: row.sender_id === userId || row.conversation_id === activeConversationId ? (row.conversation_id === activeConversationId ? 0 : conversation.unread) : conversation.unread + 1 }
+            : conversation,
+          ).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        })
         if (row.conversation_id === activeConversationId) {
           setMessages(current => current.some(message => message.id === row.id) ? current : [...current, { id: row.id, text: row.body, mine: row.sender_id === userId, time: new Date(row.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) }])
           if (row.sender_id !== userId) void supabase.from('messages').update({ read_at: new Date().toISOString() }).eq('id', row.id)
@@ -100,21 +108,25 @@ function ChatPageContent() {
     const value = text.trim()
     if (!value || !userId || !activeConversationId || sending) return
     setSending(true); setError('')
-    const { data, error: sendError } = await supabase.from('messages').insert({ conversation_id: activeConversationId, sender_id: userId, body: value }).select('id,sender_id,body,created_at').single()
-    if (sendError) setError(sendError.message)
-    else if (data) {
-      setMessages(current => current.some(message => message.id === data.id) ? current : [...current, { id: data.id, text: data.body, mine: true, time: new Date(data.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) }])
-      setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, lastMessage: data.body, updated_at: data.created_at } : item))
-      setText('')
-      // Push yuborish xabar INSERT muvaffaqiyatli bo‘lgandan keyin amalga oshiriladi.
-      // Push ishlamasa ham chat xabarining o‘zi muvaffaqiyatli yuborilgan holatda qoladi.
-      void fetch('/api/push/send', {
+    try {
+      const response = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: data.id }),
-      }).catch(() => {})
+        body: JSON.stringify({ conversationId: activeConversationId, text: value }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Xabar yuborilmadi')
+      const data = result.message
+      if (data) {
+        setMessages(current => current.some(message => message.id === data.id) ? current : [...current, { id: data.id, text: data.body, mine: true, time: new Date(data.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) }])
+        setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, lastMessage: data.body, updated_at: data.created_at } : item))
+      }
+      setText('')
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : 'Xabar yuborilmadi')
+    } finally {
+      setSending(false)
     }
-    setSending(false)
   }
 
   const unreadCount = notifications.filter(item => !item.read_at).length
