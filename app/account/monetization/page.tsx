@@ -7,7 +7,7 @@ import { createClient } from '@/utils/supabase/client'
 type Product={code:string;name:string;description:string|null;price_uzs:number;duration_days:number;product_type:string|null;audience:string;unit:string;quantity:number;badge:string|null}
 type Entitlement={id:string;product_code:string;status:string;quantity_remaining:number;starts_at:string|null;ends_at:string|null}
 
-auto const money=(v:number)=>`${new Intl.NumberFormat('ru-RU').format(Number(v))} so‘m`
+const money=(v:number)=>`${new Intl.NumberFormat('ru-RU').format(Number(v))} so‘m`
 
 export default function MonetizationPage(){
  const [products,setProducts]=useState<Product[]>([]);const [entitlements,setEntitlements]=useState<Entitlement[]>([]);const [freeLimit,setFreeLimit]=useState(3);const [loading,setLoading]=useState(true)
