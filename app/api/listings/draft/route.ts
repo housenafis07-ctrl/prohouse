@@ -20,9 +20,6 @@ export async function POST(request: Request) {
     ? data.ownership_type
     : null
 
-  // The listings INSERT RLS policy requires seller_role='owner' for
-  // individual accounts. Resolve it from the trusted profile instead of
-  // accepting seller_role from the browser payload.
   let sellerRole: string | null = null
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -32,8 +29,6 @@ export async function POST(request: Request) {
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
   if (profile?.account_type === 'individual') sellerRole = 'owner'
 
-  // P1.1: enforce the individual 3-free-listing allowance on the server
-  // immediately before an unsubmitted listing enters moderation.
   if (status === 'moderation') {
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
     if (limitError) {
@@ -46,6 +41,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: limitError.message }, { status: 400 })
     }
   }
+
+  const sellerType = ownershipType === 'owner' ? 'owner' : null
 
   if (!listingId) {
     const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
@@ -66,12 +63,13 @@ export async function POST(request: Request) {
       submitted_at: status === 'moderation' ? new Date().toISOString() : null,
     }
     if (sellerRole) insertData.seller_role = sellerRole
+    if (sellerType) insertData.seller_type = sellerType
     if (ownershipType) insertData.ownership_type = ownershipType
 
     const { data: created, error } = await supabase
       .from('listings')
       .insert(insertData)
-      .select('id,listing_code,status,draft_step,ownership_type')
+      .select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role')
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ listing: created })
@@ -86,14 +84,16 @@ export async function POST(request: Request) {
     ...(data.currency === 'UZS' || data.currency === 'USD' ? { currency: data.currency } : {}),
     ...(status === 'moderation' ? { status: 'moderation', submitted_at: new Date().toISOString() } : { status: 'draft' }),
   }
+  if (sellerRole) updateData.seller_role = sellerRole
   if (ownershipType) updateData.ownership_type = ownershipType
+  if (sellerType) updateData.seller_type = sellerType
 
   const { data: updated, error } = await supabase
     .from('listings')
     .update(updateData)
     .eq('id', listingId)
     .eq('owner_id', user.id)
-    .select('id,listing_code,status,draft_step,ownership_type')
+    .select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ listing: updated })
