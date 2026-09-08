@@ -7,22 +7,22 @@ export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
   try {
-    const publicKey = process.env.VAPID_PUBLIC_KEY
-    const privateKey = process.env.VAPID_PRIVATE_KEY
-    if (!publicKey || !privateKey) return NextResponse.json({ ok: false, configured: false }, { status: 503 })
-
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { messageId } = await request.json()
-    if (!messageId) return NextResponse.json({ error: 'messageId is required' }, { status: 400 })
 
     const admin = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
+    const { data: pushConfig, error: configError } = await admin.rpc('get_push_config').maybeSingle()
+    if (configError || !pushConfig?.public_key || !pushConfig?.private_key) {
+      return NextResponse.json({ ok: false, configured: false }, { status: 503 })
+    }
+
+    const { messageId } = await request.json()
+    if (!messageId) return NextResponse.json({ error: 'messageId is required' }, { status: 400 })
 
     const { data: message, error: messageError } = await admin
       .from('messages')
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       .select('id,user_id,endpoint,p256dh,auth')
       .in('user_id', recipients)
 
-    webpush.setVapidDetails('mailto:admin@prohouse.uz', publicKey, privateKey)
+    webpush.setVapidDetails('mailto:admin@prohouse.uz', pushConfig.public_key, pushConfig.private_key)
     const payload = JSON.stringify({
       title: 'Prohouse — yangi xabar',
       body: message.body.length > 140 ? `${message.body.slice(0, 140)}…` : message.body,
