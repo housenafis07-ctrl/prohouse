@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 
 export default async function DeveloperPage({params}:{params:Promise<{slug:string}>}){
  const {slug}=await params
- const db=createClient()
+ const db=await createClient()
  const {data:developer}=await db.from('developer_profiles').select('*').eq('id',slug).maybeSingle()
  if(!developer)return <main className="p-10">Developer topilmadi.</main>
  const {data:complexes}=await db.from('residential_complexes').select('*').eq('developer_id',developer.id).order('is_featured',{ascending:false})
