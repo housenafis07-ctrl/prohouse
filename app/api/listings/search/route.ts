@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
+import { getListingCardImageUrl } from '@/lib/listing-image'
 import { createClient } from '@/utils/supabase/server'
 
 const MAX_PAGE_SIZE = 48
@@ -138,7 +139,14 @@ export async function GET(request: NextRequest) {
   }
 
   const firstImageByListing = new Map<string, { image_url: string; sort_order: number | null }>()
-  for (const image of images) if (!firstImageByListing.has(image.listing_id)) firstImageByListing.set(image.listing_id, { image_url: image.image_url, sort_order: image.sort_order })
+  for (const image of images) {
+    if (!firstImageByListing.has(image.listing_id)) {
+      firstImageByListing.set(image.listing_id, {
+        image_url: getListingCardImageUrl(image.image_url),
+        sort_order: image.sort_order,
+      })
+    }
+  }
 
   const last = listings[listings.length - 1]
   const nextCursor = hasNext && last
