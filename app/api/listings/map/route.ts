@@ -10,6 +10,10 @@ function numberParam(value: string | null) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function escapePostgrestFilterValue(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/([,()])/g, '\\$1')
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const params = request.nextUrl.searchParams
@@ -57,7 +61,10 @@ export async function GET(request: NextRequest) {
   if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner')
   if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true)
   if (params.get('verified') === 'true') query = query.eq('is_verified', true)
-  if (q) query = query.or(`title.ilike.%${q}%,title_ru.ilike.%${q}%`)
+  if (q) {
+    const safeQ = escapePostgrestFilterValue(q)
+    query = query.or(`title.ilike.%${safeQ}%,title_ru.ilike.%${safeQ}%`)
+  }
 
   if (south !== null && north !== null) query = query.gte('latitude', south).lte('latitude', north)
   if (west !== null && east !== null) query = query.gte('longitude', west).lte('longitude', east)
