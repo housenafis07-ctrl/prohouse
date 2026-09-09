@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, Number(params.get('page') || '1') || 1)
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get('limit') || '24') || 24))
   const from = (page - 1) * limit
-  const to = from + limit - 1
+  const to = from + limit
 
   const min = numberParam(params.get('min'))
   const max = numberParam(params.get('max'))
@@ -63,10 +63,12 @@ export async function GET(request: NextRequest) {
   const { data, count, error } = await query.range(from, to)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const listings = data || []
+  const pageRows = data || []
+  const hasNext = pageRows.length > limit
+  const listings = hasNext ? pageRows.slice(0, limit) : pageRows
   const ids = listings.map((listing) => listing.id)
-  let images: { listing_id: string; image_url: string; sort_order: number | null }[] = []
 
+  let images: { listing_id: string; image_url: string; sort_order: number | null }[] = []
   if (ids.length) {
     const { data: imageRows, error: imageError } = await supabase
       .from('listing_images')
@@ -97,7 +99,7 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       total: count ?? null,
-      has_next: listings.length === limit,
+      has_next: hasNext,
     },
   })
 }
