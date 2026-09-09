@@ -28,7 +28,7 @@ Keep the listing workflow unchanged while making image delivery safe for 100,000
 - Legacy/external image URLs that are not Supabase public object URLs remain untouched as a compatibility fallback.
 - The API still returns only the primary image for each search result, so image delivery work stays separate from listing-row query work.
 
-Supabase documents on-demand resizing/optimization and CDN delivery for transformed public Storage URLs. Image Transformations must be enabled for the project before transformed production traffic is expected; the application keeps a legacy URL fallback rather than rewriting stored image URLs. citeturn0search0turn0search9
+Supabase Storage Image Transformations must be enabled for the project before transformed production traffic is expected. The application keeps the stored legacy URL as the fallback rather than rewriting database image URLs.
 
 ### Phase 3 — Browser loading
 
