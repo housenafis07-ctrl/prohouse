@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
 
 type ListingImage = {
   id: string
@@ -10,10 +11,6 @@ type ListingImage = {
   sort_order: number
   storage_path: string | null
 }
-
-const BUCKET = 'listing-images'
-const MAX_SIZE = 10 * 1024 * 1024
-const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 export default function ListingImageManager({ listingId }: { listingId: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -74,20 +71,19 @@ export default function ListingImageManager({ listingId }: { listingId: string }
   }
 
   const upload = async (file: File) => {
-    if (!ACCEPTED.has(file.type)) throw new Error('Faqat JPG, PNG, WebP yoki GIF rasm yuklash mumkin.')
-    if (file.size > MAX_SIZE) throw new Error('Rasm hajmi 10 MB dan oshmasligi kerak.')
+    if (!isAcceptedListingImage(file)) throw new Error('Faqat JPG, PNG, WebP yoki GIF rasm yuklash mumkin.')
+    if (file.size > LISTING_IMAGE_MAX_SIZE) throw new Error('Rasm hajmi 10 MB dan oshmasligi kerak.')
     const db = createClient()
     const { data: { user } } = await db.auth.getUser()
     if (!user) throw new Error('Sessiya tugagan. Qayta kiring.')
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${user.id}/${listingId}/${crypto.randomUUID()}.${extension}`
-    const { error: uploadError } = await db.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false })
+    const path = getListingImageStoragePath(user.id, listingId, file.name)
+    const { error: uploadError } = await db.storage.from(LISTING_IMAGE_BUCKET).upload(path, file, { contentType: file.type, upsert: false })
     if (uploadError) throw uploadError
-    const { data: publicData } = db.storage.from(BUCKET).getPublicUrl(path)
+    const { data: publicData } = db.storage.from(LISTING_IMAGE_BUCKET).getPublicUrl(path)
     const nextOrder = images.length
     const { data, error: insertError } = await db.from('listing_images').insert({ listing_id: listingId, image_url: publicData.publicUrl, storage_path: path, sort_order: nextOrder }).select('id,listing_id,image_url,sort_order,storage_path').single()
     if (insertError) {
-      await db.storage.from(BUCKET).remove([path])
+      await db.storage.from(LISTING_IMAGE_BUCKET).remove([path])
       throw insertError
     }
     setImages(current => [...current, data as ListingImage])
@@ -109,7 +105,7 @@ export default function ListingImageManager({ listingId }: { listingId: string }
     try {
       const db = createClient()
       if (image.storage_path) {
-        const { error: storageError } = await db.storage.from(BUCKET).remove([image.storage_path])
+        const { error: storageError } = await db.storage.from(LISTING_IMAGE_BUCKET).remove([image.storage_path])
         if (storageError) throw storageError
       }
       const { error: deleteError } = await db.from('listing_images').delete().eq('id', image.id).eq('listing_id', listingId)
@@ -128,7 +124,7 @@ export default function ListingImageManager({ listingId }: { listingId: string }
       <div><h2 className="text-xl font-black">Rasmlar</h2><p className="mt-1 text-sm text-slate-500">Birinchi rasm e’lonning asosiy rasmi bo‘ladi. Rasmni sudrab tartibini o‘zgartiring.</p></div>
       <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Saqlanmoqda...' : '+ Rasm qo‘shish'}</button>
     </div>
-    <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={e => void handleFiles(e.target.files)} />
+    <input ref={inputRef} type="file" accept={LISTING_IMAGE_ACCEPT} multiple className="hidden" onChange={e => void handleFiles(e.target.files)} />
     {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
     {images.length === 0 ? <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="mt-5 flex min-h-40 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-emerald-300"><span className="text-2xl">＋</span><span className="mt-1 font-bold">Rasm yuklash</span><span className="mt-1 text-xs">JPG, PNG, WebP yoki GIF · 10 MB gacha</span></button> : <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {images.map((image, index) => <article key={image.id} draggable={!busy} onDragStart={() => setDraggedId(image.id)} onDragOver={e => e.preventDefault()} onDrop={() => draggedId && void moveImage(draggedId, image.id)} className={`overflow-hidden rounded-2xl border bg-white ${index === 0 ? 'border-emerald-400 ring-2 ring-emerald-100' : 'border-slate-200'}`}>
