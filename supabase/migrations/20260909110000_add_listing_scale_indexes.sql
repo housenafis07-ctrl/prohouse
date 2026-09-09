@@ -38,8 +38,6 @@ create index if not exists listings_active_verified_idx
   on public.listings (is_verified, published_at desc, id desc)
   where status = 'active' and is_verified = true;
 
--- The image table already has a unique (listing_id, sort_order) index. Keep
--- image access ordered and bounded by listing_id instead of loading galleries
--- for the entire result set.
-create index if not exists listing_images_listing_sort_idx
-  on public.listing_images (listing_id, sort_order, id);
+-- listing_images already has a unique (listing_id, sort_order) index from the
+-- storage synchronization migration. Reuse that index; do not add another
+-- redundant image index here.
