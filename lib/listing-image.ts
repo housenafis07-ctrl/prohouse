@@ -4,11 +4,14 @@ export const LISTING_IMAGE_CARD_QUALITY = 75
 
 /**
  * Converts a public Supabase Storage object URL into a bounded image-transform
- * URL for listing cards. Legacy/external URLs are returned unchanged.
+ * URL for listing cards when the rollout flag is enabled.
  *
  * Originals remain untouched in Storage; only the delivery URL is transformed.
+ * If transformations are not enabled, the stored URL is returned unchanged.
  */
 export function getListingCardImageUrl(imageUrl: string, width = LISTING_IMAGE_CARD_WIDTH, height = LISTING_IMAGE_CARD_HEIGHT) {
+  if (process.env.NEXT_PUBLIC_SUPABASE_IMAGE_TRANSFORMS !== 'true') return imageUrl
+
   try {
     const url = new URL(imageUrl)
     const marker = '/storage/v1/object/public/'
