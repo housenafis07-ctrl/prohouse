@@ -19,16 +19,17 @@ Keep the listing workflow unchanged while making image delivery safe for 100,000
 - Make `/api/listings/search` fetch only primary images.
 - Keep the existing image schema and legacy `image_url` values intact.
 
-### Phase 2 — Delivery optimization (implemented)
+### Phase 2 — Delivery optimization (implemented, opt-in)
 
-- Public Supabase Storage image URLs used by listing cards are converted to the Storage Image Transformation endpoint.
+- Public Supabase Storage image URLs used by listing cards can be converted to the Storage Image Transformation endpoint.
 - Card delivery is bounded to 640×480 with quality 75 and `cover` resize.
 - Supabase can automatically return WebP to compatible clients for transformed images.
 - Original objects and database metadata remain unchanged.
-- Legacy/external image URLs that are not Supabase public object URLs remain untouched as a compatibility fallback.
+- Legacy/external image URLs remain untouched.
+- The rollout is gated by `NEXT_PUBLIC_SUPABASE_IMAGE_TRANSFORMS=true`; when the flag is absent or false, the stored URL is returned unchanged. This prevents a production image outage if Storage Image Transformations are not enabled yet.
 - The API still returns only the primary image for each search result, so image delivery work stays separate from listing-row query work.
 
-Supabase Storage Image Transformations must be enabled for the project before transformed production traffic is expected. The application keeps the stored legacy URL as the fallback rather than rewriting database image URLs.
+Before enabling the flag in production, enable and verify Supabase Storage Image Transformations for the project. The stored legacy URL remains the fallback and is never rewritten.
 
 ### Phase 3 — Browser loading
 
