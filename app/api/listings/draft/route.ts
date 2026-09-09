@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   const ownershipRaw = data.ownership_type ?? attributes.ownership_type
   const ownershipType = typeof ownershipRaw === 'string' && ownershipTypes.has(ownershipRaw) ? ownershipRaw : null
   const mortgageRaw = data.mortgage ?? attributes.mortgage
-  const isMortgageAvailable = mortgageRaw === 'true' ? true : mortgageRaw === 'false' ? false : null
+  // listings.is_mortgage_available is NOT NULL, so an omitted checkbox must
+  // be stored as false rather than null.
+  const isMortgageAvailable = mortgageRaw === 'true' || mortgageRaw === true
 
   // The listing wizard stores dynamic attributes separately. Persist the fields
   // needed by search/moderation as first-class listing columns as well.
