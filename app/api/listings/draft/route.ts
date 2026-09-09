@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 
 const allowedStatuses = new Set(['draft', 'moderation'])
 const ownershipTypes = new Set(['owner', 'power_of_attorney', 'representative'])
+const IMAGE_BUCKET = 'listing-images'
 
 type DraftData = Record<string, unknown> & { attributes?: Record<string, unknown> }
 
@@ -29,12 +30,8 @@ export async function POST(request: Request) {
   const ownershipRaw = data.ownership_type ?? attributes.ownership_type
   const ownershipType = typeof ownershipRaw === 'string' && ownershipTypes.has(ownershipRaw) ? ownershipRaw : null
   const mortgageRaw = data.mortgage ?? attributes.mortgage
-  // listings.is_mortgage_available is NOT NULL, so an omitted checkbox must
-  // be stored as false rather than null.
   const isMortgageAvailable = mortgageRaw === 'true' || mortgageRaw === true
 
-  // The listing wizard stores dynamic attributes separately. Persist the fields
-  // needed by search/moderation as first-class listing columns as well.
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('account_type,full_name,phone,company_name,director_full_name')
@@ -122,12 +119,42 @@ export async function DELETE(request: Request) {
   const listingId = url.searchParams.get('listingId')
   if (!listingId) return NextResponse.json({ error: 'LISTING_ID_REQUIRED' }, { status: 400 })
 
-  const { data: listing, error: findError } = await supabase.from('listings').select('id,status').eq('id', listingId).eq('owner_id', user.id).maybeSingle()
+  const { data: listing, error: findError } = await supabase
+    .from('listings')
+    .select('id,status')
+    .eq('id', listingId)
+    .eq('owner_id', user.id)
+    .maybeSingle()
   if (findError) return NextResponse.json({ error: findError.message }, { status: 400 })
   if (!listing) return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
   if (!['draft', 'rejected'].includes(listing.status)) return NextResponse.json({ error: 'ONLY_DRAFT_OR_REJECTED_CAN_BE_CANCELLED' }, { status: 409 })
 
-  const { error } = await supabase.from('listings').delete().eq('id', listingId).eq('owner_id', user.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ success: true, status: 'deleted' })
+  const { data: images, error: imageQueryError } = await supabase
+    .from('listing_images')
+    .select('storage_path')
+    .eq('listing_id', listingId)
+  if (imageQueryError) return NextResponse.json({ error: imageQueryError.message }, { status: 400 })
+
+  const storagePaths = (images ?? [])
+    .map(image => image.storage_path)
+    .filter((path): path is string => typeof path === 'string' && path.length > 0)
+
+  // Remove only objects explicitly owned by this listing. Legacy/external images
+  // with no storage_path are intentionally left untouched.
+  if (storagePaths.length) {
+    const { error: storageError } = await supabase.storage.from(IMAGE_BUCKET).remove(storagePaths)
+    if (storageError) return NextResponse.json({ error: storageError.message, code: 'IMAGE_CLEANUP_FAILED' }, { status: 409 })
+  }
+
+  const { error: imagesDeleteError } = await supabase.from('listing_images').delete().eq('listing_id', listingId)
+  if (imagesDeleteError) return NextResponse.json({ error: imagesDeleteError.message, code: 'IMAGE_RECORD_DELETE_FAILED' }, { status: 400 })
+
+  const { error: listingDeleteError } = await supabase
+    .from('listings')
+    .delete()
+    .eq('id', listingId)
+    .eq('owner_id', user.id)
+  if (listingDeleteError) return NextResponse.json({ error: listingDeleteError.message }, { status: 400 })
+
+  return NextResponse.json({ success: true, status: 'deleted', images_cleaned: storagePaths.length })
 }
