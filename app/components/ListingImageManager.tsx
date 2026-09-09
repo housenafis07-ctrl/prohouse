@@ -46,8 +46,21 @@ export default function ListingImageManager({ listingId }: { listingId: string }
 
   const persistOrder = async (items: ListingImage[]) => {
     const db = createClient()
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index]
+      const { error: updateError } = await db
+        .from('listing_images')
+        .update({ sort_order: -(index + 1) })
+        .eq('id', item.id)
+        .eq('listing_id', listingId)
+      if (updateError) throw updateError
+    }
     for (const item of items) {
-      const { error: updateError } = await db.from('listing_images').update({ sort_order: item.sort_order }).eq('id', item.id).eq('listing_id', listingId)
+      const { error: updateError } = await db
+        .from('listing_images')
+        .update({ sort_order: item.sort_order })
+        .eq('id', item.id)
+        .eq('listing_id', listingId)
       if (updateError) throw updateError
     }
   }
