@@ -12,6 +12,14 @@ type ListingImage = {
   storage_path: string | null
 }
 
+const getImageDimensions = (file: File): Promise<{ width: number | null; height: number | null }> => new Promise(resolve => {
+  const url = URL.createObjectURL(file)
+  const image = new Image()
+  image.onload = () => { URL.revokeObjectURL(url); resolve({ width: image.naturalWidth, height: image.naturalHeight }) }
+  image.onerror = () => { URL.revokeObjectURL(url); resolve({ width: null, height: null }) }
+  image.src = url
+})
+
 export default function ListingImageManager({ listingId }: { listingId: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [images, setImages] = useState<ListingImage[]>([])
@@ -79,9 +87,10 @@ export default function ListingImageManager({ listingId }: { listingId: string }
     const path = getListingImageStoragePath(user.id, listingId, file.name)
     const { error: uploadError } = await db.storage.from(LISTING_IMAGE_BUCKET).upload(path, file, { contentType: file.type, upsert: false })
     if (uploadError) throw uploadError
+    const { width, height } = await getImageDimensions(file)
     const { data: publicData } = db.storage.from(LISTING_IMAGE_BUCKET).getPublicUrl(path)
     const nextOrder = images.length
-    const { data, error: insertError } = await db.from('listing_images').insert({ listing_id: listingId, image_url: publicData.publicUrl, storage_path: path, sort_order: nextOrder }).select('id,listing_id,image_url,sort_order,storage_path').single()
+    const { data, error: insertError } = await db.from('listing_images').insert({ listing_id: listingId, image_url: publicData.publicUrl, storage_path: path, sort_order: nextOrder, width, height, size_bytes: file.size, mime_type: file.type }).select('id,listing_id,image_url,sort_order,storage_path').single()
     if (insertError) {
       await db.storage.from(LISTING_IMAGE_BUCKET).remove([path])
       throw insertError
