@@ -27,19 +27,7 @@ type LeafletMap = {
 type LeafletMarker = {
   addTo: (map: LeafletMap) => LeafletMarker
   bindPopup: (content: string, options?: Record<string, unknown>) => LeafletMarker
-}
-
-type LeafletApi = {
-  map: (element: HTMLElement, options?: Record<string, unknown>) => LeafletMap
-  tileLayer: (url: string, options?: Record<string, unknown>) => { addTo: (map: LeafletMap) => unknown }
-  marker: (point: [number, number], options?: Record<string, unknown>) => LeafletMarker
-  divIcon: (options: Record<string, unknown>) => unknown
-}
-
-declare global {
-  interface Window {
-    L?: LeafletApi
-  }
+  remove?: () => void
 }
 
 const TASHKENT: [number, number] = [41.2995, 69.2401]
@@ -66,9 +54,13 @@ function listingQuery(searchParams: string, bounds?: { getSouth: () => number; g
   return params.toString()
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
+}
+
 function popupHtml(item: MapListing) {
-  const title = item.title.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
-  const location = `${item.city}${item.district ? `, ${item.district}` : ''}`.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
+  const title = escapeHtml(item.title)
+  const location = escapeHtml(`${item.city}${item.district ? `, ${item.district}` : ''}`)
   return `<div style="min-width:210px"><div style="font-weight:800;font-size:15px;line-height:1.25">${title}</div><div style="margin-top:6px;font-weight:900;font-size:16px">${formatMoney(item.price, item.currency)}</div><div style="margin-top:4px;color:#64748b;font-size:12px">⌖ ${location}</div><a href="/listings/${encodeURIComponent(item.id)}" style="display:inline-flex;margin-top:10px;border-radius:9px;background:#059669;color:#fff;padding:7px 10px;text-decoration:none;font-weight:800;font-size:12px">E’lonni ko‘rish →</a></div>`
 }
 
@@ -117,9 +109,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
     }).addTo(map)
     mapRef.current = map
 
-    const timer = window.setTimeout(() => mapRef.current && undefined, 100)
     return () => {
-      window.clearTimeout(timer)
       if (boundsHandlerRef.current) map.off('moveend', boundsHandlerRef.current)
       map.remove()
       mapRef.current = null
@@ -143,10 +133,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
         const rows = (result.data || []) as MapListing[]
         setListings(rows)
 
-        markerLayerRef.current.forEach((marker) => {
-          const layer = marker as unknown as { remove?: () => void }
-          layer.remove?.()
-        })
+        markerLayerRef.current.forEach((marker) => marker.remove?.())
         markerLayerRef.current = []
 
         const map = mapRef.current
@@ -181,8 +168,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
     const handler = scheduleBoundsLoad
     boundsHandlerRef.current = handler
     mapRef.current.on('moveend', handler)
-    const initialBounds = mapRef.current.getBounds()
-    void loadMarkers(initialBounds)
+    void loadMarkers(mapRef.current.getBounds())
 
     return () => {
       cancelled = true
