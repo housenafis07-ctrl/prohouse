@@ -4,10 +4,37 @@ import { createClient } from '@/utils/supabase/server'
 
 const MAX_PAGE_SIZE = 48
 
+type Cursor = {
+  sort: 'newest' | 'priceLow' | 'priceHigh'
+  id: string
+  published_at?: string | null
+  price?: number | null
+}
+
 function numberParam(value: string | null) {
   if (value === null || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function decodeCursor(value: string | null, sort: Cursor['sort']): Cursor | null {
+  if (!value) return null
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
+    const parsed = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as Cursor
+    if (!parsed || parsed.sort !== sort || typeof parsed.id !== 'string') return null
+    if (sort === 'newest') {
+      if (parsed.published_at !== null && typeof parsed.published_at !== 'string') return null
+    } else if (typeof parsed.price !== 'number') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function encodeCursor(cursor: Cursor) {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
 }
 
 export async function GET(request: NextRequest) {
@@ -15,8 +42,8 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const page = Math.max(1, Number(params.get('page') || '1') || 1)
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get('limit') || '24') || 24))
-  const from = (page - 1) * limit
-  const to = from + limit
+  const sort = (params.get('sort') || 'newest') as Cursor['sort']
+  const cursor = decodeCursor(params.get('cursor'), sort)
 
   const min = numberParam(params.get('min'))
   const max = numberParam(params.get('max'))
@@ -29,8 +56,14 @@ export async function GET(request: NextRequest) {
   const region = params.get('region')?.trim() || ''
   const currency = params.get('currency')?.trim() || ''
   const q = params.get('q')?.trim() || ''
-  const sort = params.get('sort') || 'newest'
   const tab = params.get('tab') || ''
+
+  if (!['newest', 'priceLow', 'priceHigh'].includes(sort)) {
+    return NextResponse.json({ error: 'Noto‘g‘ri saralash parametri.' }, { status: 400 })
+  }
+  if (params.get('cursor') && !cursor) {
+    return NextResponse.json({ error: 'Noto‘g‘ri yoki eskirgan pagination cursor.' }, { status: 400 })
+  }
 
   let query = supabase
     .from('listings')
@@ -59,11 +92,30 @@ export async function GET(request: NextRequest) {
   if (params.get('verified') === 'true') query = query.eq('is_verified', true)
   if (q) query = query.or(`title.ilike.%${q}%,title_ru.ilike.%${q}%`)
 
+  if (cursor) {
+    if (sort === 'newest') {
+      if (cursor.published_at === null) {
+        query = query.or(`published_at.is.null,and(published_at.is.null,id.lt.${cursor.id})`)
+      } else {
+        query = query.or(`published_at.lt.${cursor.published_at},and(published_at.eq.${cursor.published_at},id.lt.${cursor.id}),published_at.is.null`)
+      }
+    } else if (sort === 'priceLow') {
+      query = query.or(`price.gt.${cursor.price},and(price.eq.${cursor.price},id.gt.${cursor.id})`)
+    } else {
+      query = query.or(`price.lt.${cursor.price},and(price.eq.${cursor.price},id.lt.${cursor.id})`)
+    }
+  }
+
   if (sort === 'priceLow') query = query.order('price', { ascending: true }).order('id', { ascending: true })
   else if (sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false })
   else query = query.order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
 
-  const { data, count, error } = await query.range(from, to)
+  // Cursor mode never uses OFFSET. The legacy page parameter remains available
+  // for older clients so this rollout cannot break existing consumers.
+  const useCursor = Boolean(params.get('cursor')) || !params.has('page')
+  const { data, count, error } = useCursor
+    ? await query.range(0, limit)
+    : await query.range((page - 1) * limit, (page - 1) * limit + limit)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const pageRows = data || []
@@ -85,8 +137,22 @@ export async function GET(request: NextRequest) {
   const firstImageByListing = new Map<string, { image_url: string; sort_order: number | null }>()
   for (const image of images) if (!firstImageByListing.has(image.listing_id)) firstImageByListing.set(image.listing_id, { image_url: image.image_url, sort_order: image.sort_order })
 
+  const last = listings[listings.length - 1]
+  const nextCursor = hasNext && last
+    ? encodeCursor(sort === 'newest'
+      ? { sort, id: last.id, published_at: last.published_at }
+      : { sort, id: last.id, price: last.price })
+    : null
+
   return NextResponse.json({
     data: listings.map((listing) => ({ ...listing, primary_image: firstImageByListing.get(listing.id) || null })),
-    pagination: { page, limit, total: count ?? null, has_next: hasNext },
+    pagination: {
+      page: useCursor ? undefined : page,
+      limit,
+      total: count ?? null,
+      has_next: hasNext,
+      next_cursor: nextCursor,
+      mode: useCursor ? 'cursor' : 'offset',
+    },
   })
 }
