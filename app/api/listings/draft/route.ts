@@ -13,6 +13,14 @@ const numberOrNull = (value: unknown) => {
   return Number.isFinite(n) ? n : null
 }
 
+const hasValue = (value: unknown) => {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (Array.isArray(value)) return value.length > 0
+  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0
+  return true
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -50,6 +58,33 @@ export async function POST(request: Request) {
   const sellerPhone = isIndividualOwner ? text(profile?.phone) || user.phone || null : null
 
   if (status === 'moderation') {
+    const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : ''
+    if (!taxonomyCode) return NextResponse.json({ error: 'TAXONOMY_REQUIRED', message: 'E’lon turi tanlanmagan.' }, { status: 400 })
+
+    const { data: requiredAttributes, error: requiredAttributesError } = await supabase
+      .from('category_attributes')
+      .select('code,name_uz,is_required')
+      .eq('category_code', taxonomyCode)
+      .eq('is_active', true)
+      .eq('is_required', true)
+      .order('sort_order')
+
+    if (requiredAttributesError) {
+      return NextResponse.json({ error: requiredAttributesError.message }, { status: 400 })
+    }
+
+    const missingAttributes = (requiredAttributes || [])
+      .filter(attribute => !hasValue(attributes[attribute.code]))
+      .map(attribute => ({ code: attribute.code, name: attribute.name_uz }))
+
+    if (missingAttributes.length) {
+      return NextResponse.json({
+        error: 'REQUIRED_ATTRIBUTES_MISSING',
+        message: `Majburiy maydonlarni to‘ldiring: ${missingAttributes.map(attribute => attribute.name).join(', ')}.`,
+        missingAttributes,
+      }, { status: 422 })
+    }
+
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
     if (limitError) {
       if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({ error: 'LISTING_LIMIT_REACHED', message: '3 ta bepul faol e’lon limitingiz tugagan. Qo‘shimcha e’lon uchun monetizatsiya xizmatini tanlang.' }, { status: 402 })
