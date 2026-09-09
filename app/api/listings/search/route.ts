@@ -123,12 +123,15 @@ export async function GET(request: NextRequest) {
   const listings = hasNext ? pageRows.slice(0, limit) : pageRows
   const ids = listings.map((listing) => listing.id)
 
+  // Search cards only need the primary image. Never load every image for the
+  // current page: a 24-card page could otherwise fetch up to 240+ image rows.
   let images: { listing_id: string; image_url: string; sort_order: number | null }[] = []
   if (ids.length) {
     const { data: imageRows, error: imageError } = await supabase
       .from('listing_images')
       .select('listing_id,image_url,sort_order')
       .in('listing_id', ids)
+      .eq('sort_order', 0)
       .order('sort_order', { ascending: true })
     if (imageError) return NextResponse.json({ error: imageError.message }, { status: 500 })
     images = imageRows || []
