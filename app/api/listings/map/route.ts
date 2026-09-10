@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('listings')
-    .select('id,title,price,currency,listing_type,property_type,city,district,latitude,longitude', { count: 'estimated' })
+    .select('id,title,price,currency,listing_type,property_type,city,district,latitude,longitude,is_trusted_seller', { count: 'estimated' })
     .eq('status', 'active')
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)
