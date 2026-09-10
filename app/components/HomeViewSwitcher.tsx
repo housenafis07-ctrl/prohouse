@@ -1,7 +1,4 @@
-'use client'
-
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 
 const views = [
   { key: 'list', href: '/listings?tab=sale&view=list', label: 'Ro‘yxat ko‘rinishi', icon: 'list' },
@@ -49,29 +46,21 @@ function Icon({ type }: { type: (typeof views)[number]['icon'] }) {
 }
 
 export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }) {
-  const searchParams = useSearchParams()
-  const currentView = searchParams.get('view') || 'grid'
-
   return (
     <div className="mx-auto max-w-[1400px] px-4 pt-7 sm:pt-8">
       <div className="flex w-full items-center justify-center rounded-2xl bg-[#ffd51a] p-1.5 shadow-sm sm:w-fit sm:justify-start sm:rounded-full">
         <div className="flex w-full items-center justify-between gap-1 sm:w-auto">
-          {views.map((view) => {
-            const active = currentView === view.key
-            return (
-              <Link
-                key={view.key}
-                href={view.href}
-                aria-label={lang === 'ru' ? view.label : view.label}
-                title={lang === 'ru' ? view.label : view.label}
-                className={`flex h-11 w-11 items-center justify-center rounded-xl transition sm:h-10 sm:w-10 sm:rounded-full ${
-                  active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-900/80 hover:bg-white/50'
-                }`}
-              >
-                <Icon type={view.icon} />
-              </Link>
-            )
-          })}
+          {views.map((view) => (
+            <Link
+              key={view.key}
+              href={view.href}
+              aria-label={lang === 'ru' ? view.label : view.label}
+              title={lang === 'ru' ? view.label : view.label}
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-900/80 transition hover:bg-white/50 sm:h-10 sm:w-10 sm:rounded-full"
+            >
+              <Icon type={view.icon} />
+            </Link>
+          ))}
         </div>
       </div>
     </div>
