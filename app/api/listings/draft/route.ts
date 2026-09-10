@@ -31,6 +31,8 @@ export async function POST(request: Request) {
   const ownershipType = typeof ownershipRaw === 'string' && ownershipTypes.has(ownershipRaw) ? ownershipRaw : null
   const mortgageRaw = data.mortgage ?? attributes.mortgage
   const isMortgageAvailable = mortgageRaw === 'true' || mortgageRaw === true
+  const floorValue = data.floor ?? attributes.floor
+  const floorsTotalValue = data.floors_total ?? attributes.floors_total
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -63,8 +65,8 @@ export async function POST(request: Request) {
     longitude: numberOrNull(data.longitude),
     area_m2: numberOrNull(data.area_m2),
     rooms: numberOrNull(data.rooms),
-    floor: numberOrNull(data.floor),
-    floors_total: numberOrNull(data.floors_total),
+    floor: numberOrNull(floorValue),
+    floors_total: numberOrNull(floorsTotalValue),
     ownership_type: ownershipType,
     is_mortgage_available: isMortgageAvailable,
     seller_role: sellerRole,
@@ -139,8 +141,6 @@ export async function DELETE(request: Request) {
     .map(image => image.storage_path)
     .filter((path): path is string => typeof path === 'string' && path.length > 0)
 
-  // Remove only objects explicitly owned by this listing. Legacy/external images
-  // with no storage_path are intentionally left untouched.
   if (storagePaths.length) {
     const { error: storageError } = await supabase.storage.from(IMAGE_BUCKET).remove(storagePaths)
     if (storageError) return NextResponse.json({ error: storageError.message, code: 'IMAGE_CLEANUP_FAILED' }, { status: 409 })
