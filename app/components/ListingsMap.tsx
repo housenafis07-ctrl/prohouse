@@ -35,7 +35,15 @@ const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
 
 function formatMoney(value: number, currency: string) {
-  return `${new Intl.NumberFormat('ru-RU').format(Number(value))} ${currency === 'USD' ? '$' : 'so‘m'}`
+  if (currency === 'USD') {
+    return `${new Intl.NumberFormat('ru-RU').format(Number(value))} $`
+  }
+
+  const millions = Number(value) / 1_000_000
+  const formatted = new Intl.NumberFormat('ru-RU', {
+    maximumFractionDigits: millions % 1 === 0 ? 0 : 1,
+  }).format(millions)
+  return `${formatted} mln so‘m`
 }
 
 function listingQuery(searchParams: string, bounds?: { getSouth: () => number; getNorth: () => number; getWest: () => number; getEast: () => number }) {
