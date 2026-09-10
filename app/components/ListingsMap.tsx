@@ -3,6 +3,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+if (typeof document !== 'undefined' && !document.getElementById('prohouse-listing-view-controls')) {
+  const style = document.createElement('style')
+  style.id = 'prohouse-listing-view-controls'
+  style.textContent = `
+    button[title="Jadval"], button[title="Ro‘yxat"], button[title="Znachki"],
+    button[title="Таблица"], button[title="Список"], button[title="Карточки"] {
+      font-size: 0 !important;
+      width: 44px;
+      min-width: 44px;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      justify-content: center;
+    }
+    button[title="Jadval"]::before, button[title="Таблица"]::before { content: '▦'; font-size: 20px; line-height: 1; }
+    button[title="Ro‘yxat"]::before, button[title="Список"]::before { content: '☰'; font-size: 19px; line-height: 1; }
+    button[title="Znachki"]::before, button[title="Карточки"]::before { content: '▥'; font-size: 20px; line-height: 1; }
+  `
+  document.head.appendChild(style)
+}
+
 type MapListing = {
   id: string
   title: string
