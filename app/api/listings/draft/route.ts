@@ -14,6 +14,44 @@ const numberOrNull = (value: unknown) => {
   return Number.isFinite(n) ? n : null
 }
 
+const jsonValue = (value: unknown) => {
+  if (value === '' || value === null || value === undefined) return null
+  if (typeof value === 'number' || typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const n = Number(trimmed)
+    return Number.isFinite(n) && trimmed !== '' ? n : trimmed
+  }
+  return value
+}
+
+async function persistAttributeValues(supabase: Awaited<ReturnType<typeof createClient>>, listingId: string, taxonomyCode: string | null, attributes: Record<string, unknown>) {
+  if (!taxonomyCode) return
+
+  const { data: definitions, error: definitionsError } = await supabase
+    .from('category_attributes')
+    .select('id,code')
+    .eq('category_code', taxonomyCode)
+    .eq('is_active', true)
+
+  if (definitionsError) throw definitionsError
+  if (!definitions?.length) return
+
+  const rows = definitions.map(definition => ({
+    listing_id: listingId,
+    attribute_id: definition.id,
+    value_jsonb: jsonValue(attributes[definition.code]),
+    updated_at: new Date().toISOString(),
+  }))
+
+  const { error: upsertError } = await supabase
+    .from('listing_attribute_values')
+    .upsert(rows, { onConflict: 'listing_id,attribute_id' })
+
+  if (upsertError) throw upsertError
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -31,8 +69,11 @@ export async function POST(request: Request) {
   const ownershipType = typeof ownershipRaw === 'string' && ownershipTypes.has(ownershipRaw) ? ownershipRaw : null
   const mortgageRaw = data.mortgage ?? attributes.mortgage
   const isMortgageAvailable = mortgageRaw === 'true' || mortgageRaw === true
+  const areaValue = data.area_m2 ?? attributes.area_m2
+  const roomsValue = data.rooms ?? attributes.rooms
   const floorValue = data.floor ?? attributes.floor
   const floorsTotalValue = data.floors_total ?? attributes.floors_total
+  const landAreaValue = data.land_area ?? attributes.land_area
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -63,10 +104,11 @@ export async function POST(request: Request) {
     address: text(data.address) || null,
     latitude: numberOrNull(data.latitude),
     longitude: numberOrNull(data.longitude),
-    area_m2: numberOrNull(data.area_m2),
-    rooms: numberOrNull(data.rooms),
+    area_m2: numberOrNull(areaValue),
+    rooms: numberOrNull(roomsValue),
     floor: numberOrNull(floorValue),
     floors_total: numberOrNull(floorsTotalValue),
+    land_area: numberOrNull(landAreaValue),
     ownership_type: ownershipType,
     is_mortgage_available: isMortgageAvailable,
     seller_role: sellerRole,
@@ -93,11 +135,19 @@ export async function POST(request: Request) {
       submitted_at: status === 'moderation' ? new Date().toISOString() : null,
       ...commonFields,
     }
-    const { data: created, error } = await supabase.from('listings').insert(insertData).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone').single()
+    const { data: created, error } = await supabase.from('listings').insert(insertData).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    try {
+      await persistAttributeValues(supabase, created.id, taxonomyCode, attributes)
+    } catch (attributeError) {
+      return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
+    }
+
     return NextResponse.json({ listing: created })
   }
 
+  const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
   const updateData: Record<string, unknown> = {
     draft_step: step,
     draft_data: data,
@@ -108,8 +158,15 @@ export async function POST(request: Request) {
     ...commonFields,
     ...(status === 'moderation' ? { status: 'moderation', submitted_at: new Date().toISOString() } : { status: 'draft' }),
   }
-  const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', user.id).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone').single()
+  const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', user.id).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  try {
+    await persistAttributeValues(supabase, updated.id, taxonomyCode, attributes)
+  } catch (attributeError) {
+    return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
+  }
+
   return NextResponse.json({ listing: updated })
 }
 
