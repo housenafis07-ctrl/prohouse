@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await db.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Tizimga kiring.' }, { status: 401 })
 
-    const conversationId = request.nextUrl.searchParams.get('conversationId') || ''
+    const conversationId = request.nextUrl.searchParams.get('conversationId')?.trim() || ''
     if (!conversationId) return NextResponse.json({ error: 'conversationId majburiy.' }, { status: 400 })
 
     const admin = serviceClient()
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       ? (participantRows ?? []).map(row => row.user_id).find(id => id !== user.id)
       : user.id
 
-    if (!buyerId || buyerId === listing.owner_id) return NextResponse.json({ transaction: null, lead: null, listing })
+    if (!buyerId || buyerId === listing.owner_id) return NextResponse.json({ transaction: null, lead: null, listing, role: null, nextStatus: null, nextActor: null, canAdvance: false })
 
     const { data: lead, error: leadError } = await admin
       .from('listing_leads')
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
     if (leadError) throw leadError
 
-    if (!lead) return NextResponse.json({ transaction: null, lead: null, listing })
+    if (!lead) return NextResponse.json({ transaction: null, lead: null, listing, role: user.id === listing.owner_id ? 'seller' : 'buyer', nextStatus: null, nextActor: null, canAdvance: false })
 
     const { data: transaction, error: transactionError } = await admin
       .from('property_transactions')
@@ -69,7 +69,26 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
     if (transactionError) throw transactionError
 
-    return NextResponse.json({ transaction: transaction ?? null, lead, listing })
+    const tx = transaction ?? null
+    const role = tx ? (tx.buyer_id === user.id ? 'buyer' : 'seller') : (user.id === listing.owner_id ? 'seller' : 'buyer')
+    const nextByStatus: Record<string, { status: string; actor: string }> = {
+      lead: { status: 'viewing', actor: 'seller' },
+      viewing: { status: 'offer', actor: 'buyer' },
+      offer: { status: 'deal', actor: 'seller' },
+      deal: { status: 'payment', actor: 'buyer' },
+      payment: { status: 'contract', actor: 'seller' },
+    }
+    const next = tx ? nextByStatus[tx.status] ?? null : null
+
+    return NextResponse.json({
+      transaction: tx,
+      lead,
+      listing,
+      role,
+      nextStatus: next?.status ?? null,
+      nextActor: next?.actor ?? null,
+      canAdvance: Boolean(next && next.actor === role),
+    })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Chat transactionini olishda xatolik.' }, { status: 500 })
   }

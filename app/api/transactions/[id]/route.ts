@@ -58,6 +58,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (error) {
       if (error.message.includes('TRANSACTION_NOT_FOUND')) return NextResponse.json({ error: 'Transaction topilmadi.' }, { status: 404 })
+      if (error.message.includes('TRANSACTION_ACTOR_FORBIDDEN')) return NextResponse.json({ error: 'Amalni faqat tizimdagi foydalanuvchi bajarishi mumkin.' }, { status: 403 })
+      if (error.message.includes('TRANSACTION_ROLE_FORBIDDEN')) return NextResponse.json({ error: 'Bu bosqichni navbati kelgan tomon bajaradi.' }, { status: 403 })
       if (error.message.includes('TRANSACTION_FORBIDDEN')) return NextResponse.json({ error: 'Bu transaction sizga tegishli emas.' }, { status: 403 })
       if (error.message.includes('INVALID_TRANSACTION_TRANSITION')) return NextResponse.json({ error: 'Bu statusga o‘tish mumkin emas.' }, { status: 409 })
       throw error
