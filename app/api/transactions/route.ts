@@ -28,14 +28,60 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Transaction yaratish uchun tizimga kiring.' }, { status: 401 })
 
     const body = await request.json().catch(() => null)
-    const leadId = typeof body?.leadId === 'string' ? body.leadId : ''
+    const leadIdFromBody = typeof body?.leadId === 'string' ? body.leadId : ''
+    const conversationId = typeof body?.conversationId === 'string' ? body.conversationId : ''
     const amount = body?.amount == null || body.amount === '' ? null : Number(body.amount)
     const currency = typeof body?.currency === 'string' && body.currency.trim() ? body.currency.trim().toUpperCase() : 'UZS'
 
-    if (!leadId) return NextResponse.json({ error: 'leadId majburiy.' }, { status: 400 })
+    if (!leadIdFromBody && !conversationId) return NextResponse.json({ error: 'leadId yoki conversationId majburiy.' }, { status: 400 })
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) return NextResponse.json({ error: 'amount noto‘g‘ri.' }, { status: 400 })
 
     const admin = serviceClient()
+    let leadId = leadIdFromBody
+
+    if (!leadId && conversationId) {
+      const { data: conversation, error: conversationError } = await admin
+        .from('conversations')
+        .select('id,listing_id')
+        .eq('id', conversationId)
+        .maybeSingle()
+      if (conversationError) throw conversationError
+      if (!conversation) return NextResponse.json({ error: 'Suhbat topilmadi.' }, { status: 404 })
+
+      const { data: participantRows, error: participantsError } = await admin
+        .from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+      if (participantsError) throw participantsError
+      const participantIds = (participantRows ?? []).map(row => row.user_id)
+      if (!participantIds.includes(user.id)) return NextResponse.json({ error: 'Bu suhbatga kirish huquqi yo‘q.' }, { status: 403 })
+
+      const { data: listing, error: listingError } = await admin
+        .from('listings')
+        .select('id,owner_id')
+        .eq('id', conversation.listing_id)
+        .maybeSingle()
+      if (listingError) throw listingError
+      if (!listing) return NextResponse.json({ error: 'E’lon topilmadi.' }, { status: 404 })
+
+      const buyerId = user.id === listing.owner_id ? participantIds.find(id => id !== user.id) : user.id
+      if (!buyerId || buyerId === listing.owner_id) return NextResponse.json({ error: 'Xaridor va sotuvchi aniqlanmadi.' }, { status: 400 })
+
+      const { data: lead, error: leadLookupError } = await admin
+        .from('listing_leads')
+        .select('id')
+        .eq('listing_id', listing.id)
+        .eq('owner_id', listing.owner_id)
+        .eq('visitor_id', buyerId)
+        .eq('lead_type', 'chat')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (leadLookupError) throw leadLookupError
+      if (!lead) return NextResponse.json({ error: 'Bu chat uchun lead topilmadi.' }, { status: 404 })
+      leadId = lead.id
+    }
+
     const { data: lead, error: leadError } = await admin
       .from('listing_leads')
       .select('id,listing_id,owner_id,visitor_id,status,lead_type')
