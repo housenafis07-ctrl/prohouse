@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import GlobalNavigationGate from "./components/GlobalNavigationGate";
+import GlobalLanguageFix from "./components/GlobalLanguageFix";
+import LegacySurfaceLanguageFix from "./components/LegacySurfaceLanguageFix";
 import RentalNavigationFix from "./components/RentalNavigationFix";
 import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 import PurchaseNavigationFix from "./components/PurchaseNavigationFix";
@@ -18,6 +20,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="uz">
       <body>
+        <GlobalLanguageFix />
+        <LegacySurfaceLanguageFix />
         <GlobalNavigationGate />
         <RentalNavigationFix />
         <DailySearchNavigationFix />
