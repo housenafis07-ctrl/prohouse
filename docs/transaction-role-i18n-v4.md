@@ -1,0 +1,1 @@
+State machine contract: shared state, role-based allowed actions, server authorization, localized display labels.
