@@ -1,0 +1,1 @@
+Implementation target: role-based transition controls in transaction chat and i18n state labels. Do not change DB enum values. Keep one shared transaction state and expose only actions authorized for buyer/seller. Validate permissions server-side before transition.
