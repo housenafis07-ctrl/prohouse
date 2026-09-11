@@ -3,13 +3,11 @@
 import { useEffect } from 'react'
 
 type Lang = 'uz' | 'ru'
-
 type Pair = [string, string]
 
-// This is a compatibility bridge for legacy pages that still render literal UI
-// strings instead of consuming a shared i18n dictionary. It is intentionally
-// limited to exact UI phrases so listing titles, descriptions, addresses and
-// user-entered content are never translated.
+// Compatibility bridge for legacy pages that still render literal UI strings.
+// Keep this list limited to platform UI copy; listing titles, descriptions,
+// addresses and user-entered content must not be translated here.
 const PAIRS: Pair[] = [
   ['Kabinet', 'Кабинет'],
   ['Shaxsiy kabinet', 'Личный кабинет'],
@@ -69,7 +67,6 @@ const PAIRS: Pair[] = [
   ['Holat', 'Статус'],
   ['Ma’lumotlar', 'Данные'],
   ['Shaxsiy ma’lumotlar', 'Личные данные'],
-  ['Tahrirlash', 'Редактировать'],
   ['Profil ma’lumotlari saqlandi.', 'Данные профиля сохранены.'],
   ['F.I.O. ni kiriting.', 'Введите Ф.И.О.'],
   ['INN ni kiriting.', 'Введите ИНН.'],
@@ -80,7 +77,6 @@ const PAIRS: Pair[] = [
   ['Profil to‘liqligi', 'Заполненность профиля'],
   ['Keyingi qadamlar', 'Следующие шаги'],
   ['Uy topishni boshlash', 'Начать поиск жилья'],
-  ['Profilni to‘ldirish', 'Заполнить профиль'],
   ['Yordam kerakmi?', 'Нужна помощь?'],
   ['Bosh sahifaga qaytish', 'Вернуться на главную'],
   ['Saqlangan e’lonlar', 'Сохранённые объявления'],
@@ -89,7 +85,6 @@ const PAIRS: Pair[] = [
   ['E’lon kartasidagi yurak tugmasi orqali qiziqqan variantlaringizni saqlang.', 'Сохраняйте интересующие варианты кнопкой с сердцем на карточке объявления.'],
   ['Saqlanganlardan olib tashlash', 'Удалить из сохранённых'],
   ['Rasm yo‘q', 'Нет изображения'],
-  ['Saqlangan qidiruvlar', 'Сохранённые поиски'],
   ['Muhim filtrlarni saqlang. Keyin bir bosishda aynan shu qidiruvni qayta ochishingiz mumkin.', 'Сохраняйте важные фильтры и открывайте этот поиск снова одним нажатием.'],
   ['Hali saqlangan qidiruv yo‘q', 'Сохранённых поисков пока нет'],
   ['Qidirishni boshlash', 'Начать поиск'],
@@ -137,6 +132,58 @@ const PAIRS: Pair[] = [
   ['so‘m', 'сум'],
   ['O‘z / Ru', 'Ru / O‘z'],
   ['Ru / O‘z', 'O‘z / Ru'],
+
+  // Messages / chat
+  ['E’LON BO‘YICHA CHAT', 'ЧАТ ПО ОБЪЯВЛЕНИЮ'],
+  ['Barcha e’lonlar bo‘yicha yozishmalar.', 'Переписка по всем объявлениям.'],
+  ['Suhbatni tanlang', 'Выберите чат'],
+  ['E’lon sahifasidan chatni boshlang', 'Начните чат со страницы объявления'],
+  ['BILDIRISHNOMALAR', 'УВЕДОМЛЕНИЯ'],
+  ['Xabaringizni yozing...', 'Напишите сообщение...'],
+  ['Yuborish', 'Отправить'],
+  ['Enter — yuborish · Shift+Enter — yangi qator', 'Enter — отправить · Shift+Enter — новая строка'],
+  ['E’lon bo‘yicha murojaat qilmoqchiman.', 'Хочу связаться по объявлению.'],
+
+  // Account / listings
+  ['E’lonlar kabineti', 'Кабинет объявлений'],
+  ['E’lonlaringiz holatini kuzating. Admin qarori berilganda sahifa avtomatik yangilanadi.', 'Отслеживайте статус ваших объявлений. После решения администратора страница обновится автоматически.'],
+  ['BEPUL E’LONLAR', 'БЕСПЛАТНЫЕ ОБЪЯВЛЕНИЯ'],
+  ['ta qoldi', 'осталось'],
+  ['Qo‘shimcha e’lon sotib olish', 'Купить дополнительные объявления'],
+  ['Yangilangan:', 'Обновлено:'],
+  ['Yangi e’lon', 'Новое объявление'],
+  ['E’lonni ko‘rish', 'Посмотреть объявление'],
+  ['E’lonni tahrirlash', 'Редактировать объявление'],
+
+  // Trusted profile
+  ['Prohouse xavfsizlik tizimi', 'Система безопасности Prohouse'],
+  ['Ijtimoiy tasdiqlash orqali foydalanuvchining haqiqiyligini kuchaytirish va e’lonlarda ishonchli sotuvchini ajratib ko‘rsatish.', 'Система помогает подтвердить подлинность пользователя и выделить надёжного продавца в объявлениях.'],
+  ['Ulanilmagan', 'Не подключено'],
+  ['Shaxsni biometrik identifikatsiya qilish orqali profilni tasdiqlash.', 'Подтверждение профиля с помощью биометрической идентификации.'],
+  ['To‘lov hisobi', 'Платёжный счёт'],
+  ['Ishonchli profilni kuchaytirish uchun bog‘langan to‘lov hisobining tasdiqlangan holati.', 'Подтверждённый статус привязанного платёжного счёта для усиления надёжности профиля.'],
+  ['Qo‘shilish majburiy emas.', 'Участие не обязательно.'],
+  ['So‘rov yuborgach, MyID tasdig‘i va mavjud xavfsizlik tekshiruvlari asosida profilga yashil belgi beriladi.', 'После отправки запроса и подтверждения MyID профиль получает зелёную отметку на основании необходимых проверок безопасности.'],
+  ['✓ Shaxsiy kabinetdagi profil holatida', '✓ В статусе профиля в личном кабинете'],
+  ['✓ Hamkorning e’lonlarida “Ishonchli profil” belgisi sifatida', '✓ В объявлениях партнёра как отметка «Надёжный профиль»'],
+  ['✓ E’lon tafsilotlarida sotuvchi/beruvchi ma’lumotlari yonida', '✓ В деталях объявления рядом с данными продавца/арендодателя'],
+
+  // Monetization
+  ['Monetization Engine mahsulot katalogi, buyurtma, payment provider va entitlement qatlamlarini bitta modelga birlashtiradi.', 'Monetization Engine объединяет каталог продуктов, заказы, платёжного провайдера и слой доступов в единую модель.'],
+  ['Hozircha real payment gateway ulanmagan.', 'Реальный платёжный шлюз пока не подключён.'],
+  ['Narx va faollik DB katalogidan olinadi; UI’da product hardcode qilinmaydi.', 'Цена и активность берутся из каталога БД; продукты не захардкожены в UI.'],
+  ['0 ta faol mahsulot', '0 активных продуктов'],
+  ['Hozircha sotuvga yoqilgan monetizatsiya mahsuloti yo‘q.', 'Пока нет доступных для продажи продуктов монетизации.'],
+  ['Sizda hozircha entitlement yo‘q. Payment provider ulangach buyurtmalar shu yerda aktiv entitlementga aylanadi.', 'У вас пока нет доступов. После подключения платёжного провайдера заказы будут превращаться здесь в активные доступы.'],
+
+  // Saved searches
+  ['E’lonlar sahifasida filtrlarni tanlab, qidiruvni saqlash imkoniyati shu modul bilan bog‘lanadi.', 'Выберите фильтры на странице объявлений и сохраняйте поиск через этот модуль.'],
+
+  // Listing wizard / shared labels
+  ['Ma’lumotlar har bosqichda qoralama sifatida saqlanadi.', 'Данные сохраняются как черновик на каждом этапе.'],
+  ['Bo‘lim va turini tanlang.', 'Выберите раздел и тип.'],
+  ['Joylashuvni to‘liq tanlang.', 'Полностью укажите местоположение.'],
+  ['Xaritadan joylashuvni belgilang.', 'Укажите местоположение на карте.'],
 ]
 
 const UZ_TO_RU = new Map(PAIRS)
@@ -144,7 +191,8 @@ const RU_TO_UZ = new Map(PAIRS.map(([uz, ru]) => [ru, uz]))
 
 function translateText(value: string, lang: Lang) {
   const map = lang === 'ru' ? UZ_TO_RU : RU_TO_UZ
-  const exact = map.get(value.trim())
+  const trimmed = value.trim()
+  const exact = map.get(trimmed)
   if (exact) {
     const leading = value.match(/^\s*/)?.[0] ?? ''
     const trailing = value.match(/\s*$/)?.[0] ?? ''
