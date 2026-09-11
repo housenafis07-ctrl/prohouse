@@ -1,0 +1,1 @@
+Implementation note: transaction UI should use localized labels and role-specific actions. Internal states remain stable.
