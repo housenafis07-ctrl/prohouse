@@ -77,5 +77,5 @@ export default function HomeBuildingNavigationFix() {
     }
   }, [])
 
-  return null
+  return <style>{'#home-building{display:none !important}'}</style>
 }
