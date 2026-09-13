@@ -6,6 +6,7 @@ type Lang = 'uz' | 'ru'
 
 const TOGGLE_LABELS = new Set(['O‘z / Ru', 'Ru / O‘z'])
 const PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*$/i
+const RENT_PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*\/\s*(oy|мес\.)\s*$/i
 
 function getLang(): Lang {
   return typeof window !== 'undefined' && window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
@@ -19,6 +20,9 @@ function protectLanguageToggles() {
 }
 
 function translatePriceText(value: string, lang: Lang) {
+  if (RENT_PRICE_RE.test(value)) {
+    return value.replace(/(so[‘']m|сум)\s*\/\s*(oy|мес\.)\s*$/i, lang === 'ru' ? 'сум / мес.' : 'so‘m / oy')
+  }
   if (!PRICE_RE.test(value)) return value
   return value.replace(/(so[‘']m|сум)\s*$/i, lang === 'ru' ? 'сум' : 'so‘m')
 }
@@ -32,7 +36,8 @@ function translatePrices() {
     const text = node as Text
     const parent = text.parentElement
     if (!parent || parent.closest('[data-no-global-i18n]')) continue
-    if (PRICE_RE.test(text.nodeValue ?? '')) nodes.push(text)
+    const value = text.nodeValue ?? ''
+    if (PRICE_RE.test(value) || RENT_PRICE_RE.test(value)) nodes.push(text)
   }
   nodes.forEach((text) => {
     const current = text.nodeValue ?? ''
