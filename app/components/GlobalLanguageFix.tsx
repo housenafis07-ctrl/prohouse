@@ -189,7 +189,22 @@ const PAIRS: Pair[] = [
 const UZ_TO_RU = new Map(PAIRS)
 const RU_TO_UZ = new Map(PAIRS.map(([uz, ru]) => [ru, uz]))
 
+// Currency is platform-generated UI, not user-entered listing text.
+// Match only a standalone money label so a customer's description/title is
+// never altered just because it happens to contain the word "so‘m".
+const MONEY_UZ_RE = /^\s*[\d\s.,]+(?:\s+(?:mlrd|mln|ming))?\s+so[’ʻʼ`']m\s*$/i
+const MONEY_RU_RE = /^\s*[\d\s.,]+(?:\s+(?:млрд|млн|тыс\.))?\s+сум\s*$/i
+
+function translateMoneyLabel(value: string, lang: Lang) {
+  if (lang === 'ru' && MONEY_UZ_RE.test(value)) return value.replace(/so[’ʻʼ`']m/gi, 'сум')
+  if (lang === 'uz' && MONEY_RU_RE.test(value)) return value.replace(/\bсум\b/gi, 'so‘m')
+  return null
+}
+
 function translateText(value: string, lang: Lang) {
+  const money = translateMoneyLabel(value, lang)
+  if (money !== null) return money
+
   const map = lang === 'ru' ? UZ_TO_RU : RU_TO_UZ
   const trimmed = value.trim()
   const exact = map.get(trimmed)
