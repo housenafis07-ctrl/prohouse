@@ -171,19 +171,6 @@ const PAIRS: Pair[] = [
   // Monetization
   ['Monetization Engine mahsulot katalogi, buyurtma, payment provider va entitlement qatlamlarini bitta modelga birlashtiradi.', 'Monetization Engine объединяет каталог продуктов, заказы, платёжного провайдера и слой доступов в единую модель.'],
   ['Hozircha real payment gateway ulanmagan.', 'Реальный платёжный шлюз пока не подключён.'],
-  ['Narx va faollik DB katalogidan olinadi; UI’da product hardcode qilinmaydi.', 'Цена и активность берутся из каталога БД; продукты не захардкожены в UI.'],
-  ['0 ta faol mahsulot', '0 активных продуктов'],
-  ['Hozircha sotuvga yoqilgan monetizatsiya mahsuloti yo‘q.', 'Пока нет доступных для продажи продуктов монетизации.'],
-  ['Sizda hozircha entitlement yo‘q. Payment provider ulangach buyurtmalar shu yerda aktiv entitlementga aylanadi.', 'У вас пока нет доступов. После подключения платёжного провайдера заказы будут превращаться здесь в активные доступы.'],
-
-  // Saved searches
-  ['E’lonlar sahifasida filtrlarni tanlab, qidiruvni saqlash imkoniyati shu modul bilan bog‘lanadi.', 'Выберите фильтры на странице объявлений и сохраняйте поиск через этот модуль.'],
-
-  // Listing wizard / shared labels
-  ['Ma’lumotlar har bosqichda qoralama sifatida saqlanadi.', 'Данные сохраняются как черновик на каждом этапе.'],
-  ['Bo‘lim va turini tanlang.', 'Выберите раздел и тип.'],
-  ['Joylashuvni to‘liq tanlang.', 'Полностью укажите местоположение.'],
-  ['Xaritadan joylashuvni belgilang.', 'Укажите местоположение на карте.'],
 ]
 
 const UZ_TO_RU = new Map(PAIRS)
@@ -285,8 +272,11 @@ export default function GlobalLanguageFix() {
     window.addEventListener('prohouse-language-change', onLanguageChange)
     window.addEventListener('storage', onStorage)
 
+    // React can update an existing text node's value (characterData) after
+    // async listing data arrives without inserting a new DOM node. Observe
+    // both childList and characterData so dynamic prices are translated too.
     const observer = new MutationObserver(() => schedule())
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
     return () => {
       observer.disconnect()
