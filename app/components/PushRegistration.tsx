@@ -13,6 +13,9 @@ function urlBase64ToUint8Array(base64String: string) {
 export default function PushRegistration() {
   useEffect(() => {
     let cancelled = false
+    let idleId: number | null = null
+    let timeoutId: number | null = null
+
     const setup = async () => {
       if (cancelled || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
       const supabase = createClient()
@@ -38,8 +41,23 @@ export default function PushRegistration() {
         body: JSON.stringify(subscription.toJSON()),
       })
     }
-    void setup().catch(() => {})
-    return () => { cancelled = true }
+
+    const start = () => {
+      if (cancelled) return
+      void setup().catch(() => {})
+    }
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(start, { timeout: 4000 })
+    } else {
+      timeoutId = window.setTimeout(start, 2500)
+    }
+
+    return () => {
+      cancelled = true
+      if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+    }
   }, [])
 
   return null
