@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,9 +29,29 @@ export async function GET() {
 
   let partnerType: string | null = null
   if (user) {
-    const { data: profile } = await supabase.from('profiles').select('account_type,partner_type').eq('id', user.id).maybeSingle()
-    if (profile?.account_type === 'individual') partnerType = 'owner'
-    else if (profile?.account_type === 'partner') partnerType = profile.partner_type
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_type,partner_type')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.account_type === 'individual') {
+      partnerType = 'owner'
+    } else if (profile?.account_type === 'partner') {
+      // partner_profiles is the canonical normalized partner type.
+      // This also handles legacy values such as profiles.partner_type='llc'.
+      const { data: partnerProfile } = await supabase
+        .from('partner_profiles')
+        .select('partner_type')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      partnerType = partnerProfile?.partner_type || (
+        ['owner', 'realtor', 'agency', 'developer', 'contractor', 'service_provider'].includes(profile.partner_type || '')
+          ? profile.partner_type
+          : null
+      )
+    }
   }
 
   let allowedCodes: Set<string> | null = null
@@ -44,5 +67,8 @@ export async function GET() {
   const filtered = (categories || []).filter((c) => !allowedCodes || allowedCodes.has(c.code))
   const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
 
-  return NextResponse.json({ categories: filtered, attributes: filteredAttributes, partnerType })
+  return NextResponse.json(
+    { categories: filtered, attributes: filteredAttributes, partnerType },
+    { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+  )
 }
