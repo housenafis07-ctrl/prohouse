@@ -9,7 +9,7 @@ import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
 
 type Lang = 'uz' | 'ru'
-type Category = { code:string; parent_code:string|null; name_uz:string; name_ru:string|null; section_code:string; listing_type:string|null; property_type:string|null; entity_type:string; sort_order:number }
+type Category = { code:string; parent_code:string|null; name_uz:string; name_ru:string|null; section_code:string; listing_type:string|null; property_type:string|null; entity_type:string; is_listable?: boolean; sort_order:number }
 type Img = { file:File; preview:string }
 
 const STEPS:{uz:string;ru:string}[] = [
