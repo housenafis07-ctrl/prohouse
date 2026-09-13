@@ -1,0 +1,105 @@
+'use client'
+
+import { ChangeEvent, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
+import ListingLocationPicker from '@/app/components/ListingLocationPicker'
+import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
+import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
+
+type Lang = 'uz' | 'ru'
+type Category = { code:string; parent_code:string|null; name_uz:string; name_ru:string|null; section_code:string; listing_type:string|null; property_type:string|null; entity_type:string; sort_order:number }
+type Img = { file:File; preview:string }
+
+const STEPS:{uz:string;ru:string}[] = [
+  {uz:'Xizmat turi',ru:'Услуга'},
+  {uz:'Ma’lumotlar',ru:'Данные'},
+  {uz:'Hudud',ru:'Регион'},
+  {uz:'Narx',ru:'Цена'},
+  {uz:'Rasmlar',ru:'Фото'},
+  {uz:'Tekshirish',ru:'Проверка'},
+]
+const cleanDistrict=(v:string)=>v.replace(/ tumani$/i,'').replace(/ shahri$/i,'')
+
+const getImageDimensions=(file:File):Promise<{width:number|null;height:number|null}>=>(new Promise(resolve=>{
+  const url=URL.createObjectURL(file); const image=new Image()
+  image.onload=()=>{URL.revokeObjectURL(url);resolve({width:image.naturalWidth,height:image.naturalHeight})}
+  image.onerror=()=>{URL.revokeObjectURL(url);resolve({width:null,height:null})}
+  image.src=url
+}))
+
+export default function ServiceListingWizard(){
+  const router=useRouter()
+  const [lang,setLang]=useState<Lang>('uz')
+  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [error,setError]=useState(''); const [success,setSuccess]=useState('')
+  const [categories,setCategories]=useState<Category[]>([]); const [step,setStep]=useState(1); const [listingId,setListingId]=useState<string|null>(null)
+  const [partnerType,setPartnerType]=useState<string|null>(null); const [selectedCode,setSelectedCode]=useState('')
+  const [images,setImages]=useState<Img[]>([]); const [mainImage,setMainImage]=useState(0)
+  const [form,setForm]=useState({taxonomy_code:'',listing_type:'service',property_type:'service',title:'',description:'',price:'',currency:'UZS',city:'Toshkent',district:'',address:'',contact_phone:'',company_name:''})
+  const [location,setLocation]=useState<{latitude:number|null;longitude:number|null}>({latitude:null,longitude:null})
+  const ru=lang==='ru'; const selected=categories.find(c=>c.code===selectedCode)||null
+  const region=useMemo(()=>form.city==='Toshkent'?UZBEKISTAN_LOCATIONS.find(x=>x.name==='Toshkent shahri'):UZBEKISTAN_LOCATIONS.find(x=>x.name===form.city),[form.city])
+  const districts=region?.districts||[]
+  const t=(uz:string,ruText:string)=>ru?ruText:uz
+  const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
+
+  useEffect(()=>{
+    const saved=window.localStorage.getItem('prohouse-lang'); if(saved==='ru')setLang('ru')
+    const onLanguageChange=(event:Event)=>{const next=(event as CustomEvent<Lang>).detail;if(next==='uz'||next==='ru')setLang(next)}
+    window.addEventListener('prohouse-language-change',onLanguageChange); return()=>window.removeEventListener('prohouse-language-change',onLanguageChange)
+  },[])
+  useEffect(()=>{(async()=>{try{
+    const r=await fetch('/api/listings/meta',{cache:'no-store'}); const d=await r.json(); if(!r.ok)throw new Error(d.error||t('Ma’lumotlar yuklanmadi','Не удалось загрузить данные'))
+    const serviceCategories=(d.categories||[]).filter((c:Category)=>c.section_code==='services'&&c.entity_type==='service'&&c.is_listable!==false)
+    setCategories(serviceCategories); setPartnerType(d.partnerType||null)
+    if(!serviceCategories.length)throw new Error(t('Hozircha xizmat e’loni joylashtirish uchun mavjud yo‘nalish topilmadi.','Сейчас нет доступных направлений для размещения услуг.'))
+  }catch(e){setError(e instanceof Error?e.message:t('Yuklashda xatolik','Ошибка загрузки'))}finally{setLoading(false)}})()},[])
+  useEffect(()=>()=>images.forEach(i=>URL.revokeObjectURL(i.preview)),[images])
+
+  const payload=()=>({...form,taxonomy_code:selectedCode,listing_type:'service',property_type:'service',price:form.price.replace(/\s/g,''),latitude:location.latitude,longitude:location.longitude})
+  const save=async(nextStep:number,status:'draft'|'moderation'='draft')=>{setSaving(true);setError('');try{
+    const r=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,step:nextStep,data:payload(),status})}); const d=await r.json()
+    if(!r.ok)throw new Error(d.message||d.error||t('Saqlashda xatolik','Ошибка сохранения'))
+    setListingId(d.listing.id);setStep(nextStep)
+  }catch(e){setError(e instanceof Error?e.message:t('Saqlashda xatolik','Ошибка сохранения'))}finally{setSaving(false)}}
+  const validate=()=>{
+    if(!selectedCode)return t('Xizmat turini tanlang.','Выберите услугу.')
+    if(step>=2&&!form.title.trim())return t('Xizmat sarlavhasini kiriting.','Введите заголовок услуги.')
+    if(step>=2&&!form.description.trim())return t('Xizmat tavsifini kiriting.','Введите описание услуги.')
+    if(step>=3&&(!form.city||!form.district))return t('Xizmat ko‘rsatiladigan hududni tanlang.','Выберите регион оказания услуги.')
+    if(step>=3&&(location.latitude==null||location.longitude==null))return t('Xaritadan hududni belgilang.','Укажите расположение на карте.')
+    if(step>=4&&(!form.price||!Number.isFinite(Number(form.price.replace(/\s/g,'')))))return t('To‘g‘ri narx kiriting.','Введите корректную цену.')
+    if(step>=5&&images.length===0)return t('Kamida 1 ta rasm yuklang.','Загрузите хотя бы 1 фото.')
+    return ''
+  }
+  const next=async()=>{const v=validate();if(v){setError(v);return}setError('');if(step<6)await save(step+1)}
+  const back=()=>{setError('');setStep(s=>Math.max(1,s-1))}
+  const cancel=async()=>{if(!listingId){router.push('/account');return}setSaving(true);try{const r=await fetch(`/api/listings/draft?listingId=${encodeURIComponent(listingId)}`,{method:'DELETE'});if(!r.ok)throw new Error(t('Qoralamani bekor qilib bo‘lmadi.','Не удалось отменить черновик.'));router.push('/account')}catch(e){setError(e instanceof Error?e.message:t('Xatolik yuz berdi.','Произошла ошибка.'))}finally{setSaving(false)}}
+  const addImages=(e:ChangeEvent<HTMLInputElement>)=>{const files=Array.from(e.target.files||[]);e.target.value='';if(images.length+files.length>10){setError(t('Maksimal 10 ta rasm.','Максимум 10 фото.'));return}const bad=files.find(f=>!isAcceptedListingImage(f)||f.size>LISTING_IMAGE_MAX_SIZE);if(bad){setError(t('Faqat JPG, PNG, WebP yoki GIF rasm. Har biri 10 MB gacha.','Только JPG, PNG, WebP или GIF. Максимум 10 МБ на файл.'));return}setImages(x=>[...x,...files.map(file=>({file,preview:URL.createObjectURL(file)}))])}
+  const removeImage=(i:number)=>{const target=images[i];if(target)URL.revokeObjectURL(target.preview);setImages(x=>x.filter((_,n)=>n!==i));setMainImage(0)}
+  const submit=async()=>{const v=validate();if(v){setError(v);return}if(!listingId){setError(t('Qoralama topilmadi.','Черновик не найден.'));return}setSaving(true);setError('');const db=createClient();const uploaded:string[]=[];let persisted=false;try{
+    const ordered=[images[mainImage],...images.filter((_,i)=>i!==mainImage)]; const rows=[]
+    const user=(await db.auth.getUser()).data.user; if(!user)throw new Error('AUTH_REQUIRED')
+    for(let i=0;i<ordered.length;i++){const file=ordered[i].file;const path=getListingImageStoragePath(user.id,listingId,file.name);const u=await db.storage.from(LISTING_IMAGE_BUCKET).upload(path,file,{cacheControl:'31536000',upsert:false});if(u.error)throw u.error;uploaded.push(path);const {width,height}=await getImageDimensions(file);const pub=db.storage.from(LISTING_IMAGE_BUCKET).getPublicUrl(path);rows.push({listing_id:listingId,image_url:pub.data.publicUrl,storage_path:path,sort_order:i,width,height,size_bytes:file.size,mime_type:file.type})}
+    if(rows.length){const {error:e}=await db.from('listing_images').insert(rows);if(e)throw e;persisted=true}
+    const r=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,step:6,data:payload(),status:'moderation'})});const d=await r.json();if(!r.ok)throw new Error(d.message||d.error||t('Moderatsiyaga yuborilmadi','Не удалось отправить на модерацию'))
+    setSuccess(t(`Xizmat e’loni moderatsiyaga yuborildi: ${d.listing.listing_code}`,`Объявление об услуге отправлено на модерацию: ${d.listing.listing_code}`));setTimeout(()=>router.push('/account/listings'),700)
+  }catch(e){if(!persisted&&uploaded.length)await db.storage.from(LISTING_IMAGE_BUCKET).remove(uploaded);setError(e instanceof Error?e.message:t('E’lonni yuborishda xatolik','Ошибка отправки объявления'))}finally{setSaving(false)}}
+
+  if(loading)return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-4xl rounded-3xl bg-white p-10 text-center">{t('Yuklanmoqda...','Загрузка...')}</div></main>
+  return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-4xl">
+    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">PROHOUSE</p><h1 className="mt-1 text-2xl font-bold text-slate-950">{t('Xizmat e’loni joylashtirish','Разместить объявление об услуге')}</h1><p className="mt-1 text-sm text-slate-500">{t('Xizmat ko‘rsatuvchi uchun alohida e’lon formasi.','Отдельная форма для поставщика услуг.')}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={()=>{const nextLang:Lang=ru?'uz':'ru';setLang(nextLang);window.localStorage.setItem('prohouse-lang',nextLang);window.dispatchEvent(new CustomEvent('prohouse-language-change',{detail:nextLang}))}} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700">{ru?'Ru / O‘z':'O‘z / Ru'}</button><Link href="/account" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">{t('Shaxsiy kabinet','Личный кабинет')}</Link></div></div>
+    {partnerType&&<div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">{t('Xizmat e’lonlari xizmat ko‘rsatuvchi professional hamkorlar uchun mo‘ljallangan.','Объявления об услугах предназначены для профессиональных партнёров.')}</div>}
+    <div className="mb-5 grid grid-cols-6 gap-1">{STEPS.map((x,i)=><div key={x.uz} className={`rounded-xl px-1 py-2 text-center text-[11px] font-semibold ${i+1===step?'bg-slate-950 text-white':i+1<step?'bg-slate-200 text-slate-700':'bg-white text-slate-400'}`}><span className="hidden sm:inline">{i+1}. </span>{ru?x.ru:x.uz}</div>)}</div>
+    <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-8">
+      {error&&<div className="mb-5 rounded-2xl bg-red-50 p-4 text-sm font-medium text-red-700">{error}</div>}{success&&<div className="mb-5 rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{success}</div>}
+      {step===1&&<div><h2 className="text-xl font-bold">1. {t('Xizmat turini tanlang','Выберите услугу')}</h2><p className="mt-1 text-sm text-slate-500">{t('Siz taklif qiladigan xizmat yo‘nalishini tanlang.','Выберите направление услуги, которую вы предлагаете.')}</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{categories.map(c=><button key={c.code} type="button" onClick={()=>{setSelectedCode(c.code);setForm(v=>({...v,taxonomy_code:c.code}))}} className={`rounded-2xl border p-5 text-left transition ${selectedCode===c.code?'border-emerald-500 bg-emerald-50':'hover:border-slate-950'}`}><b>{ru?(c.name_ru||c.name_uz):c.name_uz}</b><span className="mt-1 block text-sm text-slate-500">{t('Xizmat','Услуга')}</span></button>)}</div></div>}
+      {step===2&&<div><h2 className="text-xl font-bold">2. {t('Xizmat ma’lumotlari','Данные об услуге')}</h2><input value={form.title} onChange={e=>update('title',e.target.value)} placeholder={t('Xizmat sarlavhasi','Заголовок услуги')} className="mt-5 w-full rounded-xl border p-3"/><textarea value={form.description} onChange={e=>update('description',e.target.value)} placeholder={t('Xizmatni batafsil tasvirlang','Подробно опишите услугу')} rows={7} className="mt-4 w-full rounded-xl border p-3"/><div className="mt-4 grid gap-4 sm:grid-cols-2"><input value={form.company_name} onChange={e=>update('company_name',e.target.value)} placeholder={t('Kompaniya yoki usta nomi (ixtiyoriy)','Название компании или мастера (необязательно)')} className="rounded-xl border p-3"/><input value={form.contact_phone} onChange={e=>update('contact_phone',e.target.value)} placeholder={t('Aloqa telefoni (ixtiyoriy)','Контактный телефон (необязательно)')} className="rounded-xl border p-3"/></div></div>}
+      {step===3&&<div><h2 className="text-xl font-bold">3. {t('Xizmat ko‘rsatiladigan hudud','Регион оказания услуги')}</h2><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">{t('Shahar/viloyat','Город/область')}<select value={form.city} onChange={e=>{update('city',e.target.value);update('district','')}} className="mt-2 w-full rounded-xl border p-3"><option>Toshkent</option>{UZBEKISTAN_LOCATIONS.filter(x=>x.name!=='Toshkent shahri').map(x=><option key={x.name}>{x.name}</option>)}</select></label><label className="text-sm font-semibold">{t('Tuman/shahar','Район/город')}<select value={form.district} onChange={e=>update('district',e.target.value)} className="mt-2 w-full rounded-xl border p-3"><option value="">{t('Tanlang','Выберите')}</option>{districts.map(x=><option key={x}>{cleanDistrict(x)}</option>)}</select></label></div><input value={form.address} onChange={e=>update('address',e.target.value)} placeholder={t('Manzil yoki xizmat ko‘rsatish nuqtasi (ixtiyoriy)','Адрес или точка оказания услуги (необязательно)')} className="mt-4 w-full rounded-xl border p-3"/><div className="mt-4"><ListingLocationPicker latitude={location.latitude} longitude={location.longitude} onChange={(latitude,longitude)=>setLocation({latitude,longitude})}/></div></div>}
+      {step===4&&<div><h2 className="text-xl font-bold">4. {t('Narx va shartlar','Цена и условия')}</h2><div className="mt-5 grid gap-4 sm:grid-cols-3"><input value={form.price} onChange={e=>update('price',e.target.value)} placeholder={t('Narx','Цена')} inputMode="numeric" className="rounded-xl border p-3 sm:col-span-2"/><select value={form.currency} onChange={e=>update('currency',e.target.value)} className="rounded-xl border p-3"><option>UZS</option><option>USD</option></select></div><p className="mt-3 text-sm text-slate-500">{t('Masalan: 150 000 so‘mdan yoki xizmat hajmiga qarab.','Например: от 150 000 сум или по объёму работ.')}</p></div>}
+      {step===5&&<div><h2 className="text-xl font-bold">5. {t('Rasmlar','Фото')}</h2><p className="mt-1 text-sm text-slate-500">{t('Xizmatingiz namunalaridan 10 tagacha rasm yuklang.','Загрузите до 10 фото с примерами вашей работы.')}</p><label className="mt-5 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed p-10 text-sm font-semibold"><input type="file" accept={LISTING_IMAGE_ACCEPT} multiple onChange={addImages} className="hidden"/>{t('Rasmlarni tanlash','Выбрать фото')}</label><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{images.map((im,i)=><div key={im.preview} className="relative overflow-hidden rounded-2xl border"><img src={im.preview} className="aspect-square w-full object-cover"/><button type="button" onClick={()=>removeImage(i)} className="absolute right-2 top-2 rounded-full bg-white px-2 py-1 text-xs">×</button>{i===mainImage&&<span className="absolute bottom-2 left-2 rounded-full bg-slate-950 px-2 py-1 text-[10px] text-white">{t('Asosiy','Основное')}</span>}</div>)}</div></div>}
+      {step===6&&<div><h2 className="text-xl font-bold">6. {t('Tekshirish','Проверка')}</h2><div className="mt-5 space-y-3">{[[t('Xizmat turi','Услуга'),ru?(selected?.name_ru||selected?.name_uz||'—'):(selected?.name_uz||'—')],[t('Sarlavha','Заголовок'),form.title||'—'],[t('Hudud','Регион'),`${form.city}, ${form.district}`],[t('Manzil','Адрес'),form.address||'—'],[t('Narx','Цена'),`${form.price||'—'} ${form.currency}`],[t('Rasmlar','Фото'),`${images.length} ${t('ta','шт.')}`]].map(([a,b])=><div key={a} className="flex justify-between gap-5 rounded-2xl bg-slate-50 p-4 text-sm"><span className="text-slate-500">{a}</span><b className="text-right">{b}</b></div>)}</div><p className="mt-5 text-sm text-slate-500">{t('E’lon moderatsiyaga yuborilgach, tasdiqlangandan so‘ng xizmatlar katalogida ko‘rsatiladi.','После отправки на модерацию объявление появится в каталоге услуг после подтверждения.')}</p></div>}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t pt-5"><div className="flex gap-2"><button type="button" onClick={back} disabled={step===1||saving} className="rounded-xl border px-5 py-3 text-sm font-semibold disabled:opacity-40">{t('Orqaga','Назад')}</button><button type="button" onClick={()=>void cancel()} disabled={saving} className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 disabled:opacity-40">{t('Bekor qilish','Отмена')}</button></div>{step<6?<button type="button" onClick={next} disabled={saving||(step===1&&!selectedCode)} className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{saving?t('Saqlanmoqda...','Сохранение...'):t('Davom etish','Продолжить')}</button>:<button type="button" onClick={submit} disabled={saving} className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{saving?t('Yuborilmoqda...','Отправка...'):t('Xizmat e’lonini yuborish','Отправить объявление')}</button>}</div>
+    </section></div></main>
+}
