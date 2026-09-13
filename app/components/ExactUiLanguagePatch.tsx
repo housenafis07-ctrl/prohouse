@@ -43,6 +43,13 @@ const PAIRS: Pair[] = [
   ['Murojaatni yuborib bo‘lmadi.', 'Не удалось отправить обращение.'],
   ['Sotuvchi telefon raqami kiritilmagan.', 'Номер телефона продавца не указан.'],
   ['Xatolik yuz berdi.', 'Произошла ошибка.'],
+  ['Hisoblash', 'Рассчитать'],
+  ['Batafsil', 'Подробнее'],
+  ['Batafsil →', 'Подробнее →'],
+  ['Ko‘rish', 'Просмотр'],
+  ['Tahrirlash', 'Редактировать'],
+  ['Telefon ko‘rsatilmagan', 'Телефон не указан'],
+  ['Xabar yuborish', 'Отправить сообщение'],
 ]
 
 const normalize = (value: string) => value.replace(/[’ʻʼ`]/g, "'").replace(/\s+/g, ' ').trim()
