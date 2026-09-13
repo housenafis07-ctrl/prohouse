@@ -13,19 +13,21 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 function monthlyPayment(principal: number, annualRate: number, months: number, type: PaymentType) {
   if (principal <= 0 || months <= 0) return 0
   const r = annualRate / 100 / 12
-  if (type === 'differentiated') {
-    return principal / months + principal * r
-  }
+  if (type === 'differentiated') return principal / months + principal * r
   if (r === 0) return principal / months
   return principal * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
 }
 
-function totalPayments(principal: number, annualRate: number, months: number, type: PaymentType) {
+function totalPayments(principal: number, annualRate: number, months: number, type: PaymentType, graceMonths = 0) {
   if (principal <= 0 || months <= 0) return 0
-  if (type === 'annuity') return monthlyPayment(principal, annualRate, months, type) * months
+  const grace = clamp(graceMonths, 0, Math.max(0, months - 1))
+  const remaining = months - grace
   const r = annualRate / 100 / 12
-  let total = 0
-  for (let i = 0; i < months; i++) total += principal / months + Math.max(0, principal - principal * i / months) * r
+  const graceInterest = principal * r * grace
+  if (remaining <= 0) return graceInterest
+  if (type === 'annuity') return graceInterest + monthlyPayment(principal, annualRate, remaining, type) * remaining
+  let total = graceInterest
+  for (let i = 0; i < remaining; i++) total += principal / remaining + Math.max(0, principal - principal * i / remaining) * r
   return total
 }
 
@@ -38,8 +40,10 @@ export default function MortgageCalculatorPage() {
   const [lang, setLang] = useState<Lang>('uz')
   const [propertyPrice, setPropertyPrice] = useState('1 000 000 000')
   const [downPayment, setDownPayment] = useState('200 000 000')
+  const [downPercent, setDownPercent] = useState('20')
   const [rate, setRate] = useState('24')
   const [years, setYears] = useState('15')
+  const [graceMonths, setGraceMonths] = useState('0')
   const [paymentType, setPaymentType] = useState<PaymentType>('annuity')
   const [income, setIncome] = useState('')
 
@@ -52,84 +56,68 @@ export default function MortgageCalculatorPage() {
   }, [])
 
   const t = lang === 'ru' ? {
-    back: 'Prohouse',
-    eyebrow: 'Ипотека в Узбекистане',
-    title: 'Ипотечный калькулятор',
+    back: 'Prohouse', eyebrow: 'Ипотека в Узбекистане', title: 'Ипотечный калькулятор',
     subtitle: 'Рассчитайте ориентировочный ежемесячный платёж, переплату и общую сумму кредита в сумах.',
-    property: 'Стоимость недвижимости',
-    down: 'Первоначальный взнос',
-    rate: 'Процентная ставка в год',
-    term: 'Срок кредита',
-    years: 'лет',
-    payment: 'Тип платежа',
-    annuity: 'Аннуитетный',
-    differentiated: 'Дифференцированный',
-    income: 'Ваш доход в месяц (необязательно)',
-    incomeHint: 'Поможет ориентировочно оценить нагрузку на бюджет.',
-    result: 'Результат расчёта',
-    loan: 'Сумма кредита',
-    monthly: 'Ежемесячный платёж',
-    total: 'Всего выплат',
-    overpay: 'Переплата по процентам',
-    ratio: 'Первоначальный взнос',
+    property: 'Стоимость недвижимости', down: 'Первоначальный взнос', downSum: 'Сумма взноса', downPercent: 'Процент взноса',
+    rate: 'Процентная ставка в год', term: 'Срок кредита', years: 'лет', grace: 'Льготный период', graceHint: 'месяцев только выплата процентов',
+    payment: 'Тип платежа', annuity: 'Аннуитетный', differentiated: 'Дифференцированный', income: 'Ваш доход в месяц (необязательно)',
+    incomeHint: 'Поможет ориентировочно оценить нагрузку на бюджет.', result: 'Результат расчёта', loan: 'Сумма кредита', monthly: 'Ежемесячный платёж',
+    monthlyAfterGrace: 'Платёж после льготного периода', total: 'Всего выплат', overpay: 'Переплата по процентам', ratio: 'Первоначальный взнос',
     disclaimer: 'Расчёт является предварительным. Реальная ставка, комиссия, требования к доходу и условия кредита определяются банком после рассмотрения заявки.',
-    faqTitle: 'Часто задаваемые вопросы об ипотеке',
-    faqSub: 'Полезная информация для покупателей жилья в Узбекистане.',
-    clear: 'Сбросить',
-    calc: 'Расчёт обновляется автоматически',
-    subsidy: 'Государственная субсидия',
-    subsidyText: 'Для отдельных категорий граждан действуют программы государственной поддержки. Условия и доступность нужно проверять перед подачей заявки.',
-    sources: 'Официальные источники',
-    mygov: 'Подать заявление на ипотечную субсидию',
+    faqTitle: 'Часто задаваемые вопросы об ипотеке', faqSub: 'Полезная информация для покупателей жилья в Узбекистане.', clear: 'Сбросить',
+    calc: 'Расчёт обновляется автоматически', subsidy: 'Государственная субсидия', subsidyText: 'Для отдельных категорий граждан действуют программы государственной поддержки. Условия и доступность нужно проверять перед подачей заявки.',
+    sources: 'Официальные источники', mygov: 'Подать заявление на ипотечную субсидию',
   } : {
-    back: 'Prohouse',
-    eyebrow: 'O‘zbekistonda ipoteka',
-    title: 'Ipoteka kalkulyatori',
+    back: 'Prohouse', eyebrow: 'O‘zbekistonda ipoteka', title: 'Ipoteka kalkulyatori',
     subtitle: 'Uy-joy narxi, boshlang‘ich badal, foiz va muddatni kiriting — oylik to‘lov va ortiqcha to‘lovni darhol hisoblang.',
-    property: 'Ko‘chmas mulk narxi',
-    down: 'Boshlang‘ich badal',
-    rate: 'Yillik foiz stavkasi',
-    term: 'Kredit muddati',
-    years: 'yil',
-    payment: 'To‘lov turi',
-    annuity: 'Annuitet',
-    differentiated: 'Differensial',
-    income: 'Oylik daromadingiz (ixtiyoriy)',
-    incomeHint: 'Byudjetga tushadigan taxminiy yuklamani baholashga yordam beradi.',
-    result: 'Hisob-kitob natijasi',
-    loan: 'Kredit summasi',
-    monthly: 'Oylik to‘lov',
-    total: 'Jami to‘lov',
-    overpay: 'Foizlar bo‘yicha ortiqcha to‘lov',
-    ratio: 'Boshlang‘ich badal',
+    property: 'Ko‘chmas mulk narxi', down: 'Boshlang‘ich badal', downSum: 'Badal summasi', downPercent: 'Badal foizi',
+    rate: 'Yillik foiz stavkasi', term: 'Kredit muddati', years: 'yil', grace: 'Imtiyozli davr', graceHint: 'oy faqat foiz to‘lanadi',
+    payment: 'To‘lov turi', annuity: 'Annuitet', differentiated: 'Differensial', income: 'Oylik daromadingiz (ixtiyoriy)',
+    incomeHint: 'Byudjetga tushadigan taxminiy yuklamani baholashga yordam beradi.', result: 'Hisob-kitob natijasi', loan: 'Kredit summasi', monthly: 'Oylik to‘lov',
+    monthlyAfterGrace: 'Imtiyozli davrdan keyingi to‘lov', total: 'Jami to‘lov', overpay: 'Foizlar bo‘yicha ortiqcha to‘lov', ratio: 'Boshlang‘ich badal',
     disclaimer: 'Hisob-kitob taxminiy. Amaldagi stavka, komissiya, daromad talablari va kredit shartlarini arizani ko‘rib chiqqandan so‘ng bank belgilaydi.',
-    faqTitle: 'Ipoteka bo‘yicha ko‘p beriladigan savollar',
-    faqSub: 'O‘zbekistonda uy-joy xarid qiluvchilar uchun foydali ma’lumotlar.',
-    clear: 'Tozalash',
-    calc: 'Hisob-kitob avtomatik yangilanadi',
-    subsidy: 'Davlat subsidiyasi',
-    subsidyText: 'Ayrim fuqarolar uchun davlat tomonidan ipoteka bo‘yicha qo‘llab-quvvatlash dasturlari mavjud. Ariza berishdan oldin amaldagi talablarni tekshiring.',
-    sources: 'Rasmiy manbalar',
-    mygov: 'Ipoteka subsidiyasiga ariza berish',
+    faqTitle: 'Ipoteka bo‘yicha ko‘p beriladigan savollar', faqSub: 'O‘zbekistonda uy-joy xarid qiluvchilar uchun foydali ma’lumotlar.', clear: 'Tozalash',
+    calc: 'Hisob-kitob avtomatik yangilanadi', subsidy: 'Davlat subsidiyasi', subsidyText: 'Ayrim fuqarolar uchun davlat tomonidan ipoteka bo‘yicha qo‘llab-quvvatlash dasturlari mavjud. Ariza berishdan oldin amaldagi talablarni tekshiring.',
+    sources: 'Rasmiy manbalar', mygov: 'Ipoteka subsidiyasiga ariza berish',
   }
 
   const price = Number(propertyPrice.replace(/\D/g, '')) || 0
+  const parsedDownPercent = clamp(Number(downPercent.replace(',', '.')) || 0, 0, 100)
   const down = clamp(Number(downPayment.replace(/\D/g, '')) || 0, 0, price)
   const annualRate = clamp(Number(rate.replace(',', '.')) || 0, 0, 100)
   const termYears = clamp(Number(years.replace(/\D/g, '')) || 1, 1, 30)
   const months = termYears * 12
+  const grace = clamp(Number(graceMonths.replace(/\D/g, '')) || 0, 0, Math.max(0, months - 1))
   const principal = Math.max(0, price - down)
-  const firstMonthly = monthlyPayment(principal, annualRate, months, paymentType)
-  const total = totalPayments(principal, annualRate, months, paymentType)
+  const remainingMonths = Math.max(1, months - grace)
+  const r = annualRate / 100 / 12
+  const gracePayment = grace > 0 ? principal * r : 0
+  const regularMonthly = monthlyPayment(principal, annualRate, remainingMonths, paymentType)
+  const firstMonthly = grace > 0 ? gracePayment : regularMonthly
+  const total = totalPayments(principal, annualRate, months, paymentType, grace)
   const overpayment = Math.max(0, total - principal)
-  const downPercent = price > 0 ? down / price * 100 : 0
   const incomeValue = Number(income.replace(/\D/g, '')) || 0
   const incomeLoad = incomeValue > 0 ? firstMonthly / incomeValue * 100 : 0
 
+  const syncDownFromPercent = (value: string) => {
+    const cleaned = value.replace(',', '.').replace(/[^0-9.]/g, '')
+    const numeric = clamp(Number(cleaned) || 0, 0, 100)
+    setDownPercent(cleaned)
+    if (price > 0) setDownPayment(formatInput(String(Math.round(price * numeric / 100))))
+  }
+
+  const syncDownFromSum = (value: string) => {
+    const formatted = formatInput(value)
+    const numeric = clamp(Number(formatted.replace(/\D/g, '')) || 0, 0, price)
+    setDownPayment(formatted)
+    setDownPercent(price > 0 ? (numeric / price * 100).toFixed(1).replace(/\.0$/, '') : '0')
+  }
+
   const faq = useMemo(() => lang === 'ru' ? [
     ['Что такое ипотечный калькулятор?', 'Это инструмент для предварительной оценки кредита: он показывает сумму займа, ориентировочный ежемесячный платёж, общую сумму выплат и переплату по процентам.'],
-    ['Какие данные нужны для расчёта ипотеки?', 'Обычно достаточно стоимости недвижимости, первоначального взноса, процентной ставки и срока кредита. При необходимости можно дополнительно учитывать тип платежа и доход.'],
+    ['Какие данные нужны для расчёта ипотеки?', 'Обычно достаточно стоимости недвижимости, первоначального взноса, процентной ставки и срока кредита. При необходимости можно дополнительно учитывать льготный период, тип платежа и доход.'],
     ['Что такое первоначальный взнос?', 'Это часть стоимости недвижимости, которую покупатель оплачивает собственными средствами до выдачи ипотечного кредита. Чем больше взнос, тем меньше сумма кредита и, как правило, переплата.'],
+    ['Что такое льготный период?', 'Это период, в течение которого заёмщик выплачивает только начисленные проценты. После него начинается погашение основного долга по выбранной схеме.'],
     ['Чем отличается аннуитетный платёж от дифференцированного?', 'При аннуитетной схеме платёж обычно одинаковый каждый месяц. При дифференцированной схеме основная сумма долга гасится равными частями, поэтому первые платежи выше, а затем уменьшаются.'],
     ['Можно ли доверять результату калькулятора?', 'Результат является ориентировочным. Банк может изменить ставку, срок, сумму, комиссии и требования к заёмщику после проверки документов и кредитоспособности.'],
     ['Какой доход нужен для ипотеки?', 'Это зависит от банка, программы, суммы кредита и других обязательств заёмщика. В калькуляторе можно указать доход и увидеть отношение ориентировочного платежа к доходу, но это не является решением банка.'],
@@ -139,8 +127,9 @@ export default function MortgageCalculatorPage() {
     ['Почему фактический платёж может отличаться?', 'На итоговую стоимость могут влиять комиссии, страхование, дополнительные услуги, изменение условий программы и другие платежи, которые не включены в базовый расчёт.'],
   ] : [
     ['Ipoteka kalkulyatori nima?', 'Bu kreditni oldindan baholash vositasi bo‘lib, kredit summasi, taxminiy oylik to‘lov, jami to‘lov va foizlar bo‘yicha ortiqcha to‘lovni hisoblashga yordam beradi.'],
-    ['Ipotekani hisoblash uchun nimalar kerak?', 'Odatda uy-joy narxi, boshlang‘ich badal, yillik foiz stavkasi va kredit muddati yetarli. Qo‘shimcha ravishda to‘lov turi va daromadni ham kiritish mumkin.'],
+    ['Ipotekani hisoblash uchun nimalar kerak?', 'Odatda uy-joy narxi, boshlang‘ich badal, yillik foiz stavkasi va kredit muddati yetarli. Qo‘shimcha ravishda imtiyozli davr, to‘lov turi va daromadni ham kiritish mumkin.'],
     ['Boshlang‘ich badal nima?', 'Bu uy-joy qiymatining xaridor o‘z mablag‘i hisobidan to‘laydigan qismi. Badal qancha katta bo‘lsa, kredit summasi va odatda foizlar bo‘yicha ortiqcha to‘lov shuncha kam bo‘ladi.'],
+    ['Imtiyozli davr nima?', 'Bu davrda qarz oluvchi faqat hisoblangan foizlarni to‘laydi. Davr tugagach, tanlangan to‘lov sxemasi bo‘yicha asosiy qarz ham qaytarila boshlaydi.'],
     ['Annuitet va differensial to‘lovning farqi nima?', 'Annuitetda oylik to‘lov odatda bir xil bo‘ladi. Differensial usulda asosiy qarz teng qismlarda qaytariladi, shu sababli dastlabki to‘lovlar yuqoriroq bo‘lib, keyinchalik kamayadi.'],
     ['Kalkulyator natijasiga ishonish mumkinmi?', 'Natija taxminiy hisob-kitobdir. Bank hujjatlar va qarz oluvchining to‘lov qobiliyatini tekshirgach stavka, muddat, kredit summasi, komissiyalar va boshqa talablarni belgilashi mumkin.'],
     ['Ipoteka olish uchun qancha daromad kerak?', 'Bu bank, dastur, kredit summasi va qarz oluvchining boshqa majburiyatlariga bog‘liq. Daromadni kiritsangiz, taxminiy to‘lovning daromadga nisbatini ko‘rishingiz mumkin, lekin bu bank qarori hisoblanmaydi.'],
@@ -172,20 +161,30 @@ export default function MortgageCalculatorPage() {
       <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="grid gap-5 sm:grid-cols-2">
-            <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.property}</span><div className="relative"><input inputMode="numeric" value={propertyPrice} onChange={setNumber(setPropertyPrice)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-16 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div></label>
-            <label><span className="mb-2 block text-sm font-extrabold">{t.down}</span><div className="relative"><input inputMode="numeric" value={downPayment} onChange={setNumber(setDownPayment)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-16 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div><div className="mt-2 text-xs font-bold text-slate-400">{downPercent.toFixed(1)}%</div></label>
+            <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.property}</span><div className="relative"><input inputMode="numeric" value={propertyPrice} onChange={e=>{const value=formatInput(e.target.value);setPropertyPrice(value);const p=Number(value.replace(/\D/g,''))||0;const pct=clamp(Number(downPercent.replace(',','.'))||0,0,100);setDownPayment(formatInput(String(Math.round(p*pct/100))))}} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-16 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div></label>
+
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label><span className="mb-2 block text-sm font-extrabold">{t.downSum}</span><div className="relative"><input inputMode="numeric" value={downPayment} onChange={e=>syncDownFromSum(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-16 font-black outline-none focus:border-emerald-500"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div></label>
+                <label><span className="mb-2 block text-sm font-extrabold">{t.downPercent}</span><div className="relative"><input inputMode="decimal" value={downPercent} onChange={e=>syncDownFromPercent(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 font-black outline-none focus:border-emerald-500"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span></div></label>
+              </div>
+              <input type="range" min="0" max="100" step="1" value={parsedDownPercent} onChange={e=>syncDownFromPercent(e.target.value)} className="mt-4 w-full accent-emerald-600" aria-label={t.downPercent}/>
+              <div className="mt-1 flex justify-between text-xs font-bold text-slate-400"><span>0%</span><span>15%</span><span>30%</span><span>50%</span><span>75%</span><span>100%</span></div>
+            </div>
+
             <label><span className="mb-2 block text-sm font-extrabold">{t.rate}</span><div className="relative"><input inputMode="decimal" value={rate} onChange={e=>setRate(e.target.value.replace(/[^0-9.,]/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-12 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span></div></label>
             <label><span className="mb-2 block text-sm font-extrabold">{t.term}</span><div className="relative"><input inputMode="numeric" value={years} onChange={e=>setYears(e.target.value.replace(/\D/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-12 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{t.years}</span></div><input type="range" min="1" max="30" value={termYears} onChange={e=>setYears(e.target.value)} className="mt-3 w-full accent-emerald-600"/></label>
+            <label><span className="mb-2 block text-sm font-extrabold">{t.grace}</span><div className="relative"><input inputMode="numeric" value={graceMonths} onChange={e=>setGraceMonths(e.target.value.replace(/\D/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-20 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{lang==='ru'?'мес.':'oy'}</span></div><input type="range" min="0" max={Math.max(0, months - 1)} value={grace} onChange={e=>setGraceMonths(e.target.value)} className="mt-3 w-full accent-emerald-600"/><span className="mt-1 block text-xs text-slate-400">{t.graceHint}</span></label>
             <label><span className="mb-2 block text-sm font-extrabold">{t.payment}</span><select value={paymentType} onChange={e=>setPaymentType(e.target.value as PaymentType)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"><option value="annuity">{t.annuity}</option><option value="differentiated">{t.differentiated}</option></select></label>
             <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.income}</span><input inputMode="numeric" value={income} onChange={setNumber(setIncome)} placeholder="0" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="mt-2 block text-xs text-slate-400">{t.incomeHint}{incomeValue>0 && <> · {incomeLoad.toFixed(0)}% {lang==='ru'?'дохода':'daromad'}</>}</span></label>
           </div>
-          <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setRate('');setYears('15');setIncome('')}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
+          <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('')}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
         </div>
 
         <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-lg sm:p-8">
           <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-400">{t.result}</p><p className="mt-2 text-sm text-slate-400">{t.calc}</p></div><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">{termYears} {t.years}</span></div>
-          <div className="mt-8"><p className="text-sm font-bold text-slate-400">{t.monthly}</p><p className="mt-1 text-4xl font-black tracking-tight text-emerald-400">{money(firstMonthly)}</p></div>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.loan}</p><p className="mt-1 text-lg font-black">{money(principal)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.ratio}</p><p className="mt-1 text-lg font-black">{downPercent.toFixed(1)}%</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.total}</p><p className="mt-1 text-lg font-black">{money(total)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.overpay}</p><p className="mt-1 text-lg font-black">{money(overpayment)}</p></div></div>
+          <div className="mt-8"><p className="text-sm font-bold text-slate-400">{t.monthly}</p><p className="mt-1 text-4xl font-black tracking-tight text-emerald-400">{money(firstMonthly)}</p>{grace>0 && <p className="mt-2 text-xs text-slate-400">{grace} {lang==='ru'?'мес.':'oy'} → {t.monthlyAfterGrace}: <span className="font-bold text-white">{money(regularMonthly)}</span></p>}</div>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.loan}</p><p className="mt-1 text-lg font-black">{money(principal)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.ratio}</p><p className="mt-1 text-lg font-black">{parsedDownPercent.toFixed(1)}%</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.total}</p><p className="mt-1 text-lg font-black">{money(total)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.overpay}</p><p className="mt-1 text-lg font-black">{money(overpayment)}</p></div></div>
           <p className="mt-6 text-xs leading-5 text-slate-400">{t.disclaimer}</p>
         </div>
       </div>
