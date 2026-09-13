@@ -5,14 +5,15 @@ import { useEffect } from 'react'
 type Lang = 'uz' | 'ru'
 type Pair = [string, string]
 
-// A compatibility layer for legacy/static surfaces that still contain literal
-// UI copy. It deliberately translates only known platform phrases; listing
-// titles, descriptions, addresses and user-entered text are never translated.
+// Compatibility layer for legacy/static surfaces.
+// IMPORTANT: this layer translates platform UI only. Listing titles,
+// descriptions, addresses, seller names and other user-entered content
+// must be wrapped with data-no-global-i18n and are never translated here.
 const PAIRS: Pair[] = [
   // Trusted profile
   ['Prohouse xavfsizlik tizimi', 'Система безопасности Prohouse'],
   ['Ishonchli profil', 'Надёжный профиль'],
-  ['Ixtiyoriy tasdiqlash orqali foydalanuvchining haqiqiyligini kuchaytirish va e’lonlarda ishonchli sotuvchini ajratib ko‘rsatish.', 'Система помогает подтвердить подлинность пользователя и выделить надёжного продавца в объявлениях.'],
+  ['Ijtimoiy tasdiqlash orqali foydalanuvchining haqiqiyligini kuchaytirish va e’lonlarda ishonchli sotuvchini ajratib ko‘rsatish.', 'Система помогает подтвердить подлинность пользователя и выделить надёжного продавца в объявлениях.'],
   ['Ulanilmagan', 'Не подключено'],
   ['Ishonchli profil dasturiga qo‘shilish hali boshlanmagan.', 'Подключение к программе надёжного профиля ещё не началось.'],
   ['Holat', 'Статус'],
@@ -50,7 +51,7 @@ const PAIRS: Pair[] = [
   ['← Shaxsiy kabinet', '← Личный кабинет'],
   ['Yuklanmoqda...', 'Загрузка...'],
 
-  // Mortgage modal / home surface
+  // Mortgage / listing detail UI
   ['Ipoteka', 'Ипотека'],
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
   ['Ipoteka kalkulyatori', 'Калькулятор ипотеки'],
@@ -65,6 +66,21 @@ const PAIRS: Pair[] = [
   ['Huquqiy tekshiruv', 'Юридическая проверка'],
   ['Kadastr', 'Кадастр'],
   ['Uy xizmatlari', 'Услуги по дому'],
+  ['Joylashuv', 'Местоположение'],
+  ['E’lon beruvchi belgilagan joylashuv', 'Местоположение, указанное автором объявления'],
+  ['Tavsif', 'Описание'],
+  ['Xaritani katta ko‘rish →', 'Открыть карту →'],
+  ['Xaritani katta ko‘rish', 'Открыть карту'],
+  ['Telefonni ko‘rsatish', 'Показать телефон'],
+  ['Chatga yozish', 'Написать в чат'],
+  ['Sotuvchi', 'Продавец'],
+  ['Ijaraga beruvchi', 'Арендодатель'],
+  ['Maydon', 'Площадь'],
+  ['Qavat', 'Этаж'],
+  ['Mulk turi', 'Тип недвижимости'],
+  ['Batafsil', 'Подробнее'],
+  ['Batafsil →', 'Подробнее →'],
+  ['E’lon bo‘yicha', 'По объявлению'],
 
   // Construction / Uy qurish
   ['PROHOUSE CONSTRUCTION', 'PROHOUSE CONSTRUCTION'],
@@ -85,17 +101,10 @@ const PAIRS: Pair[] = [
   ['Qurilish uchun yerlar', 'Участки для строительства'],
   ['Hisob-kitob qilish', 'Рассчитать стоимость'],
   ['Taxminiy xarajatlar', 'Ориентировочные расходы'],
-  ['Tayyor uy loyihalari', 'Готовые проекты домов'],
   ['Turli uslub va maydondagi loyihalar', 'Проекты разных стилей и площадей'],
   ['Barchasini ko‘rish →', 'Смотреть все →'],
-  ['Shaxsiy kabinet', 'Личный кабинет'],
-  ['Sotib olish', 'Купить'],
-  ['Ijara', 'Аренда'],
-  ['Yangi uylar', 'Новостройки'],
-  ['Xizmatlar', 'Услуги'],
-  ['Rieltorlar', 'Риелторы'],
 
-  // Common legacy navigation/actions
+  // Common navigation/actions
   ['Kabinet', 'Кабинет'],
   ['E’lon joylashtirish', 'Разместить объявление'],
   ['Mening e’lonlarim', 'Мои объявления'],
@@ -112,6 +121,11 @@ const PAIRS: Pair[] = [
   ['Qidirish', 'Поиск'],
   ['Filtrlar', 'Фильтры'],
   ['Barchasi', 'Все'],
+  ['Sotib olish', 'Купить'],
+  ['Ijara', 'Аренда'],
+  ['Yangi uylar', 'Новостройки'],
+  ['Xizmatlar', 'Услуги'],
+  ['Rieltorlar', 'Риелторы'],
   ['Ko‘rish', 'Просмотр'],
   ['Tahrirlash', 'Редактировать'],
   ['Yopish', 'Закрыть'],
@@ -127,10 +141,6 @@ const PAIRS: Pair[] = [
   ['Narx', 'Цена'],
   ['Manzil', 'Адрес'],
   ['Xona', 'Комната'],
-  ['xona', 'комн.'],
-  ['kun', 'день'],
-  ['oy', 'месяц'],
-  ['so‘m', 'сум'],
 ]
 
 const normalize = (value: string) => value
@@ -138,11 +148,18 @@ const normalize = (value: string) => value
   .replace(/\s+/g, ' ')
   .trim()
 
-function regexFor(value: string) {
-  return normalize(value)
-    .split(' ')
-    .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "['’ʻʼ`]") )
-    .join('\\s+')
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function regexForPhrase(value: string) {
+  // Match word/phrase boundaries, so the UI unit "oy" can never mutate
+  // the user-entered place name "Yakkasaroy".
+  const normalized = normalize(value)
+  const pattern = escapeRegExp(normalized).replace(/'/g, "['’ʻʼ`]")
+  const startsWord = /^[\p{L}\p{N}]/u.test(normalized)
+  const endsWord = /[\p{L}\p{N}]$/u.test(normalized)
+  return `${startsWord ? '\\b' : ''}${pattern}${endsWord ? '\\b' : ''}`
 }
 
 function translate(value: string, lang: Lang) {
@@ -155,11 +172,10 @@ function translate(value: string, lang: Lang) {
   }
 
   let next = value
-  // Longest phrases first prevents a short phrase from consuming part of a
-  // longer sentence before the sentence-level translation can run.
+  // Longest first. Boundaries are mandatory for word-like UI strings.
+  // This prevents short translations such as "oy" from touching names.
   for (const [from, to] of [...pairs].sort((a, b) => b[0].length - a[0].length)) {
-    const pattern = regexFor(from)
-    next = next.replace(new RegExp(pattern, 'g'), to)
+    next = next.replace(new RegExp(regexForPhrase(from), 'gu'), to)
   }
   return next
 }
@@ -167,7 +183,7 @@ function translate(value: string, lang: Lang) {
 function shouldSkip(node: Node) {
   const parent = node.parentElement
   if (!parent) return true
-  return ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA'].includes(parent.tagName) || Boolean(parent.closest('[data-no-global-i18n]'))
+  return ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT'].includes(parent.tagName) || Boolean(parent.closest('[data-no-global-i18n]'))
 }
 
 function apply(lang: Lang) {
@@ -182,6 +198,7 @@ function apply(lang: Lang) {
   }
 
   document.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]').forEach(el => {
+    if (el.closest('[data-no-global-i18n]')) return
     for (const attr of ['placeholder', 'title', 'aria-label']) {
       const value = el.getAttribute(attr)
       if (!value) continue
