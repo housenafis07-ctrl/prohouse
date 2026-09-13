@@ -3,6 +3,7 @@ import "./globals.css";
 import GlobalNavigationGate from "./components/GlobalNavigationGate";
 import GlobalLanguageFix from "./components/GlobalLanguageFix";
 import LegacySurfaceLanguageFix from "./components/LegacySurfaceLanguageFix";
+import LanguageRuntimeFix from "./components/LanguageRuntimeFix";
 import RentalNavigationFix from "./components/RentalNavigationFix";
 import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 import PurchaseNavigationFix from "./components/PurchaseNavigationFix";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <GlobalLanguageFix />
         <LegacySurfaceLanguageFix />
+        <LanguageRuntimeFix />
         <GlobalNavigationGate />
         <RentalNavigationFix />
         <DailySearchNavigationFix />
