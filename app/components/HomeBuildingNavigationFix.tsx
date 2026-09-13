@@ -64,6 +64,21 @@ export default function HomeBuildingNavigationFix() {
         window.location.assign('/uy-qurish')
         return
       }
+
+      const clickedLink = target?.closest('a') as HTMLAnchorElement | null
+      if (clickedLink) {
+        const card = clickedLink.closest('[role="dialog"] .grid > a') as HTMLAnchorElement | null
+        if (card) {
+          const cardText = card.textContent?.replace(/\s+/g, ' ').trim() || ''
+          const isCalculatorCard = cardText.includes('Ipoteka kalkulyatori') || cardText.includes('Калькулятор ипотеки')
+          if (isCalculatorCard) {
+            event.preventDefault()
+            window.location.assign('/ipoteka/kalkulyator')
+            return
+          }
+        }
+      }
+
       polishAfterRender()
     }
 
