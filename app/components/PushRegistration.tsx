@@ -14,7 +14,7 @@ export default function PushRegistration() {
   useEffect(() => {
     let cancelled = false
     let idleId: number | null = null
-    let timeoutId: number | null = null
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null
 
     const setup = async () => {
       if (cancelled || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
@@ -47,16 +47,20 @@ export default function PushRegistration() {
       void setup().catch(() => {})
     }
 
-    if ('requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(start, { timeout: 4000 })
+    const requestIdle = window.requestIdleCallback as
+      | ((callback: IdleRequestCallback, options?: IdleRequestOptions) => number)
+      | undefined
+
+    if (requestIdle) {
+      idleId = requestIdle(start, { timeout: 4000 })
     } else {
-      timeoutId = window.setTimeout(start, 2500)
+      timeoutId = globalThis.setTimeout(start, 2500)
     }
 
     return () => {
       cancelled = true
       if (idleId !== null && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
-      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      if (timeoutId !== null) globalThis.clearTimeout(timeoutId)
     }
   }, [])
 
