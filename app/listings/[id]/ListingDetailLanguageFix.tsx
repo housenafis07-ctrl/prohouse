@@ -32,10 +32,23 @@ function translateExact(value: string, lang: Lang) {
   return found ? found[1] : value
 }
 
+function translateCurrencySuffix(value: string, lang: Lang) {
+  if (lang === 'ru') return value.replace(/so[’ʻʼ`']m\b/gi, 'сум')
+  return value.replace(/\bсум\b/gi, 'so‘m')
+}
+
 function applyProtectedUi(lang: Lang) {
   document.querySelectorAll<HTMLElement>('[data-no-global-i18n] a').forEach((el) => {
     const value = el.textContent ?? ''
     const next = translateExact(value, lang)
+    if (next !== value) el.textContent = next
+  })
+
+  // The listing price is platform-generated text (amount + currency), not
+  // user-entered content. Translate only its currency suffix and nothing else.
+  document.querySelectorAll<HTMLElement>('h1[data-no-global-i18n] + p').forEach((el) => {
+    const value = el.textContent ?? ''
+    const next = translateCurrencySuffix(value, lang)
     if (next !== value) el.textContent = next
   })
 
@@ -61,9 +74,7 @@ function applyProtectedUi(lang: Lang) {
     while (walker.nextNode()) nodes.push(walker.currentNode as Text)
     for (const node of nodes) {
       const value = node.nodeValue ?? ''
-      const next = lang === 'ru'
-        ? value.replace(/so[’ʻʼ`']m\b/gi, 'сум')
-        : value.replace(/\bсум\b/gi, 'so‘m')
+      const next = translateCurrencySuffix(value, lang)
       if (next !== value) node.nodeValue = next
     }
   })
