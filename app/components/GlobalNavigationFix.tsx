@@ -8,13 +8,13 @@ type Taxonomy={code:string;name_uz:string;name_ru:string|null;section_code:strin
 export default function GlobalNavigationFix(){
  useEffect(()=>{
   const supabase=createClient();let mounted=true;let userId:string|null=null
+  const getRussian=()=>window.localStorage.getItem('prohouse-lang')==='ru'
   const close=()=>{document.querySelector('.prohouse-services-overlay')?.remove();document.body.style.overflow=''}
   const openServices=async()=>{
    if(document.querySelector('.prohouse-services-overlay'))return
-   const bodyText=document.body?.innerText||''
-   const ru=bodyText.includes('Купить')||bodyText.includes('Недвижимость')
-   let services:Taxonomy[]=[]
+   const ru=getRussian();let services:Taxonomy[]=[]
    try{const{data}=await supabase.from('partner_listing_taxonomy').select('code,name_uz,name_ru,section_code,parent_code,sort_order').eq('section_code','services').eq('parent_code','services').eq('is_active',true).eq('allows_partner_listing',true).order('sort_order');services=(data||[]) as Taxonomy[]}catch{}
+   if(!mounted)return
    const icons:Record<string,string>={services_repair:'🔧',services_cleaning:'🧹',services_design:'🎨',services_construction:'🏗️',services_furniture:'🪑',services_plumbing:'🚿',services_electric:'⚡',services_moving:'🚚',services_other:'🛠️'}
    const overlay=document.createElement('div');overlay.className='prohouse-services-overlay';overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.58);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:60px 20px 30px;overflow-y:auto;';overlay.onclick=close
    const modal=document.createElement('div');modal.style.cssText='position:relative;width:min(1180px,100%);background:#fff;border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.28);padding:32px;box-sizing:border-box;';modal.onclick=e=>e.stopPropagation()
@@ -26,9 +26,13 @@ export default function GlobalNavigationFix(){
    const note=document.createElement('div');note.textContent=ru?'Категории совпадают с категориями размещения партнёра.':'Bu kategoriyalar hamkor e’lon joylashtirishdagi kategoriyalar bilan bir xil.';note.style.cssText='margin-top:18px;padding:14px 16px;border-radius:14px;background:#f8fafc;color:#64748b;font-size:13px'
    modal.append(x,h,p,grid,note);overlay.appendChild(modal);document.body.appendChild(overlay);document.body.style.overflow='hidden'
   }
-  const apply=()=>{if(!mounted)return;const links=Array.from(document.querySelectorAll('a')) as HTMLAnchorElement[];links.forEach(link=>{const t=link.textContent?.trim()||'';if(t==='Услуги'||t==='Xizmatlar'){if(link.getAttribute('href')!=='#services')link.href='#services';link.onclick=e=>{e.preventDefault();void openServices()}}if(t==='Разместить объявление'||t==='E’lon joylashtirish'){if(link.getAttribute('href')!=='/listings/new')link.href='/listings/new'}});const button=document.querySelector('.account-btn') as HTMLButtonElement|null;if(button){const ru=(document.body?.innerText||'').includes('Купить');const logged=Boolean(userId);const nextText=logged?(ru?'Личный кабинет':'Shaxsiy kabinet'):(ru?'Войти / Регистрация':'Kirish / Ro‘yxatdan o‘tish');if(button.textContent!==nextText)button.textContent=nextText;button.onclick=e=>{e.preventDefault();window.location.assign(userId?'/account':'/register')}}}
-  const sync=async()=>{const{data:{user}}=await supabase.auth.getUser();if(!mounted)return;userId=user?.id??null;apply()}
-  const observer=new MutationObserver(()=>apply());observer.observe(document.body,{childList:true,subtree:true});void sync();const{data:listener}=supabase.auth.onAuthStateChange((_e,s)=>{userId=s?.user?.id??null;apply()})
-  return()=>{mounted=false;observer.disconnect();listener.subscription.unsubscribe();close()}
- },[]);return null
+  const updateAccountButton=()=>{const button=document.querySelector('.account-btn') as HTMLButtonElement|null;if(!button)return;const ru=getRussian();const logged=Boolean(userId);const nextText=logged?(ru?'Личный кабинет':'Shaxsiy kabinet'):(ru?'Войти / Регистрация':'Kirish / Ro‘yxatdan o‘tish');if(button.textContent!==nextText)button.textContent=nextText}
+  const handleClick=(event:MouseEvent)=>{const target=event.target as HTMLElement|null;const link=target?.closest('a') as HTMLAnchorElement|null;if(link){const text=link.textContent?.trim()||'';if(text==='Услуги'||text==='Xizmatlar'){event.preventDefault();void openServices();return}}const button=target?.closest('.account-btn') as HTMLButtonElement|null;if(button){event.preventDefault();window.location.assign(userId?'/account':'/register')}}
+  const sync=async()=>{try{const{data:{user}}=await supabase.auth.getUser();if(!mounted)return;userId=user?.id??null;updateAccountButton()}catch{}}
+  const onLanguageChange=()=>updateAccountButton()
+  document.addEventListener('click',handleClick);window.addEventListener('prohouse-language-change',onLanguageChange);updateAccountButton();void sync()
+  const{data:listener}=supabase.auth.onAuthStateChange((_e,s)=>{userId=s?.user?.id??null;updateAccountButton()})
+  return()=>{mounted=false;document.removeEventListener('click',handleClick);window.removeEventListener('prohouse-language-change',onLanguageChange);listener.subscription.unsubscribe();close()}
+ },[])
+ return null
 }
