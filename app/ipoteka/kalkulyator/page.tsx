@@ -6,6 +6,14 @@ import Link from 'next/link'
 type Lang = 'uz' | 'ru'
 type PaymentType = 'annuity' | 'differentiated'
 
+type ScheduleRow = {
+  month: number
+  payment: number
+  principalPaid: number
+  interest: number
+  balance: number
+}
+
 const nf = new Intl.NumberFormat('ru-RU')
 const money = (value: number) => `${nf.format(Math.max(0, Math.round(value)))} so‘m`
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -31,9 +39,45 @@ function totalPayments(principal: number, annualRate: number, months: number, ty
   return total
 }
 
+function buildSchedule(principal: number, annualRate: number, months: number, type: PaymentType, graceMonths: number): ScheduleRow[] {
+  if (principal <= 0 || months <= 0) return []
+  const grace = clamp(graceMonths, 0, Math.max(0, months - 1))
+  const remainingMonths = Math.max(1, months - grace)
+  const r = annualRate / 100 / 12
+  const regularPayment = monthlyPayment(principal, annualRate, remainingMonths, type)
+  const rows: ScheduleRow[] = []
+  let balance = principal
+
+  for (let month = 1; month <= months; month++) {
+    const interest = balance * r
+    let principalPaid = 0
+    let payment = interest
+
+    if (month > grace) {
+      const amortizationMonth = month - grace
+      if (type === 'differentiated') {
+        principalPaid = Math.min(balance, principal / remainingMonths)
+        payment = principalPaid + interest
+      } else {
+        principalPaid = Math.min(balance, Math.max(0, regularPayment - interest))
+        payment = principalPaid + interest
+      }
+    }
+
+    balance = Math.max(0, balance - principalPaid)
+    rows.push({ month, payment, principalPaid, interest, balance })
+  }
+
+  return rows
+}
+
 function formatInput(value: string) {
   const digits = value.replace(/\D/g, '')
   return digits ? nf.format(Number(digits)).replace(/,/g, ' ') : ''
+}
+
+function escapeXml(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
 
 export default function MortgageCalculatorPage() {
@@ -46,6 +90,7 @@ export default function MortgageCalculatorPage() {
   const [graceMonths, setGraceMonths] = useState('0')
   const [paymentType, setPaymentType] = useState<PaymentType>('annuity')
   const [income, setIncome] = useState('')
+  const [showSchedule, setShowSchedule] = useState(false)
 
   useEffect(() => {
     const saved = window.localStorage.getItem('prohouse-lang')
@@ -58,7 +103,7 @@ export default function MortgageCalculatorPage() {
   const t = lang === 'ru' ? {
     back: 'Prohouse', eyebrow: 'Ипотека в Узбекистане', title: 'Ипотечный калькулятор',
     subtitle: 'Рассчитайте ориентировочный ежемесячный платёж, переплату и общую сумму кредита в сумах.',
-    property: 'Стоимость недвижимости', down: 'Первоначальный взнос', downSum: 'Сумма взноса', downPercent: 'Процент взноса',
+    property: 'Стоимость недвижимости', downSum: 'Сумма взноса', downPercent: 'Процент взноса',
     rate: 'Процентная ставка в год', term: 'Срок кредита', years: 'лет', grace: 'Льготный период', graceHint: 'месяцев только выплата процентов',
     payment: 'Тип платежа', annuity: 'Аннуитетный', differentiated: 'Дифференцированный', income: 'Ваш доход в месяц (необязательно)',
     incomeHint: 'Поможет ориентировочно оценить нагрузку на бюджет.', result: 'Результат расчёта', loan: 'Сумма кредита', monthly: 'Ежемесячный платёж',
@@ -67,10 +112,13 @@ export default function MortgageCalculatorPage() {
     faqTitle: 'Часто задаваемые вопросы об ипотеке', faqSub: 'Полезная информация для покупателей жилья в Узбекистане.', clear: 'Сбросить',
     calc: 'Расчёт обновляется автоматически', subsidy: 'Государственная субсидия', subsidyText: 'Для отдельных категорий граждан действуют программы государственной поддержки. Условия и доступность нужно проверять перед подачей заявки.',
     sources: 'Официальные источники', mygov: 'Подать заявление на ипотечную субсидию',
+    details: 'Подробный расчёт', hideDetails: 'Скрыть расчёт', excel: 'Скачать Excel', month: 'Месяц', paymentCol: 'Платёж', principalCol: 'Основной долг', interestCol: 'Проценты', balanceCol: 'Остаток долга',
+    graceMark: 'Льготный период', scheduleTitle: 'График платежей', scheduleHint: 'Полный расчёт кредита от первого до последнего месяца.',
+    excelReady: 'Excel-файл сформирован',
   } : {
     back: 'Prohouse', eyebrow: 'O‘zbekistonda ipoteka', title: 'Ipoteka kalkulyatori',
     subtitle: 'Uy-joy narxi, boshlang‘ich badal, foiz va muddatni kiriting — oylik to‘lov va ortiqcha to‘lovni darhol hisoblang.',
-    property: 'Ko‘chmas mulk narxi', down: 'Boshlang‘ich badal', downSum: 'Badal summasi', downPercent: 'Badal foizi',
+    property: 'Ko‘chmas mulk narxi', downSum: 'Badal summasi', downPercent: 'Badal foizi',
     rate: 'Yillik foiz stavkasi', term: 'Kredit muddati', years: 'yil', grace: 'Imtiyozli davr', graceHint: 'oy faqat foiz to‘lanadi',
     payment: 'To‘lov turi', annuity: 'Annuitet', differentiated: 'Differensial', income: 'Oylik daromadingiz (ixtiyoriy)',
     incomeHint: 'Byudjetga tushadigan taxminiy yuklamani baholashga yordam beradi.', result: 'Hisob-kitob natijasi', loan: 'Kredit summasi', monthly: 'Oylik to‘lov',
@@ -79,6 +127,9 @@ export default function MortgageCalculatorPage() {
     faqTitle: 'Ipoteka bo‘yicha ko‘p beriladigan savollar', faqSub: 'O‘zbekistonda uy-joy xarid qiluvchilar uchun foydali ma’lumotlar.', clear: 'Tozalash',
     calc: 'Hisob-kitob avtomatik yangilanadi', subsidy: 'Davlat subsidiyasi', subsidyText: 'Ayrim fuqarolar uchun davlat tomonidan ipoteka bo‘yicha qo‘llab-quvvatlash dasturlari mavjud. Ariza berishdan oldin amaldagi talablarni tekshiring.',
     sources: 'Rasmiy manbalar', mygov: 'Ipoteka subsidiyasiga ariza berish',
+    details: 'Batafsil hisob-kitob', hideDetails: 'Hisob-kitobni yopish', excel: 'Excel yuklash', month: 'Oy', paymentCol: 'To‘lov', principalCol: 'Asosiy qarz', interestCol: 'Foiz', balanceCol: 'Qoldiq qarz',
+    graceMark: 'Imtiyozli davr', scheduleTitle: 'To‘lovlar jadvali', scheduleHint: 'Kreditning birinchi oyidan oxirgi oyigacha to‘liq hisob-kitob.',
+    excelReady: 'Excel fayl tayyorlandi',
   }
 
   const price = Number(propertyPrice.replace(/\D/g, '')) || 0
@@ -98,6 +149,7 @@ export default function MortgageCalculatorPage() {
   const overpayment = Math.max(0, total - principal)
   const incomeValue = Number(income.replace(/\D/g, '')) || 0
   const incomeLoad = incomeValue > 0 ? firstMonthly / incomeValue * 100 : 0
+  const schedule = useMemo(() => buildSchedule(principal, annualRate, months, paymentType, grace), [principal, annualRate, months, paymentType, grace])
 
   const syncDownFromPercent = (value: string) => {
     const cleaned = value.replace(',', '.').replace(/[^0-9.]/g, '')
@@ -111,6 +163,22 @@ export default function MortgageCalculatorPage() {
     const numeric = clamp(Number(formatted.replace(/\D/g, '')) || 0, 0, price)
     setDownPayment(formatted)
     setDownPercent(price > 0 ? (numeric / price * 100).toFixed(1).replace(/\.0$/, '') : '0')
+  }
+
+  const downloadExcel = () => {
+    if (!schedule.length) return
+    const rows = schedule.map(row => `<Row><Cell><Data ss:Type="Number">${row.month}</Data></Cell><Cell><Data ss:Type="Number">${Math.round(row.payment)}</Data></Cell><Cell><Data ss:Type="Number">${Math.round(row.principalPaid)}</Data></Cell><Cell><Data ss:Type="Number">${Math.round(row.interest)}</Data></Cell><Cell><Data ss:Type="Number">${Math.round(row.balance)}</Data></Cell></Row>`).join('')
+    const title = lang === 'ru' ? 'График ипотечных платежей' : 'Ipoteka to‘lovlar jadvali'
+    const xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="${escapeXml(title.slice(0,31))}"><Table><Row><Cell><Data ss:Type="String">${escapeXml(t.month)}</Data></Cell><Cell><Data ss:Type="String">${escapeXml(t.paymentCol)}</Data></Cell><Cell><Data ss:Type="String">${escapeXml(t.principalCol)}</Data></Cell><Cell><Data ss:Type="String">${escapeXml(t.interestCol)}</Data></Cell><Cell><Data ss:Type="String">${escapeXml(t.balanceCol)}</Data></Cell></Row>${rows}</Table></Worksheet></Workbook>`
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `prohouse-ipoteka-${termYears}-yil.xls`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
   }
 
   const faq = useMemo(() => lang === 'ru' ? [
@@ -178,14 +246,16 @@ export default function MortgageCalculatorPage() {
             <label><span className="mb-2 block text-sm font-extrabold">{t.payment}</span><select value={paymentType} onChange={e=>setPaymentType(e.target.value as PaymentType)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"><option value="annuity">{t.annuity}</option><option value="differentiated">{t.differentiated}</option></select></label>
             <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.income}</span><input inputMode="numeric" value={income} onChange={setNumber(setIncome)} placeholder="0" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="mt-2 block text-xs text-slate-400">{t.incomeHint}{incomeValue>0 && <> · {incomeLoad.toFixed(0)}% {lang==='ru'?'дохода':'daromad'}</>}</span></label>
           </div>
-          <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('')}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
+          <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
         </div>
 
         <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-lg sm:p-8">
-          <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-400">{t.result}</p><p className="mt-2 text-sm text-slate-400">{t.calc}</p></div><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">{termYears} {t.years}</span></div>
+          <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-400">{t.result}</p><p className="mt-2 text-sm text-slate-400">{t.calc}</p></div><div className="flex shrink-0 flex-col items-end gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">{termYears} {t.years}</span><button type="button" onClick={()=>setShowSchedule(v=>!v)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-white/10"><span>{showSchedule ? t.hideDetails : t.details}</span><span className={`text-base transition-transform ${showSchedule ? 'rotate-180' : ''}`}>⌄</span></button></div></div>
           <div className="mt-8"><p className="text-sm font-bold text-slate-400">{t.monthly}</p><p className="mt-1 text-4xl font-black tracking-tight text-emerald-400">{money(firstMonthly)}</p>{grace>0 && <p className="mt-2 text-xs text-slate-400">{grace} {lang==='ru'?'мес.':'oy'} → {t.monthlyAfterGrace}: <span className="font-bold text-white">{money(regularMonthly)}</span></p>}</div>
           <div className="mt-8 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.loan}</p><p className="mt-1 text-lg font-black">{money(principal)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.ratio}</p><p className="mt-1 text-lg font-black">{parsedDownPercent.toFixed(1)}%</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.total}</p><p className="mt-1 text-lg font-black">{money(total)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.overpay}</p><p className="mt-1 text-lg font-black">{money(overpayment)}</p></div></div>
           <p className="mt-6 text-xs leading-5 text-slate-400">{t.disclaimer}</p>
+
+          {showSchedule && <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"><div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black text-white">{t.scheduleTitle}</p><p className="mt-1 text-xs text-slate-400">{t.scheduleHint}</p></div><button type="button" onClick={downloadExcel} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-slate-950 hover:bg-emerald-400">↓ {t.excel}</button></div><div className="max-h-[520px] overflow-auto"><table className="w-full min-w-[700px] text-left text-xs"><thead className="sticky top-0 bg-slate-800 text-slate-300"><tr><th className="px-3 py-3">{t.month}</th><th className="px-3 py-3">{t.paymentCol}</th><th className="px-3 py-3">{t.principalCol}</th><th className="px-3 py-3">{t.interestCol}</th><th className="px-3 py-3">{t.balanceCol}</th></tr></thead><tbody className="divide-y divide-white/5">{schedule.map(row=><tr key={row.month} className="text-slate-200"><td className="px-3 py-2.5 font-bold">{row.month}{row.month<=grace && <span className="ml-1 text-emerald-400">*</span>}</td><td className="px-3 py-2.5 font-bold">{money(row.payment)}</td><td className="px-3 py-2.5">{money(row.principalPaid)}</td><td className="px-3 py-2.5">{money(row.interest)}</td><td className="px-3 py-2.5">{money(row.balance)}</td></tr>)}</tbody></table></div>{grace>0 && <p className="border-t border-white/10 px-4 py-3 text-[11px] text-slate-400">* {t.graceMark}: faqat foiz to‘lovi.</p>}</div>}
         </div>
       </div>
 
@@ -197,9 +267,7 @@ export default function MortgageCalculatorPage() {
         <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">FAQ</p>
         <h2 className="mt-2 text-3xl font-black tracking-tight">{t.faqTitle}</h2>
         <p className="mt-2 text-sm text-slate-500">{t.faqSub}</p>
-        <div className="mt-8 divide-y divide-slate-200 rounded-3xl border border-slate-200 bg-white">
-          {faq.map(([q,a],i)=><details key={q} open={i===0} className="group p-5 sm:p-6"><summary className="cursor-pointer list-none pr-8 text-base font-black marker:hidden">{q}<span className="float-right text-slate-400 transition group-open:rotate-180">⌄</span></summary><p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">{a}</p></details>)}
-        </div>
+        <div className="mt-8 divide-y divide-slate-200 rounded-3xl border border-slate-200 bg-white">{faq.map(([q,a],i)=><details key={q} open={i===0} className="group p-5 sm:p-6"><summary className="cursor-pointer list-none pr-8 text-base font-black marker:hidden">{q}<span className="float-right text-slate-400 transition group-open:rotate-180">⌄</span></summary><p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">{a}</p></details>)}</div>
         <div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600"><span className="font-black text-slate-900">{t.sources}:</span> my.gov.uz va banklarning amaldagi kredit shartlari. Kalkulyatordagi raqamlar bank taklifi o‘rnini bosmaydi.</div>
       </div>
     </section>
