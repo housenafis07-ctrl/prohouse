@@ -5,9 +5,8 @@ import { useEffect } from 'react'
 type Lang = 'uz' | 'ru'
 type Pair = [string, string]
 
-// A compatibility layer for legacy/static surfaces that still contain literal
-// UI copy. It deliberately translates only known platform phrases; listing
-// titles, descriptions, addresses and user-entered text are never translated.
+// Compatibility layer for legacy/static surfaces. Only known platform UI
+// phrases are translated. User-entered listing content must stay untouched.
 const PAIRS: Pair[] = [
   // Trusted profile
   ['Prohouse xavfsizlik tizimi', 'Система безопасности Prohouse'],
@@ -50,7 +49,7 @@ const PAIRS: Pair[] = [
   ['← Shaxsiy kabinet', '← Личный кабинет'],
   ['Yuklanmoqda...', 'Загрузка...'],
 
-  // Mortgage modal / home surface
+  // Mortgage / services
   ['Ipoteka', 'Ипотека'],
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
   ['Ipoteka kalkulyatori', 'Калькулятор ипотеки'],
@@ -66,7 +65,7 @@ const PAIRS: Pair[] = [
   ['Kadastr', 'Кадастр'],
   ['Uy xizmatlari', 'Услуги по дому'],
 
-  // Construction / Uy qurish
+  // Construction
   ['PROHOUSE CONSTRUCTION', 'PROHOUSE CONSTRUCTION'],
   ['Uy qurish', 'Построить дом'],
   ['Orzuyingizdagi uyni biz bilan birga quring. Loyiha, yer, pudratchi va xarajatlar — barchasi bir joyda.', 'Постройте дом своей мечты вместе с нами. Проект, участок, подрядчик и расходы — всё в одном месте.'],
@@ -85,17 +84,12 @@ const PAIRS: Pair[] = [
   ['Qurilish uchun yerlar', 'Участки для строительства'],
   ['Hisob-kitob qilish', 'Рассчитать стоимость'],
   ['Taxminiy xarajatlar', 'Ориентировочные расходы'],
-  ['Tayyor uy loyihalari', 'Готовые проекты домов'],
   ['Turli uslub va maydondagi loyihalar', 'Проекты разных стилей и площадей'],
   ['Barchasini ko‘rish →', 'Смотреть все →'],
-  ['Shaxsiy kabinet', 'Личный кабинет'],
-  ['Sotib olish', 'Купить'],
-  ['Ijara', 'Аренда'],
   ['Yangi uylar', 'Новостройки'],
-  ['Xizmatlar', 'Услуги'],
   ['Rieltorlar', 'Риелторы'],
 
-  // Common legacy navigation/actions
+  // Common navigation/actions
   ['Kabinet', 'Кабинет'],
   ['E’lon joylashtirish', 'Разместить объявление'],
   ['Mening e’lonlarim', 'Мои объявления'],
@@ -105,20 +99,43 @@ const PAIRS: Pair[] = [
   ['Hisob va tranzaksiyalar', 'Счёт и транзакции'],
   ['Promotion', 'Promotion'],
   ['E’lonlar', 'Объявления'],
+  ['E’lonlarni ko‘rish', 'Смотреть объявления'],
+  ['E’lonlarim', 'Мои объявления'],
   ['Bosh sahifa', 'Главная'],
   ['Chiqish', 'Выйти'],
   ['Kirish', 'Войти'],
   ['Ro‘yxatdan o‘tish', 'Регистрация'],
   ['Qidirish', 'Поиск'],
   ['Filtrlar', 'Фильтры'],
+  ['Filtrni tozalash', 'Сбросить фильтры'],
   ['Barchasi', 'Все'],
+  ['Sotib olish', 'Купить'],
+  ['Ijara', 'Аренда'],
+  ['Kunlik', 'Посуточно'],
+  ['Yangi binolar', 'Новостройки'],
+  ['Yangi bino', 'Новостройка'],
+  ['Xususiy uy', 'Частный дом'],
+  ['Kvartira', 'Квартира'],
+  ['Yer', 'Земля'],
+  ['Tijorat', 'Коммерческая недвижимость'],
+  ['Egadan', 'От собственника'],
+  ['Faol', 'Активно'],
+  ['O‘chiq', 'Выключено'],
+  ['Qoralama', 'Черновик'],
+  ['Moderatsiyada', 'На модерации'],
+  ['Rad etilgan', 'Отклонено'],
+  ['Sotilgan', 'Продано'],
+  ['Ijaraga berilgan', 'Сдано в аренду'],
+  ['Arxiv', 'Архив'],
   ['Ko‘rish', 'Просмотр'],
   ['Tahrirlash', 'Редактировать'],
   ['Yopish', 'Закрыть'],
   ['Saqlash', 'Сохранить'],
+  ['Saqlangan', 'Сохранено'],
   ['O‘chirish', 'Удалить'],
   ['Ochish', 'Открыть'],
   ['Yoqish', 'Включить'],
+  ['Pauza', 'Пауза'],
   ['Bekor qilish', 'Отменить'],
   ['Davom etish', 'Продолжить'],
   ['Orqaga', 'Назад'],
@@ -131,6 +148,29 @@ const PAIRS: Pair[] = [
   ['kun', 'день'],
   ['oy', 'месяц'],
   ['so‘m', 'сум'],
+  ['O‘z / Ru', 'Ru / O‘z'],
+  ['Ru / O‘z', 'O‘z / Ru'],
+
+  // Listing detail UI — never add listing/user data here.
+  ['Telefonni ko‘rsatish', 'Показать телефон'],
+  ['☎ Telefonni ko‘rsatish', '☎ Показать телефон'],
+  ['Chatga yozish', 'Написать в чат'],
+  ['Tavsif', 'Описание'],
+  ['Joylashuv', 'Местоположение'],
+  ['Xaritani katta ko‘rish →', 'Открыть карту →'],
+  ['Rasm mavjud emas', 'Изображение отсутствует'],
+  ['Oldingi rasm', 'Предыдущее изображение'],
+  ['Keyingi rasm', 'Следующее изображение'],
+  ['Sotuvchi', 'Продавец'],
+  ['Tasdiqlangan profil', 'Подтверждённый профиль'],
+  ['Xavfsiz bitim', 'Безопасная сделка'],
+  ['ProHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.', 'ProHouse выделяет подтверждённые объявления и продавцов. Платёжные/escrow-услуги будут реализованы через лицензированного партнёра на следующем этапе интеграции.'],
+  ['E’lon topilmadi', 'Объявление не найдено'],
+  ['E’lonlarga qaytish', 'Вернуться к объявлениям'],
+  ['Saqlashda xatolik yuz berdi.', 'Произошла ошибка при сохранении.'],
+  ['Saqlanganlar bilan ishlashda xatolik.', 'Ошибка при работе с сохранёнными объявлениями.'],
+  ['Murojaatni yuborib bo‘lmadi.', 'Не удалось отправить обращение.'],
+  ['Xatolik yuz berdi.', 'Произошла ошибка.'],
 ]
 
 const normalize = (value: string) => value
@@ -139,10 +179,16 @@ const normalize = (value: string) => value
   .trim()
 
 function regexFor(value: string) {
-  return normalize(value)
+  const normalized = normalize(value)
+  const escaped = normalized
     .split(' ')
     .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "['’ʻʼ`]") )
     .join('\\s+')
+
+  // Single-word UI labels must match whole words. This is critical for
+  // labels such as "oy": it must never turn "Yakkasaroy" into a translation.
+  const singleWord = !normalized.includes(' ')
+  return singleWord ? `(?<!\\p{L})${escaped}(?!\\p{L})` : escaped
 }
 
 function translate(value: string, lang: Lang) {
@@ -155,11 +201,9 @@ function translate(value: string, lang: Lang) {
   }
 
   let next = value
-  // Longest phrases first prevents a short phrase from consuming part of a
-  // longer sentence before the sentence-level translation can run.
   for (const [from, to] of [...pairs].sort((a, b) => b[0].length - a[0].length)) {
     const pattern = regexFor(from)
-    next = next.replace(new RegExp(pattern, 'g'), to)
+    next = next.replace(new RegExp(pattern, 'gu'), to)
   }
   return next
 }
@@ -182,6 +226,7 @@ function apply(lang: Lang) {
   }
 
   document.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]').forEach(el => {
+    if (el.closest('[data-no-global-i18n]')) return
     for (const attr of ['placeholder', 'title', 'aria-label']) {
       const value = el.getAttribute(attr)
       if (!value) continue
