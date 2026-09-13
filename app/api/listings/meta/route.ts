@@ -38,8 +38,6 @@ export async function GET() {
     if (profile?.account_type === 'individual') {
       partnerType = 'owner'
     } else if (profile?.account_type === 'partner') {
-      // partner_profiles is the canonical normalized partner type.
-      // This also handles legacy values such as profiles.partner_type='llc'.
       const { data: partnerProfile } = await supabase
         .from('partner_profiles')
         .select('partner_type')
@@ -64,7 +62,14 @@ export async function GET() {
     allowedCodes = new Set((permissions || []).map((x) => x.category_code))
   }
 
-  const filtered = (categories || []).filter((c) => !allowedCodes || allowedCodes.has(c.code))
+  // Service listings have their own dedicated wizard. Keep service directions
+  // available to that flow even when the partner's property-listing permissions
+  // do not include service taxonomy codes.
+  const filtered = (categories || []).filter((c) =>
+    c.entity_type === 'service' && c.section_code === 'services'
+      ? true
+      : !allowedCodes || allowedCodes.has(c.code)
+  )
   const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
 
   return NextResponse.json(
