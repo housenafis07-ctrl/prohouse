@@ -7,6 +7,7 @@ type Lang = 'uz' | 'ru'
 const TOGGLE_LABELS = new Set(['O‘z / Ru', 'Ru / O‘z'])
 const PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*$/i
 const RENT_PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*\/\s*(oy|мес\.)\s*$/i
+const RENT_PERIOD_RE = /^\s*\/\s*(oy|мес\.)\s*$/i
 
 function getLang(): Lang {
   return typeof window !== 'undefined' && window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
@@ -27,6 +28,11 @@ function translatePriceText(value: string, lang: Lang) {
   return value.replace(/(so[‘']m|сум)\s*$/i, lang === 'ru' ? 'сум' : 'so‘m')
 }
 
+function translateRentalPeriod(value: string, lang: Lang) {
+  if (!RENT_PERIOD_RE.test(value)) return value
+  return lang === 'ru' ? ' / мес.' : ' / oy'
+}
+
 function translatePrices() {
   const lang = getLang()
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
@@ -37,11 +43,11 @@ function translatePrices() {
     const parent = text.parentElement
     if (!parent || parent.closest('[data-no-global-i18n]')) continue
     const value = text.nodeValue ?? ''
-    if (PRICE_RE.test(value) || RENT_PRICE_RE.test(value)) nodes.push(text)
+    if (PRICE_RE.test(value) || RENT_PRICE_RE.test(value) || RENT_PERIOD_RE.test(value)) nodes.push(text)
   }
   nodes.forEach((text) => {
     const current = text.nodeValue ?? ''
-    const next = translatePriceText(current, lang)
+    const next = RENT_PERIOD_RE.test(current) ? translateRentalPeriod(current, lang) : translatePriceText(current, lang)
     if (next !== current) text.nodeValue = next
   })
 }
