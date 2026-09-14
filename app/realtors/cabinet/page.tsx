@@ -44,7 +44,8 @@ export default function RealtorCabinetPage() {
       if (sessionError) throw sessionError
       const { data: userData } = await supabase.auth.getUser()
       if (!userData.user) throw new Error('Sessiya topilmadi.')
-      const { data: realtor } = await supabase.from('realtor_profiles').select('id,verification_status').eq('user_id', userData.user.id).maybeSingle()
+      const { data: realtor, error: realtorLookupError } = await supabase.from('realtor_profiles').select('id,verification_status').eq('user_id', userData.user.id).maybeSingle()
+      if (realtorLookupError) throw realtorLookupError
       if (mode === 'login') {
         if (!realtor) throw new Error('Rieltor kabineti topilmadi. Avval rieltor sifatida ro‘yxatdan o‘ting.')
         router.replace('/realtors/cabinet/dashboard')
@@ -52,7 +53,7 @@ export default function RealtorCabinetPage() {
       }
       if (realtor) { router.replace('/realtors/cabinet/dashboard'); return }
       if (!name.trim() || !certificate.trim()) throw new Error('F.I.O. va malaka sertifikati raqamini kiriting.')
-      const { error } = await supabase.from('realtor_profiles').insert({ user_id: userData.user.id, display_name: name.trim(), phone, experience_years: Number(experience) || 0, verification_status: 'pending', rating: 0, reviews_count: 0, agency_id: null, bio: 'Prohouse rieltorlik kabineti orqali yuborilgan ariza.' })
+      const { error } = await supabase.from('realtor_profiles').insert({ user_id: userData.user.id, display_name: name.trim(), phone, certificate_number: certificate.trim(), experience_years: Number(experience) || 0, verification_status: 'pending', rating: 0, reviews_count: 0, agency_id: null, bio: 'Prohouse rieltorlik kabineti orqali yuborilgan ariza.' })
       if (error) throw error
       router.replace('/realtors/cabinet/dashboard?submitted=1')
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Xatolik yuz berdi') } finally { setLoading(false) }
