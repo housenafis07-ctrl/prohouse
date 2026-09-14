@@ -11,6 +11,7 @@ import NewBuildingsNavigationFix from "./components/NewBuildingsNavigationFix";
 import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
 import MobileMainNavigation from "./components/MobileMainNavigation";
 import PushRegistration from "./components/PushRegistration";
+import ListingCardIconStyle from "./components/ListingCardIconStyle";
 
 export const metadata: Metadata = {
   title: "Prohouse — Ko‘chmas mulk platformasi",
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <HomeBuildingNavigationFix />
         <MobileMainNavigation />
         <PushRegistration />
+        <ListingCardIconStyle />
         {children}
       </body>
     </html>
