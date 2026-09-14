@@ -83,11 +83,17 @@ export async function POST(request: Request) {
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
 
   const accountType = profile?.account_type || 'individual'
-  const sellerRole = accountType === 'individual' ? 'owner' : null
-  const isIndividualOwner = accountType === 'individual' && ownershipType === 'owner'
-  const sellerType = isIndividualOwner ? 'owner' : null
-  const sellerName = isIndividualOwner ? text(profile?.full_name) || null : null
-  const sellerPhone = isIndividualOwner ? text(profile?.phone) || user.phone || null : null
+  const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
+  const isServiceListing = data.listing_type === 'service' || data.property_type === 'service'
+  const sellerRole = isServiceListing ? 'service_provider' : (accountType === 'individual' ? 'owner' : null)
+  const isIndividualOwner = accountType === 'individual' && ownershipType === 'owner' && !isServiceListing
+  const sellerType = isServiceListing ? 'service_provider' : (isIndividualOwner ? 'owner' : null)
+  const sellerName = isServiceListing
+    ? text(profile?.company_name) || text(profile?.full_name) || null
+    : (isIndividualOwner ? text(profile?.full_name) || null : null)
+  const sellerPhone = isServiceListing
+    ? text(profile?.phone) || user.phone || null
+    : (isIndividualOwner ? text(profile?.phone) || user.phone || null : null)
 
   if (status === 'moderation') {
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
@@ -109,8 +115,8 @@ export async function POST(request: Request) {
     floor: numberOrNull(floorValue),
     floors_total: numberOrNull(floorsTotalValue),
     land_area: numberOrNull(landAreaValue),
-    ownership_type: ownershipType,
-    is_mortgage_available: isMortgageAvailable,
+    ownership_type: isServiceListing ? null : ownershipType,
+    is_mortgage_available: isServiceListing ? false : isMortgageAvailable,
     seller_role: sellerRole,
     seller_type: sellerType,
     seller_name: sellerName,
@@ -118,7 +124,6 @@ export async function POST(request: Request) {
   }
 
   if (!listingId) {
-    const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
     if (!taxonomyCode) return NextResponse.json({ error: 'TAXONOMY_REQUIRED' }, { status: 400 })
     const insertData: Record<string, unknown> = {
       owner_id: user.id,
@@ -147,7 +152,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ listing: created })
   }
 
-  const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
   const updateData: Record<string, unknown> = {
     draft_step: step,
     draft_data: data,
