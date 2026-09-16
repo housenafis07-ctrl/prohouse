@@ -36,17 +36,28 @@ export async function GET(request: NextRequest) {
     if (listingError) throw listingError
     if (!listing) return NextResponse.json({ error: 'E’lon topilmadi.' }, { status: 404 })
 
+    // A conversation participant is not automatically a transaction participant.
+    // Only the listing owner (seller) or the lead visitor (buyer) may see transaction data.
+    const isSeller = user.id === listing.owner_id
+
     const { data: participantRows, error: participantsError } = await admin
       .from('conversation_participants')
       .select('user_id')
       .eq('conversation_id', conversationId)
     if (participantsError) throw participantsError
 
-    const buyerId = user.id === listing.owner_id
-      ? (participantRows ?? []).map(row => row.user_id).find(id => id !== user.id)
-      : user.id
+    const buyerCandidates = (participantRows ?? [])
+      .map(row => row.user_id)
+      .filter(id => id !== listing.owner_id)
 
-    if (!buyerId || buyerId === listing.owner_id) return NextResponse.json({ transaction: null, lead: null, listing, role: null, nextStatus: null, nextActor: null, canAdvance: false })
+    if (!isSeller && !buyerCandidates.includes(user.id)) {
+      return NextResponse.json({ error: 'Bu tranzaksiyaga kirish huquqi yo‘q.' }, { status: 403 })
+    }
+
+    const buyerId = isSeller ? buyerCandidates[0] : user.id
+    if (!buyerId || buyerId === listing.owner_id) {
+      return NextResponse.json({ transaction: null, lead: null, listing, role: null, nextStatus: null, nextActor: null, canAdvance: false })
+    }
 
     const { data: lead, error: leadError } = await admin
       .from('listing_leads')
@@ -60,7 +71,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
     if (leadError) throw leadError
 
-    if (!lead) return NextResponse.json({ transaction: null, lead: null, listing, role: user.id === listing.owner_id ? 'seller' : 'buyer', nextStatus: null, nextActor: null, canAdvance: false })
+    if (!lead) return NextResponse.json({ transaction: null, lead: null, listing, role: isSeller ? 'seller' : 'buyer', nextStatus: null, nextActor: null, canAdvance: false })
 
     const { data: transaction, error: transactionError } = await admin
       .from('property_transactions')
@@ -70,7 +81,11 @@ export async function GET(request: NextRequest) {
     if (transactionError) throw transactionError
 
     const tx = transaction ?? null
-    const role = tx ? (tx.buyer_id === user.id ? 'buyer' : 'seller') : (user.id === listing.owner_id ? 'seller' : 'buyer')
+    if (tx && tx.buyer_id !== user.id && tx.seller_id !== user.id) {
+      return NextResponse.json({ error: 'Bu tranzaksiyaga kirish huquqi yo‘q.' }, { status: 403 })
+    }
+
+    const role = tx ? (tx.buyer_id === user.id ? 'buyer' : 'seller') : (isSeller ? 'seller' : 'buyer')
     const nextByStatus: Record<string, { status: string; actor: string }> = {
       lead: { status: 'viewing', actor: 'seller' },
       viewing: { status: 'offer', actor: 'buyer' },
