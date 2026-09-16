@@ -28,3 +28,25 @@ export async function requireAdmin(permission?: string) {
   if (!allowed) return { admin: null, error: 'Forbidden' as const }
   return { admin, error: null }
 }
+
+export async function requireSuperAdmin() {
+  const admin = await getCurrentAdmin()
+  if (!admin) return { admin: null, error: 'Unauthorized' as const }
+  if (admin.role.role !== 'super_admin') return { admin: null, error: 'Forbidden' as const }
+  return { admin, error: null }
+}
+
+export async function validateDelegatedPermissions(admin: any, permissionCodes: string[]) {
+  if (admin?.role?.role === 'super_admin') return { ok: true as const, codes: [...new Set(permissionCodes)] }
+  const requested = [...new Set(permissionCodes)]
+  if (!requested.length) return { ok: true as const, codes: [] as string[] }
+  const { data, error } = await serviceClient()
+    .from('admin_role_permissions')
+    .select('permission_id,admin_permissions!inner(code)')
+    .eq('role_id', admin.role.id)
+  if (error) throw error
+  const allowed = new Set((data ?? []).map((row: any) => row.admin_permissions?.code).filter(Boolean))
+  const forbidden = requested.filter(code => !allowed.has(code))
+  if (forbidden.length) return { ok: false as const, error: `Sizda quyidagi huquqlarni berish vakolati yo‘q: ${forbidden.join(', ')}` }
+  return { ok: true as const, codes: requested }
+}
