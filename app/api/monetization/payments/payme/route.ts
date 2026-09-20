@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       callback: `${getSiteUrl(request)}/account/monetization/checkout?orderId=${encodeURIComponent(attempt.order_id)}`,
       description: `Prohouse monetization order ${attempt.order_id}`,
     })
-    const checkoutUrl = `https://checkout.paycom.uz/${Buffer.from(params.toString()).toString('base64url')}`
+    const checkoutUrl = `https://checkout.paycom.uz/${Buffer.from(params.toString()).toString('base64')}`
 
     if (attempt.checkout_url !== checkoutUrl) {
       const { error: updateError } = await admin.from('monetization_payment_attempts')
