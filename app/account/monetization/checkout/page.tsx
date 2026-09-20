@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 type Product = {
@@ -38,13 +37,10 @@ type Order = {
 const money = (v: number) => `${new Intl.NumberFormat('ru-RU').format(Number(v))} so‘m`
 
 export default function MonetizationCheckoutPage() {
-  const params = useSearchParams()
-  const initialProduct = params.get('product') || ''
-  const initialListing = params.get('listingId') || ''
   const [products, setProducts] = useState<Product[]>([])
   const [listings, setListings] = useState<Listing[]>([])
-  const [productCode, setProductCode] = useState(initialProduct)
-  const [listingId, setListingId] = useState(initialListing)
+  const [productCode, setProductCode] = useState('')
+  const [listingId, setListingId] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState<Order | null>(null)
@@ -52,6 +48,12 @@ export default function MonetizationCheckoutPage() {
 
   useEffect(() => {
     ;(async () => {
+      const params = new URLSearchParams(window.location.search)
+      const initialProduct = params.get('product') || ''
+      const initialListing = params.get('listingId') || ''
+      setProductCode(initialProduct)
+      setListingId(initialListing)
+
       const db = createClient()
       const { data: { user } } = await db.auth.getUser()
       if (!user) {
@@ -122,7 +124,7 @@ export default function MonetizationCheckoutPage() {
           <p className="mt-2 text-sm leading-6 text-slate-500">Mahsulotni va e’lonni tanlang. Hozircha real to‘lov yechib olinmaydi — payment provider ulanganda shu buyurtma to‘lov oynasiga ulanadi.</p>
         </header>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_.9fr] items-start">
+        <section className="mt-5 grid items-start gap-5 lg:grid-cols-[1.1fr_.9fr]">
           <div className="space-y-5">
             <div className="rounded-3xl bg-white p-6 shadow-sm">
               <h2 className="text-lg font-black">1. Mahsulot</h2>
