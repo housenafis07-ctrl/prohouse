@@ -4,8 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-
-type Lang = 'uz' | 'ru'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type Profile = {
   phone: string | null
@@ -40,7 +39,7 @@ function StatusIcon({ type }: { type: 'check' | 'user' | 'home' | 'plus' | 'help
 
 export default function AccountPage() {
   const router = useRouter()
-  const [lang, setLang] = useState<Lang>('uz')
+  const { lang } = useI18n()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [form, setForm] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,17 +48,6 @@ export default function AccountPage() {
   const [completion, setCompletion] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem('prohouse-lang')
-    if (saved === 'ru') setLang('ru')
-    const onLanguageChange = (event: Event) => {
-      const next = (event as CustomEvent<Lang>).detail
-      if (next === 'ru' || next === 'uz') setLang(next)
-    }
-    window.addEventListener('prohouse-language-change', onLanguageChange)
-    return () => window.removeEventListener('prohouse-language-change', onLanguageChange)
-  }, [])
 
   useEffect(() => {
     let mounted = true
