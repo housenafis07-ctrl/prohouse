@@ -77,38 +77,38 @@ export default function AccountNavigation() {
   ]
 
   return (
-    <nav className="border-b border-slate-100 bg-white px-4 py-3">
-      <div className="mx-auto max-w-5xl">
-        <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">
-          <Link href="/account" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
-          {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-4 py-2 text-sm font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
-          <Link href="/account/saved-searches" className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
-          {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-4 py-2 text-sm font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
-          <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
+    <nav className="border-b border-slate-100 bg-white px-3 py-2">
+      <div className="mx-auto max-w-6xl">
+        <div className="hidden items-center gap-1.5 overflow-x-auto whitespace-nowrap md:flex">
+          <Link href="/account" className="rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
+          {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+          <Link href="/account/saved-searches" className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
+          {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+          <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="ml-auto shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
         </div>
 
         <div className="md:hidden">
-          <div className="mb-3 flex items-center justify-between">
-            <Link href="/account" className="text-lg font-black text-slate-900">{text.cabinet}</Link>
-            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">{text.switchLanguage}</button>
+          <div className="mb-2 flex items-center justify-between">
+            <Link href="/account" className="text-base font-black text-slate-900">{text.cabinet}</Link>
+            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700">{text.switchLanguage}</button>
           </div>
 
-          <section className="mb-3" aria-labelledby="account-primary-navigation">
-            <h2 id="account-primary-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.primary}</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-3 py-3 text-center text-xs font-black ${item.className}`}>{item.label}</Link>)}
+          <section className="mb-2" aria-labelledby="account-primary-navigation">
+            <h2 id="account-primary-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.primary}</h2>
+            <div className="grid grid-cols-2 gap-1.5">
+              {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className}`}>{item.label}</Link>)}
             </div>
           </section>
 
-          <section className="mb-3" aria-labelledby="account-search-navigation">
-            <h2 id="account-search-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.search}</h2>
-            <Link href="/account/saved-searches" className="block rounded-xl bg-blue-50 px-3 py-3 text-center text-xs font-black text-blue-700">{text.savedSearches}</Link>
+          <section className="mb-2" aria-labelledby="account-search-navigation">
+            <h2 id="account-search-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.search}</h2>
+            <Link href="/account/saved-searches" className="block rounded-lg bg-blue-50 px-2.5 py-2.5 text-center text-[11px] font-black text-blue-700">{text.savedSearches}</Link>
           </section>
 
           <section aria-labelledby="account-seller-navigation">
-            <h2 id="account-seller-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {sellerItems.map((item, index) => <Link key={item.href} href={item.href} className={`rounded-xl px-3 py-3 text-center text-xs font-black ${index === sellerItems.length - 1 ? 'col-span-2' : ''} ${item.className}`}>{item.label}</Link>)}
+            <h2 id="account-seller-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2>
+            <div className="grid grid-cols-2 gap-1.5">
+              {sellerItems.map((item, index) => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className} ${index === sellerItems.length - 1 ? 'col-span-2' : ''}`}>{item.label}</Link>)}
             </div>
           </section>
         </div>
