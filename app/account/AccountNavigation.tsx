@@ -90,7 +90,7 @@ export default function AccountNavigation() {
         <div className="md:hidden">
           <div className="mb-3 flex items-center justify-between">
             <Link href="/account" className="text-lg font-black text-slate-900">{text.cabinet}</Link>
-            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узbekский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">{text.switchLanguage}</button>
+            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">{text.switchLanguage}</button>
           </div>
 
           <section className="mb-3" aria-labelledby="account-primary-navigation">
