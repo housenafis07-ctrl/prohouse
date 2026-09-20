@@ -40,11 +40,11 @@ type Order = {
 }
 
 function ClickLogo() {
-  return <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1677ff] text-[10px] font-black tracking-tight text-white">click</div>
+  return <img src="/payments/click.webp" alt="Click" className="h-10 w-14 object-contain" />
 }
 
 function PaymeLogo() {
-  return <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#00baf2] text-[9px] font-black tracking-tight text-white">payme</div>
+  return <img src="/payments/payme.webp" alt="Payme" className="h-10 w-14 object-contain" />
 }
 
 export default function MonetizationCheckoutPage() {
