@@ -4,6 +4,7 @@ import GlobalNavigationGate from "./components/GlobalNavigationGate";
 import GlobalLanguageFix from "./components/GlobalLanguageFix";
 import LegacySurfaceLanguageFix from "./components/LegacySurfaceLanguageFix";
 import LanguageRuntimeFix from "./components/LanguageRuntimeFix";
+import I18nProvider from "./components/I18nProvider";
 import RentalNavigationFix from "./components/RentalNavigationFix";
 import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 import PurchaseNavigationFix from "./components/PurchaseNavigationFix";
@@ -22,19 +23,21 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="uz">
       <body>
-        <GlobalLanguageFix />
-        <LegacySurfaceLanguageFix />
-        <LanguageRuntimeFix />
-        <GlobalNavigationGate />
-        <RentalNavigationFix />
-        <DailySearchNavigationFix />
-        <PurchaseNavigationFix />
-        <NewBuildingsNavigationFix />
-        <HomeBuildingNavigationFix />
-        <MobileMainNavigation />
-        <PushRegistration />
-        <ListingCardIconStyle />
-        {children}
+        <I18nProvider>
+          <GlobalLanguageFix />
+          <LegacySurfaceLanguageFix />
+          <LanguageRuntimeFix />
+          <GlobalNavigationGate />
+          <RentalNavigationFix />
+          <DailySearchNavigationFix />
+          <PurchaseNavigationFix />
+          <NewBuildingsNavigationFix />
+          <HomeBuildingNavigationFix />
+          <MobileMainNavigation />
+          <PushRegistration />
+          <ListingCardIconStyle />
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );
