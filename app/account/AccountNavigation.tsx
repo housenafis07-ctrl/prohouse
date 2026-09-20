@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-
-type Lang = 'uz' | 'ru'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type NavItem = {
   href: string
@@ -13,13 +12,10 @@ type NavItem = {
 }
 
 export default function AccountNavigation() {
+  const { lang, setLang } = useI18n()
   const [unreadCount, setUnreadCount] = useState(0)
-  const [lang, setLang] = useState<Lang>('uz')
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('prohouse-lang')
-    if (saved === 'ru') setLang('ru')
-
     const supabase = createClient()
     let mounted = true
     const loadUnread = async () => {
@@ -38,13 +34,6 @@ export default function AccountNavigation() {
     return () => { mounted = false; window.removeEventListener('focus', onFocus); void supabase.removeChannel(channel) }
   }, [])
 
-  const toggleLanguage = () => {
-    const next: Lang = lang === 'uz' ? 'ru' : 'uz'
-    setLang(next)
-    window.localStorage.setItem('prohouse-lang', next)
-    window.dispatchEvent(new CustomEvent('prohouse-language-change', { detail: next }))
-  }
-
   const ru = lang === 'ru'
   const text = {
     cabinet: ru ? 'Кабинет' : 'Kabinet',
@@ -56,12 +45,13 @@ export default function AccountNavigation() {
     trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil',
     promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
     wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
-    unread: ru ? `${unreadCount} непрочитанных сообщений` : `${unreadCount} ta o‘qilmagan xabar`,
     switchLanguage: ru ? 'Ru / O‘z' : 'O‘z / Ru',
     primary: ru ? 'Основное' : 'Asosiy',
     search: ru ? 'Поиск' : 'Qidiruv',
     seller: ru ? 'Продавец' : 'Sotuvchi',
   }
+
+  const toggleLanguage = () => setLang(ru ? 'uz' : 'ru')
 
   const primaryItems: NavItem[] = [
     { href: '/account/listings', label: text.myListings, className: 'bg-emerald-50 text-emerald-700' },
@@ -90,7 +80,7 @@ export default function AccountNavigation() {
         <div className="md:hidden">
           <div className="mb-2 flex items-center justify-between">
             <Link href="/account" className="text-base font-black text-slate-900">{text.cabinet}</Link>
-            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700">{text.switchLanguage}</button>
+            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узbekский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700">{text.switchLanguage}</button>
           </div>
 
           <section className="mb-2" aria-labelledby="account-primary-navigation">
