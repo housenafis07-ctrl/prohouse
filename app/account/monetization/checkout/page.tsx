@@ -40,11 +40,11 @@ type Order = {
 }
 
 function ClickLogo() {
-  return <img src="/payments/click.png" alt="Click" className="h-12 w-28 object-contain" />
+  return <img src="/payments/click.svg" alt="Click" className="h-14 w-28 object-contain" />
 }
 
 function PaymeLogo() {
-  return <img src="/payments/payme.png" alt="Payme" className="h-12 w-28 object-contain" />
+  return <img src="/payments/payme.svg" alt="Payme" className="h-16 w-28 object-contain" />
 }
 
 export default function MonetizationCheckoutPage() {
