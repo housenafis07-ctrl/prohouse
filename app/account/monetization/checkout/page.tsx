@@ -39,6 +39,14 @@ type Order = {
   created_at: string
 }
 
+function ClickLogo() {
+  return <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1677ff] text-[10px] font-black tracking-tight text-white">click</div>
+}
+
+function PaymeLogo() {
+  return <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#00baf2] text-[9px] font-black tracking-tight text-white">payme</div>
+}
+
 export default function MonetizationCheckoutPage() {
   const { lang, t } = useI18n()
   const [products, setProducts] = useState<Product[]>([])
@@ -47,6 +55,7 @@ export default function MonetizationCheckoutPage() {
   const [listingId, setListingId] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [paying, setPaying] = useState<'click' | 'payme' | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [error, setError] = useState('')
 
@@ -66,16 +75,8 @@ export default function MonetizationCheckoutPage() {
       }
 
       const [{ data: p }, { data: l }] = await Promise.all([
-        db.from('monetization_products')
-          .select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,unit,quantity,badge,badge_ru')
-          .eq('active', true)
-          .order('product_type')
-          .order('duration_days'),
-        db.from('listings')
-          .select('id,title,price,city,district,status')
-          .eq('owner_id', user.id)
-          .in('status', ['active', 'moderation'])
-          .order('created_at', { ascending: false }),
+        db.from('monetization_products').select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,unit,quantity,badge,badge_ru').eq('active', true).order('product_type').order('duration_days'),
+        db.from('listings').select('id,title,price,city,district,status').eq('owner_id', user.id).in('status', ['active', 'moderation']).order('created_at', { ascending: false }),
       ])
 
       setProducts((p || []) as Product[])
@@ -111,6 +112,25 @@ export default function MonetizationCheckoutPage() {
     }
   }
 
+  const startPayment = async (provider: 'click' | 'payme') => {
+    if (!order) return
+    setError('')
+    setPaying(provider)
+    try {
+      const response = await fetch(`/api/monetization/payments/${provider}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, idempotencyKey: crypto.randomUUID() }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.checkoutUrl) throw new Error(data?.error || 'PAYMENT_NOT_READY')
+      window.location.href = data.checkoutUrl
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'PAYMENT_NOT_READY')
+      setPaying(null)
+    }
+  }
+
   if (loading) return <main className="min-h-screen bg-slate-50 p-8 text-center">{t('loading')}</main>
 
   return (
@@ -128,67 +148,30 @@ export default function MonetizationCheckoutPage() {
             <div className="rounded-3xl bg-white p-6 shadow-sm">
               <h2 className="text-lg font-black">1. {t('product')}</h2>
               <div className="mt-4 space-y-3">
-                {products.length === 0 ? (
-                  <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">{t('noProducts')}</div>
-                ) : products.map(p => (
+                {products.length === 0 ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">{t('noProducts')}</div> : products.map(p => (
                   <button key={p.code} type="button" onClick={() => setProductCode(p.code)} className={`w-full rounded-2xl border p-4 text-left transition ${productCode === p.code ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-black">{pickLocalized(lang, p.name, p.name_ru)}</div>
-                        <div className="mt-1 text-sm text-slate-500">{pickLocalized(lang, p.description, p.description_ru) || '—'}</div>
-                      </div>
-                      {(p.badge || p.badge_ru) && <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-black text-white">{pickLocalized(lang, p.badge, p.badge_ru)}</span>}
-                    </div>
-                    <div className="mt-3 flex items-center justify-between text-sm">
-                      <b>{money(p.price_uzs)}</b>
-                      <span className="text-slate-400">{p.duration_days} {t('day')}</span>
-                    </div>
+                    <div className="flex items-start justify-between gap-3"><div><div className="font-black">{pickLocalized(lang, p.name, p.name_ru)}</div><div className="mt-1 text-sm text-slate-500">{pickLocalized(lang, p.description, p.description_ru) || '—'}</div></div>{(p.badge || p.badge_ru) && <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-black text-white">{pickLocalized(lang, p.badge, p.badge_ru)}</span>}</div>
+                    <div className="mt-3 flex items-center justify-between text-sm"><b>{money(p.price_uzs)}</b><span className="text-slate-400">{p.duration_days} {t('day')}</span></div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {needsListing && (
-              <div className="rounded-3xl bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-black">2. {t('listing')}</h2>
-                <select value={listingId} onChange={e => setListingId(e.target.value)} className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-500">
-                  <option value="">{t('selectListing')}</option>
-                  {listings.map(l => <option key={l.id} value={l.id}>{l.title || t('noName')} — {l.city || ''}{l.district ? `, ${l.district}` : ''}</option>)}
-                </select>
-                {listings.length === 0 && <p className="mt-3 text-sm text-slate-500">{t('noListings')}</p>}
-              </div>
-            )}
+            {needsListing && <div className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-lg font-black">2. {t('listing')}</h2><select value={listingId} onChange={e => setListingId(e.target.value)} className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-500"><option value="">{t('selectListing')}</option>{listings.map(l => <option key={l.id} value={l.id}>{l.title || t('noName')} — {l.city || ''}{l.district ? `, ${l.district}` : ''}</option>)}</select>{listings.length === 0 && <p className="mt-3 text-sm text-slate-500">{t('noListings')}</p>}</div>}
           </div>
 
           <aside className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm lg:sticky lg:top-5">
             <h2 className="text-lg font-black">{t('order')}</h2>
-            {product ? (
-              <>
-                <div className="mt-5 rounded-2xl bg-white/10 p-4">
-                  <div className="text-sm text-slate-300">{t('product')}</div>
-                  <div className="mt-1 font-black">{pickLocalized(lang, product.name, product.name_ru)}</div>
-                  {needsListing && <div className="mt-3 text-sm text-slate-300">{t('listing')}: <span className="font-bold text-white">{listings.find(l => l.id === listingId)?.title || t('listingNotSelected')}</span></div>}
-                </div>
-                <div className="mt-5 flex items-end justify-between border-t border-white/10 pt-5">
-                  <span className="text-sm text-slate-300">{t('total')}</span>
-                  <b className="text-2xl">{money(product.price_uzs)}</b>
-                </div>
-                <button type="button" disabled={submitting || (needsListing && !listingId)} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
-                  {submitting ? t('creatingOrder') : t('createOrder')}
-                </button>
-              </>
-            ) : <p className="mt-4 text-sm text-slate-300">{t('selectProduct')}</p>}
+            {product ? <>
+              <div className="mt-5 rounded-2xl bg-white/10 p-4"><div className="text-sm text-slate-300">{t('product')}</div><div className="mt-1 font-black">{pickLocalized(lang, product.name, product.name_ru)}</div>{needsListing && <div className="mt-3 text-sm text-slate-300">{t('listing')}: <span className="font-bold text-white">{listings.find(l => l.id === listingId)?.title || t('listingNotSelected')}</span></div>}</div>
+              <div className="mt-5 flex items-end justify-between border-t border-white/10 pt-5"><span className="text-sm text-slate-300">{t('total')}</span><b className="text-2xl">{money(product.price_uzs)}</b></div>
+              {!order && <button type="button" disabled={submitting || (needsListing && !listingId)} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? t('creatingOrder') : t('createOrder')}</button>}
+            </> : <p className="mt-4 text-sm text-slate-300">{t('selectProduct')}</p>}
+
+            {order && <div className="mt-5 rounded-2xl bg-white p-4 text-slate-900"><div className="font-black">To‘lov usulini tanlang</div><div className="mt-3 grid grid-cols-2 gap-3"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 text-left transition hover:border-blue-400 disabled:opacity-60"><ClickLogo /><span><b className="block text-sm">Click</b><small className="text-slate-500">Click orqali to‘lash</small></span></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 text-left transition hover:border-cyan-400 disabled:opacity-60"><PaymeLogo /><span><b className="block text-sm">Payme</b><small className="text-slate-500">Payme orqali to‘lash</small></span></button></div>{paying && <div className="mt-3 text-center text-xs font-semibold text-slate-500">To‘lov sahifasiga yo‘naltirilmoqda…</div>}</div>}
 
             {error && <div className="mt-4 rounded-2xl bg-red-500/15 p-3 text-sm font-semibold text-red-200">{t('error')}: {error}</div>}
-
-            {order && (
-              <div className="mt-5 rounded-2xl bg-emerald-500/15 p-4">
-                <div className="font-black text-emerald-300">{t('orderCreated')}</div>
-                <div className="mt-1 break-all text-xs text-slate-300">№ {order.id}</div>
-                <div className="mt-3 text-sm text-slate-200">{t('status')}: <b>{order.status}</b></div>
-                <div className="mt-1 text-xs text-slate-400">{t('paymentPendingProvider')}</div>
-              </div>
-            )}
+            {order && <div className="mt-4 rounded-2xl bg-emerald-500/15 p-4"><div className="font-black text-emerald-300">{t('orderCreated')}</div><div className="mt-1 break-all text-xs text-slate-300">№ {order.id}</div><div className="mt-3 text-sm text-slate-200">{t('status')}: <b>{order.status}</b></div></div>}
           </aside>
         </section>
       </div>
