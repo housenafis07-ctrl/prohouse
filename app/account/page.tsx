@@ -46,6 +46,7 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [completion, setCompletion] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -70,7 +71,13 @@ export default function AccountPage() {
       if (!mounted) return
       if (profileError) setError(profileError.message)
       const value: Profile = data ?? { phone: user.phone ?? null, full_name: null, account_type: 'individual', partner_type: null, company_name: null, inn: null, bank_name: null, bank_account: null, mfo: null, oked: null, director_full_name: null }
-      setProfile(value); setForm(value); setLoading(false)
+      setProfile(value); setForm(value)
+      const { data: completeness, error: completenessError } = await supabase.rpc('get_seller_profile_completeness')
+      if (mounted) {
+        if (completenessError) setError(prev => prev || completenessError.message)
+        if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
+      }
+      setLoading(false)
     }
     load(); return () => { mounted = false }
   }, [router])
@@ -87,7 +94,11 @@ export default function AccountPage() {
       if (!user) { router.replace('/register'); return }
       const { data, error: updateError } = await supabase.from('profiles').update({ full_name: form.full_name.trim(), account_type: form.account_type || 'individual', partner_type: form.account_type === 'partner' ? form.partner_type : null, company_name: form.company_name?.trim() || null, inn: form.inn?.trim() || null, bank_name: form.bank_name?.trim() || null, bank_account: form.bank_account?.trim() || null, mfo: form.mfo?.trim() || null, oked: form.oked?.trim() || null, director_full_name: form.director_full_name?.trim() || null }).eq('id', user.id).select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').single()
       if (updateError) throw updateError
-      setProfile(data); setForm(data); setEditing(false); setSuccess(lang === 'ru' ? 'Данные профиля сохранены.' : 'Profil ma’lumotlari saqlandi.')
+      setProfile(data); setForm(data)
+      const { data: completeness, error: completenessError } = await supabase.rpc('get_seller_profile_completeness')
+      if (completenessError) throw completenessError
+      if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
+      setEditing(false); setSuccess(lang === 'ru' ? 'Данные профиля сохранены.' : 'Profil ma’lumotlari saqlandi.')
     } catch (e) { setError(e instanceof Error ? e.message : (lang === 'ru' ? 'Не удалось сохранить профиль.' : 'Profilni saqlashda xatolik')) } finally { setSaving(false) }
   }
 
@@ -99,8 +110,7 @@ export default function AccountPage() {
   const ru = lang === 'ru'
   const isPartner = profile.account_type === 'partner'
   const display = editing ? form : profile
-  const hasName = Boolean(profile.full_name?.trim()); const hasPhone = Boolean(profile.phone?.trim()); const hasPartnerData = !isPartner || Boolean(profile.inn?.trim())
-  const completion = Math.round(([hasPhone, hasName, hasPartnerData].filter(Boolean).length / 3) * 100)
+  const hasName = Boolean(profile.full_name?.trim())
   const actions = [
     { icon: 'plus' as const, title: ru ? 'Разместить объявление' : 'E’lon joylashtirish', text: ru ? 'Продайте или сдайте недвижимость через Prohouse.' : 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings/new', primary: true },
     { icon: 'home' as const, title: ru ? 'Мои объявления' : 'Mening e’lonlarim', text: ru ? 'Просматривайте, редактируйте и управляйте своими объявлениями.' : 'Joylashtirgan e’lonlaringizni ko‘ring, tahrirlang va holatini boshqaring.', href: '/account/listings', primary: false },
