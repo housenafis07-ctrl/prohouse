@@ -8,6 +8,7 @@ type I18nContextValue = {
   setLang: (lang: Lang) => void
   toggleLang: () => void
   t: (key: I18nKey) => string
+  tx: (uz: string, ru: string) => string
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null)
@@ -37,6 +38,7 @@ export default function I18nProvider({ children }: { children: React.ReactNode }
     setLang,
     toggleLang: () => setLang(lang === 'uz' ? 'ru' : 'uz'),
     t: (key) => translate(lang, key),
+    tx: (uz, ru) => lang === 'ru' ? ru : uz,
   }), [lang])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
