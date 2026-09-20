@@ -101,12 +101,9 @@ export default function AccountPage() {
   const display = editing ? form : profile
   const hasName = Boolean(profile.full_name?.trim()); const hasPhone = Boolean(profile.phone?.trim()); const hasPartnerData = !isPartner || Boolean(profile.inn?.trim())
   const completion = Math.round(([hasPhone, hasName, hasPartnerData].filter(Boolean).length / 3) * 100)
-  const actions = isPartner ? [
+  const actions = [
     { icon: 'plus' as const, title: ru ? 'Разместить объявление' : 'E’lon joylashtirish', text: ru ? 'Продайте или сдайте недвижимость через Prohouse.' : 'Mulkingizni Prohouse’da soting yoki ijaraga bering.', href: '/listings/new', primary: true },
     { icon: 'home' as const, title: ru ? 'Мои объявления' : 'Mening e’lonlarim', text: ru ? 'Просматривайте, редактируйте и управляйте своими объявлениями.' : 'Joylashtirgan e’lonlaringizni ko‘ring, tahrirlang va holatini boshqaring.', href: '/account/listings', primary: false },
-  ] : [
-    { icon: 'home' as const, title: ru ? 'Начать поиск жилья' : 'Uy topishni boshlash', text: ru ? 'Смотрите подходящие предложения о продаже и аренде.' : 'Sotuv va ijara bo‘yicha mos takliflarni ko‘ring.', href: '/listings', primary: true },
-    { icon: 'user' as const, title: ru ? 'Заполнить профиль' : 'Profilni to‘ldirish', text: ru ? 'Обновите данные и подготовьтесь к следующим услугам.' : 'Ma’lumotlaringizni yangilang va keyingi xizmatlarga tayyor bo‘ling.', href: '#profile', primary: false },
   ]
 
   return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-5xl"><header className="flex items-center justify-between gap-4"><Link href="/" className="text-sm font-extrabold text-emerald-700">← Prohouse</Link><button onClick={signOut} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">{ru ? 'Выйти' : 'Chiqish'}</button></header>
