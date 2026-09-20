@@ -14,6 +14,10 @@ const dictionary = {
     listing: 'E’lon',
     order: 'Buyurtma',
     total: 'Jami',
+    paymentMethod: 'To‘lov usulini tanlang',
+    payWithClick: 'Click orqali to‘lash',
+    payWithPayme: 'Payme orqali to‘lash',
+    redirectingPayment: 'To‘lov sahifasiga yo‘naltirilmoqda…',
     selectProduct: 'Mahsulot tanlang.',
     selectListing: 'E’lonni tanlang...',
     listingNotSelected: 'Tanlanmagan',
@@ -43,6 +47,10 @@ const dictionary = {
     listing: 'Объявление',
     order: 'Заказ',
     total: 'Итого',
+    paymentMethod: 'Выберите способ оплаты',
+    payWithClick: 'Оплата через приложение Click или банковскую карту',
+    payWithPayme: 'Оплата через приложение Payme или банковскую карту',
+    redirectingPayment: 'Переход на страницу оплаты…',
     selectProduct: 'Выберите продукт.',
     selectListing: 'Выберите объявление...',
     listingNotSelected: 'Не выбрано',
@@ -71,11 +79,7 @@ export function translate(lang: Lang, key: I18nKey): string {
   return dictionary[lang][key]
 }
 
-export function pickLocalized<T extends string | null | undefined>(
-  lang: Lang,
-  uz: T,
-  ru: T,
-): T {
+export function pickLocalized<T extends string | null | undefined>(lang: Lang, uz: T, ru: T): T {
   if (lang === 'ru') return ru || uz
   return uz || ru
 }
