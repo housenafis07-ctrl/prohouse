@@ -6,6 +6,12 @@ import { createClient } from '@/utils/supabase/client'
 
 type Lang = 'uz' | 'ru'
 
+type NavItem = {
+  href: string
+  label: string
+  className: string
+}
+
 export default function AccountNavigation() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [lang, setLang] = useState<Lang>('uz')
@@ -48,28 +54,64 @@ export default function AccountNavigation() {
     myListings: ru ? 'Мои объявления' : 'Mening e’lonlarim',
     messages: ru ? '💬 Сообщения' : '💬 Xabarlar',
     trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil',
-    promotion: '★ Promotion',
-    wallet: ru ? 'Счёт и транзакции' : 'Hisob va tranzaksiyalar',
+    promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
+    wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
     unread: ru ? `${unreadCount} непрочитанных сообщений` : `${unreadCount} ta o‘qilmagan xabar`,
     switchLanguage: ru ? 'Ru / O‘z' : 'O‘z / Ru',
+    primary: ru ? 'Основное' : 'Asosiy',
+    search: ru ? 'Поиск' : 'Qidiruv',
+    seller: ru ? 'Продавец' : 'Sotuvchi',
   }
+
+  const primaryItems: NavItem[] = [
+    { href: '/account/listings', label: text.myListings, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/listings/new', label: text.addListing, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/chat', label: text.messages, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/favorites', label: text.favorites, className: 'bg-rose-50 text-rose-700' },
+  ]
+
+  const sellerItems: NavItem[] = [
+    { href: '/account/trusted-profile', label: text.trusted, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
+    { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
+  ]
 
   return (
     <nav className="border-b border-slate-100 bg-white px-4 py-3">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-end gap-2">
-        <Link href="/account" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
-        <Link href="/account/favorites" className="rounded-xl bg-rose-50 px-4 py-2 text-sm font-extrabold text-rose-700 hover:bg-rose-100">{text.favorites}</Link>
-        <Link href="/account/saved-searches" className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
-        <Link href="/listings/new" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">{text.addListing}</Link>
-        <Link href="/account/listings" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">{text.myListings}</Link>
-        <Link href="/chat" className="relative rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">
-          <span>{text.messages}</span>
-          {unreadCount > 0 && <span aria-label={text.unread} className="absolute -right-1 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black leading-none text-white ring-2 ring-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
-        </Link>
-        <Link href="/account/trusted-profile" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">{text.trusted}</Link>
-        <Link href="/account/monetization" className="rounded-xl bg-amber-50 px-4 py-2 text-sm font-extrabold text-amber-700 hover:bg-amber-100">{text.promotion}</Link>
-        <Link href="/account/wallet" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700 hover:bg-emerald-100">{text.wallet}</Link>
-        <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
+      <div className="mx-auto max-w-5xl">
+        <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">
+          <Link href="/account" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
+          {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-4 py-2 text-sm font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+          <Link href="/account/saved-searches" className="rounded-xl bg-blue-50 px-4 py-2 text-sm font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
+          {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-4 py-2 text-sm font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+          <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
+        </div>
+
+        <div className="md:hidden">
+          <div className="mb-3 flex items-center justify-between">
+            <Link href="/account" className="text-lg font-black text-slate-900">{text.cabinet}</Link>
+            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узbekский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">{text.switchLanguage}</button>
+          </div>
+
+          <section className="mb-3" aria-labelledby="account-primary-navigation">
+            <h2 id="account-primary-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.primary}</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-3 py-3 text-center text-xs font-black ${item.className}`}>{item.label}</Link>)}
+            </div>
+          </section>
+
+          <section className="mb-3" aria-labelledby="account-search-navigation">
+            <h2 id="account-search-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.search}</h2>
+            <Link href="/account/saved-searches" className="block rounded-xl bg-blue-50 px-3 py-3 text-center text-xs font-black text-blue-700">{text.savedSearches}</Link>
+          </section>
+
+          <section aria-labelledby="account-seller-navigation">
+            <h2 id="account-seller-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-3 py-3 text-center text-xs font-black ${item.className}`}>{item.label}</Link>)}
+            </div>
+          </section>
+        </div>
       </div>
     </nav>
   )
