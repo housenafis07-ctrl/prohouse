@@ -108,7 +108,7 @@ export default function AccountNavigation() {
           <section aria-labelledby="account-seller-navigation">
             <h2 id="account-seller-navigation" className="mb-2 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2>
             <div className="grid grid-cols-2 gap-2">
-              {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-xl px-3 py-3 text-center text-xs font-black ${item.className}`}>{item.label}</Link>)}
+              {sellerItems.map((item, index) => <Link key={item.href} href={item.href} className={`rounded-xl px-3 py-3 text-center text-xs font-black ${index === sellerItems.length - 1 ? 'col-span-2' : ''} ${item.className}`}>{item.label}</Link>)}
             </div>
           </section>
         </div>
