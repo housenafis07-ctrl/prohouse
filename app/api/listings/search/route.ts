@@ -5,9 +5,11 @@ import { createClient } from '@/utils/supabase/server'
 
 const MAX_PAGE_SIZE = 48
 
+type Sort = 'newest' | 'priceLow' | 'priceHigh'
 type Cursor = {
-  sort: 'newest' | 'priceLow' | 'priceHigh'
+  sort: Sort
   id: string
+  effective_promotion_rank: number
   published_at?: string | null
   price?: number | null
 }
@@ -18,13 +20,14 @@ function numberParam(value: string | null) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function decodeCursor(value: string | null, sort: Cursor['sort']): Cursor | null {
+function decodeCursor(value: string | null, sort: Sort): Cursor | null {
   if (!value) return null
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
     const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
     const parsed = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as Cursor
     if (!parsed || parsed.sort !== sort || typeof parsed.id !== 'string') return null
+    if (!Number.isFinite(parsed.effective_promotion_rank)) return null
     if (sort === 'newest') {
       if (parsed.published_at !== null && typeof parsed.published_at !== 'string') return null
     } else if (typeof parsed.price !== 'number') return null
@@ -43,7 +46,7 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const page = Math.max(1, Number(params.get('page') || '1') || 1)
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get('limit') || '24') || 24))
-  const sort = (params.get('sort') || 'newest') as Cursor['sort']
+  const sort = (params.get('sort') || 'newest') as Sort
   const cursor = decodeCursor(params.get('cursor'), sort)
 
   const min = numberParam(params.get('min'))
@@ -67,9 +70,8 @@ export async function GET(request: NextRequest) {
   }
 
   let query = supabase
-    .from('listings')
-    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code', { count: 'estimated' })
-    .eq('status', 'active')
+    .from('listing_search')
+    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
 
   if (taxonomy) query = query.eq('taxonomy_code', taxonomy)
   if (listingType) query = query.eq('listing_type', listingType)
@@ -95,18 +97,21 @@ export async function GET(request: NextRequest) {
 
   if (cursor) {
     if (sort === 'newest') {
-      if (cursor.published_at === null) {
-        query = query.or(`published_at.is.null,and(published_at.is.null,id.lt.${cursor.id})`)
+      const rank = cursor.effective_promotion_rank
+      const published = cursor.published_at
+      if (published === null) {
+        query = query.or(`effective_promotion_rank.lt.${rank},and(effective_promotion_rank.eq.${rank},published_at.is.null,id.lt.${cursor.id})`)
       } else {
-        query = query.or(`published_at.lt.${cursor.published_at},and(published_at.eq.${cursor.published_at},id.lt.${cursor.id}),published_at.is.null`)
+        query = query.or(`effective_promotion_rank.lt.${rank},and(effective_promotion_rank.eq.${rank},published_at.lt.${published}),and(effective_promotion_rank.eq.${rank},published_at.eq.${published},id.lt.${cursor.id}),and(effective_promotion_rank.eq.${rank},published_at.is.null)`)
       }
     } else if (sort === 'priceLow') {
-      query = query.or(`price.gt.${cursor.price},and(price.eq.${cursor.price},id.gt.${cursor.id})`)
+      query = query.or(`effective_promotion_rank.lt.${cursor.effective_promotion_rank},and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.gt.${cursor.price}),and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.eq.${cursor.price},id.gt.${cursor.id})`)
     } else {
-      query = query.or(`price.lt.${cursor.price},and(price.eq.${cursor.price},id.lt.${cursor.id})`)
+      query = query.or(`effective_promotion_rank.lt.${cursor.effective_promotion_rank},and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.lt.${cursor.price}),and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.eq.${cursor.price},id.lt.${cursor.id})`)
     }
   }
 
+  query = query.order('effective_promotion_rank', { ascending: false })
   if (sort === 'priceLow') query = query.order('price', { ascending: true }).order('id', { ascending: true })
   else if (sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false })
   else query = query.order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
@@ -124,8 +129,6 @@ export async function GET(request: NextRequest) {
   const listings = hasNext ? pageRows.slice(0, limit) : pageRows
   const ids = listings.map((listing) => listing.id)
 
-  // Search cards only need the primary image. Never load every image for the
-  // current page: a 24-card page could otherwise fetch up to 240+ image rows.
   let images: { listing_id: string; image_url: string; sort_order: number | null }[] = []
   if (ids.length) {
     const { data: imageRows, error: imageError } = await supabase
@@ -151,8 +154,8 @@ export async function GET(request: NextRequest) {
   const last = listings[listings.length - 1]
   const nextCursor = hasNext && last
     ? encodeCursor(sort === 'newest'
-      ? { sort, id: last.id, published_at: last.published_at }
-      : { sort, id: last.id, price: last.price })
+      ? { sort, id: last.id, effective_promotion_rank: last.effective_promotion_rank, published_at: last.published_at }
+      : { sort, id: last.id, effective_promotion_rank: last.effective_promotion_rank, price: last.price })
     : null
 
   return NextResponse.json({
