@@ -27,11 +27,10 @@ export async function POST(request: NextRequest) {
 
     const patch: Record<string, unknown> = {
       status,
-      provider_payment_id: providerPaymentId,
-      payment_provider: provider,
+      provider_order_id: providerPaymentId,
+      provider: provider ?? 'unconfigured',
       updated_at: new Date().toISOString(),
     }
-    if (status === 'paid') patch.paid_at = new Date().toISOString()
 
     const { error: updateError } = await admin.from('monetization_orders').update(patch).eq('id', order.id)
     if (updateError) throw updateError
