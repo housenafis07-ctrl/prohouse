@@ -40,11 +40,11 @@ type Order = {
 }
 
 function ClickLogo() {
-  return <img src="/payments/click.svg" alt="Click" className="h-10 w-16 object-contain" />
+  return <img src="/payments/click.png" alt="Click" className="h-12 w-28 object-contain" />
 }
 
 function PaymeLogo() {
-  return <img src="/payments/payme.svg" alt="Payme" className="h-10 w-16 object-contain" />
+  return <img src="/payments/payme.png" alt="Payme" className="h-12 w-28 object-contain" />
 }
 
 export default function MonetizationCheckoutPage() {
@@ -168,7 +168,7 @@ export default function MonetizationCheckoutPage() {
               {!order && <button type="button" disabled={submitting || (needsListing && !listingId)} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? t('creatingOrder') : t('createOrder')}</button>}
             </> : <p className="mt-4 text-sm text-slate-300">{t('selectProduct')}</p>}
 
-            {order && <div className="mt-5 rounded-2xl bg-white p-4 text-slate-900"><div className="font-black">To‘lov usulini tanlang</div><div className="mt-3 grid grid-cols-2 gap-3"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 text-left transition hover:border-blue-400 disabled:opacity-60"><ClickLogo /><span><b className="block text-sm">Click</b><small className="text-slate-500">Click orqali to‘lash</small></span></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="flex items-center gap-3 rounded-2xl border border-slate-200 p-3 text-left transition hover:border-cyan-400 disabled:opacity-60"><PaymeLogo /><span><b className="block text-sm">Payme</b><small className="text-slate-500">Payme orqali to‘lash</small></span></button></div>{paying && <div className="mt-3 text-center text-xs font-semibold text-slate-500">To‘lov sahifasiga yo‘naltirilmoqda…</div>}</div>}
+            {order && <div className="mt-5 rounded-2xl bg-white p-4 text-slate-900"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Click</div><div className="mt-3 flex items-center gap-3"><ClickLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithClick')}</span></div></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-cyan-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Payme</div><div className="mt-3 flex items-center gap-3"><PaymeLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithPayme')}</span></div></button></div>{paying && <div className="mt-3 text-center text-xs font-semibold text-slate-500">{t('redirectingPayment')}</div>}</div>}
 
             {error && <div className="mt-4 rounded-2xl bg-red-500/15 p-3 text-sm font-semibold text-red-200">{t('error')}: {error}</div>}
             {order && <div className="mt-4 rounded-2xl bg-emerald-500/15 p-4"><div className="font-black text-emerald-300">{t('orderCreated')}</div><div className="mt-1 break-all text-xs text-slate-300">№ {order.id}</div><div className="mt-3 text-sm text-slate-200">{t('status')}: <b>{order.status}</b></div></div>}
