@@ -5,7 +5,12 @@ import { useLayoutEffect } from 'react'
 const replaceBrand = (value: string) =>
   value.replace(/Prohouse/g, 'Royalhouse').replace(/ProHouse/g, 'RoyalHouse').replace(/PROHOUSE/g, 'ROYALHOUSE')
 
-function updateTextNodes(root: Node) {
+const translatePartnerLabel = (value: string, ru: boolean) => {
+  if (ru) return value.replace(/Hamkorlar uchun/g, 'Для партнёров')
+  return value.replace(/Для партнёров/g, 'Hamkorlar uchun')
+}
+
+function updateTextNodes(root: Node, ru: boolean) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
   let current: Node | null = walker.nextNode()
@@ -21,9 +26,9 @@ function updateTextNodes(root: Node) {
     if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(parent.tagName)) continue
 
     const value = node.nodeValue ?? ''
-    if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
-      node.nodeValue = replaceBrand(value)
-    }
+    const branded = replaceBrand(value)
+    const translated = translatePartnerLabel(branded, ru)
+    if (translated !== value) node.nodeValue = translated
   }
 }
 
@@ -47,12 +52,15 @@ export default function RoyalhouseBrandFix() {
   useLayoutEffect(() => {
     let applying = false
 
+    const getRu = () => window.localStorage.getItem('prohouse-lang') === 'ru'
+
     const apply = () => {
       if (applying) return
       applying = true
       try {
-        document.title = replaceBrand(document.title)
-        updateTextNodes(document.body)
+        const ru = getRu()
+        document.title = replaceBrand(translatePartnerLabel(document.title, ru))
+        updateTextNodes(document.body, ru)
         applyRoyalhouseHeader()
       } finally {
         applying = false
@@ -62,25 +70,31 @@ export default function RoyalhouseBrandFix() {
     apply()
     const frame = requestAnimationFrame(apply)
     const delayed = window.setTimeout(apply, 100)
+    const delayed2 = window.setTimeout(apply, 500)
+
+    const onStorage = () => apply()
+    const onLanguageChange = () => apply()
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('prohouse-language-change', onLanguageChange)
 
     const observer = new MutationObserver((mutations) => {
       if (applying) return
 
       applying = true
       try {
+        const ru = getRu()
         for (const mutation of mutations) {
           for (const node of Array.from(mutation.addedNodes)) {
             if (node.nodeType === Node.TEXT_NODE) {
               const value = node.nodeValue ?? ''
-              if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
-                node.nodeValue = replaceBrand(value)
-              }
+              const translated = translatePartnerLabel(replaceBrand(value), ru)
+              if (translated !== value) node.nodeValue = translated
             } else if (node.nodeType === Node.ELEMENT_NODE) {
-              updateTextNodes(node)
+              updateTextNodes(node, ru)
             }
           }
         }
-        document.title = replaceBrand(document.title)
+        document.title = replaceBrand(translatePartnerLabel(document.title, ru))
       } finally {
         applying = false
       }
@@ -91,7 +105,10 @@ export default function RoyalhouseBrandFix() {
     return () => {
       cancelAnimationFrame(frame)
       window.clearTimeout(delayed)
+      window.clearTimeout(delayed2)
       observer.disconnect()
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('prohouse-language-change', onLanguageChange)
     }
   }, [])
 
