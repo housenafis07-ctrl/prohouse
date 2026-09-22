@@ -24,21 +24,24 @@ function updateTextNodes(root: Node) {
     }
   }
 
-  // Some existing logos render "Pro" and "house" as separate React nodes,
-  // so the full brand string never exists in a single text node.
-  const elements = root instanceof Element ? [root, ...Array.from(root.querySelectorAll('*'))] : Array.from(document.querySelectorAll('*'))
-  for (const element of elements) {
-    if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(element.tagName)) continue
-    if (element.textContent !== 'Prohouse' && element.textContent !== 'ProHouse' && element.textContent !== 'PROHOUSE') continue
-
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-    let textNode: Node | null = walker.nextNode()
-    while (textNode) {
-      if (textNode.nodeValue?.includes('Pro')) {
-        textNode.nodeValue = textNode.nodeValue.replace('Pro', 'Royal')
-        break
+  // Some existing logos render the brand as separate React nodes, e.g.
+  // "Pro" followed by a styled "house" span. Replace only the Pro node so
+  // the existing styling of "house" is preserved.
+  for (const node of nodes) {
+    const value = node.nodeValue?.trim()
+    if (value !== 'Pro' && value !== 'ProHouse') continue
+    const next = node.nextSibling
+    if (value === 'ProHouse') {
+      node.nodeValue = node.nodeValue?.replace('ProHouse', 'RoyalHouse') ?? node.nodeValue
+      continue
+    }
+    if (next?.nodeType === Node.ELEMENT_NODE) {
+      const nextElement = next as Element
+      if (nextElement.textContent?.trim() === 'house') {
+        node.nodeValue = node.nodeValue?.replace('Pro', 'Royal') ?? node.nodeValue
       }
-      textNode = walker.nextNode()
+    } else if (next?.nodeType === Node.TEXT_NODE && next.nodeValue?.trim() === 'house') {
+      node.nodeValue = node.nodeValue?.replace('Pro', 'Royal') ?? node.nodeValue
     }
   }
 }
@@ -55,7 +58,7 @@ export default function RoyalhouseBrandFix() {
         for (const node of Array.from(mutation.addedNodes)) {
           if (node.nodeType === Node.TEXT_NODE) {
             const text = node.nodeValue || ''
-            if (text.includes('Prohouse') || text.includes('ProHouse') || text.includes('PROHOUSE')) {
+            if (text.includes('Prohouse') || text.includes('ProHouse') || text.includes('PROHOUSE') || text.trim() === 'Pro') {
               node.nodeValue = replaceBrand(text)
             }
           } else if (node.nodeType === Node.ELEMENT_NODE) {
