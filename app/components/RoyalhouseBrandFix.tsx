@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 
 const replaceBrand = (value: string) =>
   value.replace(/Prohouse/g, 'Royalhouse').replace(/ProHouse/g, 'RoyalHouse').replace(/PROHOUSE/g, 'ROYALHOUSE')
@@ -27,11 +27,13 @@ function updateTextNodes(root: Node) {
   for (const node of nodes) {
     const value = node.nodeValue?.trim()
     if (value !== 'Pro' && value !== 'ProHouse') continue
+
     const next = node.nextSibling
     if (value === 'ProHouse') {
       node.nodeValue = node.nodeValue?.replace('ProHouse', 'RoyalHouse') ?? node.nodeValue
       continue
     }
+
     if (next?.nodeType === Node.ELEMENT_NODE) {
       const nextElement = next as Element
       if (nextElement.textContent?.trim() === 'house') {
@@ -48,6 +50,9 @@ function applyRoyalhouseHeader() {
 
   for (const link of links) {
     const text = link.textContent?.replace(/\s+/g, '').toLowerCase() ?? ''
+    const alreadyRoyalhouse = Boolean(link.querySelector('img[alt="Royalhouse"]')) && text.includes('royalhouse')
+
+    if (alreadyRoyalhouse) continue
     if (!text.includes('royalhouse') && !text.includes('prohouse')) continue
 
     link.className = 'flex shrink-0 items-center gap-2 text-2xl font-black leading-none'
@@ -60,38 +65,47 @@ function applyRoyalhouseHeader() {
 }
 
 export default function RoyalhouseBrandFix() {
-  useEffect(() => {
-    document.title = replaceBrand(document.title)
-
+  useLayoutEffect(() => {
     const update = () => {
+      document.title = replaceBrand(document.title)
       updateTextNodes(document.body)
       applyRoyalhouseHeader()
     }
 
     update()
+    const frame = requestAnimationFrame(update)
+    const delayed = window.setTimeout(update, 0)
 
     const observer = new MutationObserver((mutations) => {
-      let shouldUpdateHeader = false
+      let shouldUpdate = false
 
       for (const mutation of mutations) {
+        if (mutation.type !== 'childList') continue
+
         for (const node of Array.from(mutation.addedNodes)) {
           if (node.nodeType === Node.TEXT_NODE) {
             const text = node.nodeValue || ''
             if (text.includes('Prohouse') || text.includes('ProHouse') || text.includes('PROHOUSE') || text.trim() === 'Pro') {
               node.nodeValue = replaceBrand(text)
+              shouldUpdate = true
             }
           } else if (node.nodeType === Node.ELEMENT_NODE) {
             updateTextNodes(node)
+            shouldUpdate = true
           }
-          shouldUpdateHeader = true
         }
       }
 
-      if (shouldUpdateHeader) applyRoyalhouseHeader()
+      if (shouldUpdate) applyRoyalhouseHeader()
     })
 
     observer.observe(document.body, { childList: true, subtree: true })
-    return () => observer.disconnect()
+
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(delayed)
+      observer.disconnect()
+    }
   }, [])
 
   return null
