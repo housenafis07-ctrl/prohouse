@@ -15,6 +15,7 @@ import PushRegistration from "./components/PushRegistration";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
 import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
+import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
 
 export const metadata: Metadata = {
   title: "Royalhouse — Ko‘chmas mulk platformasi",
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <I18nProvider>
           <RoyalhouseBrandFix />
           <RoyalhouseFooterFix />
+          <RoyalhousePartnersLinkFix />
           <GlobalLanguageFix />
           <LegacySurfaceLanguageFix />
           <LanguageRuntimeFix />
