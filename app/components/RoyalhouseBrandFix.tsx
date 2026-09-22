@@ -63,12 +63,25 @@ export default function RoyalhouseBrandFix() {
     const frame = requestAnimationFrame(apply)
     const delayed = window.setTimeout(apply, 100)
 
+    // React can update an existing text node in place during a re-render.
+    // Observe characterData as well as newly inserted nodes so legacy
+    // "Prohouse" text cannot reappear after hydration/state changes.
     const observer = new MutationObserver((mutations) => {
       if (applying) return
 
       applying = true
       try {
+        let needsHeaderRefresh = false
         for (const mutation of mutations) {
+          if (mutation.type === 'characterData') {
+            const node = mutation.target as Text
+            const value = node.nodeValue ?? ''
+            if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
+              node.nodeValue = replaceBrand(value)
+            }
+            continue
+          }
+
           for (const node of Array.from(mutation.addedNodes)) {
             if (node.nodeType === Node.TEXT_NODE) {
               const value = node.nodeValue ?? ''
@@ -77,16 +90,18 @@ export default function RoyalhouseBrandFix() {
               }
             } else if (node.nodeType === Node.ELEMENT_NODE) {
               updateTextNodes(node)
+              needsHeaderRefresh = true
             }
           }
         }
+        if (needsHeaderRefresh) applyRoyalhouseHeader()
         document.title = replaceBrand(document.title)
       } finally {
         applying = false
       }
     })
 
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
     return () => {
       cancelAnimationFrame(frame)
