@@ -18,6 +18,12 @@ import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 export const metadata: Metadata = {
   title: "Royalhouse — Ko‘chmas mulk platformasi",
   description: "O‘zbekistonda uy topish, sotish, ijaraga olish va ipoteka uchun zamonaviy platforma.",
+  icons: {
+    icon: [
+      { url: "/royalhouse-icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/royalhouse-icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
