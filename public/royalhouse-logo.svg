@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Royalhouse</title>
+  <desc id="desc">Royalhouse ko‘chmas mulk platformasi logotipi</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#006b43"/><stop offset="0.58" stop-color="#008f50"/><stop offset="1" stop-color="#00d56f"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe46a"/><stop offset="1" stop-color="#f7bd32"/></linearGradient>
+    <linearGradient id="mint" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00e58a"/><stop offset="1" stop-color="#00c976"/></linearGradient>
+  </defs>
+  <rect x="28" y="28" width="968" height="968" rx="190" fill="url(#bg)"/>
+  <path d="M390 300 L512 112 L634 300 L590 277 L512 214 L434 277 Z" fill="url(#gold)"/>
+  <circle cx="390" cy="258" r="29" fill="url(#gold)"/><circle cx="512" cy="174" r="29" fill="url(#gold)"/><circle cx="634" cy="258" r="29" fill="url(#gold)"/>
+  <path d="M276 522 L512 334 L748 522 L686 501 L512 390 L338 501 Z" fill="#fff"/>
+  <path d="M328 486 L328 682 Q328 708 354 708 L405 708 L405 525 L328 590 Z" fill="#fff"/>
+  <rect x="458" y="506" width="50" height="50" rx="7" fill="#fff"/><rect x="520" y="506" width="50" height="50" rx="7" fill="#fff"/>
+  <rect x="458" y="568" width="50" height="50" rx="7" fill="#fff"/><rect x="520" y="568" width="50" height="50" rx="7" fill="#fff"/>
+  <path d="M682 490 C748 490 802 538 802 604 C802 688 682 800 682 800 C682 800 562 688 562 604 C562 538 616 490 682 490 Z" fill="#fff"/>
+  <circle cx="682" cy="604" r="57" fill="#006f47"/><circle cx="682" cy="604" r="31" fill="url(#mint)"/>
+  <text x="142" y="900" font-family="Inter, Arial, sans-serif" font-size="105" font-weight="900" letter-spacing="-4" fill="#fff">Royal<tspan fill="#00df82">house</tspan></text>
+</svg>
