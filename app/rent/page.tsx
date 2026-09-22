@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { useI18n } from '@/app/components/I18nProvider'
 
 const items = [
-  { key: 'long', icon: '🏢', uz: 'Uzoq muddatga ijaraga', ru: 'Снять долгосрочно', subUz: 'Uzoq muddatli ijara takliflari', subRu: 'Квартиры и дома на длительный срок', href: '/listings?tab=rent' },
-  { key: 'daily', icon: '🗓️', uz: 'Kunlik ijaraga', ru: 'Снять посуточно', subUz: 'Kunlik va qisqa muddatli ijara', subRu: 'Жильё на сутки и короткий срок', href: '/listings?tab=daily' },
+  { key: 'long', icon: '🏢', uz: 'Uzoq muddatga ijaraga', ru: 'Снять долгосрочно', subUz: 'Uzoq muddatli ijara takliflari', subRu: 'Квартиры и дома на длительный срок', href: '/listings?tab=rent&taxonomy=rent_long_term' },
+  { key: 'daily', icon: '🗓️', uz: 'Kunlik ijaraga', ru: 'Снять посуточно', subUz: 'Kunlik va qisqa muddatli ijara', subRu: 'Жильё на сутки и короткий срок', href: '/listings?tab=rent&taxonomy=rent_daily' },
   { key: 'commercial', icon: '🏬', uz: 'Tijorat ko‘chmas mulki', ru: 'Коммерческая недвижимость', subUz: 'Ofis, do‘kon va boshqa tijorat obyektlari', subRu: 'Офисы, магазины и другие объекты', href: '/listings?tab=rent&type=commercial' },
-  { key: 'dacha', icon: '🏡', uz: 'Dacha', ru: 'Дачи', subUz: 'Dam olish uchun uylar va hovlilar', subRu: 'Дачи и загородные дома для отдыха', href: '/listings?tab=rent&type=house' },
+  { key: 'dacha', icon: '🏡', uz: 'Dacha', ru: 'Дачи', subUz: 'Dam olish uchun uylar va hovlilar', subRu: 'Дачи и загородные дома для отдыха', href: '/listings?tab=rent&type=house&taxonomy=rent_daily' },
 ]
 
 export default function RentMenuPage() {
