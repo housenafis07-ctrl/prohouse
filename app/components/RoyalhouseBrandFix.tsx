@@ -23,6 +23,24 @@ function updateTextNodes(root: Node) {
       node.nodeValue = replaceBrand(node.nodeValue)
     }
   }
+
+  // Some existing logos render "Pro" and "house" as separate React nodes,
+  // so the full brand string never exists in a single text node.
+  const elements = root instanceof Element ? [root, ...Array.from(root.querySelectorAll('*'))] : Array.from(document.querySelectorAll('*'))
+  for (const element of elements) {
+    if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(element.tagName)) continue
+    if (element.textContent !== 'Prohouse' && element.textContent !== 'ProHouse' && element.textContent !== 'PROHOUSE') continue
+
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let textNode: Node | null = walker.nextNode()
+    while (textNode) {
+      if (textNode.nodeValue?.includes('Pro')) {
+        textNode.nodeValue = textNode.nodeValue.replace('Pro', 'Royal')
+        break
+      }
+      textNode = walker.nextNode()
+    }
+  }
 }
 
 export default function RoyalhouseBrandFix() {
