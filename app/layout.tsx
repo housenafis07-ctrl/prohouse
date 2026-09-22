@@ -13,9 +13,10 @@ import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
 import MobileMainNavigation from "./components/MobileMainNavigation";
 import PushRegistration from "./components/PushRegistration";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
+import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 
 export const metadata: Metadata = {
-  title: "Prohouse — Ko‘chmas mulk platformasi",
+  title: "Royalhouse — Ko‘chmas mulk platformasi",
   description: "O‘zbekistonda uy topish, sotish, ijaraga olish va ipoteka uchun zamonaviy platforma.",
 };
 
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="uz">
       <body>
         <I18nProvider>
+          <RoyalhouseBrandFix />
           <GlobalLanguageFix />
           <LegacySurfaceLanguageFix />
           <LanguageRuntimeFix />
