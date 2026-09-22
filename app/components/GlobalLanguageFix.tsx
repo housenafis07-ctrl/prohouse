@@ -133,6 +133,16 @@ const PAIRS: Pair[] = [
   ['O‘z / Ru', 'Ru / O‘z'],
   ['Ru / O‘z', 'O‘z / Ru'],
 
+  // Remaining brand/auth UI that was still rendered by legacy literal strings.
+  ['Prohouse', 'Royalhouse'],
+  ['Prohouse’ga kirish', 'Вход в Royalhouse'],
+  ['← Prohouse', '← Royalhouse'],
+  ['na Prohouse', 'на Royalhouse'],
+  ['вместе с Prohouse', 'вместе с Royalhouse'],
+  ['Orzuyingizdagi uyni Prohouse bilan birga quring', 'Стройте дом мечты вместе с Royalhouse'],
+  ['Tekshirilmoqda...', 'Проверка...'],
+  ['Tekshirilmoqda…', 'Проверка…'],
+
   // Messages / chat
   ['E’LON BO‘YICHA CHAT', 'ЧАТ ПО ОБЪЯВЛЕНИЮ'],
   ['Barcha e’lonlar bo‘yicha yozishmalar.', 'Переписка по всем объявлениям.'],
@@ -156,7 +166,7 @@ const PAIRS: Pair[] = [
   ['E’lonni tahrirlash', 'Редактировать объявление'],
 
   // Trusted profile
-  ['Prohouse xavfsizlik tizimi', 'Система безопасности Prohouse'],
+  ['Prohouse xavfsizlik tizimi', 'Система безопасности Royalhouse'],
   ['Ijtimoiy tasdiqlash orqali foydalanuvchining haqiqiyligini kuchaytirish va e’lonlarda ishonchli sotuvchini ajratib ko‘rsatish.', 'Система помогает подтвердить подлинность пользователя и выделить надёжного продавца в объявлениях.'],
   ['Ulanilmagan', 'Не подключено'],
   ['Shaxsni biometrik identifikatsiya qilish orqali profilni tasdiqlash.', 'Подтверждение профиля с помощью биометрической идентификации.'],
@@ -236,7 +246,6 @@ function applyLanguage(lang: Lang) {
     const next = translateText(node.nodeValue ?? '', lang)
     if (next !== node.nodeValue) node.nodeValue = next
   }
-
   const elements = document.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]')
   elements.forEach((el) => {
     for (const attr of ['placeholder', 'title', 'aria-label']) {
