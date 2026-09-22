@@ -45,21 +45,53 @@ function applyRoyalhouseHeader() {
 
 export default function RoyalhouseBrandFix() {
   useLayoutEffect(() => {
-    // One-shot correction only. Do not observe DOM mutations: changing the
-    // header itself would otherwise trigger the observer recursively and freeze the page.
+    let applying = false
+
     const apply = () => {
-      document.title = replaceBrand(document.title)
-      updateTextNodes(document.body)
-      applyRoyalhouseHeader()
+      if (applying) return
+      applying = true
+      try {
+        document.title = replaceBrand(document.title)
+        updateTextNodes(document.body)
+        applyRoyalhouseHeader()
+      } finally {
+        applying = false
+      }
     }
 
     apply()
     const frame = requestAnimationFrame(apply)
     const delayed = window.setTimeout(apply, 100)
 
+    const observer = new MutationObserver((mutations) => {
+      if (applying) return
+
+      applying = true
+      try {
+        for (const mutation of mutations) {
+          for (const node of Array.from(mutation.addedNodes)) {
+            if (node.nodeType === Node.TEXT_NODE) {
+              const value = node.nodeValue ?? ''
+              if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
+                node.nodeValue = replaceBrand(value)
+              }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              updateTextNodes(node)
+            }
+          }
+        }
+        document.title = replaceBrand(document.title)
+      } finally {
+        applying = false
+      }
+    })
+
+    observer.observe(document.body, { childList: true, subtree: true })
+
     return () => {
       cancelAnimationFrame(frame)
       window.clearTimeout(delayed)
+      observer.disconnect()
     }
   }, [])
 
