@@ -75,6 +75,7 @@ export default function MobileMainNavigation() {
         .prohouse-mobile-main-nav a.create svg { width:25px; height:25px; }
         .prohouse-mobile-main-nav a.create.active { background:#047857; color:#fff; }
         body { padding-bottom:76px; }
+        [data-mobile-listing-actions] { bottom:76px !important; }
       }
       @media (min-width:768px) {
         body { padding-bottom:0 !important; }
