@@ -2,13 +2,13 @@
 
 import { useLayoutEffect } from 'react'
 
-const LEGACY_BRAND_RE = /Royalhouse|RoyalHouse|ROYALHOUSE|prohouse/g
+const LEGACY_BRAND_RE = /Prohouse|ProHouse|PROHOUSE|prohouse/g
 
 const replaceBrand = (value: string) =>
   value
-    .replace(/Royalhouse/g, 'Royalhouse')
-    .replace(/RoyalHouse/g, 'RoyalHouse')
-    .replace(/ROYALHOUSE/g, 'ROYALHOUSE')
+    .replace(/Prohouse/g, 'Royalhouse')
+    .replace(/ProHouse/g, 'RoyalHouse')
+    .replace(/PROHOUSE/g, 'ROYALHOUSE')
     .replace(/prohouse/g, 'royalhouse')
 
 function replaceTextNodes(root: Node) {
@@ -65,6 +65,39 @@ function replaceHead() {
   })
 }
 
+function installBrandCss() {
+  if (document.getElementById('royalhouse-brand-css')) return
+
+  const style = document.createElement('style')
+  style.id = 'royalhouse-brand-css'
+  style.textContent = `
+    /* The homepage header is still rendered from a legacy split text node in the current branch.
+       Hide only that visual text and render the canonical Royalhouse brand. */
+    header a[href="/"] {
+      font-size: 0 !important;
+    }
+    header a[href="/"] > span {
+      font-size: 1rem !important;
+    }
+    header a[href="/"]::after {
+      content: 'Royalhouse';
+      font-size: 1.5rem;
+      line-height: 1;
+      font-weight: 900;
+    }
+    footer b {
+      font-size: 0 !important;
+    }
+    footer b::after {
+      content: 'Royalhouse';
+      font-size: 1.25rem;
+      line-height: 1;
+      font-weight: 900;
+    }
+  `
+  document.head.appendChild(style)
+}
+
 function applyBrandFix() {
   try {
     const legacyLang = window.localStorage.getItem('prohouse-lang')
@@ -76,6 +109,7 @@ function applyBrandFix() {
     // Ignore restricted storage access.
   }
 
+  installBrandCss()
   replaceHead()
   replaceTextNodes(document.body)
   replaceAttributes()
@@ -86,18 +120,14 @@ export default function RoyalhouseBrandFix() {
     const body = document.body
     const previousVisibility = body.style.visibility
 
-    // Do not paint legacy Royalhouse SSR text while the hydrated Royalhouse UI is normalized.
     body.style.visibility = 'hidden'
-
     try {
       applyBrandFix()
     } finally {
       body.style.visibility = previousVisibility
     }
 
-    // One bounded post-hydration pass; never use a permanent MutationObserver.
     const frame = window.requestAnimationFrame(applyBrandFix)
-
     return () => window.cancelAnimationFrame(frame)
   }, [])
 
