@@ -62,7 +62,7 @@ export default function RoyalhousePartnersLinkFix() {
     const buildPanel = (button: HTMLButtonElement) => {
       closePanel()
       activeButton = button
-      const ru = button.textContent?.includes('Ташкент') || button.textContent?.includes('Весь') || false
+      const ru = button.getAttribute('data-royalhouse-location-lang') === 'ru' || button.textContent?.includes('Ташкент') || button.textContent?.includes('Весь') || false
       const saved = readSaved()
       let state = saved
       let neighborhoods: string[] = []
@@ -76,7 +76,7 @@ export default function RoyalhousePartnersLinkFix() {
         if (!panel) return
         const rect = button.getBoundingClientRect()
         const width = Math.min(390, window.innerWidth - 24)
-        let left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))
+        const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12))
         let top = rect.bottom + 8
         if (top + panel.offsetHeight > window.innerHeight - 12) top = Math.max(12, rect.top - panel.offsetHeight - 8)
         panel.style.left = `${left}px`
@@ -129,6 +129,7 @@ export default function RoyalhousePartnersLinkFix() {
         regionSelect.onchange = () => {
           state = { region: regionSelect.value, district: '', neighborhood: '' }
           neighborhoods = []
+          loadingNeighborhoods = false
           render()
         }
         makeLabel(ru ? 'Область / город' : 'Viloyat / shahar', regionSelect)
@@ -149,6 +150,7 @@ export default function RoyalhousePartnersLinkFix() {
         districtSelect.onchange = async () => {
           state = { ...state, district: districtSelect.value, neighborhood: '' }
           neighborhoods = []
+          loadingNeighborhoods = false
           render()
           if (state.district) {
             loadingNeighborhoods = true
@@ -184,11 +186,11 @@ export default function RoyalhousePartnersLinkFix() {
           state = { ...state, neighborhood: neighborhoodSelect.value }
           render()
         }
-        makeLabel(loadingNeighborhoods ? (ru ? 'Махалля · загрузка…' : 'Mahalla · yuklanmoqda…') : (ru ? 'Махалля' : 'Mahalla'), neighborhoodSelect)
+        makeLabel(loadingNeighborhoods ? (ru ? 'Махалля · загрузка…' : 'Mahalla · yuklanmoqda…') : (ru ? 'Махалля (необязательно)' : 'Mahalla (ixtiyoriy)'), neighborhoodSelect)
 
         const note = document.createElement('div')
         note.style.cssText = 'margin-top:12px;border-radius:12px;background:#f8fafc;padding:10px 11px;font-size:11px;line-height:1.45;color:#64748b'
-        note.textContent = ru ? 'Точный выбор района можно продолжить на карте объявлений.' : 'Aniq hududni e’lonlar xaritasida davom ettirib tanlashingiz mumkin.'
+        note.textContent = ru ? 'Махалля не обязательна. Можно выбрать только область/город или район. Точный выбор можно продолжить на карте.' : 'Mahalla shart emas. Faqat viloyat/shahar yoki tuman tanlashning o‘zi yetarli. Aniq hududni xaritada davom ettirishingiz mumkin.'
         panel.appendChild(note)
 
         const actions = document.createElement('div')
@@ -199,8 +201,14 @@ export default function RoyalhousePartnersLinkFix() {
         apply.style.cssText = 'height:42px;border:0;border-radius:11px;background:#059669;color:#fff;font-size:13px;font-weight:800;cursor:pointer'
         apply.onclick = () => {
           localStorage.setItem(LOCATION_KEY, JSON.stringify(state))
+          button.textContent = `⌖ ${regionLabel(state.region, ru)}`
+          button.setAttribute('data-royalhouse-location-lang', ru ? 'ru' : 'uz')
           closePanel()
-          window.location.href = `/listings?${new URLSearchParams({ ...(state.region && state.region !== 'ALL' ? { region: state.region } : {}), ...(state.district ? { district: state.district } : {}), ...(state.neighborhood ? { neighborhood: state.neighborhood } : {}) }).toString()}`
+          const params = new URLSearchParams()
+          if (state.region && state.region !== 'ALL') params.set('region', state.region)
+          if (state.district) params.set('district', state.district)
+          if (state.neighborhood) params.set('neighborhood', state.neighborhood)
+          window.location.href = `/listings?${params.toString()}`
         }
         const map = document.createElement('button')
         map.type = 'button'
@@ -208,6 +216,8 @@ export default function RoyalhousePartnersLinkFix() {
         map.style.cssText = 'height:42px;border:1px solid #d1fae5;border-radius:11px;background:#ecfdf5;color:#047857;font-size:13px;font-weight:800;cursor:pointer'
         map.onclick = () => {
           localStorage.setItem(LOCATION_KEY, JSON.stringify(state))
+          button.textContent = `⌖ ${regionLabel(state.region, ru)}`
+          button.setAttribute('data-royalhouse-location-lang', ru ? 'ru' : 'uz')
           const params = new URLSearchParams()
           if (state.region && state.region !== 'ALL') params.set('region', state.region)
           if (state.district) params.set('district', state.district)
@@ -239,13 +249,21 @@ export default function RoyalhousePartnersLinkFix() {
     }
 
     const fixLocation = () => {
+      const existingButton = document.querySelector<HTMLButtonElement>('header button[data-royalhouse-location="1"]')
+      if (existingButton) {
+        const saved = readSaved()
+        const ru = existingButton.getAttribute('data-royalhouse-location-lang') === 'ru' || existingButton.textContent?.includes('Ташкент') || existingButton.textContent?.includes('Весь') || false
+        existingButton.textContent = `⌖ ${regionLabel(saved.region, ru)}`
+        return
+      }
+
       const locationNodes = Array.from(document.querySelectorAll('header span')).filter((node) => {
         const text = node.textContent?.trim()
         return text === '⌖ Toshkent' || text === '⌖ Ташкент'
       })
       if (locationNodes.length > 1) locationNodes[0].remove()
       const node = locationNodes[locationNodes.length - 1]
-      if (!node || node.getAttribute('data-royalhouse-location') === '1') return
+      if (!node) return
 
       const saved = readSaved()
       const ru = node.textContent?.includes('Ташкент') || false
@@ -254,6 +272,7 @@ export default function RoyalhousePartnersLinkFix() {
       button.textContent = `⌖ ${regionLabel(saved.region, ru)}`
       button.className = node.className
       button.setAttribute('data-royalhouse-location', '1')
+      button.setAttribute('data-royalhouse-location-lang', ru ? 'ru' : 'uz')
       button.setAttribute('aria-haspopup', 'dialog')
       button.title = ru ? 'Выбрать местоположение' : 'Joylashuvni tanlash'
       button.style.cursor = 'pointer'
