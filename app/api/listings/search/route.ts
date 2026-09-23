@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('listing_search')
-    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
+    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
 
   if (taxonomy) query = query.eq('taxonomy_code', taxonomy)
   if (listingType) query = query.eq('listing_type', listingType)
@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
   if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner')
   if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true)
   if (params.get('verified') === 'true') query = query.eq('is_verified', true)
+  if (params.get('trusted') === 'true') query = query.eq('is_trusted_seller', true)
   if (q) query = query.or(`title.ilike.%${q}%,title_ru.ilike.%${q}%`)
 
   if (cursor) {
@@ -116,8 +117,6 @@ export async function GET(request: NextRequest) {
   else if (sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false })
   else query = query.order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
 
-  // Cursor mode never uses OFFSET. The legacy page parameter remains available
-  // for older clients so this rollout cannot break existing consumers.
   const useCursor = Boolean(params.get('cursor')) || !params.has('page')
   const { data, count, error } = useCursor
     ? await query.range(0, limit)
