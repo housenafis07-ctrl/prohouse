@@ -61,7 +61,9 @@ export default function RoyalhouseBrandFix() {
 
     apply()
     const frame = requestAnimationFrame(apply)
-    const delayed = window.setTimeout(apply, 100)
+    const delayed100 = window.setTimeout(apply, 100)
+    const delayed300 = window.setTimeout(apply, 300)
+    const delayed1000 = window.setTimeout(apply, 1000)
 
     const observer = new MutationObserver((mutations) => {
       if (applying) return
@@ -90,7 +92,9 @@ export default function RoyalhouseBrandFix() {
 
     return () => {
       cancelAnimationFrame(frame)
-      window.clearTimeout(delayed)
+      window.clearTimeout(delayed100)
+      window.clearTimeout(delayed300)
+      window.clearTimeout(delayed1000)
       observer.disconnect()
     }
   }, [])
