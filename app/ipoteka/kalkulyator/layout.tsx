@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Ipoteka kalkulyatori — O‘zbekistonda ipoteka to‘lovini hisoblash | Prohouse',
+  title: 'Ipoteka kalkulyatori — O‘zbekistonda ipoteka to‘lovini hisoblash | Royalhouse',
   description: 'O‘zbekistonda ipoteka kreditini hisoblang: uy-joy narxi, boshlang‘ich badal, foiz stavkasi va muddatni kiriting. Oylik to‘lov, jami to‘lov va ortiqcha foizni ko‘ring.',
   keywords: [
     'ipoteka kalkulyatori',
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     canonical: '/ipoteka/kalkulyator',
   },
   openGraph: {
-    title: 'Ipoteka kalkulyatori | Prohouse',
+    title: 'Ipoteka kalkulyatori | Royalhouse',
     description: 'O‘zbekistonda ipoteka to‘lovini tez va qulay hisoblang.',
     type: 'website',
   },

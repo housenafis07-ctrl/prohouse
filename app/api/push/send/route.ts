@@ -57,9 +57,9 @@ export async function POST(request: Request) {
       .select('id,user_id,endpoint,p256dh,auth')
       .in('user_id', recipients)
 
-    webpush.setVapidDetails('mailto:admin@prohouse.uz', pushConfig.public_key, pushConfig.private_key)
+    webpush.setVapidDetails('mailto:admin@royalhouse.uz', pushConfig.public_key, pushConfig.private_key)
     const payload = JSON.stringify({
-      title: 'Prohouse — yangi xabar',
+      title: 'Royalhouse — yangi xabar',
       body: message.body.length > 140 ? `${message.body.slice(0, 140)}…` : message.body,
       url: `/chat?conversationId=${message.conversation_id}`,
       listingTitle,
