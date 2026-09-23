@@ -1,8 +1,8 @@
 export type Lang = 'uz' | 'ru'
 
 export const DEFAULT_LANG: Lang = 'uz'
-export const LANG_STORAGE_KEY = 'prohouse-lang'
-export const LANG_EVENT = 'prohouse-language-change'
+export const LANG_STORAGE_KEY = 'royalhouse-lang'
+export const LANG_EVENT = 'royalhouse-language-change'
 
 const dictionary = {
   uz: {
