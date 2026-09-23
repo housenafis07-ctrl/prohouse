@@ -13,6 +13,7 @@ import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
 import MobileMainNavigation from "./components/MobileMainNavigation";
 import PushRegistration from "./components/PushRegistration";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
+import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
 import AuthLanguageFix from "./components/AuthLanguageFix";
 import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="uz">
       <body>
         <I18nProvider>
+          <RoyalhouseBrandFix />
           <RoyalhouseFooterFix />
           <GlobalLanguageFix />
           <LegacySurfaceLanguageFix />
