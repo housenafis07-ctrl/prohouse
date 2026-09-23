@@ -9,7 +9,7 @@ export default function RoyalhousePartnersLinkFix() {
       nodes.forEach((node) => {
         if (node.getAttribute('data-royalhouse-partners-link') === '1') return
         const text = node.textContent?.trim()
-        if (text !== 'Hamkorlar uchun' && text !== 'Для партнёров') return
+        if (text !== 'Hamkorlar uchun' && text !== 'Партнёрам' && text !== 'Для партнёров') return
         if (node.children.length > 0) return
         const link = document.createElement('a')
         link.href = '/partners'
