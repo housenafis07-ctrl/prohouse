@@ -7,7 +7,7 @@ type Pair = [string, string]
 
 const PAIRS: Pair[] = [
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
-  ['Prohouse’ga kirish', 'Вход в Royalhouse'],
+  ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
   ['Profilni to‘ldirish', 'Заполнить профиль'],
   ['Telefon raqamingiz orqali davom eting.', 'Продолжите с помощью номера телефона.'],
   ['Telefon raqamingiz tasdiqlandi.', 'Номер телефона подтверждён.'],

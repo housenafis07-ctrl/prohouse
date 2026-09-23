@@ -101,7 +101,7 @@ export default function MortgageCalculatorPage() {
   }, [])
 
   const t = lang === 'ru' ? {
-    back: 'Prohouse', eyebrow: 'Ипотека в Узбекистане', title: 'Ипотечный калькулятор',
+    back: 'Royalhouse', eyebrow: 'Ипотека в Узбекистане', title: 'Ипотечный калькулятор',
     subtitle: 'Рассчитайте ориентировочный ежемесячный платёж, переплату и общую сумму кредита в сумах.',
     property: 'Стоимость недвижимости', downSum: 'Сумма взноса', downPercent: 'Процент взноса',
     rate: 'Процентная ставка в год', term: 'Срок кредита', years: 'лет', grace: 'Льготный период', graceHint: 'месяцев только выплата процентов',
@@ -116,7 +116,7 @@ export default function MortgageCalculatorPage() {
     graceMark: 'Льготный период', scheduleTitle: 'График платежей', scheduleHint: 'Полный расчёт кредита от первого до последнего месяца.',
     excelReady: 'Excel-файл сформирован',
   } : {
-    back: 'Prohouse', eyebrow: 'O‘zbekistonda ipoteka', title: 'Ipoteka kalkulyatori',
+    back: 'Royalhouse', eyebrow: 'O‘zbekistonda ipoteka', title: 'Ipoteka kalkulyatori',
     subtitle: 'Uy-joy narxi, boshlang‘ich badal, foiz va muddatni kiriting — oylik to‘lov va ortiqcha to‘lovni darhol hisoblang.',
     property: 'Ko‘chmas mulk narxi', downSum: 'Badal summasi', downPercent: 'Badal foizi',
     rate: 'Yillik foiz stavkasi', term: 'Kredit muddati', years: 'yil', grace: 'Imtiyozli davr', graceHint: 'oy faqat foiz to‘lanadi',

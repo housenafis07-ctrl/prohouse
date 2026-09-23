@@ -31,7 +31,7 @@ export default function BuildHome() {
 
     <section className="relative overflow-hidden border-b border-slate-200 bg-white">
       <div className="mx-auto grid max-w-[1400px] items-center gap-8 px-4 py-14 lg:grid-cols-[1fr_1fr] lg:px-8">
-        <div><p className="text-xs font-black tracking-[.2em] text-emerald-600">PROHOUSE CONSTRUCTION</p><h1 className="mt-3 text-5xl font-black leading-tight sm:text-6xl">Uy qurish</h1><p className="mt-4 max-w-xl text-lg text-slate-500">Orzuyingizdagi uyni biz bilan birga quring. Loyiha, yer, pudratchi va xarajatlar — barchasi bir joyda.</p><button className="mt-7 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-black text-white">Loyihani tanlash →</button></div>
+        <div><p className="text-xs font-black tracking-[.2em] text-emerald-600">ROYALHOUSE CONSTRUCTION</p><h1 className="mt-3 text-5xl font-black leading-tight sm:text-6xl">Uy qurish</h1><p className="mt-4 max-w-xl text-lg text-slate-500">Orzuyingizdagi uyni biz bilan birga quring. Loyiha, yer, pudratchi va xarajatlar — barchasi bir joyda.</p><button className="mt-7 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-black text-white">Loyihani tanlash →</button></div>
         <div className="relative h-[300px] overflow-hidden rounded-3xl bg-slate-100"><img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=85" alt="Uy qurish" className="h-full w-full object-cover"/><div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent"/><div className="absolute bottom-5 left-5 text-white"><div className="text-xl font-black">O‘zingizga mos uy</div><div className="text-sm text-white/80">Loyihadan kalitgacha</div></div></div>
       </div>
     </section>

@@ -96,7 +96,7 @@ const PAIRS: Pair[] = [
   ['Hozircha sotuvga yoqilgan monetizatsiya mahsuloti yo‘q.', 'Пока нет доступных для продажи продуктов монетизации.'],
   ['Qoldiq:', 'Остаток:'],
   ['Royalhouse hisob raqami', 'Номер счёта Royalhouse'],
-  ['ProHouse hisob raqami', 'Номер счёта Royalhouse'],
+  ['RoyalHouse hisob raqami', 'Номер счёта Royalhouse'],
   ['Balansni to‘ldirish', 'Пополнение баланса'],
   ['Tranzaksiyalar tarixi', 'История транзакций'],
   ['Balansdagi barcha moliyaviy operatsiyalar.', 'Все финансовые операции по балансу.'],
@@ -134,13 +134,13 @@ const PAIRS: Pair[] = [
   ['Ru / O‘z', 'O‘z / Ru'],
   ['Hamkorlar uchun', 'Партнёрам'],
 
-  // Brand is invariant. Do not add Prohouse <-> Royalhouse as a bidirectional pair.
-  ['Prohouse’ga kirish', 'Вход в Royalhouse'],
-  ['← Prohouse', '← Royalhouse'],
-  ['na Prohouse', 'на Royalhouse'],
-  ['вместе с Prohouse', 'вместе с Royalhouse'],
-  ['Orzuyingizdagi uyni Prohouse bilan birga quring', 'Стройте дом мечты вместе с Royalhouse'],
-  ['Prohouse xavfsizlik tizimi', 'Система безопасности Royalhouse'],
+  // Brand is invariant. Do not add Royalhouse <-> Royalhouse as a bidirectional pair.
+  ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
+  ['← Royalhouse', '← Royalhouse'],
+  ['na Royalhouse', 'на Royalhouse'],
+  ['вместе с Royalhouse', 'вместе с Royalhouse'],
+  ['Orzuyingizdagi uyni Royalhouse bilan birga quring', 'Стройте дом мечты вместе с Royalhouse'],
+  ['Royalhouse xavfsizlik tizimi', 'Система безопасности Royalhouse'],
   ['Tekshirilmoqda...', 'Проверка...'],
   ['Tekshirilmoqda…', 'Проверка…'],
 
@@ -252,7 +252,7 @@ export default function GlobalLanguageFix() {
     let applying = false
     let queued = false
 
-    const getLang = (): Lang => window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+    const getLang = (): Lang => window.localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz'
     const run = () => {
       if (applying) return
       applying = true
@@ -265,10 +265,10 @@ export default function GlobalLanguageFix() {
       window.requestAnimationFrame(() => { queued = false; run() })
     }
     const onLanguageChange = () => run()
-    const onStorage = (event: StorageEvent) => { if (event.key === 'prohouse-lang') run() }
+    const onStorage = (event: StorageEvent) => { if (event.key === 'royalhouse-lang') run() }
 
     run()
-    window.addEventListener('prohouse-language-change', onLanguageChange)
+    window.addEventListener('royalhouse-language-change', onLanguageChange)
     window.addEventListener('storage', onStorage)
 
     const observer = new MutationObserver(() => schedule())
@@ -276,7 +276,7 @@ export default function GlobalLanguageFix() {
 
     return () => {
       observer.disconnect()
-      window.removeEventListener('prohouse-language-change', onLanguageChange)
+      window.removeEventListener('royalhouse-language-change', onLanguageChange)
       window.removeEventListener('storage', onStorage)
     }
   }, [])

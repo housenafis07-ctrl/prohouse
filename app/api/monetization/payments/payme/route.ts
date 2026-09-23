@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       amount: String(amountTiyin),
       lang: 'uz',
       callback: `${getSiteUrl(request)}/account/monetization/checkout?orderId=${encodeURIComponent(attempt.order_id)}`,
-      description: `Prohouse monetization order ${attempt.order_id}`,
+      description: `Royalhouse monetization order ${attempt.order_id}`,
     })
     const checkoutUrl = `https://checkout.paycom.uz/${Buffer.from(params.toString()).toString('base64')}`
 
