@@ -63,8 +63,7 @@ export default function RoyalhousePartnersLinkFix() {
       closePanel()
       activeButton = button
       const ru = button.getAttribute('data-royalhouse-location-lang') === 'ru' || button.textContent?.includes('Ташкент') || button.textContent?.includes('Весь') || false
-      const saved = readSaved()
-      let state = saved
+      let state = readSaved()
       let neighborhoods: string[] = []
       let loadingNeighborhoods = false
 
@@ -85,8 +84,7 @@ export default function RoyalhousePartnersLinkFix() {
 
       const render = () => {
         if (!panel) return
-        const regions = UZBEKISTAN_LOCATIONS
-        const regionData = regions.find((item) => item.name === state.region)
+        const regionData = UZBEKISTAN_LOCATIONS.find((item) => item.name === state.region)
         const districts = regionData?.districts || []
         panel.innerHTML = ''
 
@@ -119,7 +117,7 @@ export default function RoyalhousePartnersLinkFix() {
         allRegion.value = 'ALL'
         allRegion.textContent = ru ? 'Весь Узбекистан' : 'Butun O‘zbekiston'
         regionSelect.appendChild(allRegion)
-        regions.forEach((item) => {
+        UZBEKISTAN_LOCATIONS.forEach((item) => {
           const option = document.createElement('option')
           option.value = item.name
           option.textContent = ru ? item.name.replace(' viloyati', ' область') : item.name
@@ -152,19 +150,18 @@ export default function RoyalhousePartnersLinkFix() {
           neighborhoods = []
           loadingNeighborhoods = false
           render()
-          if (state.district) {
-            loadingNeighborhoods = true
+          if (!state.district) return
+          loadingNeighborhoods = true
+          render()
+          try {
+            const db = createClient()
+            const { data } = await db.from('listings').select('neighborhood').eq('district', state.district).not('neighborhood', 'is', null).limit(500)
+            neighborhoods = Array.from(new Set((data || []).map((item: { neighborhood?: string | null }) => String(item.neighborhood || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+          } catch {
+            neighborhoods = []
+          } finally {
+            loadingNeighborhoods = false
             render()
-            try {
-              const db = createClient()
-              const { data } = await db.from('listings').select('neighborhood').eq('district', state.district).not('neighborhood', 'is', null).limit(500)
-              neighborhoods = Array.from(new Set((data || []).map((item: any) => String(item.neighborhood || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
-            } catch {
-              neighborhoods = []
-            } finally {
-              loadingNeighborhoods = false
-              render()
-            }
           }
         }
         makeLabel(ru ? 'Район / город' : 'Tuman / shahar', districtSelect)
@@ -253,7 +250,8 @@ export default function RoyalhousePartnersLinkFix() {
       if (existingButton) {
         const saved = readSaved()
         const ru = existingButton.getAttribute('data-royalhouse-location-lang') === 'ru' || existingButton.textContent?.includes('Ташкент') || existingButton.textContent?.includes('Весь') || false
-        existingButton.textContent = `⌖ ${regionLabel(saved.region, ru)}`
+        const nextText = `⌖ ${regionLabel(saved.region, ru)}`
+        if (existingButton.textContent !== nextText) existingButton.textContent = nextText
         return
       }
 
@@ -261,7 +259,7 @@ export default function RoyalhousePartnersLinkFix() {
         const text = node.textContent?.trim()
         return text === '⌖ Toshkent' || text === '⌖ Ташкент'
       })
-      if (locationNodes.length > 1) locationNodes[0].remove()
+      if (locationNodes.length > 1) locationNodes.slice(0, -1).forEach((node) => node.remove())
       const node = locationNodes[locationNodes.length - 1]
       if (!node) return
 
@@ -290,8 +288,9 @@ export default function RoyalhousePartnersLinkFix() {
     }
 
     fix()
-    const observer = new MutationObserver(fix)
+    const observer = new MutationObserver(() => fix())
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+
     return () => {
       observer.disconnect()
       closePanel()
