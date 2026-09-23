@@ -2,8 +2,26 @@
 
 import { useLayoutEffect } from 'react'
 
+const LEGACY_BRAND_RE = /Prohouse|ProHouse|PROHOUSE|prohouse/g
+
 const replaceBrand = (value: string) =>
-  value.replace(/Prohouse/g, 'Royalhouse').replace(/ProHouse/g, 'RoyalHouse').replace(/PROHOUSE/g, 'ROYALHOUSE')
+  value
+    .replace(/Prohouse/g, 'Royalhouse')
+    .replace(/ProHouse/g, 'RoyalHouse')
+    .replace(/PROHOUSE/g, 'ROYALHOUSE')
+    .replace(/prohouse/g, 'royalhouse')
+
+function migrateLegacyLanguageState() {
+  try {
+    const legacy = window.localStorage.getItem('prohouse-lang')
+    const current = window.localStorage.getItem('royalhouse-lang')
+    if (!current && (legacy === 'uz' || legacy === 'ru')) {
+      window.localStorage.setItem('royalhouse-lang', legacy)
+    }
+  } catch {
+    // Ignore storage access errors in privacy-restricted browsers.
+  }
+}
 
 function updateTextNodes(root: Node) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
@@ -18,13 +36,44 @@ function updateTextNodes(root: Node) {
   for (const node of nodes) {
     const parent = node.parentElement
     if (!parent) continue
-    if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(parent.tagName)) continue
+    if (['SCRIPT', 'STYLE', 'TEXTAREA'].includes(parent.tagName)) continue
 
     const value = node.nodeValue ?? ''
-    if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
+    if (LEGACY_BRAND_RE.test(value)) {
+      LEGACY_BRAND_RE.lastIndex = 0
       node.nodeValue = replaceBrand(value)
     }
+    LEGACY_BRAND_RE.lastIndex = 0
   }
+}
+
+function updateBrandAttributes(root: ParentNode = document) {
+  const elements = Array.from(root.querySelectorAll<HTMLElement>('*'))
+  for (const element of elements) {
+    for (const attribute of ['aria-label', 'alt', 'title', 'placeholder', 'value', 'content']) {
+      const value = element.getAttribute(attribute)
+      if (!value || !LEGACY_BRAND_RE.test(value)) {
+        LEGACY_BRAND_RE.lastIndex = 0
+        continue
+      }
+      LEGACY_BRAND_RE.lastIndex = 0
+      element.setAttribute(attribute, replaceBrand(value))
+    }
+  }
+}
+
+function updateHeadBranding() {
+  document.title = replaceBrand(document.title)
+  document.querySelectorAll<HTMLMetaElement>('meta[content]').forEach((meta) => {
+    const value = meta.getAttribute('content')
+    if (!value) return
+    if (LEGACY_BRAND_RE.test(value)) {
+      LEGACY_BRAND_RE.lastIndex = 0
+      meta.setAttribute('content', replaceBrand(value))
+    } else {
+      LEGACY_BRAND_RE.lastIndex = 0
+    }
+  })
 }
 
 function applyRoyalhouseHeader() {
@@ -43,6 +92,14 @@ function applyRoyalhouseHeader() {
   }
 }
 
+function applyBrandFix() {
+  migrateLegacyLanguageState()
+  updateHeadBranding()
+  updateTextNodes(document.body)
+  updateBrandAttributes(document)
+  applyRoyalhouseHeader()
+}
+
 export default function RoyalhouseBrandFix() {
   useLayoutEffect(() => {
     let applying = false
@@ -51,9 +108,7 @@ export default function RoyalhouseBrandFix() {
       if (applying) return
       applying = true
       try {
-        document.title = replaceBrand(document.title)
-        updateTextNodes(document.body)
-        applyRoyalhouseHeader()
+        applyBrandFix()
       } finally {
         applying = false
       }
@@ -62,6 +117,19 @@ export default function RoyalhouseBrandFix() {
     apply()
     const frame = requestAnimationFrame(apply)
     const delayed = window.setTimeout(apply, 100)
+
+    const onLegacyLanguageChange = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail
+      if (detail !== 'uz' && detail !== 'ru') return
+      try {
+        window.localStorage.setItem('royalhouse-lang', detail)
+        window.dispatchEvent(new CustomEvent('royalhouse-language-change', { detail }))
+      } catch {
+        // Ignore storage access errors.
+      }
+    }
+
+    window.addEventListener('prohouse-language-change', onLegacyLanguageChange)
 
     const observer = new MutationObserver((mutations) => {
       if (applying) return
@@ -72,8 +140,11 @@ export default function RoyalhouseBrandFix() {
           if (mutation.type === 'characterData') {
             const node = mutation.target as Text
             const value = node.nodeValue ?? ''
-            if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
+            if (LEGACY_BRAND_RE.test(value)) {
+              LEGACY_BRAND_RE.lastIndex = 0
               node.nodeValue = replaceBrand(value)
+            } else {
+              LEGACY_BRAND_RE.lastIndex = 0
             }
             continue
           }
@@ -81,28 +152,31 @@ export default function RoyalhouseBrandFix() {
           for (const node of Array.from(mutation.addedNodes)) {
             if (node.nodeType === Node.TEXT_NODE) {
               const value = node.nodeValue ?? ''
-              if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
+              if (LEGACY_BRAND_RE.test(value)) {
+                LEGACY_BRAND_RE.lastIndex = 0
                 node.nodeValue = replaceBrand(value)
+              } else {
+                LEGACY_BRAND_RE.lastIndex = 0
               }
             } else if (node.nodeType === Node.ELEMENT_NODE) {
               updateTextNodes(node)
+              updateBrandAttributes(node as Element)
             }
           }
         }
-        document.title = replaceBrand(document.title)
+        updateHeadBranding()
       } finally {
         applying = false
       }
     })
 
-    // React hydration can replace the value of an existing text node without
-    // inserting a new node. Observe characterData so Prohouse cannot return
-    // after the initial Royalhouse server render, while leaving i18n logic untouched.
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true })
 
     return () => {
       cancelAnimationFrame(frame)
       window.clearTimeout(delayed)
+      window.removeEventListener('prohouse-language-change', onLegacyLanguageChange)
       observer.disconnect()
     }
   }, [])
