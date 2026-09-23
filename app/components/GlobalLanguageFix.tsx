@@ -6,8 +6,7 @@ type Lang = 'uz' | 'ru'
 type Pair = [string, string]
 
 // Compatibility bridge for legacy pages that still render literal UI strings.
-// Keep this list limited to platform UI copy; listing titles, descriptions,
-// addresses and user-entered content must not be translated here.
+// Brand names are intentionally invariant and must never be translated back.
 const PAIRS: Pair[] = [
   ['Kabinet', 'Кабинет'],
   ['Shaxsiy kabinet', 'Личный кабинет'],
@@ -27,7 +26,7 @@ const PAIRS: Pair[] = [
   ['Ro‘yxatdan o‘tish', 'Регистрация'],
   ['Qidirish', 'Поиск'],
   ['Filtrlar', 'Фильтры'],
-  ['Filtrni tozalash', 'Сбросить фильтры'],
+  ['Filtrni tozalash', 'Сбросить filtrlar'],
   ['Barchasi', 'Все'],
   ['Sotib olish', 'Купить'],
   ['Ijara', 'Аренда'],
@@ -96,7 +95,8 @@ const PAIRS: Pair[] = [
   ['Provider tayyorlanmoqda', 'Провайдер готовится'],
   ['Hozircha sotuvga yoqilgan monetizatsiya mahsuloti yo‘q.', 'Пока нет доступных для продажи продуктов монетизации.'],
   ['Qoldiq:', 'Остаток:'],
-  ['ProHouse hisob raqami', 'Номер счёта ProHouse'],
+  ['Royalhouse hisob raqami', 'Номер счёта Royalhouse'],
+  ['ProHouse hisob raqami', 'Номер счёта Royalhouse'],
   ['Balansni to‘ldirish', 'Пополнение баланса'],
   ['Tranzaksiyalar tarixi', 'История транзакций'],
   ['Balansdagi barcha moliyaviy operatsiyalar.', 'Все финансовые операции по балансу.'],
@@ -132,18 +132,18 @@ const PAIRS: Pair[] = [
   ['so‘m', 'сум'],
   ['O‘z / Ru', 'Ru / O‘z'],
   ['Ru / O‘z', 'O‘z / Ru'],
+  ['Hamkorlar uchun', 'Партнёрам'],
 
-  // Remaining brand/auth UI that was still rendered by legacy literal strings.
-  ['Prohouse', 'Royalhouse'],
+  // Brand is invariant. Do not add Prohouse <-> Royalhouse as a bidirectional pair.
   ['Prohouse’ga kirish', 'Вход в Royalhouse'],
   ['← Prohouse', '← Royalhouse'],
   ['na Prohouse', 'на Royalhouse'],
   ['вместе с Prohouse', 'вместе с Royalhouse'],
   ['Orzuyingizdagi uyni Prohouse bilan birga quring', 'Стройте дом мечты вместе с Royalhouse'],
+  ['Prohouse xavfsizlik tizimi', 'Система безопасности Royalhouse'],
   ['Tekshirilmoqda...', 'Проверка...'],
   ['Tekshirilmoqda…', 'Проверка…'],
 
-  // Messages / chat
   ['E’LON BO‘YICHA CHAT', 'ЧАТ ПО ОБЪЯВЛЕНИЮ'],
   ['Barcha e’lonlar bo‘yicha yozishmalar.', 'Переписка по всем объявлениям.'],
   ['Suhbatni tanlang', 'Выберите чат'],
@@ -153,8 +153,6 @@ const PAIRS: Pair[] = [
   ['Yuborish', 'Отправить'],
   ['Enter — yuborish · Shift+Enter — yangi qator', 'Enter — отправить · Shift+Enter — новая строка'],
   ['E’lon bo‘yicha murojaat qilmoqchiman.', 'Хочу связаться по объявлению.'],
-
-  // Account / listings
   ['E’lonlar kabineti', 'Кабинет объявлений'],
   ['E’lonlaringiz holatini kuzating. Admin qarori berilganda sahifa avtomatik yangilanadi.', 'Отслеживайте статус ваших объявлений. После решения администратора страница обновится автоматически.'],
   ['BEPUL E’LONLAR', 'БЕСПЛАТНЫЕ ОБЪЯВЛЕНИЯ'],
@@ -164,9 +162,6 @@ const PAIRS: Pair[] = [
   ['Yangi e’lon', 'Новое объявление'],
   ['E’lonni ko‘rish', 'Посмотреть объявление'],
   ['E’lonni tahrirlash', 'Редактировать объявление'],
-
-  // Trusted profile
-  ['Prohouse xavfsizlik tizimi', 'Система безопасности Royalhouse'],
   ['Ijtimoiy tasdiqlash orqali foydalanuvchining haqiqiyligini kuchaytirish va e’lonlarda ishonchli sotuvchini ajratib ko‘rsatish.', 'Система помогает подтвердить подлинность пользователя и выделить надёжного продавца в объявлениях.'],
   ['Ulanilmagan', 'Не подключено'],
   ['Shaxsni biometrik identifikatsiya qilish orqali profilni tasdiqlash.', 'Подтверждение профиля с помощью биометрической идентификации.'],
@@ -177,8 +172,6 @@ const PAIRS: Pair[] = [
   ['✓ Shaxsiy kabinetdagi profil holatida', '✓ В статусе профиля в личном кабинете'],
   ['✓ Hamkorning e’lonlarida “Ishonchli profil” belgisi sifatida', '✓ В объявлениях партнёра как отметка «Надёжный профиль»'],
   ['✓ E’lon tafsilotlarida sotuvchi/beruvchi ma’lumotlari yonida', '✓ В деталях объявления рядом с данными продавца/арендодателя'],
-
-  // Monetization
   ['Monetization Engine mahsulot katalogi, buyurtma, payment provider va entitlement qatlamlarini bitta modelga birlashtiradi.', 'Monetization Engine объединяет каталог продуктов, заказы, платёжного провайдера и слой доступов в единую модель.'],
   ['Hozircha real payment gateway ulanmagan.', 'Реальный платёжный шлюз пока не подключён.'],
 ]
@@ -186,9 +179,6 @@ const PAIRS: Pair[] = [
 const UZ_TO_RU = new Map(PAIRS)
 const RU_TO_UZ = new Map(PAIRS.map(([uz, ru]) => [ru, uz]))
 
-// Currency is platform-generated UI, not user-entered listing text.
-// Match only a standalone money label so a customer's description/title is
-// never altered just because it happens to contain the word "so‘m".
 const MONEY_UZ_RE = /^\s*[\d\s.,]+(?:\s+(?:mlrd|mln|ming))?\s+so[’ʻʼ`']m\s*$/i
 const MONEY_RU_RE = /^\s*[\d\s.,]+(?:\s+(?:млрд|млн|тыс\.))?\s+сум\s*$/i
 
@@ -281,9 +271,6 @@ export default function GlobalLanguageFix() {
     window.addEventListener('prohouse-language-change', onLanguageChange)
     window.addEventListener('storage', onStorage)
 
-    // React can update an existing text node's value (characterData) after
-    // async listing data arrives without inserting a new DOM node. Observe
-    // both childList and characterData so dynamic prices are translated too.
     const observer = new MutationObserver(() => schedule())
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
