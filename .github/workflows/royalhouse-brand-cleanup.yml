@@ -1,0 +1,74 @@
+name: Royalhouse one-time brand cleanup
+
+on:
+  push:
+    branches:
+      - fix/royalhouse-page-freeze
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace legacy visible brand
+        shell: python
+        run: |
+          from pathlib import Path
+
+          roots = [Path('app'), Path('components'), Path('lib'), Path('utils'), Path('data'), Path('public')]
+          extensions = {'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.mdx', '.html', '.svg'}
+          replacements = {
+              'Prohouse': 'Royalhouse',
+              'ProHouse': 'RoyalHouse',
+              'PROHOUSE': 'ROYALHOUSE',
+          }
+
+          changed = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob('*'):
+                  if not path.is_file() or path.suffix.lower() not in extensions:
+                      continue
+                  try:
+                      text = path.read_text(encoding='utf-8')
+                  except (UnicodeDecodeError, OSError):
+                      continue
+                  new_text = text
+                  for old, new in replacements.items():
+                      new_text = new_text.replace(old, new)
+                  if new_text != text:
+                      path.write_text(new_text, encoding='utf-8')
+                      changed.append(str(path))
+
+          print('Changed files:', *changed, sep='\n- ')
+
+      - name: Verify no visible legacy brand remains in runtime source
+        shell: bash
+        run: |
+          if git grep -n -E 'Prohouse|ProHouse|PROHOUSE' -- app components lib utils data public ':!supabase/migrations' ':!docs' ; then
+            echo 'Legacy visible brand remains in runtime source.'
+            exit 1
+          fi
+          echo 'Runtime source audit passed.'
+
+      - name: Commit cleanup and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/royalhouse-brand-cleanup.yml
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git commit -m 'fix: remove legacy Prohouse branding from runtime UI [skip ci]'
+          git push origin HEAD:fix/royalhouse-page-freeze
