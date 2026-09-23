@@ -5,6 +5,8 @@ import { useLayoutEffect } from 'react'
 const replaceBrand = (value: string) =>
   value.replace(/Prohouse/g, 'Royalhouse').replace(/ProHouse/g, 'RoyalHouse').replace(/PROHOUSE/g, 'ROYALHOUSE')
 
+const containsLegacyBrand = (value: string) => /Prohouse|ProHouse|PROHOUSE/.test(value)
+
 function updateTextNodes(root: Node) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
@@ -21,10 +23,17 @@ function updateTextNodes(root: Node) {
     if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(parent.tagName)) continue
 
     const value = node.nodeValue ?? ''
-    if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
-      node.nodeValue = replaceBrand(value)
-    }
+    if (containsLegacyBrand(value)) node.nodeValue = replaceBrand(value)
   }
+}
+
+function updateBrandAttributes(root: ParentNode) {
+  root.querySelectorAll<HTMLElement>('[title],[aria-label],[alt],[data-brand],[content]').forEach((element) => {
+    for (const attribute of ['title', 'aria-label', 'alt', 'data-brand', 'content']) {
+      const value = element.getAttribute(attribute)
+      if (value && containsLegacyBrand(value)) element.setAttribute(attribute, replaceBrand(value))
+    }
+  })
 }
 
 function applyRoyalhouseHeader() {
@@ -43,6 +52,13 @@ function applyRoyalhouseHeader() {
   }
 }
 
+function applyRoyalhouseBrand() {
+  document.title = replaceBrand(document.title)
+  updateTextNodes(document.body)
+  updateBrandAttributes(document)
+  applyRoyalhouseHeader()
+}
+
 export default function RoyalhouseBrandFix() {
   useLayoutEffect(() => {
     let applying = false
@@ -51,9 +67,7 @@ export default function RoyalhouseBrandFix() {
       if (applying) return
       applying = true
       try {
-        document.title = replaceBrand(document.title)
-        updateTextNodes(document.body)
-        applyRoyalhouseHeader()
+        applyRoyalhouseBrand()
       } finally {
         applying = false
       }
@@ -72,32 +86,29 @@ export default function RoyalhouseBrandFix() {
           if (mutation.type === 'characterData') {
             const node = mutation.target as Text
             const value = node.nodeValue ?? ''
-            if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
-              node.nodeValue = replaceBrand(value)
-            }
+            if (containsLegacyBrand(value)) node.nodeValue = replaceBrand(value)
             continue
           }
 
           for (const node of Array.from(mutation.addedNodes)) {
             if (node.nodeType === Node.TEXT_NODE) {
               const value = node.nodeValue ?? ''
-              if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
-                node.nodeValue = replaceBrand(value)
-              }
+              if (containsLegacyBrand(value)) node.nodeValue = replaceBrand(value)
             } else if (node.nodeType === Node.ELEMENT_NODE) {
               updateTextNodes(node)
+              updateBrandAttributes(node as Element)
             }
           }
         }
-        document.title = replaceBrand(document.title)
+
+        applyRoyalhouseBrand()
       } finally {
         applying = false
       }
     })
 
-    // React hydration can replace the value of an existing text node without
-    // inserting a new node. Observe characterData so Prohouse cannot return
-    // after the initial Royalhouse server render, while leaving i18n logic untouched.
+    // React hydration may replace an existing text node without inserting a new node.
+    // Keep this isolated to branding so the language and search logic remain untouched.
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
     return () => {
