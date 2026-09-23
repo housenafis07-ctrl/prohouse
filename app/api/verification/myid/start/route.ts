@@ -16,7 +16,7 @@ export async function POST() {
   if (!configured) {
     return NextResponse.json({
       configured: false,
-      message: 'MyID ulanishi hali konfiguratsiya qilinmagan. Prohouse MyID credentials va redirect manzilini olgach, shu endpoint real MyID oqimiga ulanadi.',
+      message: 'MyID ulanishi hali konfiguratsiya qilinmagan. Royalhouse MyID credentials va redirect manzilini olgach, shu endpoint real MyID oqimiga ulanadi.',
     })
   }
 

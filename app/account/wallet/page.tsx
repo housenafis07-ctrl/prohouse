@@ -54,13 +54,13 @@ export default function WalletPage() {
       <div className="mx-auto max-w-5xl">
         <header className="flex items-center justify-between gap-4">
           <Link href="/account" className="text-sm font-extrabold text-emerald-700">← Shaxsiy kabinet</Link>
-          <Link href="/" className="text-sm font-bold text-slate-500">Prohouse</Link>
+          <Link href="/" className="text-sm font-bold text-slate-500">Royalhouse</Link>
         </header>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="bg-slate-900 px-6 py-7 text-white sm:px-8">
-              <p className="text-sm font-semibold text-slate-300">ProHouse hisob raqami</p>
+              <p className="text-sm font-semibold text-slate-300">RoyalHouse hisob raqami</p>
               <div className="mt-2 flex items-end justify-between gap-4">
                 <div>
                   <h1 className="text-3xl font-black sm:text-4xl">{wallet ? money(Number(wallet.balance), wallet.currency) : '0 so‘m'}</h1>
@@ -92,7 +92,7 @@ export default function WalletPage() {
           <aside className="space-y-5">
             <section className="rounded-3xl bg-white p-6 shadow-sm">
               <h2 className="text-lg font-extrabold text-slate-900">Mening e’lonlarim</h2>
-              <p className="mt-1 text-sm text-slate-500">Har bir e’lonning doimiy ProHouse ID raqami mavjud.</p>
+              <p className="mt-1 text-sm text-slate-500">Har bir e’lonning doimiy RoyalHouse ID raqami mavjud.</p>
               <div className="mt-4 space-y-3">
                 {listings.length === 0 ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">Hozircha sizga tegishli e’lonlar yo‘q.</div> : listings.map(item => <Link key={item.id} href={`/listings/${item.id}`} className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:border-emerald-200"><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{item.listing_code}</span><span className="text-xs font-bold text-slate-400">{item.status}</span></div><p className="mt-3 font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-sm text-slate-500">{money(Number(item.price), item.currency)}</p></Link>)}
               </div>

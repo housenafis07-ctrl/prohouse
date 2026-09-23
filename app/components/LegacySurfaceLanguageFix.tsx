@@ -11,7 +11,7 @@ type Pair = [string, string]
 // must be wrapped with data-no-global-i18n and are never translated here.
 const PAIRS: Pair[] = [
   // Trusted profile
-  ['Prohouse xavfsizlik tizimi', 'Система безопасности Prohouse'],
+  ['Royalhouse xavfsizlik tizimi', 'Система безопасности Royalhouse'],
   ['Ishonchli profil', 'Надёжный профиль'],
   ['Ijtimoiy tasdiqlash orqali foydalanuvchining haqiqiyligini kuchaytirish va e’lonlarda ishonchli sotuvchini ajratib ko‘rsatish.', 'Система помогает подтвердить подлинность пользователя и выделить надёжного продавца в объявлениях.'],
   ['Ulanilmagan', 'Не подключено'],
@@ -83,7 +83,7 @@ const PAIRS: Pair[] = [
   ['E’lon bo‘yicha', 'По объявлению'],
 
   // Construction / Uy qurish
-  ['PROHOUSE CONSTRUCTION', 'PROHOUSE CONSTRUCTION'],
+  ['ROYALHOUSE CONSTRUCTION', 'ROYALHOUSE CONSTRUCTION'],
   ['Uy qurish', 'Построить дом'],
   ['Orzuyingizdagi uyni biz bilan birga quring. Loyiha, yer, pudratchi va xarajatlar — barchasi bir joyda.', 'Постройте дом своей мечты вместе с нами. Проект, участок, подрядчик и расходы — всё в одном месте.'],
   ['Loyihani tanlash →', 'Выбрать проект →'],

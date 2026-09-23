@@ -2,13 +2,13 @@
 
 import { useLayoutEffect } from 'react'
 
-const LEGACY_BRAND_RE = /Prohouse|ProHouse|PROHOUSE|prohouse/g
+const LEGACY_BRAND_RE = /Royalhouse|RoyalHouse|ROYALHOUSE|prohouse/g
 
 const replaceBrand = (value: string) =>
   value
-    .replace(/Prohouse/g, 'Royalhouse')
-    .replace(/ProHouse/g, 'RoyalHouse')
-    .replace(/PROHOUSE/g, 'ROYALHOUSE')
+    .replace(/Royalhouse/g, 'Royalhouse')
+    .replace(/RoyalHouse/g, 'RoyalHouse')
+    .replace(/ROYALHOUSE/g, 'ROYALHOUSE')
     .replace(/prohouse/g, 'royalhouse')
 
 function replaceTextNodes(root: Node) {
@@ -86,7 +86,7 @@ export default function RoyalhouseBrandFix() {
     const body = document.body
     const previousVisibility = body.style.visibility
 
-    // Do not paint legacy Prohouse SSR text while the hydrated Royalhouse UI is normalized.
+    // Do not paint legacy Royalhouse SSR text while the hydrated Royalhouse UI is normalized.
     body.style.visibility = 'hidden'
 
     try {

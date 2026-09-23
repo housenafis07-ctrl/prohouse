@@ -24,7 +24,7 @@ export default function AdminLoginPage() {
 
   return <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
     <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-sm sm:p-9">
-      <div className="mb-8"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-xl font-black text-white">P</div><h1 className="mt-5 text-3xl font-black text-slate-900">Prohouse Admin</h1><p className="mt-2 text-sm text-slate-500">Boshqaruv paneliga xavfsiz kirish</p></div>
+      <div className="mb-8"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-xl font-black text-white">P</div><h1 className="mt-5 text-3xl font-black text-slate-900">Royalhouse Admin</h1><p className="mt-2 text-sm text-slate-500">Boshqaruv paneliga xavfsiz kirish</p></div>
       <form onSubmit={submit} className="space-y-4">
         <div><label className="text-sm font-bold text-slate-700">Login / Email</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" autoComplete="username" required className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500" placeholder="admin@prohouse.uz" /></div>
         <div><label className="text-sm font-bold text-slate-700">Parol</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete="current-password" required className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500" /></div>

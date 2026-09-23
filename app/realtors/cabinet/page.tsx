@@ -53,7 +53,7 @@ export default function RealtorCabinetPage() {
       }
       if (realtor) { router.replace('/realtors/cabinet/dashboard'); return }
       if (!name.trim() || !certificate.trim()) throw new Error('F.I.O. va malaka sertifikati raqamini kiriting.')
-      const { error } = await supabase.from('realtor_profiles').insert({ user_id: userData.user.id, display_name: name.trim(), phone, certificate_number: certificate.trim(), experience_years: Number(experience) || 0, verification_status: 'pending', rating: 0, reviews_count: 0, agency_id: null, bio: 'Prohouse rieltorlik kabineti orqali yuborilgan ariza.' })
+      const { error } = await supabase.from('realtor_profiles').insert({ user_id: userData.user.id, display_name: name.trim(), phone, certificate_number: certificate.trim(), experience_years: Number(experience) || 0, verification_status: 'pending', rating: 0, reviews_count: 0, agency_id: null, bio: 'Royalhouse rieltorlik kabineti orqali yuborilgan ariza.' })
       if (error) throw error
       router.replace('/realtors/cabinet/dashboard?submitted=1')
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Xatolik yuz berdi') } finally { setLoading(false) }

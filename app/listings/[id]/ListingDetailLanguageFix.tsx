@@ -14,8 +14,8 @@ const UI_PAIRS: Pair[] = [
   ['Xaritani katta ko‘rish', 'Открыть карту'],
   ['Xavfsiz bitim', 'Безопасная сделка'],
   [
-    'ProHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.',
-    'ProHouse выделяет проверенные объявления и продавцов. Платёжные/escrow-услуги будут предоставляться через лицензированного партнёра на следующем этапе интеграции.',
+    'RoyalHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.',
+    'RoyalHouse выделяет проверенные объявления и продавцов. Платёжные/escrow-услуги будут предоставляться через лицензированного партнёра на следующем этапе интеграции.',
   ],
   ['Xaritada aniq joylashuv belgilanmagan.', 'Точное местоположение на карте не указано.'],
 ]
