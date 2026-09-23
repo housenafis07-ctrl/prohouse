@@ -17,8 +17,48 @@ export default function MobileMainNavigation() {
 
     const style = document.createElement('style')
     style.textContent = `
+      .prohouse-mobile-category-nav { display:none; }
       .prohouse-mobile-main-nav { display:none; }
       @media (max-width:767px) {
+        .prohouse-mobile-category-nav {
+          display:flex;
+          position:relative;
+          z-index:900;
+          width:100%;
+          box-sizing:border-box;
+          overflow-x:auto;
+          overscroll-behavior-x:contain;
+          -webkit-overflow-scrolling:touch;
+          scrollbar-width:none;
+          padding:8px 12px;
+          gap:7px;
+          border-bottom:1px solid #e2e8f0;
+          background:rgba(255,255,255,.98);
+          box-shadow:0 3px 12px rgba(15,23,42,.05);
+        }
+        .prohouse-mobile-category-nav::-webkit-scrollbar { display:none; }
+        .prohouse-mobile-category-nav a {
+          display:inline-flex;
+          flex:0 0 auto;
+          align-items:center;
+          min-height:38px;
+          padding:0 14px;
+          border:1px solid #e2e8f0;
+          border-radius:999px;
+          background:#fff;
+          color:#334155;
+          font:700 12px/1 Arial,sans-serif;
+          text-decoration:none;
+          white-space:nowrap;
+          -webkit-tap-highlight-color:transparent;
+        }
+        .prohouse-mobile-category-nav a:active { transform:scale(.98); }
+        .prohouse-mobile-category-nav a.active {
+          border-color:#10b981;
+          background:#ecfdf5;
+          color:#047857;
+        }
+        .prohouse-mobile-category-nav a.primary { background:#059669; border-color:#059669; color:#fff; }
         .prohouse-mobile-main-nav {
           position:fixed;
           left:0;
@@ -54,15 +94,8 @@ export default function MobileMainNavigation() {
           white-space:nowrap;
           -webkit-tap-highlight-color:transparent;
         }
-        .prohouse-mobile-main-nav a svg {
-          width:22px;
-          height:22px;
-          flex:0 0 auto;
-        }
-        .prohouse-mobile-main-nav a.active {
-          color:#059669;
-          background:#ecfdf5;
-        }
+        .prohouse-mobile-main-nav a svg { width:22px; height:22px; flex:0 0 auto; }
+        .prohouse-mobile-main-nav a.active { color:#059669; background:#ecfdf5; }
         .prohouse-mobile-main-nav a.create {
           margin:-14px 3px 0;
           min-height:62px;
@@ -77,17 +110,51 @@ export default function MobileMainNavigation() {
         body { padding-bottom:76px; }
         [data-mobile-listing-actions] { bottom:76px !important; }
       }
-      @media (min-width:768px) {
-        body { padding-bottom:0 !important; }
-      }
+      @media (min-width:768px) { body { padding-bottom:0 !important; } }
     `
     document.head.appendChild(style)
+
+    const isRussian = /Купить|Аренда|Новостройки|Ипотека/.test(document.body?.innerText || '')
+    const currentPath = window.location.pathname
+    const currentSearch = window.location.search
+
+    const categoryNav = document.createElement('nav')
+    categoryNav.className = 'prohouse-mobile-category-nav'
+    categoryNav.setAttribute('aria-label', isRussian ? 'Основные разделы' : 'Asosiy bo‘limlar')
+
+    const categories = [
+      { label: isRussian ? 'Купить' : 'Sotib olish', href: '/listings?tab=sale' },
+      { label: isRussian ? 'Аренда' : 'Ijara', href: '/listings?tab=rent' },
+      { label: isRussian ? 'Новостройки' : 'Yangi uylar', href: '/listings?tab=sale&type=new_building' },
+      { label: isRussian ? 'Построить дом' : 'Uy qurish', href: '/uy-qurish' },
+      { label: isRussian ? 'Ипотека' : 'Ipoteka', href: '/#mortgage' },
+      { label: isRussian ? 'Услуги' : 'Xizmatlar', href: '/listings' },
+      { label: isRussian ? 'Риелторы' : 'Rieltorlar', href: '/realtors' },
+    ] as const
+
+    categories.forEach((item, index) => {
+      const link = document.createElement('a')
+      link.href = item.href
+      link.textContent = item.label
+      const isActive = (index === 0 && currentPath === '/listings' && currentSearch.includes('tab=sale') && !currentSearch.includes('type=new_building'))
+        || (index === 1 && currentPath === '/listings' && currentSearch.includes('tab=rent'))
+        || (index === 2 && currentPath === '/listings' && currentSearch.includes('type=new_building'))
+        || (index === 3 && currentPath.startsWith('/uy-qurish'))
+        || (index === 5 && currentPath === '/listings' && !currentSearch.includes('tab='))
+        || (index === 6 && currentPath.startsWith('/realtors'))
+      if (isActive) link.classList.add('active')
+      if (index === 0 && currentPath === '/') link.classList.add('primary')
+      categoryNav.appendChild(link)
+    })
+
+    const firstHeader = document.querySelector('body > div header, body > header, header')
+    if (firstHeader?.parentElement) firstHeader.insertAdjacentElement('afterend', categoryNav)
+    else document.body.prepend(categoryNav)
 
     const nav = document.createElement('nav')
     nav.className = 'prohouse-mobile-main-nav'
     nav.setAttribute('aria-label', 'Asosiy mobil menyu')
 
-    const isRussian = /Купить|Аренда|Новостройки|Ипотека/.test(document.body?.innerText || '')
     const items = [
       { key: 'home', label: isRussian ? 'Главная' : 'Bosh sahifa', href: '/' },
       { key: 'search', label: isRussian ? 'Поиск' : 'Qidiruv', href: '/listings' },
@@ -95,9 +162,6 @@ export default function MobileMainNavigation() {
       { key: 'map', label: isRussian ? 'Карта' : 'Xarita', href: '/listings?tab=sale&view=map' },
       { key: 'user', label: isRussian ? 'Профиль' : 'Profil', href: '/account' },
     ] as const
-
-    const currentPath = window.location.pathname
-    const currentSearch = window.location.search
 
     items.forEach((item) => {
       const link = document.createElement('a')
@@ -118,13 +182,13 @@ export default function MobileMainNavigation() {
 
       if (isActive) link.classList.add('active')
       if (item.key === 'create') link.classList.add('create')
-
       nav.appendChild(link)
     })
 
     document.body.appendChild(nav)
 
     return () => {
+      categoryNav.remove()
       nav.remove()
       style.remove()
     }
