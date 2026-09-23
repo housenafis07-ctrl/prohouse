@@ -65,6 +65,24 @@ function replaceHead() {
   })
 }
 
+function normalizeHeaderLogo() {
+  const link = document.querySelector<HTMLAnchorElement>('header a[href="/"]')
+  if (!link) return
+  if (link.querySelector('[data-royalhouse-logo]')) return
+
+  const logo = document.createElement('img')
+  logo.setAttribute('data-royalhouse-logo', 'true')
+  logo.src = '/royalhouse-icon.svg'
+  logo.alt = 'Royalhouse'
+  logo.width = 40
+  logo.height = 40
+  logo.className = 'mr-2 h-10 w-10 shrink-0 rounded-xl object-cover'
+
+  const existingIcon = link.querySelector('span.mr-2')
+  if (existingIcon) existingIcon.replaceWith(logo)
+  else link.insertBefore(logo, link.firstChild)
+}
+
 function applyBrandFix() {
   try {
     const legacyLang = window.localStorage.getItem('prohouse-lang')
@@ -79,6 +97,7 @@ function applyBrandFix() {
   replaceHead()
   replaceTextNodes(document.body)
   replaceAttributes()
+  normalizeHeaderLogo()
 }
 
 export default function RoyalhouseBrandFix() {
