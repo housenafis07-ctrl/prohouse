@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
   const city = params.get('city')?.trim() || ''
   const district = params.get('district')?.trim() || ''
   const region = params.get('region')?.trim() || ''
+  const neighborhood = params.get('neighborhood')?.trim() || ''
   const currency = params.get('currency')?.trim() || ''
   const q = params.get('q')?.trim() || ''
   const tab = params.get('tab') || ''
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
   if (propertyType) query = query.eq('property_type', propertyType)
   if (city) query = query.eq('city', city)
   if (district) query = query.eq('district', district)
+  if (neighborhood) query = query.eq('neighborhood', neighborhood)
   if (currency) query = query.eq('currency', currency)
   if (region) {
     const regionData = UZBEKISTAN_LOCATIONS.find((item) => item.name === region)
@@ -116,8 +118,6 @@ export async function GET(request: NextRequest) {
   else if (sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false })
   else query = query.order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
 
-  // Cursor mode never uses OFFSET. The legacy page parameter remains available
-  // for older clients so this rollout cannot break existing consumers.
   const useCursor = Boolean(params.get('cursor')) || !params.has('page')
   const { data, count, error } = useCursor
     ? await query.range(0, limit)
@@ -144,10 +144,7 @@ export async function GET(request: NextRequest) {
   const firstImageByListing = new Map<string, { image_url: string; sort_order: number | null }>()
   for (const image of images) {
     if (!firstImageByListing.has(image.listing_id)) {
-      firstImageByListing.set(image.listing_id, {
-        image_url: getListingCardImageUrl(image.image_url),
-        sort_order: image.sort_order,
-      })
+      firstImageByListing.set(image.listing_id, { image_url: getListingCardImageUrl(image.image_url), sort_order: image.sort_order })
     }
   }
 
@@ -160,13 +157,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     data: listings.map((listing) => ({ ...listing, primary_image: firstImageByListing.get(listing.id) || null })),
-    pagination: {
-      page: useCursor ? undefined : page,
-      limit,
-      total: count ?? null,
-      has_next: hasNext,
-      next_cursor: nextCursor,
-      mode: useCursor ? 'cursor' : 'offset',
-    },
+    pagination: { page: useCursor ? undefined : page, limit, total: count ?? null, has_next: hasNext, next_cursor: nextCursor, mode: useCursor ? 'cursor' : 'offset' },
   })
 }

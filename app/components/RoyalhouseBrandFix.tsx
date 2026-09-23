@@ -15,7 +15,6 @@ function replaceTextNodes(root: Node) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
   let node = walker.nextNode()
-
   while (node) {
     nodes.push(node as Text)
     node = walker.nextNode()
@@ -24,13 +23,11 @@ function replaceTextNodes(root: Node) {
   for (const text of nodes) {
     const parent = text.parentElement
     if (!parent || ['SCRIPT', 'STYLE', 'TEXTAREA'].includes(parent.tagName)) continue
-
     const value = text.nodeValue ?? ''
     if (!LEGACY_BRAND_RE.test(value)) {
       LEGACY_BRAND_RE.lastIndex = 0
       continue
     }
-
     LEGACY_BRAND_RE.lastIndex = 0
     text.nodeValue = replaceBrand(value)
   }
@@ -44,7 +41,6 @@ function replaceAttributes() {
         LEGACY_BRAND_RE.lastIndex = 0
         continue
       }
-
       LEGACY_BRAND_RE.lastIndex = 0
       element.setAttribute(attribute, replaceBrand(value))
     }
@@ -67,8 +63,7 @@ function replaceHead() {
 
 function normalizeHeaderLogo() {
   const link = document.querySelector<HTMLAnchorElement>('header a[href="/"]')
-  if (!link) return
-  if (link.querySelector('[data-royalhouse-logo]')) return
+  if (!link || link.querySelector('[data-royalhouse-logo]')) return
 
   const logo = document.createElement('img')
   logo.setAttribute('data-royalhouse-logo', 'true')
@@ -87,13 +82,10 @@ function applyBrandFix() {
   try {
     const legacyLang = window.localStorage.getItem('prohouse-lang')
     const currentLang = window.localStorage.getItem('royalhouse-lang')
-    if (!currentLang && (legacyLang === 'uz' || legacyLang === 'ru')) {
-      window.localStorage.setItem('royalhouse-lang', legacyLang)
-    }
+    if (!currentLang && (legacyLang === 'uz' || legacyLang === 'ru')) window.localStorage.setItem('royalhouse-lang', legacyLang)
   } catch {
     // Ignore restricted storage access.
   }
-
   replaceHead()
   replaceTextNodes(document.body)
   replaceAttributes()
@@ -104,16 +96,17 @@ export default function RoyalhouseBrandFix() {
   useLayoutEffect(() => {
     const body = document.body
     const previousVisibility = body.style.visibility
-
     body.style.visibility = 'hidden'
-    try {
-      applyBrandFix()
-    } finally {
-      body.style.visibility = previousVisibility
-    }
+    try { applyBrandFix() } finally { body.style.visibility = previousVisibility }
 
     const frame = window.requestAnimationFrame(applyBrandFix)
-    return () => window.cancelAnimationFrame(frame)
+    const observer = new MutationObserver(() => applyBrandFix())
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
   }, [])
 
   return null

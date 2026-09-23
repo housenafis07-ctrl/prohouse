@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
   const city = params.get('city')?.trim() || ''
   const district = params.get('district')?.trim() || ''
   const region = params.get('region')?.trim() || ''
+  const neighborhood = params.get('neighborhood')?.trim() || ''
   const currency = params.get('currency')?.trim() || ''
   const q = params.get('q')?.trim() || ''
   const taxonomy = params.get('taxonomy')?.trim() || ''
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
   if (propertyType) query = query.eq('property_type', propertyType)
   if (city) query = query.eq('city', city)
   if (district) query = query.eq('district', district)
+  if (neighborhood) query = query.eq('neighborhood', neighborhood)
   if (currency) query = query.eq('currency', currency)
   if (region) {
     const regionData = UZBEKISTAN_LOCATIONS.find((item) => item.name === region)
@@ -75,18 +77,7 @@ export async function GET(request: NextRequest) {
 
   const rows = (data || []) as Array<Record<string, unknown>>
   const truncated = rows.length > MAX_MARKERS
-  const markers = (truncated ? rows.slice(0, MAX_MARKERS) : rows).map((item) => ({
-    ...item,
-    latitude: Number(item.latitude),
-    longitude: Number(item.longitude),
-  }))
+  const markers = (truncated ? rows.slice(0, MAX_MARKERS) : rows).map((item) => ({ ...item, latitude: Number(item.latitude), longitude: Number(item.longitude) }))
 
-  return NextResponse.json({
-    data: markers,
-    pagination: {
-      total: count ?? null,
-      limit: MAX_MARKERS,
-      truncated,
-    },
-  })
+  return NextResponse.json({ data: markers, pagination: { total: count ?? null, limit: MAX_MARKERS, truncated } })
 }
