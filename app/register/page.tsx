@@ -23,14 +23,21 @@ export default function RegisterPage() {
   const [form,setForm] = useState(emptyForm)
   const [offer,setOffer] = useState<Offer|null>(null)
   const [offerOpen,setOfferOpen] = useState(false)
-  const [lang,setLang] = useState<'uz'|'ru'>('uz')
+  const [lang,setLang] = useState<'uz'|'ru'>(() => typeof window !== 'undefined' && localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz')
   const ru = lang === 'ru'
   const t = (uz:string, russian:string) => ru ? russian : uz
 
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
 
   useEffect(()=>{
-    if(localStorage.getItem('prohouse-lang') === 'ru') setLang('ru')
+    const sync=()=>setLang(localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz')
+    sync()
+    window.addEventListener('prohouse-language-change', sync)
+    window.addEventListener('storage', sync)
+    return()=>{
+      window.removeEventListener('prohouse-language-change', sync)
+      window.removeEventListener('storage', sync)
+    }
   },[])
 
   useEffect(()=>{
