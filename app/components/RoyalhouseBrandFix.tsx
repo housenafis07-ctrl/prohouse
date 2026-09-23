@@ -61,7 +61,9 @@ export default function RoyalhouseBrandFix() {
 
     apply()
     const frame = requestAnimationFrame(apply)
-    const delayed = window.setTimeout(apply, 100)
+    const delayed100 = window.setTimeout(apply, 100)
+    const delayed300 = window.setTimeout(apply, 300)
+    const delayed1000 = window.setTimeout(apply, 1000)
 
     const observer = new MutationObserver((mutations) => {
       if (applying) return
@@ -69,15 +71,6 @@ export default function RoyalhouseBrandFix() {
       applying = true
       try {
         for (const mutation of mutations) {
-          if (mutation.type === 'characterData') {
-            const node = mutation.target as Text
-            const value = node.nodeValue ?? ''
-            if (value.includes('Prohouse') || value.includes('ProHouse') || value.includes('PROHOUSE')) {
-              node.nodeValue = replaceBrand(value)
-            }
-            continue
-          }
-
           for (const node of Array.from(mutation.addedNodes)) {
             if (node.nodeType === Node.TEXT_NODE) {
               const value = node.nodeValue ?? ''
@@ -95,14 +88,13 @@ export default function RoyalhouseBrandFix() {
       }
     })
 
-    // React hydration can replace the value of an existing text node without
-    // inserting a new node. Observe characterData so Prohouse cannot return
-    // after the initial Royalhouse server render, while leaving i18n logic untouched.
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    observer.observe(document.body, { childList: true, subtree: true })
 
     return () => {
       cancelAnimationFrame(frame)
-      window.clearTimeout(delayed)
+      window.clearTimeout(delayed100)
+      window.clearTimeout(delayed300)
+      window.clearTimeout(delayed1000)
       observer.disconnect()
     }
   }, [])
