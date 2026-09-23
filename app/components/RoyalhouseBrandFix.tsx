@@ -2,6 +2,8 @@
 
 import { useLayoutEffect } from 'react'
 
+const LEGACY_BRAND_RE = /Prohouse|ProHouse|PROHOUSE|prohouse/g
+
 const replaceBrand = (value: string) =>
   value
     .replace(/Prohouse/g, 'Royalhouse')
@@ -9,77 +11,94 @@ const replaceBrand = (value: string) =>
     .replace(/PROHOUSE/g, 'ROYALHOUSE')
     .replace(/prohouse/g, 'royalhouse')
 
-function migrateLegacyLanguageState() {
-  try {
-    const legacy = window.localStorage.getItem('prohouse-lang')
-    const current = window.localStorage.getItem('royalhouse-lang')
-    if (!current && (legacy === 'uz' || legacy === 'ru')) {
-      window.localStorage.setItem('royalhouse-lang', legacy)
-    }
-  } catch {
-    // Ignore storage access errors.
-  }
-}
-
-function updateTextNodes(root: Node) {
+function replaceTextNodes(root: Node) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let node: Node | null = walker.nextNode()
+  const nodes: Text[] = []
+  let node = walker.nextNode()
 
   while (node) {
-    const text = node as Text
-    const parent = text.parentElement
-    if (parent && !['SCRIPT', 'STYLE', 'TEXTAREA'].includes(parent.tagName)) {
-      const value = text.nodeValue ?? ''
-      if (/Prohouse|ProHouse|PROHOUSE|prohouse/.test(value)) {
-        text.nodeValue = replaceBrand(value)
-      }
-    }
+    nodes.push(node as Text)
     node = walker.nextNode()
+  }
+
+  for (const text of nodes) {
+    const parent = text.parentElement
+    if (!parent || ['SCRIPT', 'STYLE', 'TEXTAREA'].includes(parent.tagName)) continue
+
+    const value = text.nodeValue ?? ''
+    if (!LEGACY_BRAND_RE.test(value)) {
+      LEGACY_BRAND_RE.lastIndex = 0
+      continue
+    }
+
+    LEGACY_BRAND_RE.lastIndex = 0
+    text.nodeValue = replaceBrand(value)
   }
 }
 
-function updateHeadBranding() {
-  document.title = replaceBrand(document.title)
-  document.querySelectorAll<HTMLMetaElement>('meta[content]').forEach((meta) => {
-    const value = meta.getAttribute('content')
-    if (value) meta.setAttribute('content', replaceBrand(value))
+function replaceAttributes() {
+  document.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    for (const attribute of ['aria-label', 'alt', 'title', 'placeholder', 'value', 'content']) {
+      const value = element.getAttribute(attribute)
+      if (!value || !LEGACY_BRAND_RE.test(value)) {
+        LEGACY_BRAND_RE.lastIndex = 0
+        continue
+      }
+
+      LEGACY_BRAND_RE.lastIndex = 0
+      element.setAttribute(attribute, replaceBrand(value))
+    }
   })
 }
 
-function applyRoyalhouseHeader() {
-  document.querySelectorAll<HTMLAnchorElement>('header a[href="/"]').forEach((link) => {
-    const text = link.textContent?.replace(/\s+/g, '').toLowerCase() ?? ''
-    if (!text.includes('prohouse') && !text.includes('royalhouse')) return
-
-    link.className = 'flex shrink-0 items-center gap-2 text-2xl font-black leading-none'
-    link.setAttribute('aria-label', 'Royalhouse')
-    link.innerHTML = `
-      <img src="/royalhouse-icon.svg" alt="Royalhouse" width="40" height="40" class="h-10 w-10 shrink-0 rounded-xl object-cover" />
-      <span class="tracking-[-0.04em] text-slate-900">Royal<span class="text-emerald-500">house</span></span>
-    `
+function replaceHead() {
+  document.title = replaceBrand(document.title)
+  document.querySelectorAll<HTMLMetaElement>('meta[content]').forEach((meta) => {
+    const value = meta.getAttribute('content')
+    if (!value) return
+    if (LEGACY_BRAND_RE.test(value)) {
+      LEGACY_BRAND_RE.lastIndex = 0
+      meta.setAttribute('content', replaceBrand(value))
+    } else {
+      LEGACY_BRAND_RE.lastIndex = 0
+    }
   })
 }
 
 function applyBrandFix() {
-  migrateLegacyLanguageState()
-  updateHeadBranding()
-  updateTextNodes(document.body)
-  applyRoyalhouseHeader()
+  try {
+    const legacyLang = window.localStorage.getItem('prohouse-lang')
+    const currentLang = window.localStorage.getItem('royalhouse-lang')
+    if (!currentLang && (legacyLang === 'uz' || legacyLang === 'ru')) {
+      window.localStorage.setItem('royalhouse-lang', legacyLang)
+    }
+  } catch {
+    // Ignore restricted storage access.
+  }
+
+  replaceHead()
+  replaceTextNodes(document.body)
+  replaceAttributes()
 }
 
 export default function RoyalhouseBrandFix() {
   useLayoutEffect(() => {
-    // Intentionally one-shot. A global MutationObserver caused a feedback loop
-    // with Next.js/React hydration and could freeze the browser tab.
-    applyBrandFix()
+    const body = document.body
+    const previousVisibility = body.style.visibility
 
-    const frame = requestAnimationFrame(applyBrandFix)
-    const delayed = window.setTimeout(applyBrandFix, 150)
+    // Do not paint legacy Prohouse SSR text while the hydrated Royalhouse UI is normalized.
+    body.style.visibility = 'hidden'
 
-    return () => {
-      cancelAnimationFrame(frame)
-      window.clearTimeout(delayed)
+    try {
+      applyBrandFix()
+    } finally {
+      body.style.visibility = previousVisibility
     }
+
+    // One bounded post-hydration pass; never use a permanent MutationObserver.
+    const frame = window.requestAnimationFrame(applyBrandFix)
+
+    return () => window.cancelAnimationFrame(frame)
   }, [])
 
   return null
