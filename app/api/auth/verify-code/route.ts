@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // Test rejimida Phone Provider / SMS kerak emas.
   // Sessiya email/password orqali yaratiladi; foydalanuvchining haqiqiy
   // telefon raqami esa profiles jadvalida saqlanadi.
-  const testEmail = `${normalizedPhone.slice(1)}@test.prohouse.local`
+  const testEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
 
   const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
