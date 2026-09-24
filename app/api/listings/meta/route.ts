@@ -4,9 +4,12 @@ import { createClient } from '@/utils/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const referer = request.headers.get('referer') || ''
+  const propertyWizard = /\/listings\/new\/property(?:[/?#]|$)/.test(referer)
+  const editMatch = referer.match(/\/account\/listings\/([^/?#]+)\/edit(?:[/?#]|$)/)
 
   const [{ data: categories, error: categoryError }, { data: attributes, error: attributeError }] = await Promise.all([
     supabase
@@ -25,6 +28,41 @@ export async function GET() {
 
   if (categoryError || attributeError) {
     return NextResponse.json({ error: categoryError?.message || attributeError?.message }, { status: 500 })
+  }
+
+  // The property wizard and service wizard are separate flows. A property
+  // wizard request must never be reduced to service categories merely because
+  // the partner profile has a service-oriented permission set.
+  if (propertyWizard) {
+    const propertyCategories = (categories || []).filter((c) => c.entity_type === 'property')
+    const propertyAttributes = (attributes || []).filter((a) => propertyCategories.some((c) => c.code === a.category_code))
+    return NextResponse.json(
+      { categories: propertyCategories, attributes: propertyAttributes, partnerType: null, scope: 'property' },
+      { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+    )
+  }
+
+  // Editing must load metadata for the entity already stored on the listing.
+  // Otherwise a partner with service-only permissions can open a property edit
+  // page and receive only service categories, leaving steps 1–2 empty.
+  if (editMatch && user) {
+    const listingId = editMatch[1]
+    const { data: listingForScope } = await supabase
+      .from('listings')
+      .select('taxonomy_code')
+      .eq('id', listingId)
+      .eq('owner_id', user.id)
+      .maybeSingle()
+
+    const existingCategory = (categories || []).find((c) => c.code === listingForScope?.taxonomy_code)
+    if (existingCategory) {
+      const scopedCategories = (categories || []).filter((c) => c.entity_type === existingCategory.entity_type)
+      const scopedAttributes = (attributes || []).filter((a) => scopedCategories.some((c) => c.code === a.category_code))
+      return NextResponse.json(
+        { categories: scopedCategories, attributes: scopedAttributes, partnerType: null, scope: existingCategory.entity_type },
+        { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+      )
+    }
   }
 
   let partnerType: string | null = null

@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('account_type,full_name,phone,company_name,director_full_name')
+    .select('account_type,partner_type,full_name,phone,company_name,director_full_name')
     .eq('id', user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
@@ -103,15 +103,23 @@ export async function POST(request: Request) {
   const accountType = profile?.account_type || 'individual'
   const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
   const isServiceListing = data.listing_type === 'service' || data.property_type === 'service'
-  const sellerRole = isServiceListing ? 'service_provider' : (accountType === 'individual' ? 'owner' : null)
-  const isIndividualOwner = accountType === 'individual' && ownershipType === 'owner' && !isServiceListing
-  const sellerType = isServiceListing ? 'service_provider' : (isIndividualOwner ? 'owner' : null)
+
+  // seller_type is a legacy/search field and is NOT the ownership selector.
+  // ownership_type is the source of truth for whether the advertiser is the owner.
+  // Every property listing must still provide a non-null seller_type because the
+  // database column is NOT NULL. For non-owner property listings use `seller`.
+  // Service listings keep their dedicated `service_provider` value.
+  const isOwnerListing = !isServiceListing && ownershipType === 'owner'
+  const sellerRole = isServiceListing
+    ? 'service_provider'
+    : (isOwnerListing ? 'owner' : 'seller')
+  const sellerType = isServiceListing
+    ? 'service_provider'
+    : (isOwnerListing ? 'owner' : 'seller')
   const sellerName = isServiceListing
     ? text(profile?.company_name) || text(profile?.full_name) || null
-    : (isIndividualOwner ? text(profile?.full_name) || null : null)
-  const sellerPhone = isServiceListing
-    ? text(profile?.phone) || user.phone || null
-    : (isIndividualOwner ? text(profile?.phone) || user.phone || null : null)
+    : text(profile?.company_name) || text(profile?.full_name) || null
+  const sellerPhone = text(profile?.phone) || user.phone || null
 
   if (status === 'moderation') {
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
