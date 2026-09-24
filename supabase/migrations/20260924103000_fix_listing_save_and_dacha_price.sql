@@ -10,7 +10,6 @@ set search_path = public
 as $$
 declare
   v_missing text;
-  v_value jsonb;
 begin
   if new.status <> 'moderation' then
     return new;
@@ -95,7 +94,7 @@ begin
     from jsonb_each(coalesce(new.draft_data->'attributes', '{}'::jsonb)) entry
     where entry.key ~ '_(weekday|weekend)_price$'
       and jsonb_typeof(entry.value) in ('number','string')
-      and nullif(btrim(entry.value #>> '{}'), '') ~ '^[0-9]+(\\.[0-9]+)?$'
+      and nullif(btrim(entry.value #>> '{}'), '') ~ '^[0-9]+([.][0-9]+)?$'
       and (entry.value #>> '{}')::numeric > 0;
 
     if v_price is not null then
@@ -137,9 +136,6 @@ declare
   v_lat numeric;
   v_lng numeric;
   v_attributes jsonb;
-  v_attribute jsonb;
-  v_raw jsonb;
-  v_normalized jsonb;
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED' using errcode = '42501'; end if;
   select * into v_listing from public.listings where id=p_listing_id and owner_id=auth.uid() for update;
