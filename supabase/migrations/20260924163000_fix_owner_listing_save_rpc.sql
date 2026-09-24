@@ -21,6 +21,7 @@ declare
   v_lat numeric;
   v_lng numeric;
   v_mortgage boolean;
+  v_attributes jsonb;
 begin
   if auth.uid() is null then
     raise exception 'AUTH_REQUIRED' using errcode = '42501';
@@ -60,12 +61,34 @@ begin
     when lower(coalesce(p_payload->>'is_mortgage_available', 'false')) = 'true' then true
     else false
   end;
+  v_attributes := case
+    when jsonb_typeof(p_payload->'draft_data'->'attributes') = 'object'
+      then p_payload->'draft_data'->'attributes'
+    else '{}'::jsonb
+  end;
 
   if coalesce(p_payload->>'taxonomy_code', '') = ''
      or coalesce(btrim(p_payload->>'title'), '') = ''
      or v_price is null then
     raise exception 'LISTING_REQUIRED_FIELDS_MISSING' using errcode = '22023';
   end if;
+
+  -- The moderation constraint validates category_attributes against
+  -- listing_attribute_values. The edit wizard keeps attributes in draft_data,
+  -- so synchronize them here before the listing enters moderation.
+  insert into public.listing_attribute_values (listing_id, attribute_id, value_jsonb, updated_at)
+  select
+    p_listing_id,
+    ca.id,
+    coalesce(v_attributes -> ca.code, 'null'::jsonb),
+    now()
+  from public.category_attributes ca
+  where ca.category_code = p_payload->>'taxonomy_code'
+    and ca.is_active = true
+  on conflict (listing_id, attribute_id)
+  do update set
+    value_jsonb = excluded.value_jsonb,
+    updated_at = now();
 
   update public.listings
   set
@@ -90,6 +113,7 @@ begin
     seller_type = v_owner_value,
     is_mortgage_available = v_mortgage,
     draft_data = coalesce(p_payload->'draft_data', draft_data),
+    submitted_at = case when v_status = 'moderation' then now() else submitted_at end,
     status = v_status
   where id = p_listing_id
     and owner_id = auth.uid();
