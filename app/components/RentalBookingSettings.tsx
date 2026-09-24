@@ -1,0 +1,51 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+
+type RentalState = {
+  max_guests: string
+  bedrooms: string
+  single_beds: string
+  double_beds: string
+  bathrooms: string
+  check_in: string
+  check_out: string
+  quiet_hours: string
+  policies: string[]
+  amenities: string[]
+  deposit_percent: string
+  blocked_dates: string[]
+  date_prices: Record<string,string>
+}
+
+const EMPTY: RentalState = { max_guests:'', bedrooms:'', single_beds:'', double_beds:'', bathrooms:'', check_in:'14:00', check_out:'12:00', quiet_hours:'22:00–07:00', policies:[], amenities:[], deposit_percent:'15', blocked_dates:[], date_prices:{} }
+const amenities=[['pool','Ochiq hovuz'],['indoor_pool','Yopiq hovuz'],['wifi','Wi‑Fi'],['parking','Avtoturargoh'],['kitchen','Oshxona'],['bbq','Barbekyu'],['karaoke','Karaoke'],['billiard','Bilyard'],['tennis','Stol tennisi'],['sauna','Sauna'],['playground','Bolalar maydonchasi'],['jacuzzi','Jakuzi']]
+const policies=[['corporate','Korporativ mehmonlar'],['alcohol','Spirtli ichimliklar'],['pets','Uy hayvonlari'],['marriage','Nikoh guvohnomasi']]
+const pad=(n:number)=>String(n).padStart(2,'0')
+const iso=(d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+const parse=(raw:string):RentalState=>{try{return {...EMPTY,...JSON.parse(raw||'{}')}}catch{return EMPTY}}
+
+export default function RentalBookingSettings({value,onChange,basePrice,onBasePriceChange,ru=false}:{value:string;onChange:(v:string)=>void;basePrice:string;onBasePriceChange:(v:string)=>void;ru?:boolean}){
+ const [state,setState]=useState<RentalState>(()=>parse(value))
+ const [month,setMonth]=useState(()=>new Date())
+ const update=(patch:Partial<RentalState>)=>{const next={...state,...patch};setState(next);onChange(JSON.stringify(next))}
+ const toggle=(key:'policies'|'amenities',v:string)=>update({[key]:state[key].includes(v)?state[key].filter(x=>x!==v):[...state[key],v]} as Partial<RentalState>)
+ const days=useMemo(()=>{const start=new Date(month.getFullYear(),month.getMonth(),1);const end=new Date(month.getFullYear(),month.getMonth()+1,0);const first=(start.getDay()+6)%7;return [...Array(first).fill(null),...Array.from({length:end.getDate()},(_,i)=>new Date(month.getFullYear(),month.getMonth(),i+1))]},[month])
+ const monthName=month.toLocaleDateString(ru?'ru-RU':'uz-UZ',{month:'long',year:'numeric'})
+ const setDatePrice=(date:string,price:string)=>update({date_prices:{...state.date_prices,[date]:price}})
+ return <div className="mt-6 rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 sm:p-6">
+   <div><h3 className="text-lg font-black">{ru?'Данные для аренды и бронирования':'Ijara va bron uchun ma’lumotlar'}</h3><p className="mt-1 text-sm text-slate-500">{ru?'Эти данные будут показаны на странице объявления.':'Bu ma’lumotlar e’lon sahifasida ko‘rsatiladi.'}</p></div>
+   <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    {([['max_guests',ru?'Гостей':'Mehmonlar soni'],['bedrooms',ru?'Спален':'Yotoqxonalar'],['single_beds',ru?'Односпальных мест':'Bir kishilik yotoqlar'],['double_beds',ru?'Двусpальных мест':'Ikki kishilik yotoqlar'],['bathrooms',ru?'Санузлов':'Hammom/WC']] as const).map(([k,label])=><label key={k} className="text-sm font-semibold">{label}<input type="number" min="0" value={state[k]} onChange={e=>update({[k]:e.target.value})} className="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3"/></label>)}
+   </div>
+   <div className="mt-4 grid gap-4 sm:grid-cols-3">
+    <label className="text-sm font-semibold">{ru?'Заезд':'Kirish'}<input type="time" value={state.check_in} onChange={e=>update({check_in:e.target.value})} className="mt-2 w-full rounded-xl border bg-white p-3"/></label>
+    <label className="text-sm font-semibold">{ru?'Выезд':'Chiqish'}<input type="time" value={state.check_out} onChange={e=>update({check_out:e.target.value})} className="mt-2 w-full rounded-xl border bg-white p-3"/></label>
+    <label className="text-sm font-semibold">{ru?'Тихие часы':'Sokin soatlar'}<input value={state.quiet_hours} onChange={e=>update({quiet_hours:e.target.value})} className="mt-2 w-full rounded-xl border bg-white p-3"/></label>
+   </div>
+   <div className="mt-5"><p className="text-sm font-bold">{ru?'Условия размещения':'Joylashish shartlari'}</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{policies.map(([key,label])=><label key={key} className="flex items-center gap-3 rounded-xl border bg-white p-3 text-sm"><input type="checkbox" checked={state.policies.includes(key)} onChange={()=>toggle('policies',key)}/><span>{ru?({'corporate':'Корпоративные гости','alcohol':'Спиртные напитки','pets':'Домашние животные','marriage':'Свидетельство о браке'} as any)[key]:label}</span></label>)}</div></div>
+   <div className="mt-5"><p className="text-sm font-bold">{ru?'Удобства':'Qulayliklar'}</p><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{amenities.map(([key,label])=><label key={key} className="flex items-center gap-2 rounded-xl border bg-white p-3 text-sm"><input type="checkbox" checked={state.amenities.includes(key)} onChange={()=>toggle('amenities',key)}/><span>{ru?({'pool':'Открытый бассейн','indoor_pool':'Крытый бассейн','wifi':'Wi‑Fi','parking':'Парковка','kitchen':'Кухня','bbq':'Барбекю','karaoke':'Караоке','billiard':'Бильярд','tennis':'Настольный теннис','sauna':'Сауна','playground':'Детская площадка','jacuzzi':'Джакузи'} as any)[key]:label}</span></label>)}</div></div>
+   <div className="mt-5 rounded-2xl border bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold">{ru?'Бронирование':'Bron qilish'}</p><p className="text-sm text-slate-500">{ru?'Предоплата фиксирована: 15%.':'Avans: 15% qilib belgilanadi.'}</p></div><span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-black text-emerald-700">15%</span></div><div className="mt-3 text-xs text-slate-500">{ru?'Payme и Click можно подключить позже без изменения данных бронирования.':'Keyinchalik Payme va Click ulash uchun to‘lov ma’lumotlari alohida saqlanadi.'}</div></div>
+   <div className="mt-5 rounded-2xl border bg-white p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-bold">{ru?'Календарь доступности':'Mavjudlik kalendari'}</p><p className="text-xs text-slate-500">{ru?'Нажмите на дату, чтобы отметить её занятой.':'Sanani bosib band qilishingiz mumkin.'}</p></div><div className="flex gap-1"><button type="button" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))} className="rounded-lg border px-3 py-1">‹</button><button type="button" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))} className="rounded-lg border px-3 py-1">›</button></div></div><div className="mt-4 text-center font-bold capitalize">{monthName}</div><div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400">{['DU','SE','CHO','PA','JU','SHA','YA'].map(x=><span key={x}>{x}</span>)}</div><div className="mt-1 grid grid-cols-7 gap-1">{days.map((d,i)=>d?<div key={iso(d)} className={`rounded-lg border p-1 ${state.blocked_dates.includes(iso(d))?'border-red-200 bg-red-50':'border-slate-100 bg-white'}`}><button type="button" onClick={()=>update({blocked_dates:state.blocked_dates.includes(iso(d))?state.blocked_dates.filter(x=>x!==iso(d)):[...state.blocked_dates,iso(d)]})} className="w-full text-xs font-bold">{d.getDate()}</button><input aria-label={iso(d)} inputMode="numeric" placeholder={basePrice||'Narx'} value={state.date_prices[iso(d)]||''} onChange={e=>setDatePrice(iso(d),e.target.value)} className="mt-1 w-full rounded border px-1 py-1 text-[9px]"/></div>:<span key={i}/>)}</div><div className="mt-3 flex flex-wrap gap-3 text-xs"><span className="inline-flex items-center gap-1"><i className="h-3 w-3 rounded bg-white ring-1 ring-slate-200"/> {ru?'Свободно':'Bo‘sh'}</span><span className="inline-flex items-center gap-1"><i className="h-3 w-3 rounded bg-red-100 ring-1 ring-red-200"/> {ru?'Занято':'Band'}</span></div></div>
+ </div>
+}
