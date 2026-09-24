@@ -11,6 +11,7 @@ declare
   v_listing public.listings%rowtype;
   v_status text;
   v_owner_value text;
+  v_seller_type text;
   v_price numeric;
   v_area numeric;
   v_rooms numeric;
@@ -23,8 +24,11 @@ begin
   select * into v_listing from public.listings where id=p_listing_id and owner_id=auth.uid() for update;
   if not found then raise exception 'LISTING_NOT_FOUND' using errcode='P0002'; end if;
   if v_listing.status not in ('draft','rejected','moderation','active') then raise exception 'LISTING_EDIT_FORBIDDEN_FOR_STATUS' using errcode='42501'; end if;
+
   v_status := case when v_listing.status='draft' then 'draft' else 'moderation' end;
   v_owner_value := case when coalesce(p_payload->>'ownership_type','')='owner' then 'owner' else null end;
+  -- Owner-edit RPC is used for personal listings. Never write NULL into the NOT NULL seller_type column.
+  v_seller_type := coalesce(v_owner_value, v_listing.seller_type, 'owner');
   v_price := nullif(regexp_replace(coalesce(p_payload->>'price',''), '[^0-9.]', '', 'g'), '')::numeric;
   v_area := nullif(p_payload->>'area_m2','')::numeric;
   v_rooms := nullif(p_payload->>'rooms','')::numeric;
@@ -32,8 +36,60 @@ begin
   v_floors_total := nullif(p_payload->>'floors_total','')::numeric;
   v_lat := nullif(p_payload->>'latitude','')::numeric;
   v_lng := nullif(p_payload->>'longitude','')::numeric;
-  if coalesce(p_payload->>'taxonomy_code','')='' or coalesce(p_payload->>'title','')='' or v_price is null then raise exception 'LISTING_REQUIRED_FIELDS_MISSING' using errcode='22023'; end if;
-  update public.listings set taxonomy_code=p_payload->>'taxonomy_code',title=btrim(p_payload->>'title'),description=nullif(btrim(coalesce(p_payload->>'description','')), ''),listing_type=coalesce(nullif(p_payload->>'listing_type',''),listing_type),property_type=coalesce(nullif(p_payload->>'property_type',''),property_type),price=v_price,currency=coalesce(nullif(p_payload->>'currency',''),currency),area_m2=v_area,rooms=v_rooms,floor=v_floor,floors_total=v_floors_total,city=coalesce(nullif(p_payload->>'city',''),city),district=nullif(btrim(coalesce(p_payload->>'district','')), ''),neighborhood=nullif(btrim(coalesce(p_payload->>'neighborhood','')), ''),address=nullif(btrim(coalesce(p_payload->>'address','')), ''),latitude=v_lat,longitude=v_lng,ownership_type=v_owner_value,seller_type=v_owner_value,is_mortgage_available=coalesce((p_payload->>'is_mortgage_available')::boolean,false),draft_data=coalesce(p_payload->'draft_data',draft_data),status=v_status where id=p_listing_id;
+
+  if coalesce(p_payload->>'taxonomy_code','')='' or coalesce(p_payload->>'title','')='' or v_price is null then
+    raise exception 'LISTING_REQUIRED_FIELDS_MISSING' using errcode='22023';
+  end if;
+
+  update public.listings set
+    taxonomy_code=p_payload->>'taxonomy_code',
+    title=btrim(p_payload->>'title'),
+    description=nullif(btrim(coalesce(p_payload->>'description','')), ''),
+    listing_type=coalesce(nullif(p_payload->>'listing_type',''),listing_type),
+    property_type=coalesce(nullif(p_payload->>'property_type',''),property_type),
+    price=v_price,
+    currency=coalesce(nullif(p_payload->>'currency',''),currency),
+    area_m2=v_area,
+    rooms=v_rooms,
+    floor=v_floor,
+    floors_total=v_floors_total,
+    city=coalesce(nullif(p_payload->>'city',''),city),
+    district=nullif(btrim(coalesce(p_payload->>'district','')), ''),
+    neighborhood=nullif(btrim(coalesce(p_payload->>'neighborhood','')), ''),
+    address=nullif(btrim(coalesce(p_payload->>'address','')), ''),
+    latitude=v_lat,
+    longitude=v_lng,
+    ownership_type=v_owner_value,
+    seller_type=v_seller_type,
+    is_mortgage_available=coalesce((p_payload->>'is_mortgage_available')::boolean,false),
+    draft_data=coalesce(p_payload->'draft_data',draft_data),
+    status=v_status
+  where id=p_listing_id;
+
+  -- Keep dynamic attributes in sync with the edited form so moderation checks
+  -- can see required fields such as dacha area and room count.
+  if jsonb_typeof(p_payload->'attributes')='object' then
+    insert into public.listing_attribute_values(listing_id,attribute_id,value_jsonb,updated_at)
+    select
+      p_listing_id,
+      ca.id,
+      case
+        when p_payload->'attributes' ? ca.code then
+          case
+            when jsonb_typeof(p_payload->'attributes'->ca.code)='string'
+              and nullif(btrim(p_payload->'attributes'->>ca.code),'') is null then 'null'::jsonb
+            else coalesce(p_payload->'attributes'->ca.code,'null'::jsonb)
+          end
+        else 'null'::jsonb
+      end,
+      now()
+    from public.category_attributes ca
+    where ca.category_code=p_payload->>'taxonomy_code'
+      and ca.is_active=true
+    on conflict (listing_id,attribute_id)
+    do update set value_jsonb=excluded.value_jsonb,updated_at=now();
+  end if;
+
   select * into v_listing from public.listings where id=p_listing_id;
   return v_listing;
 end;
