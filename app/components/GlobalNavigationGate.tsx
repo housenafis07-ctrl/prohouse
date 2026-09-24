@@ -8,11 +8,10 @@ export default function GlobalNavigationGate() {
   const pathname = usePathname()
 
   useEffect(() => {
-    // Services havolasi ko‘pincha Next/React navigatsiyasi bilan birga
-    // ishlaydi. GlobalNavigationFix esa click'ni document bubble bosqichida
-    // ushlaydi; React Router undan oldin route'ni /listings ga almashtirib
-    // yuborishi mumkin. Capture bosqichida original navigatsiyani to‘xtatib,
-    // GlobalNavigationFix'ning mavjud handleriga sintetik click yuboramiz.
+    // React/Next Link clicklari document bubble bosqichiga yetmasdan route'ni
+    // o'zgartirishi mumkin. Shu sababli Xizmatlar navigatsiyasini capture
+    // bosqichida to'xtatamiz va GlobalNavigationFix'ning mavjud handleriga
+    // React Link'siz, vaqtinchalik oddiy <a> orqali click yuboramiz.
     let replaying = false
 
     const handleServicesCapture = (event: MouseEvent) => {
@@ -28,13 +27,20 @@ export default function GlobalNavigationGate() {
       event.preventDefault()
       event.stopImmediatePropagation()
 
+      const relay = document.createElement('a')
+      relay.href = '#services'
+      relay.textContent = text
+      relay.style.display = 'none'
+      document.body.appendChild(relay)
+
       replaying = true
-      link.dispatchEvent(new MouseEvent('click', {
+      relay.dispatchEvent(new MouseEvent('click', {
         bubbles: true,
         cancelable: true,
         view: window,
       }))
       replaying = false
+      relay.remove()
     }
 
     document.addEventListener('click', handleServicesCapture, true)
@@ -42,8 +48,8 @@ export default function GlobalNavigationGate() {
   }, [])
 
   // Account sahifasining "Keyingi qadamlar" blokini GlobalNavigationFix
-  // DOM orqali o‘zgartirmasligi kerak. Account sahifasi o‘z navigatsiyasini
-  // o‘zi boshqaradi; shu sababli global DOM-fix bu route’da ishlamaydi.
+  // DOM orqali o'zgartirmasligi kerak. Account sahifasi o'z navigatsiyasini
+  // o'zi boshqaradi; shu sababli global DOM-fix bu route'da ishlamaydi.
   if (pathname === '/account') return null
 
   return <GlobalNavigationFix />
