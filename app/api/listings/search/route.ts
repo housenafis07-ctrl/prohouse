@@ -41,6 +41,10 @@ function encodeCursor(cursor: Cursor) {
   return Buffer.from(JSON.stringify(cursor)).toString('base64url')
 }
 
+function escapeSearchTerm(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/%/g, '\\%').replace(/_/g, '\\_').trim()
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const params = request.nextUrl.searchParams
@@ -72,7 +76,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('listing_search')
-    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
+    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
 
   if (taxonomy) query = query.eq('taxonomy_code', taxonomy)
   if (listingType) query = query.eq('listing_type', listingType)
@@ -93,9 +97,15 @@ export async function GET(request: NextRequest) {
   if (max !== null) query = query.lte('price', max)
   if (rooms !== null) query = query.gte('rooms', rooms)
   if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner')
-  if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true)
+  if (params.get('trusted') === 'true') query = query.eq('is_trusted_seller', true)
   if (params.get('verified') === 'true') query = query.eq('is_verified', true)
-  if (q) query = query.or(`title.ilike.%${q}%,title_ru.ilike.%${q}%`)
+
+  if (q) {
+    const words = q.split(/\s+/).map(escapeSearchTerm).filter(Boolean).slice(0, 8)
+    for (const word of words) {
+      query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%`)
+    }
+  }
 
   if (cursor) {
     if (sort === 'newest') {
