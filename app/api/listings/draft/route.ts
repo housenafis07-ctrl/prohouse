@@ -41,12 +41,21 @@ async function persistAttributeValues(supabase: SupabaseClient, listingId: strin
   if (definitionsError) throw definitionsError
   if (!definitions?.length) return
 
-  const rows = definitions.map(definition => ({
-    listing_id: listingId,
-    attribute_id: definition.id,
-    value_jsonb: jsonValue(attributes[definition.code]),
-    updated_at: new Date().toISOString(),
-  }))
+  // Draftning dastlabki bosqichlarida barcha atributlar hali to‘ldirilmagan bo‘ladi.
+  // listing_attribute_values.value_jsonb NOT NULL bo‘lgani uchun bo‘sh qiymatlarni
+  // INSERT/UPSERT qilmaymiz. Foydalanuvchi keyingi bosqichlarda qiymat kiritganda
+  // aynan o‘sha atribut saqlanadi. Required atributlar moderation bosqichida
+  // alohida DB-validatsiya orqali tekshiriladi.
+  const rows = definitions
+    .map(definition => ({
+      listing_id: listingId,
+      attribute_id: definition.id,
+      value_jsonb: jsonValue(attributes[definition.code]),
+      updated_at: new Date().toISOString(),
+    }))
+    .filter(row => row.value_jsonb !== null)
+
+  if (!rows.length) return
 
   const { error: upsertError } = await supabase
     .from('listing_attribute_values')
