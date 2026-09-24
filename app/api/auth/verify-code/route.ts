@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 
 const TEST_CODE = process.env.AUTH_TEST_OTP || '321321'
 
+function normalizePhone(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '')
+  return digits.length >= 9 ? digits.slice(-9) : digits
+}
+
 export async function POST(request: Request) {
   if (process.env.AUTH_TEST_MODE !== 'true') {
     return NextResponse.json(
@@ -42,20 +47,70 @@ export async function POST(request: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Test rejimida Phone Provider / SMS kerak emas.
-  // Sessiya email/password orqali yaratiladi; foydalanuvchining haqiqiy
-  // telefon raqami esa profiles jadvalida saqlanadi.
+  // Existing users are identified from profiles.phone first. This prevents
+  // an old account from being replaced by a new Auth user just because its
+  // legacy Auth email/phone fields use a different format.
+  const targetPhone = normalizePhone(normalizedPhone)
+  let profileUserId: string | null = null
+  let profileOffset = 0
+
+  while (!profileUserId) {
+    const { data: profiles, error: profilesError } = await admin
+      .from('profiles')
+      .select('id,phone')
+      .range(profileOffset, profileOffset + 999)
+
+    if (profilesError) {
+      return NextResponse.json({ error: profilesError.message }, { status: 500 })
+    }
+
+    const match = (profiles || []).find((profile) => normalizePhone(profile.phone) === targetPhone)
+    if (match) {
+      profileUserId = match.id
+      break
+    }
+
+    if (!profiles || profiles.length < 1000) break
+    profileOffset += 1000
+  }
+
   const testEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
+  let user = null
 
-  const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+  // If a profile already exists, restore/login to that exact Auth user.
+  if (profileUserId) {
+    const { data, error } = await admin.auth.admin.getUserById(profileUserId)
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    user = data.user
+  }
 
-  let user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
+  // Fallback for Auth-only legacy users.
+  if (!user) {
+    let page = 1
+    while (!user) {
+      const { data: usersData, error: listError } = await admin.auth.admin.listUsers({
+        page,
+        perPage: 1000,
+      })
+      if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+
+      user = usersData.users.find(
+        (item) => item.email === testEmail || item.phone === normalizedPhone,
+      ) || null
+
+      if (user || usersData.users.length < 1000) break
+      page += 1
+    }
+  }
 
   if (!user) {
     const { data, error } = await admin.auth.admin.createUser({
       email: testEmail,
       email_confirm: true,
+      phone: normalizedPhone,
+      phone_confirm: true,
       password: TEST_CODE,
       user_metadata: { phone: normalizedPhone },
     })
@@ -65,6 +120,8 @@ export async function POST(request: Request) {
     const { data, error } = await admin.auth.admin.updateUserById(user.id, {
       email: testEmail,
       email_confirm: true,
+      phone: normalizedPhone,
+      phone_confirm: true,
       password: TEST_CODE,
       user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
     })
