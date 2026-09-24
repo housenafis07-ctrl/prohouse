@@ -42,34 +42,65 @@ export async function POST(request: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Test rejimida Phone Provider / SMS kerak emas.
-  // Sessiya email/password orqali yaratiladi; foydalanuvchining haqiqiy
-  // telefon raqami esa profiles jadvalida saqlanadi.
+  // Avval profiles jadvalidan telefon bo‘yicha eski profilni topamiz.
+  // Bu muhim: eski foydalanuvchining auth ID'si saqlanadi va uning e'lonlari
+  // (owner_id) boshqa foydalanuvchiga ko‘chib ketmaydi.
+  const { data: existingProfile, error: profileLookupError } = await admin
+    .from('profiles')
+    .select('id, phone')
+    .eq('phone', normalizedPhone)
+    .maybeSingle()
+
+  if (profileLookupError) {
+    return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
+  }
+
   const testEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
+  let user
 
-  const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+  if (existingProfile?.id) {
+    const { data: existingUserData, error: existingUserError } = await admin.auth.admin.getUserById(existingProfile.id)
+    if (existingUserError || !existingUserData.user) {
+      return NextResponse.json(
+        { error: existingUserError?.message || 'Mavjud foydalanuvchi topilmadi.' },
+        { status: 500 },
+      )
+    }
 
-  let user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
-
-  if (!user) {
-    const { data, error } = await admin.auth.admin.createUser({
+    const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
       email: testEmail,
       email_confirm: true,
       password: TEST_CODE,
-      user_metadata: { phone: normalizedPhone },
+      user_metadata: { ...(existingUserData.user.user_metadata || {}), phone: normalizedPhone },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
   } else {
-    const { data, error } = await admin.auth.admin.updateUserById(user.id, {
-      email: testEmail,
-      email_confirm: true,
-      password: TEST_CODE,
-      user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
-    })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    user = data.user
+    // Yangi foydalanuvchi uchun avvalgi test-auth oqimini saqlaymiz.
+    const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+
+    user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
+
+    if (!user) {
+      const { data, error } = await admin.auth.admin.createUser({
+        email: testEmail,
+        email_confirm: true,
+        password: TEST_CODE,
+        user_metadata: { phone: normalizedPhone },
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      user = data.user
+    } else {
+      const { data, error } = await admin.auth.admin.updateUserById(user.id, {
+        email: testEmail,
+        email_confirm: true,
+        password: TEST_CODE,
+        user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      user = data.user
+    }
   }
 
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
