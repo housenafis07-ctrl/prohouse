@@ -9,7 +9,7 @@ const policies=[['corporate','Korporativ mehmonlar'],['alcohol','Spirtli ichimli
 const pad=(n:number)=>String(n).padStart(2,'0');const iso=(d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 const parse=(raw:string):RentalState=>{try{return {...EMPTY,...JSON.parse(raw||'{}')}}catch{return EMPTY}}
 
-export default function RentalBookingSettings({value,onChange,basePrice,ru=false}:{value:string;onChange:(v:string)=>void;basePrice:string;ru?:boolean}){
+export default function RentalBookingSettings({value,onChange,basePrice,onBasePriceChange: _onBasePriceChange,ru=false}:{value:string;onChange:(v:string)=>void;basePrice:string;onBasePriceChange:(v:string)=>void;ru?:boolean}){
  const [state,setState]=useState<RentalState>(()=>parse(value));const [month,setMonth]=useState(()=>new Date())
  const update=(patch:Partial<RentalState>)=>{const next={...state,...patch};setState(next);onChange(JSON.stringify(next))}
  const toggle=(key:'policies'|'amenities',v:string)=>update({[key]:state[key].includes(v)?state[key].filter(x=>x!==v):[...state[key],v]} as Partial<RentalState>)
