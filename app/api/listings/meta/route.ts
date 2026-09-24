@@ -4,9 +4,11 @@ import { createClient } from '@/utils/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const referer = request.headers.get('referer') || ''
+  const propertyWizard = /\/listings\/new\/property(?:[/?#]|$)/.test(referer)
 
   const [{ data: categories, error: categoryError }, { data: attributes, error: attributeError }] = await Promise.all([
     supabase
@@ -25,6 +27,18 @@ export async function GET() {
 
   if (categoryError || attributeError) {
     return NextResponse.json({ error: categoryError?.message || attributeError?.message }, { status: 500 })
+  }
+
+  // The property wizard and service wizard are separate flows. A property
+  // wizard request must never be reduced to service categories merely because
+  // the partner profile has a service-oriented permission set.
+  if (propertyWizard) {
+    const propertyCategories = (categories || []).filter((c) => c.entity_type === 'property')
+    const propertyAttributes = (attributes || []).filter((a) => propertyCategories.some((c) => c.code === a.category_code))
+    return NextResponse.json(
+      { categories: propertyCategories, attributes: propertyAttributes, partnerType: null, scope: 'property' },
+      { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+    )
   }
 
   let partnerType: string | null = null
