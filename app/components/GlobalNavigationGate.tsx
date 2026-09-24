@@ -8,6 +8,11 @@ export default function GlobalNavigationGate() {
   const pathname = usePathname()
 
   useEffect(() => {
+    // E’lon joylashtirish wizardida global "Xizmatlar" click-interceptor
+    // ishlamasligi kerak. Aks holda property listing oqimida xizmatlar
+    // modaliga noto‘g‘ri tushib qolish mumkin.
+    if (pathname.startsWith('/listings/new')) return
+
     // React/Next Link clicklari document bubble bosqichiga yetmasdan route'ni
     // o'zgartirishi mumkin. Shu sababli Xizmatlar navigatsiyasini capture
     // bosqichida to'xtatamiz va GlobalNavigationFix'ning mavjud handleriga
@@ -45,7 +50,7 @@ export default function GlobalNavigationGate() {
 
     document.addEventListener('click', handleServicesCapture, true)
     return () => document.removeEventListener('click', handleServicesCapture, true)
-  }, [])
+  }, [pathname])
 
   // Account sahifasining "Keyingi qadamlar" blokini GlobalNavigationFix
   // DOM orqali o'zgartirmasligi kerak. Account sahifasi o'z navigatsiyasini
