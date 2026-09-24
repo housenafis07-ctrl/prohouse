@@ -42,9 +42,8 @@ export async function POST(request: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Avval profiles jadvalidan telefon bo‘yicha eski profilni topamiz.
-  // Bu muhim: eski foydalanuvchining auth ID'si saqlanadi va uning e'lonlari
-  // (owner_id) boshqa foydalanuvchiga ko‘chib ketmaydi.
+  // Telefon bo‘yicha mavjud Royalhouse profilini topamiz.
+  // Profil ID auth.users.id bilan bir xil bo‘lib, eski e’lonlarning owner_id qiymati shu ID'ga bog‘langan.
   const { data: existingProfile, error: profileLookupError } = await admin
     .from('profiles')
     .select('id, phone')
@@ -58,6 +57,12 @@ export async function POST(request: Request) {
   const testEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
   let user
 
+  // Auth'da bir xil telefon uchun avval yaratilgan test foydalanuvchilari bo‘lishi mumkin.
+  // Avval ularni topamiz, chunki testEmail boshqa (yetim/duplicate) user'da band bo‘lsa,
+  // to‘g‘ri profilni update qilishda "Error updating user" chiqadi.
+  const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
+  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+
   if (existingProfile?.id) {
     const { data: existingUserData, error: existingUserError } = await admin.auth.admin.getUserById(existingProfile.id)
     if (existingUserError || !existingUserData.user) {
@@ -65,6 +70,26 @@ export async function POST(request: Request) {
         { error: existingUserError?.message || 'Mavjud foydalanuvchi topilmadi.' },
         { status: 500 },
       )
+    }
+
+    // testEmail boshqa auth user'da band bo‘lsa, o‘sha duplicate user'ni xavfsiz
+    // rezerv emailga ko‘chiramiz. Profil va e’lonlar tegilmaydi.
+    const emailOwner = usersData.users.find(
+      (item) => item.email?.toLowerCase() === testEmail.toLowerCase() && item.id !== existingProfile.id,
+    )
+
+    if (emailOwner) {
+      const reservedEmail = `${normalizedPhone.slice(1)}+duplicate-${emailOwner.id}@test.royalhouse.local`
+      const { error: reserveError } = await admin.auth.admin.updateUserById(emailOwner.id, {
+        email: reservedEmail,
+        email_confirm: true,
+      })
+      if (reserveError) {
+        return NextResponse.json(
+          { error: `Duplicate Auth foydalanuvchisini ajratib bo‘lmadi: ${reserveError.message}` },
+          { status: 500 },
+        )
+      }
     }
 
     const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
@@ -77,9 +102,6 @@ export async function POST(request: Request) {
     user = data.user
   } else {
     // Yangi foydalanuvchi uchun avvalgi test-auth oqimini saqlaymiz.
-    const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
-    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
-
     user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
 
     if (!user) {
