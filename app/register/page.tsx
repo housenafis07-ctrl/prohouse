@@ -60,10 +60,11 @@ export default function RegisterPage() {
   },[router])
 
   async function sendCode(){
-    if(phone.replace(/\D/g,'').length<12) return setMessage(t('Telefon raqamini to‘liq kiriting.','Введите полный номер телефона.'))
+    const normalizedPhone=phone.replace(/\s/g,'')
+    if(normalizedPhone.length<13) return setMessage(t('Telefon raqamini to‘liq kiriting.','Введите полный номер телефона.'))
     setLoading(true);setMessage('')
     try{
-      const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})})
+      const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone})})
       const data=await response.json()
       if(!response.ok) throw new Error(data.error||t('SMS yuborilmadi','SMS не отправлено'))
       setSent(true);setMessage(data.testMode?t('Test rejimi: 321321 kodidan foydalaning.','Тестовый режим: используйте код 321321.') : t('SMS kodi yuborildi.','SMS-код отправлен.'))
@@ -72,10 +73,11 @@ export default function RegisterPage() {
   }
 
   async function verifyCode(){
+    const normalizedPhone=phone.replace(/\s/g,'')
     if(!sent||code.length<4) return setMessage(t('SMS kodini kiriting.','Введите SMS-код.'))
     setLoading(true);setMessage('')
     try{
-      const response=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,code})})
+      const response=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone,code})})
       const data=await response.json()
       if(!response.ok) throw new Error(data.error||t('Kod noto‘g‘ri','Неверный код'))
       const supabase=createClient()
@@ -103,10 +105,18 @@ export default function RegisterPage() {
       const supabase=createClient()
       const {data:{user}}=await supabase.auth.getUser()
       if(!user) throw new Error(t('Sessiya topilmadi. Qayta kirib ko‘ring.','Сессия не найдена. Войдите снова.'))
-      const {error:profileError}=await supabase.from('profiles').upsert({id:user.id,phone,account_type:accountType,partner_type:accountType==='partner'?partnerType:null,full_name:form.fullName,company_name:form.companyName||null,inn:form.inn||null,bank_name:form.bankName||null,bank_account:form.bankAccount||null,mfo:form.mfo||null,director_full_name:form.directorFullName||null})
+      const normalizedPhone=phone.replace(/\s/g,'')
+      const {data:existingProfile,error:existingProfileError}=await supabase.from('profiles').select('id').eq('id',user.id).maybeSingle()
+      if(existingProfileError) throw existingProfileError
+      const {error:profileError}=await supabase.from('profiles').upsert({id:user.id,phone:normalizedPhone,account_type:accountType,partner_type:accountType==='partner'?partnerType:null,full_name:form.fullName.trim(),company_name:form.companyName.trim()||null,inn:form.inn.trim()||null,bank_name:form.bankName.trim()||null,bank_account:form.bankAccount.trim()||null,mfo:form.mfo.trim()||null,director_full_name:form.directorFullName.trim()||null},{onConflict:'id'})
       if(profileError) throw profileError
-      const {error:consentError}=await supabase.from('offer_consents').insert({user_id:user.id,phone,offer_version:offer.version})
-      if(consentError) throw consentError
+
+      const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents').select('id').eq('user_id',user.id).eq('offer_version',offer.version).maybeSingle()
+      if(consentLookupError) throw consentLookupError
+      if(!existingConsent){
+        const {error:consentError}=await supabase.from('offer_consents').insert({user_id:user.id,phone:normalizedPhone,offer_version:offer.version})
+        if(consentError) throw consentError
+      }
       router.replace('/account')
     }catch(e){setMessage(e instanceof Error?e.message:t('Ro‘yxatdan o‘tishda xatolik','Ошибка регистрации'))}
     finally{setLoading(false)}
