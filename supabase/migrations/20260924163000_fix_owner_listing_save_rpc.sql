@@ -75,14 +75,22 @@ begin
 
   -- The moderation constraint validates category_attributes against
   -- listing_attribute_values. The edit wizard keeps attributes in draft_data,
-  -- so synchronize them here before the listing enters moderation.
+  -- so synchronize the submitted attributes before the listing enters moderation.
+  -- If an older listing has an attribute that is not present in draft_data,
+  -- preserve the stored value instead of accidentally erasing it.
   insert into public.listing_attribute_values (listing_id, attribute_id, value_jsonb, updated_at)
   select
     p_listing_id,
     ca.id,
-    coalesce(v_attributes -> ca.code, 'null'::jsonb),
+    case
+      when v_attributes ? ca.code then coalesce(v_attributes -> ca.code, 'null'::jsonb)
+      else coalesce(lav.value_jsonb, 'null'::jsonb)
+    end,
     now()
   from public.category_attributes ca
+  left join public.listing_attribute_values lav
+    on lav.listing_id = p_listing_id
+   and lav.attribute_id = ca.id
   where ca.category_code = p_payload->>'taxonomy_code'
     and ca.is_active = true
   on conflict (listing_id, attribute_id)
