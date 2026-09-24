@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { serviceClient } from '@/utils/admin/auth'
 
 const allowedStatuses = new Set(['draft', 'moderation'])
 const ownershipTypes = new Set(['owner', 'power_of_attorney', 'representative'])
 const IMAGE_BUCKET = 'listing-images'
 
 type DraftData = Record<string, unknown> & { attributes?: Record<string, unknown> }
+
+type SupabaseClient = ReturnType<typeof serviceClient>
 
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : ''
 const numberOrNull = (value: unknown) => {
@@ -26,7 +29,7 @@ const jsonValue = (value: unknown) => {
   return value
 }
 
-async function persistAttributeValues(supabase: Awaited<ReturnType<typeof createClient>>, listingId: string, taxonomyCode: string | null, attributes: Record<string, unknown>) {
+async function persistAttributeValues(supabase: SupabaseClient, listingId: string, taxonomyCode: string | null, attributes: Record<string, unknown>) {
   if (!taxonomyCode) return
 
   const { data: definitions, error: definitionsError } = await supabase
@@ -53,9 +56,15 @@ async function persistAttributeValues(supabase: Awaited<ReturnType<typeof create
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const authSupabase = await createClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  // RLS foydalanuvchi sessiyasida listings INSERT/UPDATE uchun juda tor bo‘lishi mumkin.
+  // Auth allaqachon tekshirilganidan keyin server-side service client ishlatiladi.
+  // owner_id har doim tasdiqlangan user.id bilan bog‘lanadi, shuning uchun boshqa
+  // foydalanuvchining e’lonini yozish imkoniyati berilmaydi.
+  const supabase = serviceClient()
 
   const body = await request.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
@@ -175,9 +184,10 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const authSupabase = await createClient()
+  const { data: { user } } = await authSupabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+  const supabase = serviceClient()
   const url = new URL(request.url)
   const listingId = url.searchParams.get('listingId')
   if (!listingId) return NextResponse.json({ error: 'LISTING_ID_REQUIRED' }, { status: 400 })
