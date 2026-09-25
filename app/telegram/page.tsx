@@ -59,7 +59,7 @@ export default function TelegramMiniApp() {
   const search = (event: FormEvent) => {
     event.preventDefault()
     const value = keyword.trim()
-    const params = new URLSearchParams({ tab: 'daily' })
+    const params = new URLSearchParams({ tab: 'all', taxonomy: 'rent_dacha' })
     if (value) params.set('q', value)
     openPath(`/listings?${params.toString()}`)
   }
@@ -117,7 +117,7 @@ export default function TelegramMiniApp() {
                       <p className="mt-1 text-xs leading-4 text-slate-400">{t.searchText}</p>
                     </div>
                   </div>
-                  <button type="button" onClick={() => openPath('/listings?tab=daily')} className="mt-4 w-full rounded-2xl bg-blue-500 py-3.5 text-sm font-black text-white">{t.searchButton}</button>
+                  <button type="button" onClick={() => openPath('/listings?tab=all&taxonomy=rent_dacha')} className="mt-4 w-full rounded-2xl bg-blue-500 py-3.5 text-sm font-black text-white">{t.searchButton}</button>
                 </div>
               </div>
 

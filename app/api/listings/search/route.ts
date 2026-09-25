@@ -45,9 +45,6 @@ function escapeSearchTerm(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/%/g, '\\%').replace(/_/g, '\\_').trim()
 }
 
-// Location data has historically used both "Bo'stonliq" and
-// "Bo'stonliq tumani" (and similar variants). Expand region districts
-// so old listings are still found when a user selects the region.
 function districtVariants(districts: string[]) {
   const variants = new Set<string>()
   for (const district of districts) {
@@ -94,6 +91,7 @@ export async function GET(request: NextRequest) {
   const currency = params.get('currency')?.trim() || ''
   const q = params.get('q')?.trim() || ''
   const tab = params.get('tab') || ''
+  const dachaSearch = isDachaSearch(q)
 
   if (!['newest', 'priceLow', 'priceHigh'].includes(sort)) {
     return NextResponse.json({ error: 'Noto‘g‘ri saralash parametri.' }, { status: 400 })
@@ -121,9 +119,21 @@ export async function GET(request: NextRequest) {
       query = query.in('district', districtVariants(regionData.districts))
     }
   }
-  if (!listingType && tab === 'sale') query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
-  else if (!listingType && tab === 'rent') query = query.eq('listing_type', 'rent')
-  else if (!listingType && tab === 'daily') query = query.eq('listing_type', 'daily')
+
+  // Dacha e'lonlari ayrim yozuvlarda listing_type='rent', ayrimlarida
+  // listing_type='daily' bo‘lishi mumkin. Dacha qidiruvi ularni ikkalasini ham ko‘rsatadi.
+  if (!listingType) {
+    if (dachaSearch) {
+      query = query.or('listing_type.eq.daily,taxonomy_code.in.(sale_dacha,rent_dacha)')
+    } else if (tab === 'sale') {
+      query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
+    } else if (tab === 'rent') {
+      query = query.eq('listing_type', 'rent')
+    } else if (tab === 'daily') {
+      query = query.eq('listing_type', 'daily')
+    }
+  }
+
   if (min !== null) query = query.gte('price', min)
   if (max !== null) query = query.lte('price', max)
   if (rooms !== null) query = query.gte('rooms', rooms)
@@ -133,7 +143,6 @@ export async function GET(request: NextRequest) {
 
   if (q) {
     const words = q.split(/\s+/).map(escapeSearchTerm).filter(Boolean).slice(0, 8)
-    const dachaSearch = isDachaSearch(q)
     for (const word of words) {
       if (dachaSearch) {
         query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%,taxonomy_code.in.(sale_dacha,rent_dacha)`)
