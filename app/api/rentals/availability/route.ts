@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
 
-const parseRental=(draft:any)=>{const raw=draft?.attributes?.rental_booking;try{return typeof raw==='string'?JSON.parse(raw||'{}'):(raw&&typeof raw==='object'?raw:{})}catch{return {}}}
+const parseRental=(draft:any)=>{const attrs=draft?.attributes||{};const raw=attrs?.rental_booking;try{const parsed=typeof raw==='string'?JSON.parse(raw||'{}'):(raw&&typeof raw==='object'?raw:{});return Object.keys(parsed).length?parsed:attrs}catch{return attrs}}
 const addDays=(d:string,n:number)=>{const x=new Date(`${d}T00:00:00Z`);x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
 const eachDay=(from:string,to:string)=>{const out:string[]=[];for(let d=from;d<=to;d=addDays(d,1))out.push(d);return out}
 const isWeekend=(date:string)=>{const day=new Date(`${date}T00:00:00Z`).getUTCDay();return day===0||day===6}
 const num=(value:any)=>Number(String(value??'').replace(/\s/g,''))||0
 const extraGuestSettings=(settings:any)=>{
- const fee=num(settings.extra_guest_fee??settings.extra_guest_price??settings.additional_guest_price??settings.extra_person_price??settings.extra_guest_charge)
+ const fee=num(settings.extra_guest_fee??settings.extra_guest_price??settings.additional_guest_price??settings.extra_person_price??settings.extra_guest_charge??settings.september_extra_guest_price??settings.october_extra_guest_price)
  const included=num(settings.included_guests??settings.included_guest_count??settings.guests_included??settings.base_guests) || (fee>0?num(settings.max_guests):0)
  return { fee, included }
+}
+const seasonalPrice=(settings:any,weekday:boolean,month:number)=>{
+ const monthName=month===8?'september':month===9?'october':''
+ const seasonal=monthName?(weekday?settings[`${monthName}_weekday_price`]:settings[`${monthName}_weekend_price`]):undefined
+ return num(seasonal)||num(weekday?settings.weekday_price:settings.weekend_price)
 }
 export async function GET(request:NextRequest){
  try{
@@ -20,7 +25,7 @@ export async function GET(request:NextRequest){
   const settings=parseRental(listing.draft_data);const {data:bookings,error:bookingError}=await db.from('rental_bookings').select('check_in,check_out,status,payment_status').eq('listing_id',listingId).in('status',['pending_payment','confirmed']).lt('check_in',addDays(to,1)).gt('check_out',from);if(bookingError)throw bookingError
   const booked=new Set<string>();for(const b of bookings||[]){for(const d of eachDay(b.check_in,addDays(b.check_out,-1)))booked.add(d)}
   const blocked=new Set<string>(settings.blocked_dates||[]);const prices=settings.date_prices||{};const {fee:extraGuestFee,included:includedGuests}=extraGuestSettings(settings);const extraGuests=Math.max(0,guests-includedGuests)
-  const days=eachDay(from,to).map(date=>{const weekend=isWeekend(date);const override=prices[date]?num(prices[date]):null;const fallback=weekend?num(settings.weekend_price):num(settings.weekday_price);const base=override||fallback||num(listing.price);const price=base+(extraGuestFee*extraGuests);return {date,status:booked.has(date)?'booked':blocked.has(date)?'blocked':'free',price,basePrice:base,extraGuestFee,extraGuests,priceType:override?'date':fallback?(weekend?'weekend':'weekday'):'base'}})
+  const days=eachDay(from,to).map(date=>{const weekend=isWeekend(date);const override=prices[date]?num(prices[date]):null;const fallback=seasonalPrice(settings,!weekend,new Date(`${date}T00:00:00Z`).getUTCMonth());const base=override||fallback||num(listing.price);const price=base+(extraGuestFee*extraGuests);return {date,status:booked.has(date)?'booked':blocked.has(date)?'blocked':'free',price,basePrice:base,extraGuestFee,extraGuests,priceType:override?'date':fallback?(weekend?'weekend':'weekday'):'base'}})
   return NextResponse.json({listingId,currency:listing.currency,depositPercent:num(settings.deposit_percent)||15,extraGuestFee,includedGuests,guests,days})
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Availability error'},{status:500})}
 }
