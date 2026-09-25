@@ -8,9 +8,19 @@ const TOGGLE_LABELS = new Set(['O‘z / Ru', 'Ru / O‘z'])
 const PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*$/i
 const RENT_PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*\/\s*(oy|мес\.)\s*$/i
 const RENT_PERIOD_RE = /^\s*\/\s*(oy|мес\.)\s*$/i
+const UI_PAIRS: Array<[string, string]> = [
+  ['Izoh', 'Комментарий'],
+  ['Izoh:', 'Комментарий:'],
+  ['Dacha ijarasida bevosita telefon va chat yopiq.', 'При аренде дачи прямой телефон и чат закрыты.'],
+  ['Bronni RoyalHouse orqali rasmiylashtirib, avans to‘langandan so‘ng lokatsiya va aloqa ma’lumotlari bron tafsilotlarida ochiladi.', 'Оформите бронирование через RoyalHouse; после внесения предоплаты местоположение и контактные данные будут доступны в деталях бронирования.'],
+  ['🔒', '🔒'],
+]
 
 function getLang(): Lang {
-  return typeof window !== 'undefined' && window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+  if (typeof window === 'undefined') return 'uz'
+  const royalhouseLang = window.localStorage.getItem('royalhouse-lang')
+  if (royalhouseLang === 'ru' || royalhouseLang === 'uz') return royalhouseLang
+  return window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
 }
 
 function protectLanguageToggles() {
@@ -33,6 +43,15 @@ function translateRentalPeriod(value: string, lang: Lang) {
   return lang === 'ru' ? ' / мес.' : ' / oy'
 }
 
+function translateUiText(value: string, lang: Lang) {
+  const pairs = lang === 'ru' ? UI_PAIRS : UI_PAIRS.map(([uz, ru]) => [ru, uz] as [string, string])
+  const exact = pairs.find(([from]) => value.trim() === from)
+  if (!exact) return value
+  const leading = value.match(/^\s*/)?.[0] ?? ''
+  const trailing = value.match(/\s*$/)?.[0] ?? ''
+  return `${leading}${exact[1]}${trailing}`
+}
+
 function translatePrices() {
   const lang = getLang()
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
@@ -43,11 +62,14 @@ function translatePrices() {
     const parent = text.parentElement
     if (!parent || parent.closest('[data-no-global-i18n]')) continue
     const value = text.nodeValue ?? ''
-    if (PRICE_RE.test(value) || RENT_PRICE_RE.test(value) || RENT_PERIOD_RE.test(value)) nodes.push(text)
+    if (PRICE_RE.test(value) || RENT_PRICE_RE.test(value) || RENT_PERIOD_RE.test(value) || UI_PAIRS.some(([uz, ru]) => value.trim() === uz || value.trim() === ru)) nodes.push(text)
   }
   nodes.forEach((text) => {
     const current = text.nodeValue ?? ''
-    const next = RENT_PERIOD_RE.test(current) ? translateRentalPeriod(current, lang) : translatePriceText(current, lang)
+    let next = current
+    if (RENT_PERIOD_RE.test(current)) next = translateRentalPeriod(current, lang)
+    else if (RENT_PRICE_RE.test(current) || PRICE_RE.test(current)) next = translatePriceText(current, lang)
+    else next = translateUiText(current, lang)
     if (next !== current) text.nodeValue = next
   })
 }
@@ -70,11 +92,13 @@ export default function LanguageRuntimeFix() {
     const observer = new MutationObserver(schedule)
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     window.addEventListener('prohouse-language-change', schedule)
+    window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('storage', schedule)
 
     return () => {
       observer.disconnect()
       window.removeEventListener('prohouse-language-change', schedule)
+      window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
       if (frame) window.cancelAnimationFrame(frame)
     }
