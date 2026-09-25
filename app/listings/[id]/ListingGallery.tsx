@@ -9,6 +9,73 @@ const storagePathFromPublicUrl = (value: string) => {
   try { const url = new URL(value); const marker = '/storage/v1/object/public/listing-images/'; const index = url.pathname.indexOf(marker); return index >= 0 ? decodeURIComponent(url.pathname.slice(index + marker.length)) : null } catch { return null }
 }
 
+const rentalAmenityIcons: Record<string, string> = {
+  'Ochiq hovuz': '🏊', 'Yopiq hovuz': '🏊', 'Wi‑Fi': '📶', 'Avtoturargoh': '🚗',
+  'Oshxona': '🍳', 'Barbekyu': '🍖', 'Karaoke': '🎤', 'Bilyard': '🎱', 'Stol tennisi': '🏓',
+  'Sauna': '♨️', 'Bolalar maydonchasi': '🛝', 'Jakuzi': '🛁',
+  'Бассейн': '🏊', 'Крытый бассейн': '🏊', 'Парковка': '🚗', 'Кухня': '🍳', 'Барбекю': '🍖',
+  'Караоке': '🎤', 'Бильярд': '🎱', 'Настольный теннис': '🏓', 'Сауна': '♨️', 'Джакузи': '🛁',
+  'Wi-Fi': '📶'
+}
+
+const rentalUiCss = `
+  /* RoyalHouse rental amenities: one source of truth + Bronla-style compact chips */
+  section.mt-8.space-y-5 > div:nth-child(2) { display: none !important; }
+  section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+  section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 > span {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    border: 1px solid #e8eef0;
+    border-radius: 12px !important;
+    background: #fff !important;
+    padding: 9px 10px !important;
+    color: #263944 !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.2;
+    box-shadow: 0 2px 8px rgba(9,33,44,.04);
+  }
+  section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 > span::before {
+    content: attr(data-rh-icon);
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: #eefaf3;
+    font-size: 16px;
+  }
+  @media (max-width: 767px) {
+    section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px !important;
+    }
+    section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 > span {
+      padding: 8px !important;
+      border-radius: 11px !important;
+      font-size: 11px !important;
+    }
+    section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 > span::before {
+      width: 27px;
+      height: 27px;
+      flex-basis: 27px;
+      font-size: 14px;
+    }
+  }
+  @media (max-width: 380px) {
+    section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2 > span {
+      font-size: 10px !important;
+    }
+  }
+`
+
 export default function ListingGallery({ images, title }: { images: ListingImage[]; title: string }) {
   const [activeImage, setActiveImage] = useState(0)
   const [lightbox, setLightbox] = useState(false)
@@ -27,6 +94,16 @@ export default function ListingGallery({ images, title }: { images: ListingImage
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
   }, [lightbox])
 
+  useEffect(() => {
+    const root = document.querySelector('section.mt-5.grid.gap-5 > div:nth-child(2) .mt-4.flex.flex-wrap.gap-2')
+    if (!root) return
+    root.querySelectorAll('span').forEach(node => {
+      const label = node.textContent?.trim() || ''
+      const icon = rentalAmenityIcons[label]
+      if (icon) node.setAttribute('data-rh-icon', icon)
+    })
+  }, [])
+
   if (!images.length) return <div className="flex h-[300px] items-center justify-center bg-slate-100 text-slate-400 sm:h-[420px]">Rasm mavjud emas</div>
 
   const resolveSigned = async (image: ListingImage, index: number) => {
@@ -40,6 +117,7 @@ export default function ListingGallery({ images, title }: { images: ListingImage
   const imageSrc = (image: ListingImage, index: number) => resolved[index] || image.image_url
 
   return <>
+    <style dangerouslySetInnerHTML={{ __html: rentalUiCss }} />
     <div className="bg-slate-100">
       <div className="relative h-[300px] cursor-zoom-in touch-pan-y select-none sm:h-[420px]" onClick={() => setLightbox(true)} onTouchStart={event => setTouchStart(event.touches[0]?.clientX ?? null)} onTouchEnd={event => { if (touchStart == null) return; const delta = (event.changedTouches[0]?.clientX ?? touchStart) - touchStart; if (Math.abs(delta) >= 50) delta < 0 ? nextImage() : previousImage(); setTouchStart(null) }}>
         <img src={imageSrc(current, safeIndex)} alt={`${title} — ${safeIndex + 1}-rasm`} title={title} loading="eager" fetchPriority="high" decoding="async" draggable={false} onError={() => void resolveSigned(current, safeIndex)} className="h-full w-full object-cover" />
