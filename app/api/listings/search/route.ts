@@ -64,6 +64,15 @@ function districtVariants(districts: string[]) {
   return Array.from(variants)
 }
 
+const DACHA_SEARCH_TERMS = new Set(['dacha', 'dachalar', 'дача', 'дачи', 'дачалар'])
+
+function isDachaSearch(q: string) {
+  return q
+    .toLocaleLowerCase()
+    .split(/\s+/)
+    .some((word) => DACHA_SEARCH_TERMS.has(word.replace(/[.,!?;:]+$/g, '')))
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const params = request.nextUrl.searchParams
@@ -124,8 +133,13 @@ export async function GET(request: NextRequest) {
 
   if (q) {
     const words = q.split(/\s+/).map(escapeSearchTerm).filter(Boolean).slice(0, 8)
+    const dachaSearch = isDachaSearch(q)
     for (const word of words) {
-      query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%`)
+      if (dachaSearch) {
+        query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%,taxonomy_code.in.(sale_dacha,rent_dacha)`)
+      } else {
+        query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%`)
+      }
     }
   }
 
