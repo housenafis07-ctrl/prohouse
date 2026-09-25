@@ -25,6 +25,8 @@ export default function ListingCardIconStyle() {
       document.head.appendChild(style)
     }
 
+    if (!/^\/listings(?:\/|$)/.test(window.location.pathname)) return
+
     let disposed = false
     const run = async () => {
       const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/listings/"]'))
