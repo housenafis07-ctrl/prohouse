@@ -5,8 +5,8 @@ import { useEffect } from 'react'
 type Lang = 'uz' | 'ru'
 type Pair = [string, string]
 
-// Only exact UI labels are translated here. User-entered listing text is not
-// translated because longer/free-form text is never matched by these pairs.
+// Only exact UI labels and structured platform values are translated here.
+// User-entered listing title, description, address and seller text are not translated.
 const UI_PAIRS: Pair[] = [
   ['Xaritani katta ko‘rish →', 'Открыть карту крупнее →'],
   ['Xaritani katta ko‘rish', 'Открыть карту крупнее'],
@@ -61,6 +61,28 @@ const UI_PAIRS: Pair[] = [
   ['So‘m', 'Сум'],
 ]
 
+// These are structured location values selected from the platform's location data,
+// not free-form address text, so they are safe to translate on the Russian view.
+const LOCATION_PAIRS: Pair[] = [
+  ['Toshkent viloyati', 'Ташкентская область'],
+  ['Toshkent shahri', 'г. Ташкент'],
+  ['Toshkent shahar', 'г. Ташкент'],
+  ["Bo'stonliq", 'Бостанлыкский район'],
+  ['Bo‘stonliq', 'Бостанлыкский район'],
+  ['Chilonzor', 'Чиланзар'],
+  ['Yunusobod', 'Юнусабад'],
+  ['Mirzo Ulug‘bek', 'Мирзо-Улугбекский район'],
+  ["Mirzo Ulug'bek", 'Мирзо-Улугбекский район'],
+  ['Shayxontohur', 'Шайхантахурский район'],
+  ['Olmazor', 'Алмазарский район'],
+  ['Yakkasaroy', 'Яккасарайский район'],
+  ['Sergeli', 'Сергелийский район'],
+  ['Bektemir', 'Бектемирский район'],
+  ['Uchtepa', 'Учтепинский район'],
+  ['Mirobod', 'Мирабадский район'],
+  ['Yangihayot', 'Янгихаётский район'],
+]
+
 const SAFE_DEAL_UZ = 'RoyalHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.'
 const SAFE_DEAL_RU = 'RoyalHouse выделяет проверенные объявления и продавцов. Платёжные/escrow-услуги будут предоставляться через лицензированного партнёра на следующем этапе интеграции.'
 
@@ -76,9 +98,30 @@ function translateExact(value: string, lang: Lang, pairs: Pair[] = UI_PAIRS) {
   return found ? found[1] : value
 }
 
-function translateCurrency(value: string, lang: Lang) {
-  if (lang === 'ru') return value.replace(/so[’ʻʼ`']m\b/gi, 'сум')
-  return value.replace(/\bсум\b/gi, 'so‘m')
+function translateStructuredText(value: string, lang: Lang) {
+  let next = value
+  const pairs = lang === 'ru' ? LOCATION_PAIRS : LOCATION_PAIRS.map(([uz, ru]) => [ru, uz] as Pair)
+  for (const [from, to] of pairs) {
+    next = next.replace(new RegExp(`(^|[\\s,⌖])${escapeRegExp(from)}(?=($|[\\s,])|$)`, 'g'), `$1${to}`)
+  }
+  return next
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function translateCurrencyAndPeriod(value: string, lang: Lang) {
+  if (lang === 'ru') {
+    return value
+      .replace(/so[’ʻʼ`']m\b/gi, 'сум')
+      .replace(/\s*\/\s*oy\b/gi, ' / мес.')
+      .replace(/\s*\/\s*kun\b/gi, ' / сутки')
+  }
+  return value
+    .replace(/\bсум\b/gi, 'so‘m')
+    .replace(/\s*\/\s*мес\.\b/gi, ' / oy')
+    .replace(/\s*\/\s*сутки\b/gi, ' / kun')
 }
 
 function translateNode(node: Text, lang: Lang) {
@@ -87,12 +130,10 @@ function translateNode(node: Text, lang: Lang) {
   if (!trimmed) return
 
   let next = translateExact(trimmed, lang)
-  if (next === trimmed) {
-    next = translateCurrency(trimmed, lang)
-  }
-  if (next !== trimmed) {
-    node.nodeValue = value.replace(trimmed, next)
-  }
+  if (next === trimmed) next = translateStructuredText(trimmed, lang)
+  next = translateCurrencyAndPeriod(next, lang)
+
+  if (next !== trimmed) node.nodeValue = value.replace(trimmed, next)
 }
 
 function applyProtectedUi(lang: Lang) {
@@ -102,11 +143,8 @@ function applyProtectedUi(lang: Lang) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
   while (walker.nextNode()) nodes.push(walker.currentNode as Text)
-
   for (const node of nodes) translateNode(node, lang)
 
-  // Longer fixed platform text needs an exact match as well. Listing title,
-  // description, address and seller-entered text are intentionally excluded.
   const safeDealPairs: Pair[] = [[SAFE_DEAL_UZ, SAFE_DEAL_RU]]
   const safeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const safeNodes: Text[] = []
@@ -128,20 +166,13 @@ export default function ListingDetailLanguageFix() {
     const run = () => {
       if (applying) return
       applying = true
-      try {
-        applyProtectedUi(getLang())
-      } finally {
-        applying = false
-      }
+      try { applyProtectedUi(getLang()) } finally { applying = false }
     }
 
     const schedule = () => {
       if (queued) return
       queued = true
-      window.requestAnimationFrame(() => {
-        queued = false
-        run()
-      })
+      window.requestAnimationFrame(() => { queued = false; run() })
     }
 
     run()
