@@ -61,8 +61,6 @@ const UI_PAIRS: Pair[] = [
   ['So‘m', 'Сум'],
 ]
 
-// These are structured location values selected from the platform's location data,
-// not free-form address text, so they are safe to translate on the Russian view.
 const LOCATION_PAIRS: Pair[] = [
   ['Toshkent viloyati', 'Ташкентская область'],
   ['Toshkent shahri', 'г. Ташкент'],
@@ -85,6 +83,8 @@ const LOCATION_PAIRS: Pair[] = [
 
 const SAFE_DEAL_UZ = 'RoyalHouse tasdiqlangan e’lonlar va sotuvchilarni ajratib ko‘rsatadi. To‘lov/escrow xizmatlari keyingi integratsiya bosqichida litsenziyalangan hamkor orqali amalga oshiriladi.'
 const SAFE_DEAL_RU = 'RoyalHouse выделяет проверенные объявления и продавцов. Платёжные/escrow-услуги будут предоставляться через лицензированного партнёра на следующем этапе интеграции.'
+const RENTAL_CONTACT_UZ = 'Dacha ijarasida bevosita telefon va chat yo‘q. Bronni RoyalHouse orqali rasmiylashtirib, avans to‘langandan so‘ng lokatsiya va aloqa ma’lumotlari bron tafsilotlarida ochiladi.'
+const RENTAL_CONTACT_RU = 'При аренде дачи прямые телефонные звонки и чат недоступны. После оформления бронирования через RoyalHouse и оплаты аванса местоположение и контактные данные будут доступны в деталях бронирования.'
 
 const normalize = (value: string) => value
   .replace(/[’ʻʼ`]/g, "'")
@@ -145,7 +145,7 @@ function applyProtectedUi(lang: Lang) {
   while (walker.nextNode()) nodes.push(walker.currentNode as Text)
   for (const node of nodes) translateNode(node, lang)
 
-  const safeDealPairs: Pair[] = [[SAFE_DEAL_UZ, SAFE_DEAL_RU]]
+  const safeDealPairs: Pair[] = [[SAFE_DEAL_UZ, SAFE_DEAL_RU], [RENTAL_CONTACT_UZ, RENTAL_CONTACT_RU]]
   const safeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const safeNodes: Text[] = []
   while (safeWalker.nextNode()) safeNodes.push(safeWalker.currentNode as Text)
@@ -161,7 +161,11 @@ export default function ListingDetailLanguageFix() {
     let applying = false
     let queued = false
 
-    const getLang = (): Lang => window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+    const getLang = (): Lang => {
+      const royalhouseLang = window.localStorage.getItem('royalhouse-lang')
+      if (royalhouseLang === 'ru' || royalhouseLang === 'uz') return royalhouseLang
+      return window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+    }
 
     const run = () => {
       if (applying) return
@@ -176,6 +180,7 @@ export default function ListingDetailLanguageFix() {
     }
 
     run()
+    window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('prohouse-language-change', schedule)
     window.addEventListener('storage', schedule)
 
@@ -183,6 +188,7 @@ export default function ListingDetailLanguageFix() {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
     return () => {
+      window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('prohouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
       observer.disconnect()
