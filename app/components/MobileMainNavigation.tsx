@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
 const ICONS = {
   home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v8.7a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-8.7Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
@@ -169,6 +170,21 @@ export default function MobileMainNavigation() {
       link.innerHTML = `${ICONS[item.key]}<span>${item.label}</span>`
       link.setAttribute('aria-label', item.label)
       link.title = item.label
+
+      if (item.key === 'create') {
+        link.addEventListener('click', async (event) => {
+          event.preventDefault()
+          try {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            window.location.href = user
+              ? '/listings/new'
+              : `/register?redirect=${encodeURIComponent('/listings/new')}`
+          } catch {
+            window.location.href = `/register?redirect=${encodeURIComponent('/listings/new')}`
+          }
+        })
+      }
 
       const isActive = item.key === 'home'
         ? currentPath === '/'
