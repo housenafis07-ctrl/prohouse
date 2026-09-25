@@ -146,7 +146,7 @@ export async function POST(request: Request) {
     })
     if (insertError) throw new Error(insertError.message)
 
-    const message = `RoyalHouse tasdiqlash kodi: ${code}. Kod 5 daqiqa amal qiladi.`
+    const message = `royalhouse.uz saytiga kirish uchun tasdiqlash kodi: ${code}`
     await sendEskizSms(normalizedPhone, message)
 
     return NextResponse.json({ ok: true, testMode: false, message: 'SMS kodi yuborildi.' })
