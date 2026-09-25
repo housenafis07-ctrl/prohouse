@@ -20,15 +20,44 @@ const UI_PAIRS: Pair[] = [
   ['Xaritada aniq joylashuv belgilanmagan.', 'Точное местоположение на карте не указано.'],
 ]
 
+const RENTAL_PAIRS: Pair[] = [
+  ['Korporativ', 'Корпоративные гости'],
+  ['Korporativ mehmonlar', 'Корпоративные гости'],
+  ['Spirtli ichimliklar', 'Алкоголь'],
+  ['Uy hayvonlari', 'Домашние животные'],
+  ['Nikoh guvohnomasi', 'Свидетельство о браке'],
+  ['Mumkin', 'Разрешено'],
+  ['Mumkin emas', 'Не разрешено'],
+  ['Mehmonlar', 'Гости'],
+  ['Yotoqxonalar', 'Спальни'],
+  ['Yotoqlar', 'Спальные места'],
+  ['Hammom/WC', 'Санузлы'],
+  ['Kirish', 'Заезд'],
+  ['Chiqish', 'Выезд'],
+  ['Sokin soatlar', 'Тихие часы'],
+  ['Ochiq hovuz', 'Открытый бассейн'],
+  ['Yopiq hovuz', 'Крытый бассейн'],
+  ['Wi‑Fi', 'Wi‑Fi'],
+  ['Avtoturargoh', 'Парковка'],
+  ['Oshxona', 'Кухня'],
+  ['Barbekyu', 'Барбекю'],
+  ['Karaoke', 'Караоке'],
+  ['Bilyard', 'Бильярд'],
+  ['Stol tennisi', 'Настольный теннис'],
+  ['Sauna', 'Сауна'],
+  ['Bolalar maydonchasi', 'Детская площадка'],
+  ['Jakuzi', 'Джакузи'],
+]
+
 const normalize = (value: string) => value
   .replace(/[’ʻʼ`]/g, "'")
   .replace(/\s+/g, ' ')
   .trim()
 
-function translateExact(value: string, lang: Lang) {
+function translateExact(value: string, lang: Lang, pairs = UI_PAIRS) {
   const normalized = normalize(value)
-  const pairs = lang === 'ru' ? UI_PAIRS : UI_PAIRS.map(([uz, ru]) => [ru, uz] as Pair)
-  const found = pairs.find(([from]) => normalize(from) === normalized)
+  const source = lang === 'ru' ? pairs : pairs.map(([uz, ru]) => [ru, uz] as Pair)
+  const found = source.find(([from]) => normalize(from) === normalized)
   return found ? found[1] : value
 }
 
@@ -44,8 +73,6 @@ function applyProtectedUi(lang: Lang) {
     if (next !== value) el.textContent = next
   })
 
-  // The listing price is platform-generated text (amount + currency), not
-  // user-entered content. Translate only its currency suffix and nothing else.
   document.querySelectorAll<HTMLElement>('h1[data-no-global-i18n] + p').forEach((el) => {
     const value = el.textContent ?? ''
     const next = translateCurrencySuffix(value, lang)
@@ -56,16 +83,37 @@ function applyProtectedUi(lang: Lang) {
     const heading = section.querySelector('h2')
     if (!heading) return
     const headingText = normalize(heading.textContent ?? '')
-    if (headingText !== normalize('Xavfsiz bitim') && headingText !== normalize('Безопасная сделка')) return
+    if (headingText === normalize('Xavfsiz bitim') || headingText === normalize('Безопасная сделка')) {
+      const nextHeading = lang === 'ru' ? 'Безопасная сделка' : 'Xavfsiz bitim'
+      if (heading.textContent !== nextHeading) heading.textContent = nextHeading
+      const paragraph = section.querySelector('p')
+      if (paragraph) {
+        const value = paragraph.textContent ?? ''
+        const next = translateExact(value, lang)
+        if (next !== value) paragraph.textContent = next
+      }
+    }
 
-    const nextHeading = lang === 'ru' ? 'Безопасная сделка' : 'Xavfsiz bitim'
-    if (heading.textContent !== nextHeading) heading.textContent = nextHeading
+    if (headingText === normalize('Условия размещения') || headingText === normalize('Условия размещения')) {
+      section.querySelectorAll<HTMLElement>('span, b').forEach((el) => {
+        const value = el.textContent ?? ''
+        const next = translateExact(value, lang, RENTAL_PAIRS)
+        if (next !== value) el.textContent = next
+      })
+    }
 
-    const paragraph = section.querySelector('p')
-    if (!paragraph) return
-    const value = paragraph.textContent ?? ''
-    const next = translateExact(value, lang)
-    if (next !== value) paragraph.textContent = next
+    if (headingText === normalize('Вместимость и удобства') || headingText === normalize('Sig‘im va qulayliklar')) {
+      section.querySelectorAll<HTMLElement>('span').forEach((el) => {
+        const value = el.textContent ?? ''
+        const next = translateExact(value, lang, RENTAL_PAIRS)
+        if (next !== value) el.textContent = next
+      })
+      section.querySelectorAll<HTMLElement>('b').forEach((el) => {
+        const value = el.textContent ?? ''
+        const next = translateExact(value, lang, RENTAL_PAIRS)
+        if (next !== value) el.textContent = next
+      })
+    }
   })
 
   document.querySelectorAll<HTMLElement>('#listing-detail-map .leaflet-marker-icon').forEach((marker) => {
