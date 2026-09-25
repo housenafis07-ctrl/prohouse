@@ -4,9 +4,11 @@ import { createClient } from '@/utils/supabase/server'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const referer = request.headers.get('referer') || ''
+  const editMatch = referer.match(/\/account\/listings\/([^/?#]+)\/edit(?:[/?#]|$)/)
 
   const [{ data: categories, error: categoryError }, { data: attributes, error: attributeError }] = await Promise.all([
     supabase
@@ -25,6 +27,29 @@ export async function GET() {
 
   if (categoryError || attributeError) {
     return NextResponse.json({ error: categoryError?.message || attributeError?.message }, { status: 500 })
+  }
+
+  // When editing, scope metadata from the listing itself rather than the
+  // partner's create permissions. This preserves the taxonomy already saved
+  // on the listing and prevents steps 1–2 from becoming empty.
+  if (editMatch && user) {
+    const listingId = editMatch[1]
+    const { data: listingForScope } = await supabase
+      .from('listings')
+      .select('taxonomy_code')
+      .eq('id', listingId)
+      .eq('owner_id', user.id)
+      .maybeSingle()
+
+    const existingCategory = (categories || []).find((c) => c.code === listingForScope?.taxonomy_code)
+    if (existingCategory) {
+      const scopedCategories = (categories || []).filter((c) => c.entity_type === existingCategory.entity_type)
+      const scopedAttributes = (attributes || []).filter((a) => scopedCategories.some((c) => c.code === a.category_code))
+      return NextResponse.json(
+        { categories: scopedCategories, attributes: scopedAttributes, partnerType: null, scope: existingCategory.entity_type },
+        { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+      )
+    }
   }
 
   let partnerType: string | null = null
