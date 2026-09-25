@@ -11,6 +11,7 @@ const RENT_PERIOD_RE = /^\s*\/\s*(oy|мес\.)\s*$/i
 const UI_PAIRS: Array<[string, string]> = [
   ['Izoh', 'Комментарий'],
   ['Izoh:', 'Комментарий:'],
+  ['🔒 Dacha ijarasida bevosita telefon va chat yopiq. Bronni RoyalHouse orqali rasmiylashtirib, avans to‘langandan so‘ng lokatsiya va aloqa ma’lumotlari bron tafsilotlarida ochiladi.', '🔒 При аренде дачи прямой телефон и чат закрыты. Оформите бронирование через RoyalHouse; после внесения предоплаты местоположение и контактные данные будут доступны в деталях бронирования.'],
 ]
 
 function getLang(): Lang {
