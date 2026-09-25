@@ -16,13 +16,20 @@ export async function POST(request: NextRequest) {
     const admin = serviceClient()
     const { data: listing, error: listingError } = await admin
       .from('listings')
-      .select('id,owner_id,status,seller_phone,seller_name')
+      .select('id,owner_id,status,seller_phone,seller_name,listing_type,taxonomy_code')
       .eq('id', listingId)
       .eq('status', 'active')
       .maybeSingle()
     if (listingError) throw listingError
     if (!listing) return NextResponse.json({ error: 'E’lon topilmadi yoki faol emas.' }, { status: 404 })
     if (listing.owner_id === user.id) return NextResponse.json({ error: 'O‘zingizning e’loningizga murojaat yubora olmaysiz.' }, { status: 400 })
+
+    const isRental = listing.listing_type === 'daily' || listing.taxonomy_code === 'rent_dacha'
+    if (isRental) {
+      return NextResponse.json({
+        error: 'Dacha ijarasida bevosita telefon va chat bron tasdiqlanib, avans to‘langandan keyin ochiladi.'
+      }, { status: 403 })
+    }
 
     const { data: lead, error: leadError } = await admin.from('listing_leads').insert({
       listing_id: listing.id,
