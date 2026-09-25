@@ -3,160 +3,60 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
-type Day = { date: string; status: 'free' | 'blocked' | 'booked'; price: number | null; priceType?: 'date' | 'weekend' | 'weekday' | 'base' }
+type Day = { date: string; status: 'free' | 'blocked' | 'booked'; price: number | null; priceType?: 'date' | 'weekend' | 'weekday' | 'base'; basePrice?: number; extraGuestFee?: number; extraGuests?: number }
 type Review = { id: string; rating: number; body: string | null; created_at: string }
 type RentalSettings = {
-  max_guests?: string; bedrooms?: string; single_beds?: string; double_beds?: string; bathrooms?: string
+  max_guests?: string; included_guests?: string; extra_guest_fee?: string; extra_guest_price?: string; additional_guest_price?: string; extra_person_price?: string; extra_guest_charge?: string
+  bedrooms?: string; single_beds?: string; double_beds?: string; bathrooms?: string
   check_in?: string; check_out?: string; quiet_hours?: string; amenities?: string[]; policies?: string[]
   blocked_dates?: string[]; date_prices?: Record<string, string>; weekday_price?: string; weekend_price?: string; deposit_percent?: string
 }
-
-const pad = (n: number) => String(n).padStart(2, '0')
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-const addDays = (date: string, amount: number) => { const d = new Date(`${date}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + amount); return d.toISOString().slice(0, 10) }
-const parse = (value: unknown): RentalSettings => { try { return typeof value === 'string' ? JSON.parse(value || '{}') : (value && typeof value === 'object' ? value as RentalSettings : {}) } catch { return {} } }
-const formatMoney = (value: number, currency: string, ru: boolean) => `${new Intl.NumberFormat(ru ? 'ru-RU' : 'uz-UZ').format(Math.max(0, value))} ${currency === 'USD' ? '$' : ru ? 'сум' : 'so‘m'}`
-const compactMoney = (value: number, currency: string, ru: boolean) => {
-  if (currency === 'USD') return `$${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace('.0', '')}k`
-  if (value >= 1000000) return `${(value / 1000000).toFixed(value >= 10000000 ? 0 : 1).replace('.0', '')} mln`
-  if (value >= 1000) return `${Math.round(value / 1000)} ming`
-  return `${Math.round(value)} ${ru ? 'сум' : 'so‘m'}`
-}
-const isWeekend = (date: string) => { const day = new Date(`${date}T00:00:00Z`).getUTCDay(); return day === 0 || day === 6 }
-
-const FAQ = [
-  ['Dachani qanday bron qilish mumkin?', 'RoyalHouse’da dacha bron qilish uchun avval kirish va chiqish sanalarini kalendardan tanlang, mehmonlar sonini kiriting va bron summasini tekshiring. Keyin bronni rasmiylashtirish bosqichiga o‘ting.'],
-  ['Dacha egasining telefon raqami va lokatsiyasi qachon beriladi?', 'Dacha ijarasida RoyalHouse orqali bron qilish tizimi ishlaydi. Egasining bevosita telefon raqami, aniq lokatsiyasi va bron uchun zarur aloqa ma’lumotlari bron tasdiqlanib, avans to‘lovi amalga oshirilgandan keyin beriladi.'],
-  ['Payme yoki Click orqali dacha uchun to‘lov qilish mumkinmi?', 'To‘lov oynasida RoyalHouse’da mavjud bo‘lgan elektron to‘lov usullari ko‘rsatiladi. To‘lov provayderi tanlanganidan keyin avans summasi va to‘lov tafsilotlari tasdiqlanadi.'],
-  ['Dacha uchun naqd to‘lov qilish mumkinmi?', 'Dacha ijarasida RoyalHouse bronni platforma orqali rasmiylashtirishga asoslanadi. Naqd yoki bevosita egaga to‘lov imkoniyati aynan e’lon shartlariga bog‘liq bo‘lishi mumkin; platformadagi bron va to‘lov shartlari ustuvor hisoblanadi.'],
-  ['Dacha narxini kelishib arzonlashtirish mumkinmi?', 'Narxlar dacha egasi tomonidan belgilanadi. Ish kunlari, dam olish kunlari va ayrim sanalar uchun alohida narxlar bo‘lishi mumkin. Platformadagi kalendar ko‘rsatilgan narxni bron hisob-kitobiga qo‘llaydi.'],
-  ['Bronni bekor qilsam avans qaytariladimi?', 'Avansni qaytarish shartlari dacha e’lonining bekor qilish siyosatiga bog‘liq. Bronni tasdiqlashdan oldin qaytarish va bekor qilish shartlarini tekshirish tavsiya etiladi.'],
-  ['Bron sanalarini keyin o‘zgartirish mumkinmi?', 'Sana o‘zgartirish imkoniyati bron holati va dacha egasining mavjudligiga bog‘liq. Yangi sana bo‘sh bo‘lsa, qo‘llab-quvvatlash orqali bronni o‘zgartirish masalasi ko‘rib chiqiladi.'],
-  ['RoyalHouse orqali dacha bron qilish xavfsizmi?', 'RoyalHouse bron ma’lumotlarini platformada qayd etish, to‘lov holatini kuzatish va bron tafsilotlarini bitta joyda saqlash uchun ishlaydi. Foydalanuvchi bron va to‘lov tasdig‘ini shaxsiy kabinetidan kuzatishi mumkin.'],
-  ['Dacha rasmlardagidek bo‘lmasa nima qilish kerak?', 'Dacha haqida e’lon tavsifi, rasmlar, qulayliklar va mehmonlar sharhlarini bron qilishdan oldin tekshiring. Muammo yuzaga kelsa, bron raqami va dalillar bilan RoyalHouse qo‘llab-quvvatlash xizmatiga murojaat qiling.'],
-  ['Dacha narxiga nimalar kiradi?', 'Narx e’lon egasi kiritgan ijara shartlariga ko‘ra hisoblanadi. Qo‘shimcha xizmatlar, tozalash, depozit yoki boshqa to‘lovlar bo‘lsa, ular e’lon shartlarida ko‘rsatiladi.']
+const pad=(n:number)=>String(n).padStart(2,'0')
+const iso=(d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+const addDays=(date:string,amount:number)=>{const d=new Date(`${date}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+amount);return d.toISOString().slice(0,10)}
+const parse=(value:unknown):RentalSettings=>{try{return typeof value==='string'?JSON.parse(value||'{}'):(value&&typeof value==='object'?value as RentalSettings:{})}catch{return {}}}
+const numberValue=(value:unknown)=>Number(String(value??'').replace(/\s/g,''))||0
+const formatMoney=(value:number,currency:string,ru:boolean)=>`${new Intl.NumberFormat(ru?'ru-RU':'uz-UZ').format(Math.max(0,value))} ${currency==='USD'?'$':ru?'сум':'so‘m'}`
+const compactMoney=(value:number,currency:string,ru:boolean)=>{if(currency==='USD')return `$${(value/1000).toFixed(value>=10000?0:1).replace('.0','')}k`;if(value>=1000000)return `${(value/1000000).toFixed(value>=10000000?0:1).replace('.0','')} mln`;if(value>=1000)return `${Math.round(value/1000)} ming`;return `${Math.round(value)} ${ru?'сум':'so‘m'}`}
+const isWeekend=(date:string)=>{const day=new Date(`${date}T00:00:00Z`).getUTCDay();return day===0||day===6}
+const extraGuestSettings=(settings:RentalSettings)=>{const fee=numberValue(settings.extra_guest_fee??settings.extra_guest_price??settings.additional_guest_price??settings.extra_person_price??settings.extra_guest_charge);const included=numberValue(settings.included_guests)||(fee>0?numberValue(settings.max_guests):0);return {fee,included}}
+const FAQ=[
+ ['Dachani qanday bron qilish mumkin?','RoyalHouse’da dacha bron qilish uchun avval kirish va chiqish sanalarini kalendardan tanlang, mehmonlar sonini kiriting va bron summasini tekshiring. Keyin bronni rasmiylashtirish bosqichiga o‘ting.'],
+ ['Dacha egasining telefon raqami va lokatsiyasi qachon beriladi?','Dacha ijarasida RoyalHouse orqali bron qilish tizimi ishlaydi. Egasining bevosita telefon raqami, aniq lokatsiyasi va bron uchun zarur aloqa ma’lumotlari bron tasdiqlanib, avans to‘lovi amalga oshirilgandan keyin beriladi.'],
+ ['Payme yoki Click orqali dacha uchun to‘lov qilish mumkinmi?','To‘lov oynasida RoyalHouse’da mavjud bo‘lgan elektron to‘lov usullari ko‘rsatiladi. To‘lov provayderi tanlanganidan keyin avans summasi va to‘lov tafsilotlari tasdiqlanadi.'],
+ ['Dacha uchun naqd to‘lov qilish mumkinmi?','Dacha ijarasida RoyalHouse bronni platforma orqali rasmiylashtirishga asoslanadi. Naqd yoki bevosita egaga to‘lov imkoniyati aynan e’lon shartlariga bog‘liq bo‘lishi mumkin; platformadagi bron va to‘lov shartlari ustuvor hisoblanadi.'],
+ ['Dacha narxini kelishib arzonlashtirish mumkinmi?','Narxlar dacha egasi tomonidan belgilanadi. Ish kunlari, dam olish kunlari va ayrim sanalar uchun alohida narxlar bo‘lishi mumkin. Platformadagi kalendar ko‘rsatilgan narxni bron hisob-kitobiga qo‘llaydi.'],
+ ['Bronni bekor qilsam avans qaytariladimi?','Avansni qaytarish shartlari dacha e’lonining bekor qilish siyosatiga bog‘liq. Bronni tasdiqlashdan oldin qaytarish va bekor qilish shartlarini tekshirish tavsiya etiladi.'],
+ ['Bron sanalarini keyin o‘zgartirish mumkinmi?','Sana o‘zgartirish imkoniyati bron holati va dacha egasining mavjudligiga bog‘liq. Yangi sana bo‘sh bo‘lsa, qo‘llab-quvvatlash orqali bronni o‘zgartirish masalasi ko‘rib chiqiladi.'],
+ ['RoyalHouse orqali dacha bron qilish xavfsizmi?','RoyalHouse bron ma’lumotlarini platformada qayd etish, to‘lov holatini kuzatish va bron tafsilotlarini bitta joyda saqlash uchun ishlaydi. Foydalanuvchi bron va to‘lov tasdig‘ini shaxsiy kabinetidan kuzatishi mumkin.'],
+ ['Dacha rasmlardagidek bo‘lmasa nima qilish kerak?','Dacha haqida e’lon tavsifi, rasmlar, qulayliklar va mehmonlar sharhlarini bron qilishdan oldin tekshiring. Muammo yuzaga kelsa, bron raqami va dalillar bilan RoyalHouse qo‘llab-quvvatlash xizmatiga murojaat qiling.'],
+ ['Dacha narxiga nimalar kiradi?','Narx e’lon egasi kiritgan ijara shartlariga ko‘ra hisoblanadi. Qo‘shimcha mehmon to‘lovi, tozalash, depozit yoki boshqa to‘lovlar bo‘lsa, ular e’lon shartlarida ko‘rsatiladi.']
 ]
 
-export default function RentalBookingCalendar({ listingId, settingsValue, basePrice, currency, ru = false }: { listingId: string; settingsValue: string; basePrice: number; currency: string; ru?: boolean }) {
-  const [days, setDays] = useState<Day[]>([])
-  const [month, setMonth] = useState(() => new Date())
-  const [loading, setLoading] = useState(true)
-  const [checkIn, setCheckIn] = useState<string | null>(null)
-  const [checkOut, setCheckOut] = useState<string | null>(null)
-  const [guests, setGuests] = useState('1')
-  const [booking, setBooking] = useState(false)
-  const [message, setMessage] = useState('')
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const settings = useMemo(() => parse(settingsValue), [settingsValue])
-  const depositPercent = Number(settings.deposit_percent || 15)
-  const dayMap = useMemo(() => new Map(days.map(day => [day.date, day])), [days])
-
-  const load = async () => {
-    setLoading(true)
-    try {
-      const from = new Date(month.getFullYear(), month.getMonth(), 1)
-      const to = new Date(month.getFullYear(), month.getMonth() + 1, 0)
-      const response = await fetch(`/api/rentals/availability?listingId=${encodeURIComponent(listingId)}&from=${iso(from)}&to=${iso(to)}`, { cache: 'no-store' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Availability error')
-      setDays(data.days || [])
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : (ru ? 'Не удалось загрузить календарь.' : 'Kalendarni yuklab bo‘lmadi.'))
-    } finally { setLoading(false) }
-  }
-
-  useEffect(() => { void load() }, [listingId, month.getFullYear(), month.getMonth()])
-
-  useEffect(() => {
-    let mounted = true
-    const loadReviews = async () => {
-      try {
-        const db = createClient()
-        const { data } = await db.from('listing_reviews').select('id,rating,body,created_at').eq('listing_id', listingId).eq('status', 'published').order('created_at', { ascending: false }).limit(6)
-        if (mounted) setReviews((data || []) as Review[])
-      } catch { if (mounted) setReviews([]) }
-    }
-    void loadReviews()
-    return () => { mounted = false }
-  }, [listingId])
-
-  const grid = useMemo(() => {
-    const first = new Date(month.getFullYear(), month.getMonth(), 1)
-    const offset = (first.getDay() + 6) % 7
-    const totalDays = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
-    return [...Array(offset).fill(null), ...Array.from({ length: totalDays }, (_, i) => {
-      const date = iso(new Date(month.getFullYear(), month.getMonth(), i + 1))
-      return dayMap.get(date) || { date, status: 'free' as const, price: basePrice, priceType: 'base' as const }
-    })]
-  }, [month, dayMap, basePrice])
-
-  const selectedRange = useMemo(() => {
-    if (!checkIn || !checkOut) return []
-    const range: string[] = []
-    for (let date = checkIn; date < checkOut; date = addDays(date, 1)) range.push(date)
-    return range
-  }, [checkIn, checkOut])
-
-  const nights = selectedRange.length
-  const total = selectedRange.reduce((sum, date) => sum + Number(dayMap.get(date)?.price ?? basePrice), 0)
-  const deposit = Math.round(total * depositPercent / 100)
-
-  const chooseDate = (day: Day) => {
-    if (day.status !== 'free') return
-    setMessage('')
-    if (!checkIn || checkOut) { setCheckIn(day.date); setCheckOut(null); return }
-    if (day.date <= checkIn) { setCheckIn(day.date); setCheckOut(null); return }
-    const range: string[] = []
-    for (let date = checkIn; date < day.date; date = addDays(date, 1)) range.push(date)
-    if (range.some(date => dayMap.get(date)?.status && dayMap.get(date)?.status !== 'free')) {
-      setMessage(ru ? 'В выбранном диапазоне есть занятые даты.' : 'Tanlangan oraliqda band sana bor.')
-      return
-    }
-    setCheckOut(day.date)
-  }
-
-  const submit = async () => {
-    if (!checkIn || !checkOut) { setMessage(ru ? 'Сначала выберите заезд и выезд.' : 'Avval kirish va chiqish sanalarini tanlang.'); return }
-    setBooking(true); setMessage('')
-    try {
-      const response = await fetch('/api/rentals/book', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, checkIn, checkOut, guests: Number(guests), paymentProvider: 'pending' }) })
-      const data = await response.json().catch(() => ({}))
-      if (response.status === 401) { window.location.href = `/register?redirect=${encodeURIComponent(window.location.pathname)}`; return }
-      if (!response.ok) throw new Error(data.error || (ru ? 'Ошибка бронирования.' : 'Bron qilishda xatolik.'))
-      setMessage(ru ? `Запрос создан. Предоплата ${formatMoney(Number(data.depositAmount || deposit), data.currency || currency, true)}.` : `Bron so‘rovi yaratildi. Avans ${formatMoney(Number(data.depositAmount || deposit), data.currency || currency, false)}.`)
-      setCheckIn(null); setCheckOut(null); void load()
-    } catch (error) { setMessage(error instanceof Error ? error.message : (ru ? 'Ошибка бронирования.' : 'Bron qilishda xatolik.')) }
-    finally { setBooking(false) }
-  }
-
-  const monthName = month.toLocaleDateString(ru ? 'ru-RU' : 'uz-UZ', { month: 'long', year: 'numeric' })
-  const avgRating = reviews.length ? reviews.reduce((sum, review) => sum + Number(review.rating), 0) / reviews.length : 0
-  const amenities = settings.amenities || []
-  const amenityNames: Record<string, string> = { pool: 'Ochiq hovuz', indoor_pool: 'Yopiq hovuz', wifi: 'Wi‑Fi', parking: 'Avtoturargoh', kitchen: 'Oshxona', bbq: 'Barbekyu', karaoke: 'Karaoke', billiard: 'Bilyard', tennis: 'Stol tennisi', sauna: 'Sauna', playground: 'Bolalar maydonchasi', jacuzzi: 'Jakuzi' }
-  const faqSchema = FAQ.map(([question, answer]) => ({ '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: answer } }))
-
-  return <section className="mt-8 space-y-5">
-    <div className="rounded-3xl bg-white p-4 shadow-sm sm:p-7">
-      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-black">{ru ? 'Календарь и бронирование дачи' : 'Dacha ijarasi: kalendar va bron qilish'}</h2><p className="mt-1 text-sm text-slate-500">{ru ? 'Выберите даты заезда и выезда. Цена указана за 1 ночь.' : 'Kirish va chiqish sanalarini tanlang. Kalendar narxni 1 kecha uchun ko‘rsatadi.'}</p></div><div className="rounded-xl bg-amber-50 px-3 py-2 text-xs"><b>{depositPercent}% {ru ? 'предоплата' : 'avans'}</b><div className="text-slate-500">{ru ? 'Остаток при заезде' : 'Qolgan summa kirishda'}</div></div></div>
-      <div className="mx-auto mt-4 max-w-[520px] rounded-2xl border border-slate-200 p-2.5 sm:p-4">
-        <div className="flex items-center justify-between"><button type="button" aria-label="Oldingi oy" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} className="h-8 w-8 rounded-lg border text-lg font-bold hover:bg-slate-50">‹</button><b className="text-sm capitalize sm:text-base">{monthName}</b><button type="button" aria-label="Keyingi oy" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} className="h-8 w-8 rounded-lg border text-lg font-bold hover:bg-slate-50">›</button></div>
-        <div className="mt-2 grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-slate-400 sm:gap-1 sm:text-[10px]">{['DU','SE','CHO','PA','JU','SHA','YA'].map(x => <span key={x}>{x}</span>)}</div>
-        {loading ? <div className="py-8 text-center text-sm text-slate-500">{ru ? 'Загрузка...' : 'Yuklanmoqda...'}</div> : <div className="mt-1 grid grid-cols-7 gap-0.5 sm:gap-1">{grid.map((day, index) => day ? <button type="button" key={day.date} onClick={() => chooseDate(day)} disabled={day.status !== 'free'} aria-label={`${day.date} ${day.price ? formatMoney(Number(day.price), currency, ru) : ''}`} className={`min-h-11 rounded-md border p-0.5 text-center transition sm:min-h-12 sm:rounded-lg sm:p-1 ${day.status === 'booked' ? 'bg-red-50 text-red-500' : day.status === 'blocked' ? 'bg-slate-100 text-slate-400' : isWeekend(day.date) ? 'bg-amber-50 text-slate-800' : 'bg-emerald-50 text-slate-800'} ${selectedRange.includes(day.date) ? 'ring-2 ring-slate-950' : ''} ${checkIn === day.date ? 'ring-2 ring-blue-600' : ''}`}><div className="text-[11px] font-bold sm:text-xs">{Number(day.date.slice(-2))}</div><div className="mt-0.5 truncate text-[7px] leading-tight sm:text-[8px]">{day.status === 'booked' ? 'Band' : day.status === 'blocked' ? 'Yopiq' : compactMoney(Number(day.price || 0), currency, ru)}</div></button> : <span key={index} />)}</div>}
-      </div>
-      <div className="mx-auto mt-2 flex max-w-[520px] flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:text-xs"><span>🟢 Bo‘sh</span><span>🟡 Dam olish</span><span>🔴 Band</span><span>⚪ Yopiq</span></div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border bg-slate-50 p-3"><div className="text-[11px] text-slate-500">Kirish</div><b className="mt-0.5 block text-sm">{checkIn || 'Sanani tanlang'}</b></div><div className="rounded-xl border bg-slate-50 p-3"><div className="text-[11px] text-slate-500">Chiqish</div><b className="mt-0.5 block text-sm">{checkOut || 'Sanani tanlang'}</b></div><label className="rounded-xl border bg-slate-50 p-3 text-[11px] font-semibold text-slate-500">Mehmonlar<input type="number" min="1" max={Number(settings.max_guests || 99)} value={guests} onChange={e => setGuests(e.target.value)} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm font-bold text-slate-900" /></label></div>
-      <div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] text-slate-500">Tunlar</div><b className="text-sm sm:text-lg">{nights}</b></div><div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] text-slate-500">Kirishda</div><b className="text-xs sm:text-lg">{formatMoney(total - deposit, currency, ru)}</b></div><div className="rounded-xl bg-amber-50 p-3"><div className="text-[10px] text-slate-500">Avans</div><b className="text-xs sm:text-lg">{formatMoney(deposit, currency, ru)}</b></div></div>
-      <button type="button" onClick={submit} disabled={booking || !checkIn || !checkOut} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-40">{booking ? 'Bron yaratilmoqda...' : 'Joyni bron qilish va avans to‘lash'}</button>
-      {message && <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">{message}</div>}
-    </div>
-
-    <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7"><h2 className="text-xl font-black">Dacha haqida</h2><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Mehmonlar</span><b className="mt-1 block">{settings.max_guests || '—'}</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Yotoqxonalar</span><b className="mt-1 block">{settings.bedrooms || '—'}</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Yotoqlar</span><b className="mt-1 block">{Number(settings.single_beds || 0) + Number(settings.double_beds || 0) || '—'}</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Hammom/WC</span><b className="mt-1 block">{settings.bathrooms || '—'}</b></div></div><div className="mt-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border p-3 text-sm"><span className="text-slate-400">Kirish</span><b className="mt-1 block">{settings.check_in || '—'}</b></div><div className="rounded-xl border p-3 text-sm"><span className="text-slate-400">Chiqish</span><b className="mt-1 block">{settings.check_out || '—'}</b></div><div className="rounded-xl border p-3 text-sm"><span className="text-slate-400">Sokin soatlar</span><b className="mt-1 block">{settings.quiet_hours || '—'}</b></div></div>{amenities.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{amenities.map(item => <span key={item} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{amenityNames[item] || item}</span>)}</div>}</div>
-
-    <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black">Mehmonlar sharhlari</h2><p className="mt-1 text-sm text-slate-500">{reviews.length ? `★ ${avgRating.toFixed(1)} · ${reviews.length} ta sharh` : 'Hozircha e’lon qilingan sharhlar yo‘q.'}</p></div>{reviews.length > 0 && <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-black text-emerald-700">★ {avgRating.toFixed(1)}</span>}</div>{reviews.length > 0 && <div className="mt-4 space-y-3">{reviews.map(review => <article key={review.id} className="rounded-2xl border p-4"><div className="flex items-center justify-between gap-3"><b>★ {review.rating}/5</b><span className="text-xs text-slate-400">{new Date(review.created_at).toLocaleDateString(ru ? 'ru-RU' : 'uz-UZ')}</span></div>{review.body && <p className="mt-2 text-sm leading-6 text-slate-600">{review.body}</p>}</article>)}</div>}</div>
-
-    <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7"><h2 className="text-xl font-black">Ko‘p so‘raladigan savollar</h2><div className="mt-3 divide-y divide-slate-200">{FAQ.map(([question, answer], index) => <div key={question}><button type="button" aria-expanded={openFaq === index} onClick={() => setOpenFaq(openFaq === index ? null : index)} className="flex w-full items-center justify-between gap-4 py-4 text-left text-sm font-bold"><span>{question}</span><span className="shrink-0 text-lg">{openFaq === index ? '−' : '+'}</span></button>{openFaq === index && <p className="pb-4 pr-8 text-sm leading-6 text-slate-600">{answer}</p>}</div>)}</div></div>
-
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqSchema }) }} />
-  </section>
+export default function RentalBookingCalendar({listingId,settingsValue,basePrice,currency,ru=false}:{listingId:string;settingsValue:string;basePrice:number;currency:string;ru?:boolean}){
+ const [days,setDays]=useState<Day[]>([]);const [month,setMonth]=useState(()=>new Date());const [loading,setLoading]=useState(true);const [checkIn,setCheckIn]=useState<string|null>(null);const [checkOut,setCheckOut]=useState<string|null>(null);const [guests,setGuests]=useState('1');const [booking,setBooking]=useState(false);const [message,setMessage]=useState('');const [reviews,setReviews]=useState<Review[]>([]);const [openFaq,setOpenFaq]=useState<number|null>(null)
+ const settings=useMemo(()=>parse(settingsValue),[settingsValue]);const depositPercent=numberValue(settings.deposit_percent)||15;const {fee:extraGuestFee,included:includedGuests}=useMemo(()=>extraGuestSettings(settings),[settings]);const guestCount=Math.max(1,numberValue(guests)||1);const extraGuests=Math.max(0,guestCount-includedGuests);const dayMap=useMemo(()=>new Map(days.map(day=>[day.date,day])),[days])
+ const load=async()=>{setLoading(true);try{const from=new Date(month.getFullYear(),month.getMonth(),1);const to=new Date(month.getFullYear(),month.getMonth()+1,0);const response=await fetch(`/api/rentals/availability?listingId=${encodeURIComponent(listingId)}&from=${iso(from)}&to=${iso(to)}&guests=${guestCount}`,{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Availability error');setDays(data.days||[])}catch(error){setMessage(error instanceof Error?error.message:(ru?'Не удалось загрузить календарь.':'Kalendarni yuklab bo‘lmadi.'))}finally{setLoading(false)}}
+ useEffect(()=>{void load()},[listingId,month.getFullYear(),month.getMonth(),guestCount])
+ useEffect(()=>{let mounted=true;const loadReviews=async()=>{try{const db=createClient();const {data}=await db.from('listing_reviews').select('id,rating,body,created_at').eq('listing_id',listingId).eq('status','published').order('created_at',{ascending:false}).limit(6);if(mounted)setReviews((data||[]) as Review[])}catch{if(mounted)setReviews([])}};void loadReviews();return()=>{mounted=false}},[listingId])
+ const grid=useMemo(()=>{const first=new Date(month.getFullYear(),month.getMonth(),1);const offset=(first.getDay()+6)%7;const totalDays=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();return [...Array(offset).fill(null),...Array.from({length:totalDays},(_,i)=>{const date=iso(new Date(month.getFullYear(),month.getMonth(),i+1));return dayMap.get(date)||{date,status:'free' as const,price:basePrice,priceType:'base' as const}})]},[month,dayMap,basePrice])
+ const selectedRange=useMemo(()=>{if(!checkIn||!checkOut)return [];const range:string[]=[];for(let date=checkIn;date<checkOut;date=addDays(date,1))range.push(date);return range},[checkIn,checkOut])
+ const nights=selectedRange.length;const total=selectedRange.reduce((sum,date)=>sum+Number(dayMap.get(date)?.price??basePrice),0);const deposit=Math.round(total*depositPercent/100);const extraCharge=extraGuestFee*extraGuests*nights
+ const chooseDate=(day:Day)=>{if(day.status!=='free')return;setMessage('');if(!checkIn||checkOut){setCheckIn(day.date);setCheckOut(null);return}if(day.date<=checkIn){setCheckIn(day.date);setCheckOut(null);return}const range:string[]=[];for(let date=checkIn;date<day.date;date=addDays(date,1))range.push(date);if(range.some(date=>dayMap.get(date)?.status&&dayMap.get(date)?.status!=='free')){setMessage(ru?'В выбранном диапазоне есть занятые даты.':'Tanlangan oraliqda band sana bor.');return}setCheckOut(day.date)}
+ const submit=async()=>{if(!checkIn||!checkOut){setMessage(ru?'Сначала выберите заезд и выезд.':'Avval kirish va chiqish sanalarini tanlang.');return}setBooking(true);setMessage('');try{const response=await fetch('/api/rentals/book',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,checkIn,checkOut,guests:guestCount,paymentProvider:'pending'})});const data=await response.json().catch(()=>({}));if(response.status===401){window.location.href=`/register?redirect=${encodeURIComponent(window.location.pathname)}`;return}if(!response.ok)throw new Error(data.error||(ru?'Ошибка бронирования.':'Bron qilishda xatolik.'));setMessage(ru?`Запрос создан. Предоплата ${formatMoney(Number(data.depositAmount||deposit),data.currency||currency,true)}.`:`Bron so‘rovi yaratildi. Avans ${formatMoney(Number(data.depositAmount||deposit),data.currency||currency,false)}.`);setCheckIn(null);setCheckOut(null);void load()}catch(error){setMessage(error instanceof Error?error.message:(ru?'Ошибка бронирования.':'Bron qilishda xatolik.'))}finally{setBooking(false)}}
+ const monthName=month.toLocaleDateString(ru?'ru-RU':'uz-UZ',{month:'long',year:'numeric'});const avgRating=reviews.length?reviews.reduce((sum,review)=>sum+Number(review.rating),0)/reviews.length:0;const amenities=settings.amenities||[];const amenityNames:Record<string,string>={pool:'Ochiq hovuz',indoor_pool:'Yopiq hovuz',wifi:'Wi‑Fi',parking:'Avtoturargoh',kitchen:'Oshxona',bbq:'Barbekyu',karaoke:'Karaoke',billiard:'Bilyard',tennis:'Stol tennisi',sauna:'Sauna',playground:'Bolalar maydonchasi',jacuzzi:'Jakuzi'};const faqSchema=FAQ.map(([question,answer])=>({'@type':'Question',name:question,acceptedAnswer:{'@type':'Answer',text:answer}}))
+ return <section className="mt-8 space-y-5">
+  <div className="rounded-3xl bg-white p-4 shadow-sm sm:p-7"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-black">{ru?'Календарь и бронирование дачи':'Dacha ijarasi: kalendar va bron qilish'}</h2><p className="mt-1 text-sm text-slate-500">{ru?'Выберите даты заезда и выезда. Цена указана за 1 ночь.':'Kirish va chiqish sanalarini tanlang. Kalendar narxni 1 kecha uchun ko‘rsatadi.'}</p></div><div className="rounded-xl bg-amber-50 px-3 py-2 text-xs"><b>{depositPercent}% {ru?'предоплата':'avans'}</b><div className="text-slate-500">{ru?'Остаток при заезде':'Qolgan summa kirishda'}</div></div></div>
+   <div className="mx-auto mt-4 max-w-[520px] rounded-2xl border border-slate-200 p-2.5 sm:p-4"><div className="flex items-center justify-between"><button type="button" aria-label="Oldingi oy" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))} className="h-8 w-8 rounded-lg border text-lg font-bold hover:bg-slate-50">‹</button><b className="text-sm capitalize sm:text-base">{monthName}</b><button type="button" aria-label="Keyingi oy" onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))} className="h-8 w-8 rounded-lg border text-lg font-bold hover:bg-slate-50">›</button></div><div className="mt-2 grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-slate-400 sm:gap-1 sm:text-[10px]">{['DU','SE','CHO','PA','JU','SHA','YA'].map(x=><span key={x}>{x}</span>)}</div>{loading?<div className="py-8 text-center text-sm text-slate-500">{ru?'Загрузка...':'Yuklanmoqda...'}</div>:<div className="mt-1 grid grid-cols-7 gap-0.5 sm:gap-1">{grid.map((day,index)=>day?<button type="button" key={day.date} onClick={()=>chooseDate(day)} disabled={day.status!=='free'} aria-label={`${day.date} ${day.price?formatMoney(Number(day.price),currency,ru):''}`} className={`min-h-11 rounded-md border p-0.5 text-center transition sm:min-h-12 sm:rounded-lg sm:p-1 ${day.status==='booked'?'bg-red-50 text-red-500':day.status==='blocked'?'bg-slate-100 text-slate-400':isWeekend(day.date)?'bg-amber-50 text-slate-800':'bg-emerald-50 text-slate-800'} ${selectedRange.includes(day.date)?'ring-2 ring-slate-950':''} ${checkIn===day.date?'ring-2 ring-blue-600':''}`}><div className="text-[11px] font-bold sm:text-xs">{Number(day.date.slice(-2))}</div><div className="mt-0.5 truncate text-[7px] leading-tight sm:text-[8px]">{day.status==='booked'?'Band':day.status==='blocked'?'Yopiq':compactMoney(Number(day.price||0),currency,ru)}</div></button>:<span key={index}/>)}</div>}</div>
+   <div className="mx-auto mt-2 flex max-w-[520px] flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:text-xs"><span>🟢 Bo‘sh</span><span>🟡 Dam olish</span><span>🔴 Band</span><span>⚪ Yopiq</span></div>
+   <div className="mt-4 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border bg-slate-50 p-3"><div className="text-[11px] text-slate-500">Kirish</div><b className="mt-0.5 block text-sm">{checkIn||'Sanani tanlang'}</b></div><div className="rounded-xl border bg-slate-50 p-3"><div className="text-[11px] text-slate-500">Chiqish</div><b className="mt-0.5 block text-sm">{checkOut||'Sanani tanlang'}</b></div><label className="rounded-xl border bg-slate-50 p-3 text-[11px] font-semibold text-slate-500">Mehmonlar<input type="number" min="1" max={Number(settings.max_guests||99)} value={guests} onChange={e=>setGuests(e.target.value)} className="mt-1 w-full rounded-lg border bg-white p-2 text-sm font-bold text-slate-900"/></label></div>
+   {extraGuestFee>0&&<div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">{includedGuests} ta mehmon narxga kiritilgan. {extraGuests>0?`${extraGuests} ta qo‘shimcha mehmon × ${formatMoney(extraGuestFee,currency,ru)} / kecha = ${formatMoney(extraCharge,currency,ru)}.`:`Har bir qo‘shimcha mehmon: ${formatMoney(extraGuestFee,currency,ru)} / kecha.`}</div>}
+   <div className="mt-3 grid grid-cols-3 gap-2"><div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] text-slate-500">Tunlar</div><b className="text-sm sm:text-lg">{nights}</b></div><div className="rounded-xl bg-slate-50 p-3"><div className="text-[10px] text-slate-500">Kirishda</div><b className="text-xs sm:text-lg">{formatMoney(total-deposit,currency,ru)}</b></div><div className="rounded-xl bg-amber-50 p-3"><div className="text-[10px] text-slate-500">Avans</div><b className="text-xs sm:text-lg">{formatMoney(deposit,currency,ru)}</b></div></div>
+   <button type="button" onClick={submit} disabled={booking||!checkIn||!checkOut} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-40">{booking?'Bron yaratilmoqda...':'Joyni bron qilish va avans to‘lash'}</button>{message&&<div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">{message}</div>}
+  </div>
+  <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7"><h2 className="text-xl font-black">Dacha haqida</h2><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Mehmonlar</span><b className="mt-1 block">{settings.max_guests||'—'}</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Yotoqxonalar</span><b className="mt-1 block">{settings.bedrooms||'—'}</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Yotoqlar</span><b className="mt-1 block">{Number(settings.single_beds||0)+Number(settings.double_beds||0)||'—'}</b></div><div className="rounded-xl bg-slate-50 p-3"><span className="text-xs text-slate-400">Hammom/WC</span><b className="mt-1 block">{settings.bathrooms||'—'}</b></div></div><div className="mt-3 grid gap-2 sm:grid-cols-3"><div className="rounded-xl border p-3 text-sm"><span className="text-slate-400">Kirish</span><b className="mt-1 block">{settings.check_in||'—'}</b></div><div className="rounded-xl border p-3 text-sm"><span className="text-slate-400">Chiqish</span><b className="mt-1 block">{settings.check_out||'—'}</b></div><div className="rounded-xl border p-3 text-sm"><span className="text-slate-400">Sokin soatlar</span><b className="mt-1 block">{settings.quiet_hours||'—'}</b></div></div>{amenities.length>0&&<div className="mt-4 flex flex-wrap gap-2">{amenities.map(item=><span key={item} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{amenityNames[item]||item}</span>)}</div>}</div>
+  <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black">Mehmonlar sharhlari</h2><p className="mt-1 text-sm text-slate-500">{reviews.length?`★ ${avgRating.toFixed(1)} · ${reviews.length} ta sharh`:'Hozircha e’lon qilingan sharhlar yo‘q.'}</p></div>{reviews.length>0&&<span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-black text-emerald-700">★ {avgRating.toFixed(1)}</span>}</div>{reviews.length>0&&<div className="mt-4 space-y-3">{reviews.map(review=><article key={review.id} className="rounded-2xl border p-4"><div className="flex items-center justify-between gap-3"><b>★ {review.rating}/5</b><span className="text-xs text-slate-400">{new Date(review.created_at).toLocaleDateString(ru?'ru-RU':'uz-UZ')}</span></div>{review.body&&<p className="mt-2 text-sm leading-6 text-slate-600">{review.body}</p>}</article>)}</div>}</div>
+  <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7"><h2 className="text-xl font-black">Ko‘p so‘raladigan savollar</h2><div className="mt-3 divide-y divide-slate-200">{FAQ.map(([question,answer],index)=><div key={question}><button type="button" aria-expanded={openFaq===index} onClick={()=>setOpenFaq(openFaq===index?null:index)} className="flex w-full items-center justify-between gap-4 py-4 text-left text-sm font-bold"><span>{question}</span><span className="shrink-0 text-lg">{openFaq===index?'−':'+'}</span></button>{openFaq===index&&<p className="pb-4 pr-8 text-sm leading-6 text-slate-600">{answer}</p>}</div>)}</div></div>
+  <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({'@context':'https://schema.org','@type':'FAQPage',mainEntity:faqSchema})}}/>
+ </section>
 }
