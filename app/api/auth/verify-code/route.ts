@@ -1,46 +1,80 @@
 import { NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
-const TEST_CODE = process.env.AUTH_TEST_OTP || '321321'
+const MAX_ATTEMPTS = 5
+
+function normalizePhone(value: unknown) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (digits.startsWith('998') && digits.length === 12) return `+${digits}`
+  return ''
+}
+
+function hashOtp(code: string) {
+  return createHash('sha256').update(code).digest('hex')
+}
 
 export async function POST(request: Request) {
-  if (process.env.AUTH_TEST_MODE !== 'true') {
-    return NextResponse.json(
-      { error: 'SMS tasdiqlash xizmati hali sozlanmagan.' },
-      { status: 503 },
-    )
-  }
-
   const { phone, code } = await request.json()
-  const normalizedPhone = String(phone || '').replace(/\s/g, '')
-  const normalizedCode = String(code || '')
+  const normalizedPhone = normalizePhone(phone)
+  const normalizedCode = String(code || '').trim()
 
   if (!/^\+998\d{9}$/.test(normalizedPhone)) {
-    return NextResponse.json(
-      { error: 'Telefon raqami noto‘g‘ri.' },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: 'Telefon raqami noto‘g‘ri.' }, { status: 400 })
   }
 
-  if (normalizedCode !== TEST_CODE) {
-    return NextResponse.json(
-      { error: 'Tasdiqlash kodi noto‘g‘ri.' },
-      { status: 401 },
-    )
+  if (!/^\d{6}$/.test(normalizedCode)) {
+    return NextResponse.json({ error: 'Tasdiqlash kodi 6 xonali bo‘lishi kerak.' }, { status: 400 })
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json(
-      { error: 'Supabase server kaliti sozlanmagan.' },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: 'Supabase server kaliti sozlanmagan.' }, { status: 500 })
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+
+  const { data: otp, error: otpLookupError } = await admin
+    .from('sms_otp_codes')
+    .select('id, code_hash, expires_at, attempts')
+    .eq('phone', normalizedPhone)
+    .is('used_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (otpLookupError) return NextResponse.json({ error: otpLookupError.message }, { status: 500 })
+
+  if (!otp) {
+    return NextResponse.json({ error: 'Tasdiqlash kodi topilmadi. Yangi kod so‘rang.' }, { status: 401 })
+  }
+
+  if (new Date(otp.expires_at).getTime() <= Date.now()) {
+    return NextResponse.json({ error: 'Tasdiqlash kodi muddati tugagan. Yangi kod so‘rang.' }, { status: 401 })
+  }
+
+  if (otp.attempts >= MAX_ATTEMPTS) {
+    return NextResponse.json({ error: 'Urinishlar soni tugadi. Yangi kod so‘rang.' }, { status: 429 })
+  }
+
+  const isValid = hashOtp(normalizedCode) === otp.code_hash
+
+  if (!isValid) {
+    const nextAttempts = otp.attempts + 1
+    await admin.from('sms_otp_codes').update({ attempts: nextAttempts }).eq('id', otp.id)
+    return NextResponse.json({ error: 'Tasdiqlash kodi noto‘g‘ri.' }, { status: 401 })
+  }
+
+  const { error: usedError } = await admin
+    .from('sms_otp_codes')
+    .update({ used_at: new Date().toISOString() })
+    .eq('id', otp.id)
+    .is('used_at', null)
+
+  if (usedError) return NextResponse.json({ error: usedError.message }, { status: 500 })
 
   // Telefon bo‘yicha mavjud Royalhouse profilini topamiz.
   // Profil ID auth.users.id bilan bir xil bo‘lib, eski e’lonlarning owner_id qiymati shu ID'ga bog‘langan.
@@ -54,12 +88,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
   }
 
-  const testEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
+  const authEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
   let user
 
-  // Auth'da bir xil telefon uchun avval yaratilgan test foydalanuvchilari bo‘lishi mumkin.
-  // Avval ularni topamiz, chunki testEmail boshqa (yetim/duplicate) user'da band bo‘lsa,
-  // to‘g‘ri profilni update qilishda "Error updating user" chiqadi.
   const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
 
@@ -72,10 +103,8 @@ export async function POST(request: Request) {
       )
     }
 
-    // testEmail boshqa auth user'da band bo‘lsa, o‘sha duplicate user'ni xavfsiz
-    // rezerv emailga ko‘chiramiz. Profil va e’lonlar tegilmaydi.
     const emailOwner = usersData.users.find(
-      (item) => item.email?.toLowerCase() === testEmail.toLowerCase() && item.id !== existingProfile.id,
+      (item) => item.email?.toLowerCase() === authEmail.toLowerCase() && item.id !== existingProfile.id,
     )
 
     if (emailOwner) {
@@ -93,31 +122,30 @@ export async function POST(request: Request) {
     }
 
     const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
-      email: testEmail,
+      email: authEmail,
       email_confirm: true,
-      password: TEST_CODE,
+      password: normalizedCode,
       user_metadata: { ...(existingUserData.user.user_metadata || {}), phone: normalizedPhone },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
   } else {
-    // Yangi foydalanuvchi uchun avvalgi test-auth oqimini saqlaymiz.
-    user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
+    user = usersData.users.find((item) => item.email === authEmail || item.phone === normalizedPhone)
 
     if (!user) {
       const { data, error } = await admin.auth.admin.createUser({
-        email: testEmail,
+        email: authEmail,
         email_confirm: true,
-        password: TEST_CODE,
+        password: normalizedCode,
         user_metadata: { phone: normalizedPhone },
       })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       user = data.user
     } else {
       const { data, error } = await admin.auth.admin.updateUserById(user.id, {
-        email: testEmail,
+        email: authEmail,
         email_confirm: true,
-        password: TEST_CODE,
+        password: normalizedCode,
         user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
       })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -127,10 +155,7 @@ export async function POST(request: Request) {
 
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   if (!publishableKey) {
-    return NextResponse.json(
-      { error: 'Supabase publishable key sozlanmagan.' },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: 'Supabase publishable key sozlanmagan.' }, { status: 500 })
   }
 
   const authClient = createClient(supabaseUrl, publishableKey, {
@@ -138,8 +163,8 @@ export async function POST(request: Request) {
   })
 
   const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({
-    email: testEmail,
-    password: TEST_CODE,
+    email: authEmail,
+    password: normalizedCode,
   })
 
   if (signInError || !sessionData.session) {
@@ -151,7 +176,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    testMode: true,
+    testMode: false,
     userId: user.id,
     session: {
       access_token: sessionData.session.access_token,
