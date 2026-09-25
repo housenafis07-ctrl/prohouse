@@ -2,6 +2,7 @@
 
 import Script from 'next/script'
 import { FormEvent, useEffect, useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
 
 type Lang = 'uz' | 'ru'
 
@@ -56,22 +57,47 @@ const copy = {
 
 export default function TelegramMiniApp() {
   const [ready, setReady] = useState(false)
-  const [lang, setLang] = useState<Lang>('uz')
+  const [lang, setLang] = useState<Lang>(() => typeof window !== 'undefined' && localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
   const [keyword, setKeyword] = useState('')
   const t = copy[lang]
 
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp
-    if (!tg) return
-    tg.ready()
-    tg.expand()
-    setReady(true)
+    if (tg) {
+      tg.ready()
+      tg.expand()
+      setReady(true)
+    }
+
+    const syncLanguage = () => setLang(localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
+    window.addEventListener('royalhouse-language-change', syncLanguage)
+    window.addEventListener('storage', syncLanguage)
+    return () => {
+      window.removeEventListener('royalhouse-language-change', syncLanguage)
+      window.removeEventListener('storage', syncLanguage)
+    }
   }, [])
+
+  const changeLanguage = (next: Lang) => {
+    setLang(next)
+    localStorage.setItem('royalhouse-lang', next)
+    window.dispatchEvent(new Event('royalhouse-language-change'))
+  }
 
   const openPath = (path: string) => {
     const tg = (window as any).Telegram?.WebApp
     if (tg) tg.openLink(`${window.location.origin}${path}`)
     else window.location.href = path
+  }
+
+  const openInMiniApp = (path: string) => {
+    window.location.href = path
+  }
+
+  const handlePlaceAd = async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    openInMiniApp(user ? '/listings/new' : '/register?redirect=/listings/new')
   }
 
   const search = (event: FormEvent) => {
@@ -93,7 +119,7 @@ export default function TelegramMiniApp() {
   return (
     <>
       <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" />
-      <main className="min-h-screen bg-[#f4f7fa] pb-24 text-slate-900">
+      <main data-no-global-i18n className="min-h-screen bg-[#f4f7fa] pb-24 text-slate-900">
         <section className="relative overflow-hidden bg-gradient-to-b from-[#4381c5] to-[#eef5fb] px-4 pb-8 pt-7">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10" />
           <div className="absolute -left-24 top-28 h-48 w-48 rounded-full bg-white/10" />
@@ -150,7 +176,7 @@ export default function TelegramMiniApp() {
               </div>
             </button>
 
-            <button type="button" onClick={() => openPath('/listings/new')} className="w-full rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition active:scale-[.99]">
+            <button type="button" onClick={handlePlaceAd} className="w-full rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition active:scale-[.99]">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-2xl font-black text-white">+</div>
                 <div className="min-w-0 flex-1">
@@ -163,8 +189,8 @@ export default function TelegramMiniApp() {
           </div>
 
           <div className="mt-5 flex justify-center gap-2 text-xs font-bold">
-            <button type="button" onClick={() => setLang('uz')} aria-pressed={lang === 'uz'} className={`rounded-full px-4 py-2 transition ${lang === 'uz' ? 'bg-blue-500 text-white' : 'bg-white text-slate-400'}`}>UZ</button>
-            <button type="button" onClick={() => setLang('ru')} aria-pressed={lang === 'ru'} className={`rounded-full px-4 py-2 transition ${lang === 'ru' ? 'bg-blue-500 text-white' : 'bg-white text-slate-400'}`}>RU</button>
+            <button type="button" onClick={() => changeLanguage('uz')} aria-pressed={lang === 'uz'} className={`rounded-full px-4 py-2 transition ${lang === 'uz' ? 'bg-blue-500 text-white' : 'bg-white text-slate-400'}`}>UZ</button>
+            <button type="button" onClick={() => changeLanguage('ru')} aria-pressed={lang === 'ru'} className={`rounded-full px-4 py-2 transition ${lang === 'ru' ? 'bg-blue-500 text-white' : 'bg-white text-slate-400'}`}>RU</button>
           </div>
 
           <p className="mt-4 text-center text-[10px] text-slate-300">{ready ? t.connected : t.app}</p>
