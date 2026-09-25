@@ -3,6 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 
 const TEST_CODE = process.env.AUTH_TEST_OTP || '321321'
 
+const normalizeStoredPhone = (value: unknown) => {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (digits.length === 12 && digits.startsWith('998')) return `+${digits}`
+  if (digits.length === 9) return `+998${digits}`
+  return String(value || '').replace(/\s/g, '')
+}
+
 export async function POST(request: Request) {
   if (process.env.AUTH_TEST_MODE !== 'true') {
     return NextResponse.json(
@@ -42,26 +49,33 @@ export async function POST(request: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Telefon bo‘yicha mavjud Royalhouse profilini topamiz.
-  // Profil ID auth.users.id bilan bir xil bo‘lib, eski e’lonlarning owner_id qiymati shu ID'ga bog‘langan.
-  const { data: existingProfile, error: profileLookupError } = await admin
+  // Eski profillarda telefon raqami +998 97 604 44 94, 998976044494,
+  // +998-97-604-44-94 kabi formatlarda saqlangan bo‘lishi mumkin.
+  // Oxirgi 9 raqam bo‘yicha topib, keyin serverda yagona formatga keltiramiz.
+  const phoneSuffix = normalizedPhone.slice(-9)
+  const { data: profileMatches, error: profileLookupError } = await admin
     .from('profiles')
     .select('id, phone')
-    .eq('phone', normalizedPhone)
-    .maybeSingle()
+    .ilike('phone', `%${phoneSuffix}`)
+    .limit(10)
 
   if (profileLookupError) {
     return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
   }
 
+  const exactProfile = profileMatches?.find(
+    (profile) => normalizeStoredPhone(profile.phone) === normalizedPhone,
+  )
+  const existingProfile = exactProfile || profileMatches?.[0] || null
+
   const testEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
-  let user
 
   // Auth'da bir xil telefon uchun avval yaratilgan test foydalanuvchilari bo‘lishi mumkin.
-  // Avval ularni topamiz, chunki testEmail boshqa (yetim/duplicate) user'da band bo‘lsa,
-  // to‘g‘ri profilni update qilishda "Error updating user" chiqadi.
+  // Profil topilmasa ham Auth metadata/email orqali eski foydalanuvchini qayta ishlatamiz.
   const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+
+  let user
 
   if (existingProfile?.id) {
     const { data: existingUserData, error: existingUserError } = await admin.auth.admin.getUserById(existingProfile.id)
@@ -72,8 +86,19 @@ export async function POST(request: Request) {
       )
     }
 
-    // testEmail boshqa auth user'da band bo‘lsa, o‘sha duplicate user'ni xavfsiz
-    // rezerv emailga ko‘chiramiz. Profil va e’lonlar tegilmaydi.
+    // Profil topilgan bo‘lsa, uning telefonini canonical formatga bir marta tuzatamiz.
+    // ID o‘zgarmaydi, shuning uchun mavjud e’lonlarning owner_id bog‘lanishi saqlanadi.
+    if (existingProfile.phone !== normalizedPhone) {
+      const { error: phoneUpdateError } = await admin
+        .from('profiles')
+        .update({ phone: normalizedPhone })
+        .eq('id', existingProfile.id)
+
+      if (phoneUpdateError) {
+        return NextResponse.json({ error: phoneUpdateError.message }, { status: 500 })
+      }
+    }
+
     const emailOwner = usersData.users.find(
       (item) => item.email?.toLowerCase() === testEmail.toLowerCase() && item.id !== existingProfile.id,
     )
@@ -101,8 +126,13 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     user = data.user
   } else {
-    // Yangi foydalanuvchi uchun avvalgi test-auth oqimini saqlaymiz.
-    user = usersData.users.find((item) => item.email === testEmail || item.phone === normalizedPhone)
+    const normalizedUser = (item: typeof usersData.users[number]) =>
+      normalizeStoredPhone(item.phone) === normalizedPhone ||
+      normalizeStoredPhone(item.user_metadata?.phone) === normalizedPhone
+
+    user = usersData.users.find(
+      (item) => normalizedUser(item) || item.email?.toLowerCase() === testEmail.toLowerCase(),
+    )
 
     if (!user) {
       const { data, error } = await admin.auth.admin.createUser({
