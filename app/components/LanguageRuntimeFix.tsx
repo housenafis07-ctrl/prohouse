@@ -6,8 +6,8 @@ type Lang = 'uz' | 'ru'
 
 const TOGGLE_LABELS = new Set(['O‘z / Ru', 'Ru / O‘z'])
 const PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*$/i
-const RENT_PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*\/\s*(oy|мес\.)\s*$/i
-const RENT_PERIOD_RE = /^\s*\/\s*(oy|мес\.)\s*$/i
+const RENT_PRICE_RE = /^\s*[\d\s.,]+(?:\s*(?:mln|mlrd|ming|млн|млрд|тыс|тысяч))?\s*(so[‘']m|сум)\s*\/\s*(oy|месяц|мес\.)\s*$/i
+const RENT_PERIOD_RE = /^\s*\/\s*(oy|месяц|мес\.)\s*$/i
 
 function getLang(): Lang {
   return typeof window !== 'undefined' && window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
@@ -20,9 +20,18 @@ function protectLanguageToggles() {
   })
 }
 
+function removeLegacyRentalTaxonomy() {
+  document.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    if (element.childElementCount > 0) return
+    if ((element.textContent ?? '').trim() !== 'rent_dacha') return
+    const chip = element.closest('div.inline-flex') || element.parentElement
+    if (chip instanceof HTMLElement) chip.remove()
+  })
+}
+
 function translatePriceText(value: string, lang: Lang) {
   if (RENT_PRICE_RE.test(value)) {
-    return value.replace(/(so[‘']m|сум)\s*\/\s*(oy|мес\.)\s*$/i, lang === 'ru' ? 'сум / мес.' : 'so‘m / oy')
+    return value.replace(/(so[‘']m|сум)\s*\/\s*(oy|месяц|мес\.)\s*$/i, lang === 'ru' ? 'сум / месяц' : 'so‘m / oy')
   }
   if (!PRICE_RE.test(value)) return value
   return value.replace(/(so[‘']m|сум)\s*$/i, lang === 'ru' ? 'сум' : 'so‘m')
@@ -30,7 +39,7 @@ function translatePriceText(value: string, lang: Lang) {
 
 function translateRentalPeriod(value: string, lang: Lang) {
   if (!RENT_PERIOD_RE.test(value)) return value
-  return lang === 'ru' ? ' / мес.' : ' / oy'
+  return lang === 'ru' ? ' / месяц' : ' / oy'
 }
 
 function translatePrices() {
@@ -55,6 +64,7 @@ function translatePrices() {
 export default function LanguageRuntimeFix() {
   useLayoutEffect(() => {
     protectLanguageToggles()
+    removeLegacyRentalTaxonomy()
     translatePrices()
 
     let frame = 0
@@ -63,6 +73,7 @@ export default function LanguageRuntimeFix() {
       frame = window.requestAnimationFrame(() => {
         frame = 0
         protectLanguageToggles()
+        removeLegacyRentalTaxonomy()
         translatePrices()
       })
     }
