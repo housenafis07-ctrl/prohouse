@@ -54,6 +54,57 @@ const PAIRS: Pair[] = [
   ['Mening e’lonlarim', 'Мои объявления'],
   ['Shaxsiy kabinet', 'Личный кабинет'],
   ['7 bosqichda', 'в 7 шагах'],
+  ['Ijara va bron uchun ma’lumotlar', 'Данные для аренды и бронирования'],
+  ['Bu ma’lumotlar e’lon sahifasida ko‘rsatiladi.', 'Эти данные будут показаны на странице объявления.'],
+  ['Maks. mehmonlar', 'Макс. гостей'],
+  ['Narxga kiradigan mehmonlar', 'Гостей включено в цену'],
+  ['Ortiqcha mehmon / kecha', 'Доп. гость / ночь'],
+  ['Belgilangan mehmon sonidan ortiq har bir mehmon uchun.', 'Для каждого гостя сверх включённого количества.'],
+  ['Yotoqxonalar', 'Спален'],
+  ['Bir kishilik yotoqlar', 'Односпальных мест'],
+  ['Ikki kishilik yotoqlar', 'Двуспальных мест'],
+  ['Hammom/WC', 'Санузлов'],
+  ['Kirish', 'Заезд'],
+  ['Chiqish', 'Выезд'],
+  ['Sokin soatlar', 'Тихие часы'],
+  ['Joylashish shartlari', 'Условия размещения'],
+  ['Korporativ mehmonlar', 'Корпоративные гости'],
+  ['Spirtli ichimliklar', 'Спиртные напитки'],
+  ['Uy hayvonlari', 'Домашние животные'],
+  ['Nikoh guvohnomasi', 'Свидетельство о браке'],
+  ['Qulayliklar', 'Удобства'],
+  ['Ochiq hovuz', 'Открытый бассейн'],
+  ['Yopiq hovuz', 'Крытый бассейн'],
+  ['Avtoturargoh', 'Парковка'],
+  ['Oshxona', 'Кухня'],
+  ['Barbekyu', 'Барбекю'],
+  ['Karaoke', 'Караоке'],
+  ['Bilyard', 'Бильярд'],
+  ['Stol tennisi', 'Настольный теннис'],
+  ['Sauna', 'Сауна'],
+  ['Bolalar maydonchasi', 'Детская площадка'],
+  ['Jakuzi', 'Джакузи'],
+  ['Kalendar bo‘yicha narxlar', 'Цены по календарю'],
+  ['Ish kunlari va dam olish kunlari uchun alohida narx bering. Alohida sana narxi ustun turadi.', 'По умолчанию можно задать разные цены для будней и выходных. Отдельная дата имеет приоритет.'],
+  ['Ish kunlari', 'Будни'],
+  ['Dam olish kunlari', 'Выходные'],
+  ['Du–Ju', 'Пн–Пт'],
+  ['Sha–Ya', 'Сб–Вс'],
+  ['Mavjudlik kalendari', 'Календарь доступности'],
+  ['Sanani bosib band/yopiq qilib qo‘ying. Sana ostidagi narx — 1 kecha narxi.', 'Нажмите на дату, чтобы закрыть или открыть её. Цена под датой — цена за ночь.'],
+  ['Sana narxi', 'Цена даты'],
+  ['Bo‘sh', 'Свободно'],
+  ['Dam olish', 'Выходной'],
+  ['Yopiq', 'Закрыто'],
+  ['Alohida sana narxi ustun', 'Отдельная цена даты имеет приоритет'],
+  ['15% avans', '15% аванс'],
+]
+
+const DUPLICATE_RENTAL_LABELS = [
+  'Maks. mehmonlar', 'Narxga kiradigan mehmonlar', 'Ortiqcha mehmon / kecha',
+  'Yotoqxonalar', 'Bir kishilik yotoqlar', 'Ikki kishilik yotoqlar', 'Hammom/WC',
+  'Макс. гостей', 'Гостей включено в цену', 'Доп. гость / ночь', 'Спален',
+  'Односпальных мест', 'Двуспальных мест', 'Санузлов',
 ]
 
 function translateText(root: ParentNode) {
@@ -73,10 +124,28 @@ function translateText(root: ParentNode) {
   }
 }
 
+function cleanupRentalEditFields() {
+  const labels = Array.from(document.querySelectorAll('label'))
+  for (const label of labels) {
+    if (label.closest('[data-rental-booking-settings="true"]')) continue
+    const text = (label.textContent || '').replace(/\s+/g, ' ').trim()
+    if (DUPLICATE_RENTAL_LABELS.some(item => text === item || text.startsWith(item))) {
+      ;(label as HTMLElement).style.display = 'none'
+      continue
+    }
+    if (text.includes('Ipotekaga mumkin') || text.includes('Подходит для ипотеки')) {
+      ;(label as HTMLElement).style.display = 'none'
+    }
+  }
+}
+
 export default function EditListingLanguageFix() {
   useEffect(() => {
     const isRussian = () => window.localStorage.getItem('prohouse-lang') === 'ru'
-    const run = () => { if (isRussian()) translateText(document.body) }
+    const run = () => {
+      if (isRussian()) translateText(document.body)
+      cleanupRentalEditFields()
+    }
     run()
     const observer = new MutationObserver(() => run())
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
