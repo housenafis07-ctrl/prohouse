@@ -51,30 +51,6 @@ export default function ListingCardIconStyle() {
             heading.insertAdjacentElement('afterend', box)
           }
         }
-
-        // Rental detail currently renders some dacha data twice. Keep the richer
-        // “Sig‘im va qulayliklar” block and move only the unique timing/bathroom
-        // rows from “Dacha haqida” into it.
-        const sectionByHeading = (value: string) => Array.from(document.querySelectorAll('section')).find((section) => section.querySelector('h2')?.textContent?.trim() === value) || null
-        const capacitySection = sectionByHeading('Sig‘im va qulayliklar')
-        const aboutSection = sectionByHeading('Dacha haqida')
-        if (capacitySection && aboutSection && !capacitySection.querySelector('[data-rh-rental-merged]')) {
-          const wanted = ['Hammom/WC', 'Kirish', 'Chiqish', 'Sokin soatlar']
-          const rows = Array.from(aboutSection.querySelectorAll('div')).filter((row) => {
-            const label = row.querySelector('span')?.textContent?.trim() || ''
-            return wanted.includes(label)
-          })
-          if (rows.length) {
-            const block = document.createElement('div')
-            block.setAttribute('data-rh-rental-merged','true')
-            block.className = 'mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2'
-            for (const row of rows) block.appendChild(row.cloneNode(true))
-            capacitySection.querySelector('div.rounded-2xl')?.appendChild(block)
-          } else {
-            capacitySection.setAttribute('data-rh-rental-merged','true')
-          }
-          aboutSection.style.display = 'none'
-        }
         return
       }
 
