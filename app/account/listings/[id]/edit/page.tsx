@@ -1,5 +1,6 @@
 import EditListingWizard from './EditListingWizard'
+import EditListingLanguageFix from './EditListingLanguageFix'
 
 export default function EditListingPage() {
-  return <EditListingWizard />
+  return <><EditListingLanguageFix /><EditListingWizard /></>
 }
