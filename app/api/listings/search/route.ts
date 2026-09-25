@@ -45,6 +45,25 @@ function escapeSearchTerm(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/%/g, '\\%').replace(/_/g, '\\_').trim()
 }
 
+// Location data has historically used both "Bo'stonliq" and
+// "Bo'stonliq tumani" (and similar variants). Expand region districts
+// so old listings are still found when a user selects the region.
+function districtVariants(districts: string[]) {
+  const variants = new Set<string>()
+  for (const district of districts) {
+    variants.add(district)
+    const withoutSuffix = district.replace(/\s+(tumani|shahri)$/i, '').trim()
+    if (withoutSuffix) {
+      variants.add(withoutSuffix)
+      variants.add(`${withoutSuffix} tumani`)
+      variants.add(`${withoutSuffix} shahri`)
+    }
+    variants.add(district.replace(/'/g, '‘'))
+    variants.add(district.replace(/‘/g, "'"))
+  }
+  return Array.from(variants)
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const params = request.nextUrl.searchParams
@@ -87,8 +106,11 @@ export async function GET(request: NextRequest) {
   if (currency) query = query.eq('currency', currency)
   if (region) {
     const regionData = UZBEKISTAN_LOCATIONS.find((item) => item.name === region)
-    if (region === 'Toshkent shahri') query = query.eq('city', 'Toshkent')
-    else if (regionData?.districts.length) query = query.in('district', regionData.districts)
+    if (region === 'Toshkent shahri') {
+      query = query.eq('city', 'Toshkent')
+    } else if (regionData?.districts.length) {
+      query = query.in('district', districtVariants(regionData.districts))
+    }
   }
   if (!listingType && tab === 'sale') query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
   else if (!listingType && tab === 'rent') query = query.eq('listing_type', 'rent')
