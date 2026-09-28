@@ -4,7 +4,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'RoyalHouse — O‘zbekistonda ko‘chmas mulk',
   description: 'O‘zbekistonda uy, kvartira, hovli va boshqa ko‘chmas mulkni topish, sotish va ijaraga olish platformasi.',
-  alternates: { canonical: 'https://royalhouse.uz/uz', languages: { uz: 'https://royalhouse.uz/uz', ru: 'https://royalhouse.uz/ru', 'x-default': 'https://royalhouse.uz/uz' } },
+  alternates: { canonical: 'https://royalhouse.uz/uz', languages: { uz: 'https://royalhouse.uz/uz', ru: 'https://royalhouse.uz/ru', 'x-default': 'https://royalhouse.uz/' } },
   openGraph: { locale: 'uz_UZ', url: 'https://royalhouse.uz/uz', siteName: 'RoyalHouse', title: 'RoyalHouse — O‘zbekistonda ko‘chmas mulk', description: 'Uy toping, e’lon joylashtiring va ko‘chmas mulk imkoniyatlarini RoyalHouse’da ko‘ring.' },
 }
 

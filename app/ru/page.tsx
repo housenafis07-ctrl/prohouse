@@ -4,7 +4,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'RoyalHouse — недвижимость в Узбекистане',
   description: 'Поиск, продажа и аренда домов, квартир и другой недвижимости в Узбекистане на RoyalHouse.',
-  alternates: { canonical: 'https://royalhouse.uz/ru', languages: { uz: 'https://royalhouse.uz/uz', ru: 'https://royalhouse.uz/ru', 'x-default': 'https://royalhouse.uz/uz' } },
+  alternates: { canonical: 'https://royalhouse.uz/ru', languages: { uz: 'https://royalhouse.uz/uz', ru: 'https://royalhouse.uz/ru', 'x-default': 'https://royalhouse.uz/' } },
   openGraph: { locale: 'ru_RU', url: 'https://royalhouse.uz/ru', siteName: 'RoyalHouse', title: 'RoyalHouse — недвижимость в Узбекистане', description: 'Находите жильё, размещайте объявления и изучайте предложения недвижимости на RoyalHouse.' },
 }
 
