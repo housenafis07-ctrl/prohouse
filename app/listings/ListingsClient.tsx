@@ -6,13 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import ListingsMap from '@/app/components/ListingsMap'
 import { useI18n } from '@/app/components/I18nProvider'
+import { formatMoney } from '@/lib/money'
 import type { Lang } from '@/lib/i18n'
 
 type Tab = 'sale' | 'rent' | 'daily' | 'all'
 type ViewMode = 'table' | 'list' | 'grid' | 'map'
 type SearchState = { tab: Tab; region: string; district: string; type: string; min: string; max: string; currency: string; rooms: string; owner: boolean; trusted: boolean; taxonomy: string; sort: string; q: string }
 
-const money = (v: number, c: string, lang: Lang) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${c === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
+const money = (v: number, c: string, lang: Lang) => formatMoney(v, c, lang)
 const titleOf = (x: Listing, l: Lang) => l === 'ru' ? (x.title_ru || x.title) : x.title
 const typeLabel = (v: string | null | undefined, l: Lang) => ({ apartment: l === 'ru' ? 'Квартира' : 'Kvartira', house: l === 'ru' ? 'Частный дом' : 'Xususiy uy', land: l === 'ru' ? 'Земля' : 'Yer', commercial: l === 'ru' ? 'Коммерция' : 'Tijorat', new_building: l === 'ru' ? 'Новостройка' : 'Yangi bino' }[v || ''] || v || '')
 const periodLabel = (v: string, l: Lang) => v === 'rent' ? (l === 'ru' ? ' / мес.' : ' / oy') : v === 'daily' ? (l === 'ru' ? ' / сутки' : ' / kun') : ''

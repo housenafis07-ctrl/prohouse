@@ -2,11 +2,12 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { formatMoney } from '@/lib/money'
 
 declare global { interface Window { L?: any } }
 
 type ListingMapItem = { id: string; title: string; price: number; currency: string; latitude: number | null; longitude: number | null }
-const money = (value: number, currency: string) => `${new Intl.NumberFormat('ru-RU').format(value)} ${currency === 'USD' ? 'у.е.' : 'сум'}`
+const money = (value: number, currency: string) => formatMoney(value, currency, 'ru')
 
 export default function ListingResultsMap({ listings }: { listings: ListingMapItem[] }) {
   const ref = useRef<HTMLDivElement | null>(null)

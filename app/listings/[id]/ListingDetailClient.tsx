@@ -7,6 +7,7 @@ import ListingGallery from './ListingGallery'
 import MobileListingActions from './MobileListingActions'
 import RentalBookingCalendar from '@/app/components/RentalBookingCalendar'
 import { useI18n } from '@/app/components/I18nProvider'
+import { formatMoney } from '@/lib/money'
 import type { Lang } from '@/lib/i18n'
 
 type ListingImage = { image_url: string; sort_order: number | null }
@@ -25,7 +26,7 @@ type RentalSettings = { max_guests?:string; bedrooms?:string; single_beds?:strin
 const parseRental=(draft:Record<string,any>|null|undefined):RentalSettings=>{const raw=draft?.attributes?.rental_booking;try{return typeof raw==='string'?JSON.parse(raw||'{}'):(raw&&typeof raw==='object'?raw:{})}catch{return {}}}
 const amenityLabels:Record<string,string>={pool:'Ochiq hovuz',indoor_pool:'Yopiq hovuz',wifi:'Wi‑Fi',parking:'Avtoturargoh',kitchen:'Oshxona',bbq:'Barbekyu',karaoke:'Karaoke',billiard:'Bilyard',tennis:'Stol tennisi',sauna:'Sauna',playground:'Bolalar maydonchasi',jacuzzi:'Jakuzi'}
 const policyLabels:Record<string,string>={corporate:'Korporativ mehmonlar',alcohol:'Spirtli ichimliklar',pets:'Uy hayvonlari',marriage:'Nikoh guvohnomasi'}
-const money = (value: number, currency: string, lang: Lang) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(value)} ${currency === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
+const money = (value: number, currency: string, lang: Lang) => formatMoney(value, currency, lang)
 
 function TrustedBadge({ lang }: { lang: Lang }) {
   return <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-700 ring-1 ring-emerald-100"><span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-black text-white">✓</span>{lang === 'ru' ? 'Надёжный профиль' : 'Ishonchli profil'}</span>
