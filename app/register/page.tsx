@@ -28,6 +28,7 @@ export default function RegisterPage() {
   const t = (uz:string, russian:string) => ru ? russian : uz
 
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
+  const getRedirectTo=()=>{ const next=new URLSearchParams(window.location.search).get('next'); return next && next.startsWith('/') ? next : '/account' }
 
   useEffect(()=>{
     const sync=()=>setLang(localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz')
@@ -52,7 +53,7 @@ export default function RegisterPage() {
       if(activeOffer) setOffer(activeOffer)
       if(user){
         const {data}=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle()
-        if(data){ router.replace('/account'); return }
+        if(data){ router.replace(getRedirectTo()); return }
       }
     }
     load()
@@ -89,7 +90,7 @@ export default function RegisterPage() {
       if(!userId) throw new Error(t('Foydalanuvchi sessiyasi topilmadi.','Сессия пользователя не найдена.'))
       const {data:profile,error:profileError}=await supabase.from('profiles').select('*').eq('id',userId).maybeSingle()
       if(profileError) throw profileError
-      if(profile){ router.replace('/account'); return }
+      if(profile){ router.replace(getRedirectTo()); return }
       setVerified(true)
       setMessage(t('Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.','Номер телефона подтверждён. Теперь заполните данные профиля.'))
     }catch(e){setMessage(e instanceof Error?e.message:t('Tasdiqlashda xatolik','Ошибка подтверждения'))}
@@ -117,7 +118,7 @@ export default function RegisterPage() {
         const {error:consentError}=await supabase.from('offer_consents').insert({user_id:user.id,phone:normalizedPhone,offer_version:offer.version})
         if(consentError) throw consentError
       }
-      router.replace('/account')
+      router.replace(getRedirectTo())
     }catch(e){setMessage(e instanceof Error?e.message:t('Ro‘yxatdan o‘tishda xatolik','Ошибка регистрации'))}
     finally{setLoading(false)}
   }
