@@ -74,13 +74,23 @@ export default function MonetizationCheckoutPage() {
         return
       }
 
-      const [{ data: p }, { data: l }] = await Promise.all([
+      const [{ data: p }, listingsResponse] = await Promise.all([
         db.from('monetization_products').select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,unit,quantity,badge,badge_ru').eq('active', true).order('product_type').order('duration_days'),
-        db.from('listings').select('id,title,price,city,district,status').eq('owner_id', user.id).in('status', ['active', 'moderation']).order('created_at', { ascending: false }),
+        fetch('/api/monetization/listings', { cache: 'no-store' }),
       ])
 
+      const listingsPayload = listingsResponse.ok ? await listingsResponse.json() : { listings: [] }
+      const ownListings = Array.isArray(listingsPayload.listings) ? listingsPayload.listings as Listing[] : []
+
       setProducts((p || []) as Product[])
-      setListings((l || []) as Listing[])
+      setListings(ownListings)
+
+      const requestedListingId = params.get('listingId') || ''
+      if (requestedListingId && !ownListings.some((listing) => listing.id === requestedListingId)) {
+        setListingId('')
+        setError(lang === 'ru' ? 'Можно продвигать только свои объявления.' : 'Faqat o‘zingiz joylagan e’lonni ilgari surishingiz mumkin.')
+      }
+
       setLoading(false)
     })()
   }, [])
