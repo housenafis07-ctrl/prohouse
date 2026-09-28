@@ -21,15 +21,39 @@ function encodeCursor(value: {
 
 export const revalidate = 60
 
-export const metadata: Metadata = {
-  title: 'E’lonlar — Royalhouse',
-  description: 'O‘zbekistondagi uylar, kvartiralar, hovlilar, yer va tijorat ko‘chmas mulk e’lonlarini toping.',
-  alternates: {
-    canonical: 'https://royalhouse.uz/listings',
-  },
+const SITE_URL = 'https://royalhouse.uz'
+const BASE_URL = `${SITE_URL}/listings`
+
+type ListingsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function ListingsPage() {
+export async function generateMetadata({ searchParams }: ListingsPageProps): Promise<Metadata> {
+  const params = (await searchParams) || {}
+  const pageValue = Array.isArray(params.page) ? params.page[0] : params.page
+  const page = Math.max(1, Number(pageValue || '1') || 1)
+  const hasNonPaginationParams = Object.keys(params).some((key) => key !== 'page')
+  const isIndexablePaginationPage = page > 1 && !hasNonPaginationParams
+
+  return {
+    title: isIndexablePaginationPage ? `E’lonlar — ${page}-sahifa | Royalhouse` : 'E’lonlar — Royalhouse',
+    description: 'O‘zbekistondagi uylar, kvartiralar, hovlilar, yer va tijorat ko‘chmas mulk e’lonlarini toping.',
+    alternates: {
+      canonical: isIndexablePaginationPage ? `${BASE_URL}?page=${page}` : BASE_URL,
+    },
+    robots: {
+      index: !hasNonPaginationParams,
+      follow: true,
+    },
+  }
+}
+
+export default async function ListingsPage({ searchParams }: ListingsPageProps) {
+  const params = (await searchParams) || {}
+  const pageValue = Array.isArray(params.page) ? params.page[0] : params.page
+  const cursorValue = Array.isArray(params.cursor) ? params.cursor[0] : params.cursor
+  const page = Math.max(1, Number(pageValue || '1') || 1)
+  const isCleanSeoPage = !cursorValue && Object.keys(params).every((key) => key === 'page')
   const supabase = await createClient()
 
   const { data, count } = await supabase
@@ -42,7 +66,7 @@ export default async function ListingsPage() {
     .order('effective_promotion_rank', { ascending: false })
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false })
-    .range(0, PAGE_SIZE)
+    .range(isCleanSeoPage ? (page - 1) * PAGE_SIZE : 0, isCleanSeoPage ? (page - 1) * PAGE_SIZE + PAGE_SIZE : PAGE_SIZE)
 
   const rows = (data || []) as ListingRow[]
   const hasNext = rows.length > PAGE_SIZE
