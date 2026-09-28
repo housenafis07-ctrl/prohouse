@@ -23,6 +23,7 @@ import TaxCalculatorServiceFix from "./components/TaxCalculatorServiceFix";
 export const metadata: Metadata = {
   title: "Royalhouse — Ko‘chmas mulk platformasi",
   description: "O‘zbekistonda uy topish, sotish, ijaraga olish va ipoteka uchun zamonaviy platforma.",
+  alternates: { languages: { uz: 'https://royalhouse.uz/uz', ru: 'https://royalhouse.uz/ru', 'x-default': 'https://royalhouse.uz/uz' } },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
