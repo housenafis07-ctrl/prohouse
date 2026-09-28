@@ -90,7 +90,7 @@ export default function RegisterPage() {
       if(!userId) throw new Error(t('Foydalanuvchi sessiyasi topilmadi.','Сессия пользователя не найдена.'))
       const {data:profile,error:profileError}=await supabase.from('profiles').select('*').eq('id',userId).maybeSingle()
       if(profileError) throw profileError
-      if(profile){ router.replace(redirectTo); return }
+      if(profile){ router.replace(getRedirectTo()); return }
       setVerified(true)
       setMessage(t('Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.','Номер телефона подтверждён. Теперь заполните данные профиля.'))
     }catch(e){setMessage(e instanceof Error?e.message:t('Tasdiqlashda xatolik','Ошибка подтверждения'))}
