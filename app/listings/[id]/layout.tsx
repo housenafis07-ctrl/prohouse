@@ -16,9 +16,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .maybeSingle()
 
   if (!data) {
+    // The page itself returns a 404 via notFound(). Do not emit a noindex
+    // robots directive here, because a transient metadata lookup miss can
+    // otherwise make a valid listing temporarily non-indexable.
     return {
-      title: 'E’lon topilmadi | RoyalHouse',
-      robots: { index: false, follow: true },
+      title: 'RoyalHouse — Ko‘chmas mulk e’loni',
+      description: 'RoyalHouse platformasidagi ko‘chmas mulk e’loni.',
+      robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
     }
   }
 
