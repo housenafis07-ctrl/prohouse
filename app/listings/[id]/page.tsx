@@ -110,7 +110,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   const structuredData = {
     '@context': 'https://schema.org', '@type': 'RealEstateListing', name: title, description, url,
-    image: images.map((image) => image.image_url), datePosted: listing.published_at || undefined,
+    image: images.map((image) => image.image_url.startsWith('http') ? image.image_url : `${SITE_URL}${image.image_url}`), datePosted: listing.published_at || undefined,
     ...(location ? { address: { '@type': 'PostalAddress', streetAddress: listing.address || undefined, addressLocality: listing.district || listing.city, addressRegion: listing.city, addressCountry: 'UZ' } } : {}),
     ...(listing.latitude != null && listing.longitude != null ? { geo: { '@type': 'GeoCoordinates', latitude: listing.latitude, longitude: listing.longitude } } : {}),
     offers: { '@type': 'Offer', price: Number(listing.price), priceCurrency: listing.currency === 'USD' ? 'USD' : 'UZS', url, availability: 'https://schema.org/InStock', ...(isRental ? { category: 'Rental' } : {}) },
