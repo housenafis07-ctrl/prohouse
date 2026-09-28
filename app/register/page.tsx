@@ -30,6 +30,9 @@ export default function RegisterPage() {
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
 
   useEffect(()=>{
+    const params=new URLSearchParams(window.location.search)
+    const next=params.get('next')
+    if(next && next.startsWith('/')) setRedirectTo(next)
     const sync=()=>setLang(localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz')
     sync()
     window.addEventListener('prohouse-language-change', sync)
@@ -52,12 +55,12 @@ export default function RegisterPage() {
       if(activeOffer) setOffer(activeOffer)
       if(user){
         const {data}=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle()
-        if(data){ router.replace('/account'); return }
+        if(data){ router.replace(redirectTo); return }
       }
     }
     load()
     return()=>{mounted=false}
-  },[router])
+  },[router,redirectTo])
 
   async function sendCode(){
     const normalizedPhone=phone.replace(/\s/g,'')
@@ -89,7 +92,7 @@ export default function RegisterPage() {
       if(!userId) throw new Error(t('Foydalanuvchi sessiyasi topilmadi.','Сессия пользователя не найдена.'))
       const {data:profile,error:profileError}=await supabase.from('profiles').select('*').eq('id',userId).maybeSingle()
       if(profileError) throw profileError
-      if(profile){ router.replace('/account'); return }
+      if(profile){ router.replace(redirectTo); return }
       setVerified(true)
       setMessage(t('Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.','Номер телефона подтверждён. Теперь заполните данные профиля.'))
     }catch(e){setMessage(e instanceof Error?e.message:t('Tasdiqlashda xatolik','Ошибка подтверждения'))}
@@ -117,7 +120,7 @@ export default function RegisterPage() {
         const {error:consentError}=await supabase.from('offer_consents').insert({user_id:user.id,phone:normalizedPhone,offer_version:offer.version})
         if(consentError) throw consentError
       }
-      router.replace('/account')
+      router.replace(redirectTo)
     }catch(e){setMessage(e instanceof Error?e.message:t('Ro‘yxatdan o‘tishda xatolik','Ошибка регистрации'))}
     finally{setLoading(false)}
   }
