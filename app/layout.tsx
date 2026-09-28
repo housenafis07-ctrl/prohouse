@@ -15,6 +15,7 @@ import PushRegistration from "./components/PushRegistration";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
 import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
+import RoyalhouseContactFooter from "./components/RoyalhouseContactFooter";
 import AuthLanguageFix from "./components/AuthLanguageFix";
 import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
 import TaxCalculatorServiceFix from "./components/TaxCalculatorServiceFix";
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <I18nProvider>
           <RoyalhouseBrandFix />
           <RoyalhouseFooterFix />
+          <RoyalhouseContactFooter />
           <GlobalLanguageFix />
           <LegacySurfaceLanguageFix />
           <LanguageRuntimeFix />
