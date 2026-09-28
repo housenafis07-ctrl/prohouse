@@ -137,7 +137,7 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
     const urlView = params.get('view')
     setState(next)
     setCursor(urlCursor)
-    setPage(urlCursor ? urlPage : 1)
+    setPage(urlPage)
     setNextCursor(initialNextCursor)
     setView(urlView === 'table' || urlView === 'list' || urlView === 'map' ? urlView : 'grid')
     if (!urlCursor) setCursorHistory([null])
