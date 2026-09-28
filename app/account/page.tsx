@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
+import AppIcon from '@/app/components/AppIcon'
 
 type Profile = {
   phone: string | null
@@ -33,8 +34,7 @@ function ProfileField({ label, value, form, field, editing, required = false, di
 }
 
 function StatusIcon({ type }: { type: 'check' | 'user' | 'home' | 'plus' | 'help' }) {
-  const symbols = { check: '✓', user: '◉', home: '⌂', plus: '+', help: '?' }
-  return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-lg font-black text-emerald-600">{symbols[type]}</span>
+  return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><AppIcon name={type} className="h-5 w-5" /></span>
 }
 
 export default function AccountPage() {
