@@ -36,7 +36,6 @@ export default function RoyalhouseFooterFix() {
 
       const copyright = footer.querySelector('p') as HTMLElement | null
       if (copyright) {
-        copyright.innerHTML = '© 2026 Royalhouse. Barcha huquqlar himoyalangan.'
         copyright.style.color = '#9bb0ba'
       }
 

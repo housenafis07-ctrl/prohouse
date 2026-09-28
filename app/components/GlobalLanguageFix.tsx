@@ -133,6 +133,10 @@ const PAIRS: Pair[] = [
   ['O‘z / Ru', 'Ru / O‘z'],
   ['Ru / O‘z', 'O‘z / Ru'],
   ['Hamkorlar uchun', 'Партнёрам'],
+  ['Qayta aloqa', 'Обратная связь'],
+  ['Shikoyat va takliflar', 'Жалобы и предложения'],
+  ['Har kuni 09:00 dan 18:00 gacha', 'Ежедневно с 09:00 до 18:00'],
+  ['Telegram orqali qo‘llab-quvvatlash', 'Поддержка через Telegram'],
 
   // Brand is invariant. Do not add Royalhouse <-> Royalhouse as a bidirectional pair.
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
