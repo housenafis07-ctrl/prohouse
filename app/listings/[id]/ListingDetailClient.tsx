@@ -7,6 +7,7 @@ import ListingGallery from './ListingGallery'
 import MobileListingActions from './MobileListingActions'
 import RentalBookingCalendar from '@/app/components/RentalBookingCalendar'
 import { useI18n } from '@/app/components/I18nProvider'
+import { formatMoney } from '@/lib/money'
 import type { Lang } from '@/lib/i18n'
 
 type ListingImage = { image_url: string; sort_order: number | null }
