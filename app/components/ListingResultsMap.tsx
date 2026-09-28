@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { formatMoney } from '@/lib/money'
 
 declare global { interface Window { L?: any } }
 
