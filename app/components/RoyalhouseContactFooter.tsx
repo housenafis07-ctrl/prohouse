@@ -21,7 +21,9 @@ export default function RoyalhouseContactFooter() {
       if (!target) {
         target = document.createElement('div')
         target.dataset.royalhouseContact = 'true'
-        footer.prepend(target)
+        target.style.display = 'block'
+        target.style.width = '100%'
+        footer.insertBefore(target, footer.firstElementChild)
       }
       setHost(target)
       return true
