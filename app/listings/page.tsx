@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import ListingsClient, { type Listing } from './ListingsClient'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
@@ -19,6 +20,14 @@ function encodeCursor(value: {
 }
 
 export const revalidate = 60
+
+export const metadata: Metadata = {
+  title: 'E’lonlar — Royalhouse',
+  description: 'O‘zbekistondagi uylar, kvartiralar, hovlilar, yer va tijorat ko‘chmas mulk e’lonlarini toping.',
+  alternates: {
+    canonical: 'https://royalhouse.uz/listings',
+  },
+}
 
 export default async function ListingsPage() {
   const supabase = await createClient()
