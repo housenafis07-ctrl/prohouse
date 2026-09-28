@@ -61,7 +61,7 @@ export default function ListingDetailClient({ listing: initialListing }: { listi
     } catch(e) { setContactError(e instanceof Error?e.message:text.saveError) } finally { setFavoriteBusy(false) }
   }
 
-  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) : []
+  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   const title = lang === 'ru' ? (listing.title_ru || listing.title) : listing.title
   const typeLabel: Record<string, string> = { apartment: text.apartment, house: text.house, new_building: text.newBuilding, commercial: text.commercial, land: text.land }
   const rentalSettings = parseRental(listing.draft_data)
