@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import ListingsMap from '@/app/components/ListingsMap'
 import { useI18n } from '@/app/components/I18nProvider'
+import { formatMoney } from '@/lib/money'
 import type { Lang } from '@/lib/i18n'
 
 type Tab = 'sale' | 'rent' | 'daily' | 'all'
