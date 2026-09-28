@@ -118,7 +118,7 @@ export default function RegisterPage() {
         const {error:consentError}=await supabase.from('offer_consents').insert({user_id:user.id,phone:normalizedPhone,offer_version:offer.version})
         if(consentError) throw consentError
       }
-      router.replace(redirectTo)
+      router.replace(getRedirectTo())
     }catch(e){setMessage(e instanceof Error?e.message:t('Ro‘yxatdan o‘tishda xatolik','Ошибка регистрации'))}
     finally{setLoading(false)}
   }
