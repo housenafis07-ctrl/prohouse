@@ -8,7 +8,7 @@ import { getListingImageUrl } from '@/lib/listing-image'
 
 type Category={code:string;name_uz:string;name_ru:string|null;section_code:string;sort_order:number;is_mortgage_filter:boolean}
 type Listing={id:string;title:string;title_ru?:string|null;description?:string|null;price:number;currency:string;city:string;district:string|null;listing_type:string;property_type:string|null;seller_name:string|null;is_verified:boolean;is_trusted_seller:boolean;is_featured:boolean;taxonomy_code:string|null;primary_image_url?:string|null}
-const money=(v:number,c:string)=>formatMoney(v,c,lang)
+const money=(v:number,c:string)=>formatMoney(v,c,'uz')
 const categoryLabel=(c:Category)=>c.name_uz||c.name_ru||c.code
 
 export default function ServicesPage(){
