@@ -1,10 +1,10 @@
-import type { SVGProps } from 'react'
+import type { SVGProps, ReactNode } from 'react'
 
 type IconName = 'check' | 'user' | 'home' | 'plus' | 'help' | 'building' | 'tools'
 
 export default function AppIcon({ name, className = '', ...props }: SVGProps<SVGSVGElement> & { name: IconName }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-  const paths: Record<IconName, React.ReactNode> = {
+  const paths: Record<IconName, ReactNode> = {
     check: <path {...common} d="m5 12 4 4L19 6" />,
     user: <><path {...common} d="M20 21a8 8 0 0 0-16 0" /><circle {...common} cx="12" cy="7" r="4" /></>,
     home: <path {...common} d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z" />,
