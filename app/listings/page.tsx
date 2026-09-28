@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import ListingsClient, { type Listing } from './ListingsClient'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
@@ -56,6 +57,18 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
   const isCleanSeoPage = !cursorValue && Object.keys(params).every((key) => key === 'page')
   const supabase = await createClient()
 
+  if (isCleanSeoPage && page > 1) {
+    const { count: eligibleCount } = await supabase
+      .from('listing_search')
+      .select('id', { count: 'exact', head: true })
+      .or('listing_type.eq.sale,listing_type.eq.new_building')
+
+    const offset = (page - 1) * PAGE_SIZE
+    if (eligibleCount !== null && offset >= eligibleCount) {
+      notFound()
+    }
+  }
+
   const { data, count } = await supabase
     .from('listing_search')
     .select(
@@ -66,7 +79,10 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
     .order('effective_promotion_rank', { ascending: false })
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false })
-    .range(isCleanSeoPage ? (page - 1) * PAGE_SIZE : 0, isCleanSeoPage ? (page - 1) * PAGE_SIZE + PAGE_SIZE : PAGE_SIZE)
+    .range(
+      isCleanSeoPage ? (page - 1) * PAGE_SIZE : 0,
+      isCleanSeoPage ? (page - 1) * PAGE_SIZE + PAGE_SIZE : PAGE_SIZE,
+    )
 
   const rows = (data || []) as ListingRow[]
   const hasNext = rows.length > PAGE_SIZE
