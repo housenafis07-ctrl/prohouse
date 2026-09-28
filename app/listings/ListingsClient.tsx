@@ -65,9 +65,9 @@ function toQuery(s: SearchState, cursor?: string | null) {
 function promotionBadge(badge: string | null | undefined) {
   if (!badge) return null
   const normalized = badge.toUpperCase()
-  const label = normalized === 'PREMIUM' ? '👑 PREMIUM' : normalized === 'TOP' ? '🔝 TOP' : normalized === 'UP' ? '🔼 UP' : normalized === 'HIGHLIGHT' ? '✨ HIGHLIGHT' : null
+  const label = normalized === 'VIP' || normalized === 'PREMIUM' ? '👑 VIP' : normalized === 'TOP' ? '🔝 TOP' : normalized === 'UP' ? '🔼 UP' : normalized === 'HIGHLIGHT' || normalized === 'FEATURED' ? '✨ HIGHLIGHT' : null
   if (!label) return null
-  const classes = normalized === 'PREMIUM' ? 'bg-violet-600 text-white' : normalized === 'TOP' ? 'bg-amber-400 text-slate-950' : normalized === 'UP' ? 'bg-sky-500 text-white' : 'bg-fuchsia-500 text-white'
+  const classes = normalized === 'VIP' || normalized === 'PREMIUM' ? 'bg-violet-600 text-white' : normalized === 'TOP' ? 'bg-amber-400 text-slate-950' : normalized === 'UP' ? 'bg-sky-500 text-white' : 'bg-fuchsia-500 text-white'
   return <span className={`rounded-lg px-2 py-1 text-xs font-black shadow-sm ${classes}`}>{label}</span>
 }
 
