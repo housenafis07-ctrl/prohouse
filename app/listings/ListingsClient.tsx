@@ -10,34 +10,6 @@ import type { Lang } from '@/lib/i18n'
 
 type Tab = 'sale' | 'rent' | 'daily' | 'all'
 type ViewMode = 'table' | 'list' | 'grid' | 'map'
-type Listing = {
-  id: string
-  title: string
-  title_ru?: string | null
-  listing_type: string
-  property_type: string | null
-  price: number
-  currency: string
-  area_m2: number | null
-  rooms: number | null
-  floor: number | null
-  floors_total: number | null
-  district: string | null
-  city: string
-  latitude?: number | null
-  longitude?: number | null
-  seller_type: string
-  seller_name: string | null
-  is_mortgage_available: boolean
-  is_verified: boolean
-  is_trusted_seller: boolean
-  is_featured: boolean
-  published_at: string | null
-  taxonomy_code?: string | null
-  effective_promotion_rank?: number | null
-  effective_promotion_badge?: string | null
-  primary_image?: { image_url: string; sort_order: number | null } | null
-}
 type SearchState = { tab: Tab; region: string; district: string; type: string; min: string; max: string; currency: string; rooms: string; verified: boolean; owner: boolean; trusted: boolean; taxonomy: string; sort: string; q: string }
 
 const money = (v: number, c: string, lang: Lang) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${c === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
