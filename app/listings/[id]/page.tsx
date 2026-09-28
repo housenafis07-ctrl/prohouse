@@ -47,7 +47,7 @@ function buildDescription(listing: Listing) {
     listing.rooms ? `${listing.rooms} xona` : null,
   ].filter(Boolean).join(' · ')
   const base = listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`
-  return `${base.replace(/\\s+/g, ' ').trim()} ${details}`.trim().slice(0, 160)
+  return `${base.replace(/\s+/g, ' ').trim()} ${details}`.trim().slice(0, 160)
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -68,7 +68,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const firstImage = listing.listing_images?.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0]?.image_url
   const imageUrl = firstImage
     ? (getListingCardImageUrl(firstImage).startsWith('http') ? getListingCardImageUrl(firstImage) : `${SITE_URL}${getListingCardImageUrl(firstImage)}`)
-    : `${SITE_URL}/og-image.jpg`
+    : `${SITE_URL}/royalhouse-icon.svg`
 
   return {
     title,
@@ -104,7 +104,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
 
   const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
   const title = listing.title
-  const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\\s+/g, ' ').trim().slice(0, 500)
+  const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
   const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
   const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
 
