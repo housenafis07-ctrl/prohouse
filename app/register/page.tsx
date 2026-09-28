@@ -28,11 +28,9 @@ export default function RegisterPage() {
   const t = (uz:string, russian:string) => ru ? russian : uz
 
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
+  const getRedirectTo=()=>{ const next=new URLSearchParams(window.location.search).get('next'); return next && next.startsWith('/') ? next : '/account' }
 
   useEffect(()=>{
-    const params=new URLSearchParams(window.location.search)
-    const next=params.get('next')
-    if(next && next.startsWith('/')) setRedirectTo(next)
     const sync=()=>setLang(localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz')
     sync()
     window.addEventListener('prohouse-language-change', sync)
@@ -55,12 +53,12 @@ export default function RegisterPage() {
       if(activeOffer) setOffer(activeOffer)
       if(user){
         const {data}=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle()
-        if(data){ router.replace(redirectTo); return }
+        if(data){ router.replace(getRedirectTo()); return }
       }
     }
     load()
     return()=>{mounted=false}
-  },[router,redirectTo])
+  },[router])
 
   async function sendCode(){
     const normalizedPhone=phone.replace(/\s/g,'')
