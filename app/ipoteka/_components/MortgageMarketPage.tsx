@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   getMortgagePrograms,
   type MortgageMarket,
@@ -39,6 +40,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [mapItems, setMapItems] = useState<any[]>([])
+  const router = useRouter()
 
   const programs = useMemo(() => getMortgagePrograms(market), [market])
 
@@ -144,10 +146,10 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
     'Ipoteka-bank': 'https://www.ipotekabank.uz/favicon.ico',
     'Trastbank': 'https://trastbank.uz/favicon.ico',
     'Asakabank': 'https://asakabank.uz/favicon.ico',
-    'O‘zbekiston Milliy banki': 'https://nbu.uz/favicon.ico',
-    'Biznesni rivojlantirish banki (BRB)': 'https://brb.uz/favicon.ico',
+    'O‘zbekiston Milliy banki': 'https://www.triathlon.uz/storage/photos/1/partners/11.jpg',
+    'Biznesni rivojlantirish banki (BRB)': 'https://cabinet.brb.uz/PersonalCabinet/assets/images/brb-logo.svg',
     'Agrobank': 'https://agrobank.uz/favicon.ico',
-    'O‘zsanoatqurilishbank (SQB)': 'https://sqb.uz/favicon.ico',
+    'O‘zsanoatqurilishbank (SQB)': 'https://www.sqb.uz/upload/img/footer_main_logo.png',
     'Octobank': 'https://octobank.uz/favicon.ico',
     'Ipak Yo‘li Bank': 'https://ipakyulibank.uz/favicon.ico',
     'Aloqabank': 'https://aloqabank.uz/favicon.ico',
@@ -162,6 +164,17 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
     } catch {
       return ''
     }
+  }
+
+  const logoFallback = (bank: string) => {
+    const labels: Record<string, string> = {
+      'O‘zbekiston Milliy banki': 'NBU',
+      'Biznesni rivojlantirish banki (BRB)': 'BRB',
+      'O‘zsanoatqurilishbank (SQB)': 'SQB',
+      'Octobank': 'O',
+      'Ipak Yo‘li Bank': 'IY',
+    }
+    return labels[bank] || bank.slice(0, 2).toUpperCase()
   }
 
   const openProgram = (program: MortgageProgram) => {
@@ -223,12 +236,16 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
         <div className="mx-auto max-w-7xl px-4 pb-12 pt-5 sm:pb-16">
           <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              <Link
-                href="/ipoteka"
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) router.back()
+                  else router.push('/ipoteka')
+                }}
                 className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur hover:bg-white/20"
               >
                 ← {t.back}
-              </Link>
+              </button>
               <Link
                 href="/"
                 className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur hover:bg-white/20"
@@ -307,20 +324,14 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
                     aria-expanded={expanded}
                   >
                     <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-slate-500" aria-hidden="true">{logoFallback(p.bank)}</span>
                       <img
                         src={siteLogo(p.bank, p.sourceUrl)}
                         alt={p.bank + ' logotipi'}
-                        className="h-8 w-8 object-contain"
+                        className="relative h-8 w-8 object-contain"
                         loading="lazy"
                         onError={(e) => {
-                          const img = e.currentTarget
-                          const fallback = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(new URL(p.sourceUrl).hostname) + '&sz=128'
-                          if (!img.src.includes('google.com/s2/favicons')) {
-                            img.src = fallback
-                            img.style.visibility = 'visible'
-                          } else {
-                            img.style.visibility = 'hidden'
-                          }
+                          e.currentTarget.style.display = 'none'
                         }}
                       />
                     </span>
