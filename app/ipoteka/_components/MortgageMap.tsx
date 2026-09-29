@@ -8,7 +8,15 @@ export default function MortgageMap({items,market}:{items:any[];market:MortgageM
  const mapId='mortgage-map-'+market
  useEffect(()=>{
   if(!items.length)return
-  const ensureLeafletCss=()=>{\n   const id='royalhouse-leaflet-css'\n   if(document.getElementById(id))return\n   const link=document.createElement('link')\n   link.id=id;link.rel='stylesheet';link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'\n   document.head.appendChild(link)\n  }\n  const init=()=>{\n   ensureLeafletCss()
+  const ensureLeafletCss=()=>{
+   const id='royalhouse-leaflet-css'
+   if(document.getElementById(id))return
+   const link=document.createElement('link')
+   link.id=id;link.rel='stylesheet';link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+   document.head.appendChild(link)
+  }
+  const init=()=>{
+   ensureLeafletCss()
    const L=(window as any).L
    const el=document.getElementById(mapId)
    if(!L||!el)return
