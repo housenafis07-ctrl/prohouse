@@ -29,6 +29,7 @@ const infoImages = [
 export default function MortgageMarketPage({ market }: { market: MortgageMarket }) {
   const [lang, setLang] = useState<'uz' | 'ru'>('uz')
   const [selected, setSelected] = useState<MortgageProgram | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [listing, setListing] = useState<any>(null)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -109,7 +110,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
           title:
             market === 'secondary'
               ? 'Ipoteka na ikkilamchi bozorda'
-              : 'Ipoteka na yangi qurilishga',
+              : 'Ipoteka yangi qurilishga',
           sub: 'Bank dasturlarini solishtiring, asosiy shartlarni ko‘ring va taxminiy oylik to‘lovni hisoblang.',
           back: 'Orqaga',
           home: 'Asosiy sahifa',
@@ -138,7 +139,17 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
           source: 'Rasmiy manba',
         }
 
+  const siteLogo = (url: string) => {
+    try {
+      const origin = new URL(url).origin
+      return origin + '/favicon.ico'
+    } catch {
+      return ''
+    }
+  }
+
   const openProgram = (program: MortgageProgram) => {
+    setExpandedId(program.id)
     setSelected(program)
     setSent(false)
     setError('')
@@ -265,94 +276,116 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
             <p className="mt-2 text-sm text-slate-500">{t.programHint}</p>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
-            {programs.map((p) => (
-              <article
-                key={p.id}
-                className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => openProgram(p)}
-                        className="flex max-w-full items-center gap-3 text-left"
-                      >
-                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 px-2 text-center text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
-                          {p.bankShort}
-                        </span>
-                        <span>
-                          <span className="block text-lg font-black leading-6 text-slate-950 underline decoration-slate-300 underline-offset-4">
-                            {p.bank}
-                          </span>
-                          <span className="mt-1 block text-sm font-semibold text-slate-500">
-                            {lang === 'ru' ? p.programRu : p.program}
-                          </span>
-                        </span>
-                      </button>
-                    </div>
-
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700">
+          <div className="space-y-3">
+            {programs.map((p) => {
+              const expanded = expandedId === p.id
+              return (
+                <article
+                  key={p.id}
+                  className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : p.id)}
+                    className="flex w-full items-center gap-3 p-4 text-left sm:p-5"
+                    aria-expanded={expanded}
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                      <img
+                        src={siteLogo(p.sourceUrl)}
+                        alt=""
+                        className="h-8 w-8 object-contain"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                      <span className="text-[9px] font-black text-emerald-700">{p.bankShort}</span>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-base font-black text-slate-950 sm:text-lg">
+                        {p.bank}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500 sm:text-sm">
+                        {lang === 'ru' ? p.programRu : p.program}
+                      </span>
+                    </span>
+                    <span className="hidden shrink-0 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 sm:block">
                       {p.rateLabel}
                     </span>
-                  </div>
+                    <span className="shrink-0 text-xl font-black text-slate-400">
+                      {expanded ? '−' : '+'}
+                    </span>
+                  </button>
 
-                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {[
-                      [t.rate, p.rateLabel],
-                      [t.down, p.downPaymentLabel],
-                      [
-                        t.term,
-                        Math.round(p.termMonths / 12) +
-                          ' ' +
-                          (lang === 'ru' ? 'лет' : 'yil'),
-                      ],
-                      [t.max, p.maxAmountLabel],
-                    ].map(([k, v]) => (
-                      <div key={String(k)} className="rounded-2xl bg-slate-50 p-3">
-                        <div className="text-[11px] text-slate-400">{k}</div>
-                        <div className="mt-1 text-sm font-black text-slate-900">{v}</div>
+                  {expanded && (
+                    <div className="border-t border-slate-100 px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+                      <div className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800 sm:hidden">
+                        {p.rateLabel}
                       </div>
-                    ))}
-                  </div>
 
-                  <p className="mt-4 text-sm leading-6 text-slate-600">
-                    {lang === 'ru' ? p.descriptionRu : p.description}
-                  </p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {[
+                          [t.rate, p.rateLabel],
+                          [t.down, p.downPaymentLabel],
+                          [
+                            t.term,
+                            Math.round(p.termMonths / 12) +
+                              ' ' +
+                              (lang === 'ru' ? 'лет' : 'yil'),
+                          ],
+                          [t.max, p.maxAmountLabel],
+                        ].map(([k, v]) => (
+                          <div key={String(k)} className="rounded-xl bg-slate-50 p-3">
+                            <div className="text-[10px] text-slate-400">{k}</div>
+                            <div className="mt-1 text-sm font-black text-slate-900">{v}</div>
+                          </div>
+                        ))}
+                      </div>
 
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openProgram(p)}
-                      className="rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white hover:bg-emerald-700"
-                    >
-                      {t.detail}
-                    </button>
-                    <Link
-                      href={
-                        '/ipoteka/kalkulyator?market=' +
-                        market +
-                        (listing?.id ? '&listingId=' + listing.id : '') +
-                        '&programId=' +
-                        p.id
-                      }
-                      className="rounded-xl border border-slate-300 px-4 py-2.5 font-bold text-slate-700 hover:border-emerald-400 hover:text-emerald-700"
-                    >
-                      {t.calc}
-                    </Link>
-                    <a
-                      href={p.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold"
-                    >
-                      {t.source}
-                    </a>
-                  </div>
-                </div>
-              </article>
-            ))}
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {lang === 'ru' ? p.descriptionRu : p.description}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openProgram(p)
+                          }}
+                          className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+                        >
+                          {t.detail}
+                        </button>
+                        <Link
+                          href={
+                            '/ipoteka/kalkulyator?market=' +
+                            market +
+                            (listing?.id ? '&listingId=' + listing.id : '') +
+                            '&programId=' +
+                            p.id
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:border-emerald-400 hover:text-emerald-700"
+                        >
+                          {t.calc}
+                        </Link>
+                        <a
+                          href={p.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold"
+                        >
+                          {t.source}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              )
+            })}
           </div>
         </section>
 
