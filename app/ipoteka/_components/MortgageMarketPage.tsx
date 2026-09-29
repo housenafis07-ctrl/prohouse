@@ -313,7 +313,14 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
                         className="h-8 w-8 object-contain"
                         loading="lazy"
                         onError={(e) => {
-                          e.currentTarget.style.visibility = 'hidden'
+                          const img = e.currentTarget
+                          const fallback = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(new URL(p.sourceUrl).hostname) + '&sz=128'
+                          if (!img.src.includes('google.com/s2/favicons')) {
+                            img.src = fallback
+                            img.style.visibility = 'visible'
+                          } else {
+                            img.style.visibility = 'hidden'
+                          }
                         }}
                       />
                     </span>
