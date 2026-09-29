@@ -290,7 +290,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
                     className="flex w-full items-center gap-3 p-4 text-left sm:p-5"
                     aria-expanded={expanded}
                   >
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
                       <img
                         src={siteLogo(p.sourceUrl)}
                         alt=""
@@ -300,7 +300,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
                           e.currentTarget.style.display = 'none'
                         }}
                       />
-                      <span className="text-[9px] font-black text-emerald-700">{p.bankShort}</span>
+                      <span className="absolute text-[9px] font-black text-emerald-700">{p.bankShort}</span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-base font-black text-slate-950 sm:text-lg">
