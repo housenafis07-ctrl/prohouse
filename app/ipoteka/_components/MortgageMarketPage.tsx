@@ -232,27 +232,27 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
 
   return (
     <main className="min-h-screen bg-slate-50">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+          <Link href="/" className="flex items-center gap-2" aria-label="Royalhouse — bosh sahifa">
+            <img src="/royalhouse-icon.svg" alt="Royalhouse" className="h-10 w-10 rounded-xl object-cover" />
+            <span className="text-2xl font-black tracking-tight text-slate-900">Royal<span className="text-emerald-500">house</span></span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) router.back()
+              else router.push('/ipoteka')
+            }}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
+          >
+            ← {t.back}
+          </button>
+        </div>
+      </header>
       <section className="bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 text-white">
         <div className="mx-auto max-w-7xl px-4 pb-12 pt-5 sm:pb-16">
-          <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.history.length > 1) router.back()
-                  else router.push('/ipoteka')
-                }}
-                className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur hover:bg-white/20"
-              >
-                ← {t.back}
-              </button>
-              <Link
-                href="/"
-                className="rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-bold backdrop-blur hover:bg-white/20"
-              >
-                ⌂ {t.home}
-              </Link>
-            </div>
+          <div className="mb-8 flex justify-end">
             <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">
               {market === 'secondary'
                 ? 'Ikkilamchi bozor / Вторичный рынок'
