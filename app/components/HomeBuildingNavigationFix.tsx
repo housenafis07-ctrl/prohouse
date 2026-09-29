@@ -40,7 +40,8 @@ function replaceMortgageServiceLabel(dialog: Element) {
     'Рефинансирование',
   ]
 
-  dialog.querySelectorAll(':scope .grid > a').forEach(card => {
+  dialog.querySelectorAll(':scope .grid > a').forEach(cardElement => {
+    const card = cardElement as HTMLElement
     const text = card.textContent?.replace(/\s+/g, ' ').trim() || ''
     if (!placeholders.some(title => text.includes(title))) return
 
