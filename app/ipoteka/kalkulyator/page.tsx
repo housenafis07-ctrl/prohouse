@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { getMortgagePrograms } from '@/lib/mortgage-programs'
 import Link from 'next/link'
 
@@ -100,12 +99,14 @@ export default function MortgageCalculatorPage() {
   const [applicantPhone, setApplicantPhone] = useState('')
   const [leadStatus, setLeadStatus] = useState('')
   const [leadError, setLeadError] = useState('')
-  const searchParams = useSearchParams()
+  const [market, setMarket] = useState<'primary' | 'secondary'>('primary')
 
   useEffect(() => {
-    const market = searchParams.get('market') === 'secondary' ? 'secondary' : 'primary'
-    const nextProgramId = searchParams.get('programId') || ''
-    const nextListingId = searchParams.get('listingId')
+    const params = new URLSearchParams(window.location.search)
+    const nextMarket = params.get('market') === 'secondary' ? 'secondary' : 'primary'
+    const nextProgramId = params.get('programId') || ''
+    const nextListingId = params.get('listingId')
+    setMarket(nextMarket)
     setProgramId(nextProgramId)
     setListingId(nextListingId)
     if (nextListingId) {
@@ -125,7 +126,7 @@ export default function MortgageCalculatorPage() {
       setDownPercent(String(selectedProgram.downPaymentMin))
       setYears(String(Math.min(15, Math.max(1, Math.round(selectedProgram.termMonths / 12)))))
     }
-  }, [searchParams])
+  }, [])
 
   useEffect(() => {
     const saved = window.localStorage.getItem('prohouse-lang')
@@ -185,7 +186,6 @@ export default function MortgageCalculatorPage() {
   const incomeValue = Number(income.replace(/\D/g, '')) || 0
   const incomeLoad = incomeValue > 0 ? firstMonthly / incomeValue * 100 : 0
   const schedule = useMemo(() => buildSchedule(principal, annualRate, months, paymentType, grace), [principal, annualRate, months, paymentType, grace])
-  const market = searchParams.get('market') === 'secondary' ? 'secondary' : 'primary'
   const availablePrograms = useMemo(() => getMortgagePrograms(market), [market])
   const selectedProgram = availablePrograms.find(p => p.id === programId) || null
   const submitMortgageLead = async () => {
