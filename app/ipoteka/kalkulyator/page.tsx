@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { getMortgagePrograms } from '@/lib/mortgage-programs'
 import Link from 'next/link'
 
 type Lang = 'uz' | 'ru'
@@ -91,6 +93,39 @@ export default function MortgageCalculatorPage() {
   const [paymentType, setPaymentType] = useState<PaymentType>('annuity')
   const [income, setIncome] = useState('')
   const [showSchedule, setShowSchedule] = useState(false)
+  const [listingId, setListingId] = useState<string | null>(null)
+  const [listingTitle, setListingTitle] = useState('')
+  const [programId, setProgramId] = useState('')
+  const [applicantName, setApplicantName] = useState('')
+  const [applicantPhone, setApplicantPhone] = useState('')
+  const [leadStatus, setLeadStatus] = useState('')
+  const [leadError, setLeadError] = useState('')
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const market = searchParams.get('market') === 'secondary' ? 'secondary' : 'primary'
+    const nextProgramId = searchParams.get('programId') || ''
+    const nextListingId = searchParams.get('listingId')
+    setProgramId(nextProgramId)
+    setListingId(nextListingId)
+    if (nextListingId) {
+      fetch('/api/mortgage/listing?id=' + encodeURIComponent(nextListingId))
+        .then(r => r.json())
+        .then(d => {
+          if (d.listing) {
+            setPropertyPrice(formatInput(String(d.listing.price)))
+            setListingTitle(d.listing.title_ru || d.listing.title || '')
+          }
+        })
+        .catch(() => {})
+    }
+    const selectedProgram = getMortgagePrograms(market).find(p => p.id === nextProgramId)
+    if (selectedProgram) {
+      setRate(String(selectedProgram.rateMin))
+      setDownPercent(String(selectedProgram.downPaymentMin))
+      setYears(String(Math.min(15, Math.max(1, Math.round(selectedProgram.termMonths / 12)))))
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const saved = window.localStorage.getItem('prohouse-lang')
@@ -150,6 +185,21 @@ export default function MortgageCalculatorPage() {
   const incomeValue = Number(income.replace(/\D/g, '')) || 0
   const incomeLoad = incomeValue > 0 ? firstMonthly / incomeValue * 100 : 0
   const schedule = useMemo(() => buildSchedule(principal, annualRate, months, paymentType, grace), [principal, annualRate, months, paymentType, grace])
+  const market = searchParams.get('market') === 'secondary' ? 'secondary' : 'primary'
+  const availablePrograms = useMemo(() => getMortgagePrograms(market), [market])
+  const selectedProgram = availablePrograms.find(p => p.id === programId) || null
+  const submitMortgageLead = async () => {
+    setLeadStatus(''); setLeadError('')
+    if (!selectedProgram) { setLeadError(lang === 'ru' ? 'Выберите банк.' : 'Bankni tanlang.'); return }
+    if (applicantName.trim().length < 2 || applicantPhone.trim().length < 7) { setLeadError(lang === 'ru' ? 'Введите имя и телефон.' : 'Ism va telefonni kiriting.'); return }
+    const response = await fetch('/api/mortgage/lead', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ programId:selectedProgram.id, market, listingId, name:applicantName, phone:applicantPhone, propertyPrice:price, downPayment:down, termMonths:months, rate:annualRate, monthlyPayment:firstMonthly })
+    })
+    const result = await response.json().catch(()=>({}))
+    if (!response.ok) { setLeadError(result.error || (lang === 'ru' ? 'Заявка не отправлена.' : 'Ariza yuborilmadi.')); return }
+    setLeadStatus(lang === 'ru' ? 'Заявка отправлена. Менеджер свяжется с вами.' : 'Buyurtma yuborildi. Menejer siz bilan bog‘lanadi.')
+  }
 
   const syncDownFromPercent = (value: string) => {
     const cleaned = value.replace(',', '.').replace(/[^0-9.]/g, '')
@@ -245,6 +295,21 @@ export default function MortgageCalculatorPage() {
             <label><span className="mb-2 block text-sm font-extrabold">{t.grace}</span><div className="relative"><input inputMode="numeric" value={graceMonths} onChange={e=>setGraceMonths(e.target.value.replace(/\D/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-20 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{lang==='ru'?'мес.':'oy'}</span></div><input type="range" min="0" max={Math.max(0, months - 1)} value={grace} onChange={e=>setGraceMonths(e.target.value)} className="mt-3 w-full accent-emerald-600"/><span className="mt-1 block text-xs text-slate-400">{t.graceHint}</span></label>
             <label><span className="mb-2 block text-sm font-extrabold">{t.payment}</span><select value={paymentType} onChange={e=>setPaymentType(e.target.value as PaymentType)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"><option value="annuity">{t.annuity}</option><option value="differentiated">{t.differentiated}</option></select></label>
             <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.income}</span><input inputMode="numeric" value={income} onChange={setNumber(setIncome)} placeholder="0" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="mt-2 block text-xs text-slate-400">{t.incomeHint}{incomeValue>0 && <> · {incomeLoad.toFixed(0)}% {lang==='ru'?'дохода':'daromad'}</>}</span></label>
+            <div className="sm:col-span-2 rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{lang==='ru'?'Заявка на ипотеку':'Ipoteka arizasi'}</p><p className="mt-1 text-sm text-slate-600">{listingTitle ? (lang==='ru'?'Объект: ':'Obyekt: ') + listingTitle : (lang==='ru'?'Укажите банк и контакты для заявки.':'Bank va aloqa ma’lumotlarini kiriting.')}</p></div>
+                {listingId && <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-emerald-700">{lang==='ru'?'Цена объекта заполнена':'Uy narxi avtomatik to‘ldirildi'}</span>}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Банк':'Bank'}</span><select value={programId} onChange={e=>{setProgramId(e.target.value);const p=availablePrograms.find(x=>x.id===e.target.value);if(p){setRate(String(p.rateMin));setDownPercent(String(p.downPaymentMin));setYears(String(Math.min(15,Math.max(1,Math.round(p.termMonths/12)))));}}} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black"><option value="">{lang==='ru'?'Выберите программу':'Bank dasturini tanlang'}</option>{availablePrograms.map(p=><option key={p.id} value={p.id}>{p.bank} — {p.program} · {p.rateLabel}</option>)}</select></label>
+                <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Ваше имя':'Ismingiz'}</span><input value={applicantName} onChange={e=>setApplicantName(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
+                <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Телефон':'Telefon'}</span><input value={applicantPhone} onChange={e=>setApplicantPhone(e.target.value)} placeholder="+998 90 123 45 67" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
+              </div>
+              {selectedProgram && <p className="mt-3 text-xs font-semibold text-slate-600">{lang==='ru'?'Программа':'Dastur'}: <b>{lang==='ru'?selectedProgram.programRu:selectedProgram.program}</b> · {selectedProgram.rateLabel} · {selectedProgram.downPaymentLabel}</p>}
+              {leadError && <p className="mt-3 text-sm font-bold text-red-600">{leadError}</p>}
+              {leadStatus && <p className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}</p>}
+              <button type="button" onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700">{lang==='ru'?'Подать заявку':'Buyurtma yuborish'}</button>
+            </div>
           </div>
           <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
         </div>
