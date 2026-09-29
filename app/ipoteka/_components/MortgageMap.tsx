@@ -8,15 +8,22 @@ export default function MortgageMap({items,market}:{items:any[];market:MortgageM
  const mapId='mortgage-map-'+market
  useEffect(()=>{
   if(!items.length)return
-  const ensureLeafletCss=()=>{
+  const ensureLeafletCss=(onReady:()=>void)=>{
    const id='royalhouse-leaflet-css'
-   if(document.getElementById(id))return
+   const existing=document.getElementById(id) as HTMLLinkElement|null
+   if(existing){
+    if(existing.sheet){onReady();return}
+    existing.addEventListener('load',onReady,{once:true})
+    return
+   }
    const link=document.createElement('link')
-   link.id=id;link.rel='stylesheet';link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+   link.id=id
+   link.rel='stylesheet'
+   link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+   link.onload=onReady
    document.head.appendChild(link)
   }
   const init=()=>{
-   ensureLeafletCss()
    const L=(window as any).L
    const el=document.getElementById(mapId)
    if(!L||!el)return
@@ -35,11 +42,11 @@ export default function MortgageMap({items,market}:{items:any[];market:MortgageM
    setTimeout(()=>map.invalidateSize(),100)
   }
   const scriptId='royalhouse-leaflet-js'
-  if((window as any).L){init();return}
+  if((window as any).L){ensureLeafletCss(init);return}
   const existing=document.getElementById(scriptId) as HTMLScriptElement|null
-  if(existing){existing.addEventListener('load',init);return()=>existing.removeEventListener('load',init)}
+  if(existing){existing.addEventListener('load',()=>ensureLeafletCss(init));return}
   const script=document.createElement('script')
-  script.id=scriptId;script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.async=true;script.onload=init
+  script.id=scriptId;script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';script.async=true;script.onload=()=>ensureLeafletCss(init)
   document.body.appendChild(script)
   return()=>{script.onload=null}
  },[items,mapId])
