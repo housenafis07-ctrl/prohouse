@@ -63,7 +63,7 @@ function replaceHead() {
 
 function normalizeHeaderLogo() {
   const link = document.querySelector<HTMLAnchorElement>('header a[href="/"]')
-  if (!link || link.querySelector('[data-royalhouse-logo]')) return
+  if (!link || link.querySelector('[data-royalhouse-logo], img')) return
 
   const logo = document.createElement('img')
   logo.setAttribute('data-royalhouse-logo', 'true')
