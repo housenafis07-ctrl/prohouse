@@ -139,10 +139,26 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
           source: 'Rasmiy manba',
         }
 
-  const siteLogo = (url: string) => {
+  const bankLogos: Record<string, string> = {
+    'Xalq banki': 'https://xb.uz/favicon.ico',
+    'Ipoteka-bank': 'https://www.ipotekabank.uz/favicon.ico',
+    'Trastbank': 'https://trastbank.uz/favicon.ico',
+    'Asakabank': 'https://asakabank.uz/favicon.ico',
+    'O‘zbekiston Milliy banki': 'https://nbu.uz/favicon.ico',
+    'Biznesni rivojlantirish banki (BRB)': 'https://brb.uz/favicon.ico',
+    'Agrobank': 'https://agrobank.uz/favicon.ico',
+    'O‘zsanoatqurilishbank (SQB)': 'https://sqb.uz/favicon.ico',
+    'Octobank': 'https://octobank.uz/favicon.ico',
+    'Ipak Yo‘li Bank': 'https://ipakyulibank.uz/favicon.ico',
+    'Aloqabank': 'https://aloqabank.uz/favicon.ico',
+    'Tenge Bank': 'https://tengebank.uz/favicon.ico',
+    'Hamkorbank': 'https://hamkorbank.uz/favicon.ico',
+    'Mikrokreditbank (MKBank)': 'https://mkbank.uz/favicon.ico',
+  }
+
+  const siteLogo = (bank: string, sourceUrl: string) => {
     try {
-      const origin = new URL(url).origin
-      return origin + '/favicon.ico'
+      return bankLogos[bank] || new URL(sourceUrl).origin + '/favicon.ico'
     } catch {
       return ''
     }
@@ -292,15 +308,14 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
                   >
                     <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
                       <img
-                        src={siteLogo(p.sourceUrl)}
-                        alt=""
+                        src={siteLogo(p.bank, p.sourceUrl)}
+                        alt={p.bank + ' logotipi'}
                         className="h-8 w-8 object-contain"
                         loading="lazy"
                         onError={(e) => {
-                          e.currentTarget.style.display = 'none'
+                          e.currentTarget.style.visibility = 'hidden'
                         }}
                       />
-                      <span className="absolute text-[9px] font-black text-emerald-700">{p.bankShort}</span>
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-base font-black text-slate-950 sm:text-lg">
