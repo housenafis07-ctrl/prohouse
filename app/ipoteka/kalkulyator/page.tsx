@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { getMortgagePrograms } from '@/lib/mortgage-programs'
 import Link from 'next/link'
 
@@ -100,6 +101,7 @@ export default function MortgageCalculatorPage() {
   const [leadStatus, setLeadStatus] = useState('')
   const [leadError, setLeadError] = useState('')
   const [market, setMarket] = useState<'primary' | 'secondary'>('primary')
+  const router = useRouter()
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -263,7 +265,7 @@ export default function MortgageCalculatorPage() {
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-4 sm:px-6">
         <Link href="/" className="text-xl font-black">Pro<span className="text-emerald-500">house</span></Link>
-        <Link href="/" className="text-sm font-bold text-slate-500 hover:text-emerald-600">← {t.back}</Link>
+        <button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push("/ipoteka") }} className="text-sm font-bold text-slate-500 hover:text-emerald-600">← {t.back}</button>
       </div>
     </header>
 
