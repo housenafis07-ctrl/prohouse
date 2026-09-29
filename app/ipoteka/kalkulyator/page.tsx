@@ -264,7 +264,10 @@ export default function MortgageCalculatorPage() {
   return <main className="min-h-screen bg-[#f6f7f8] text-slate-900">
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="text-xl font-black">Pro<span className="text-emerald-500">house</span></Link>
+        <Link href="/" className="flex items-center gap-2" aria-label="Royalhouse — bosh sahifa">
+          <img src="/royalhouse-icon.svg" alt="Royalhouse" className="h-10 w-10 rounded-xl object-cover" />
+          <span className="text-xl font-black tracking-tight text-slate-900">Royal<span className="text-emerald-500">house</span></span>
+        </Link>
         <button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push("/ipoteka") }} className="text-sm font-bold text-slate-500 hover:text-emerald-600">← {t.back}</button>
       </div>
     </header>
