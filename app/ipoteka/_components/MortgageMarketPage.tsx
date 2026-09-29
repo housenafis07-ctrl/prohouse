@@ -146,15 +146,15 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
     'Ipoteka-bank': 'https://www.ipotekabank.uz/favicon.ico',
     'Trastbank': 'https://trastbank.uz/favicon.ico',
     'Asakabank': 'https://asakabank.uz/favicon.ico',
-    'O‘zbekiston Milliy banki': 'https://www.google.com/s2/favicons?domain=nbu.uz&sz=128',
+    'O‘zbekiston Milliy banki': 'https://www.triathlon.uz/storage/photos/1/partners/11.jpg',
     'Biznesni rivojlantirish banki (BRB)': 'https://www.google.com/s2/favicons?domain=brb.uz&sz=128',
     'Agrobank': 'https://agrobank.uz/favicon.ico',
-    'O‘zsanoatqurilishbank (SQB)': 'https://www.google.com/s2/favicons?domain=sqb.uz&sz=128',
+    'O‘zsanoatqurilishbank (SQB)': 'https://www.sqb.uz/upload/img/footer_main_logo.png',
     'Octobank': 'https://www.google.com/s2/favicons?domain=octobank.uz&sz=128',
     'Ipak Yo‘li Bank': 'https://www.google.com/s2/favicons?domain=ipakyulibank.uz&sz=128',
     'Aloqabank': 'https://aloqabank.uz/favicon.ico',
     'Tenge Bank': 'https://www.google.com/s2/favicons?domain=tengebank.uz&sz=128',
-    'Hamkorbank': 'https://hamkorbank.uz/favicon.ico',
+    'Hamkorbank': 'https://www.google.com/s2/favicons?domain=hamkorbank.uz&sz=128',
     'Mikrokreditbank (MKBank)': 'https://mkbank.uz/favicon.ico',
   }
 
