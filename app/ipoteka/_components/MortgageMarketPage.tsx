@@ -149,7 +149,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
     'O‘zbekiston Milliy banki': 'https://www.triathlon.uz/storage/photos/1/partners/11.jpg',
     'Biznesni rivojlantirish banki (BRB)': 'https://www.google.com/s2/favicons?domain=brb.uz&sz=128',
     'Agrobank': 'https://agrobank.uz/favicon.ico',
-    'O‘zsanoatqurilishbank (SQB)': 'https://www.sqb.uz/upload/img/footer_main_logo.png',
+    'O‘zsanoatqurilishbank (SQB)': 'https://www.sqb.uz/local/templates/sqb/img/SQB-footer-mini.svg',
     'Octobank': 'https://www.google.com/s2/favicons?domain=octobank.uz&sz=128',
     'Ipak Yo‘li Bank': 'https://www.google.com/s2/favicons?domain=ipakyulibank.uz&sz=128',
     'Aloqabank': 'https://aloqabank.uz/favicon.ico',
