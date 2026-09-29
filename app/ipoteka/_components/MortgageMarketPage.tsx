@@ -111,7 +111,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
           eyebrow: 'IPOTEKA',
           title:
             market === 'secondary'
-              ? 'Ipoteka na ikkilamchi bozorda'
+              ? 'Ipoteka ikkilamchi bozorda'
               : 'Ipoteka yangi qurilishga',
           sub: 'Bank dasturlarini solishtiring, asosiy shartlarni ko‘ring va taxminiy oylik to‘lovni hisoblang.',
           back: 'Orqaga',
