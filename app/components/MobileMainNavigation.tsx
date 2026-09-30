@@ -137,6 +137,12 @@ export default function MobileMainNavigation() {
       const link = document.createElement('a')
       link.href = item.href
       link.textContent = item.label
+      if (index === 4) {
+        link.addEventListener('click', (event) => {
+          event.preventDefault()
+          window.dispatchEvent(new CustomEvent('royalhouse-open-mortgage'))
+        })
+      }
       const isActive = (index === 0 && currentPath === '/listings' && currentSearch.includes('tab=sale') && !currentSearch.includes('type=new_building'))
         || (index === 1 && currentPath === '/listings' && currentSearch.includes('tab=rent'))
         || (index === 2 && currentPath === '/listings' && currentSearch.includes('type=new_building'))
@@ -149,7 +155,9 @@ export default function MobileMainNavigation() {
     })
 
     const firstHeader = document.querySelector('body > div header, body > header, header')
-    if (firstHeader?.parentElement) firstHeader.insertAdjacentElement('afterend', categoryNav)
+    if (firstHeader?.parentElement) {
+      firstHeader.insertAdjacentElement('afterend', categoryNav)
+    }
     else document.body.prepend(categoryNav)
 
     const nav = document.createElement('nav')
