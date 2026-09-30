@@ -26,6 +26,41 @@ function replaceMortgageServiceLabel(dialog: Element) {
       textNode.nodeValue = textNode.nodeValue.replace('Обслуживание ипотеки', 'На реконструкции')
     }
   })
+
+  // These service cards are placeholders for now. Keep only the title until
+  // the corresponding mortgage products and requirements are finalized.
+  const placeholders = [
+    'Ipoteka imkoniyatlari',
+    'Uyni ta\'mirlashga',
+    'Garov evaziga kredit',
+    'Qayta moliyalash',
+    'Ипотечный потенциал',
+    'На реконструкции',
+    'Кредит под залог',
+    'Рефинансирование',
+  ]
+
+  dialog.querySelectorAll(':scope .grid > a').forEach(cardElement => {
+    const card = cardElement as HTMLElement
+    const text = card.textContent?.replace(/\s+/g, ' ').trim() || ''
+    if (!placeholders.some(title => text.includes(title))) return
+
+    card.removeAttribute('href')
+    card.setAttribute('aria-disabled', 'true')
+    card.style.cursor = 'default'
+    card.style.pointerEvents = 'none'
+    card.style.opacity = '0.92'
+
+    const title = Array.from(card.querySelectorAll('h1,h2,h3,h4,h5,h6,b,strong'))
+      .find(el => placeholders.some(label => el.textContent?.trim() === label))
+
+    if (title?.parentElement) {
+      const parent = title.parentElement
+      Array.from(parent.children).forEach(child => {
+        if (child !== title) child.remove()
+      })
+    }
+  })
 }
 
 function polishMortgageIcons() {

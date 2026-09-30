@@ -128,7 +128,7 @@ export default function MobileMainNavigation() {
       { label: isRussian ? 'Аренда' : 'Ijara', href: '/listings?tab=rent' },
       { label: isRussian ? 'Новостройки' : 'Yangi uylar', href: '/listings?tab=sale&type=new_building' },
       { label: isRussian ? 'Построить дом' : 'Uy qurish', href: '/uy-qurish' },
-      { label: isRussian ? 'Ипотека' : 'Ipoteka', href: '/#mortgage' },
+      { label: isRussian ? 'Ипотека' : 'Ipoteka', href: '/ipoteka' },
       { label: isRussian ? 'Услуги' : 'Xizmatlar', href: '#services' },
       { label: isRussian ? 'Риелторы' : 'Rieltorlar', href: '/realtors' },
     ] as const

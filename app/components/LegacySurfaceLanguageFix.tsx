@@ -52,6 +52,7 @@ const PAIRS: Pair[] = [
   ['Yuklanmoqda...', 'Загрузка...'],
 
   // Mortgage / listing detail UI
+  ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
   ['Ipoteka', 'Ипотека'],
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
   ['Ipoteka kalkulyatori', 'Калькулятор ипотеки'],
