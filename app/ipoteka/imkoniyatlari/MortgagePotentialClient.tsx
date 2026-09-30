@@ -96,6 +96,22 @@ export default function MortgagePotentialClient() {
         </section>
       </div>
 
+      <div className="mx-auto max-w-5xl px-4 pt-6 sm:pt-8">
+        <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">ROYALHOUSE SMART TOOLS</p>
+          <h2 className="mt-2 text-2xl font-black text-slate-950">Ipoteka va uy xaridi uchun 6 ta vosita</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">O‘zingizga mos uy budjetini hisoblang, ipoteka imkoniyatingizni tekshiring va uylarni toping.</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Link href="/ipoteka/uy-qancha" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 hover:shadow-md"><span className="text-2xl">🏠</span><h3 className="mt-2 font-black text-slate-950">1. Siz qancha uy olishingiz mumkin?</h3><p className="mt-1 text-xs leading-5 text-slate-500">Daromad va kreditlaringizdan kelib chiqib uy budjetini hisoblang.</p></Link>
+            <Link href="/ipoteka/imkoniyatlari" className="rounded-2xl border-2 border-emerald-500 bg-white p-4 shadow-sm hover:shadow-md"><span className="text-2xl">💳</span><h3 className="mt-2 font-black text-slate-950">2. Ipoteka imkoniyatlari</h3><p className="mt-1 text-xs leading-5 text-slate-500">Maksimal ipoteka va sizga mos bank dasturlarini hisoblang.</p></Link>
+            <Link href="/listings?tab=sale&mortgage=true" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:shadow-md"><span className="text-2xl">🗺️</span><h3 className="mt-2 font-black text-slate-950">3. Menga mos uylar</h3><p className="mt-1 text-xs leading-5 text-slate-500">Ipotekaga mos sotuvdagi uylarni toping.</p></Link>
+            <Link href="/account/favorites" className="rounded-2xl border border-rose-100 bg-rose-50 p-4 hover:shadow-md"><span className="text-2xl">❤️</span><h3 className="mt-2 font-black text-slate-950">4. Saqlangan uylar</h3><p className="mt-1 text-xs leading-5 text-slate-500">Yoqtirgan obyektlaringizni saqlang.</p></Link>
+            <Link href="/account/saved-searches" className="rounded-2xl border border-amber-100 bg-amber-50 p-4 hover:shadow-md"><span className="text-2xl">🔔</span><h3 className="mt-2 font-black text-slate-950">5. Xabarnomalar</h3><p className="mt-1 text-xs leading-5 text-slate-500">Yangi uylar va narx o‘zgarishlari haqida bildirishnoma oling.</p></Link>
+            <Link href="/solishtirish" className="rounded-2xl border border-slate-200 bg-white p-4 hover:shadow-md"><span className="text-2xl">⚖️</span><h3 className="mt-2 font-black text-slate-950">6. Uylarni solishtirish</h3><p className="mt-1 text-xs leading-5 text-slate-500">3 tagacha uyni narx, maydon va ipoteka bo‘yicha taqqoslang.</p></Link>
+          </div>
+        </section>
+      </div>
+
       <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
