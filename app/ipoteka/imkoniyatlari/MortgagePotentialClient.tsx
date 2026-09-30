@@ -80,6 +80,21 @@ export default function MortgagePotentialClient() {
         </div>
       </section>
 
+      <div className="mx-auto max-w-5xl px-4 pt-8 sm:pt-10">
+        <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
+          <video
+            className="block h-auto w-full"
+            src="/videos/mortgage-potential.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-label="Royalhouse ipoteka imkoniyatlari"
+          />
+        </section>
+      </div>
+
       <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
