@@ -81,67 +81,31 @@ export default function MortgagePotentialClient() {
       </section>
 
       <div className="mx-auto max-w-5xl px-4 pt-8 sm:pt-10">
-        <section className="overflow-hidden rounded-3xl bg-slate-950 shadow-xl ring-1 ring-slate-800" aria-label="Royalhouse ipoteka imkoniyatlari">
-          <svg viewBox="0 0 960 540" className="block h-auto w-full" role="img" aria-label="Ipoteka imkoniyatini hisoblash animatsiyasi">
-            <defs>
-              <linearGradient id="rhMortgageBg" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0%" stopColor="#064e3b" />
-                <stop offset="100%" stopColor="#0f766e" />
-              </linearGradient>
-              <filter id="rhShadow" x="-30%" y="-30%" width="160%" height="160%">
-                <feDropShadow dx="0" dy="10" stdDeviation="14" floodOpacity=".25" />
-              </filter>
-            </defs>
-            <rect width="960" height="540" fill="url(#rhMortgageBg)" />
-            <circle cx="820" cy="70" r="170" fill="#ffffff" opacity=".06">
-              <animate attributeName="r" values="150;190;150" dur="6s" repeatCount="indefinite" />
-            </circle>
-            <text x="64" y="72" fill="white" fontSize="28" fontWeight="800">IPOTEKA IMKONIYATINGIZNI HISOBLANG</text>
-            <text x="64" y="105" fill="#d1fae5" fontSize="17">Daromad va mavjud kreditlaringiz asosida taxminiy hisob</text>
-
-            <g filter="url(#rhShadow)">
-              <rect x="64" y="145" width="832" height="320" rx="30" fill="#ffffff" />
-            </g>
-
-            <g opacity="1">
-              <animate attributeName="opacity" values="1;1;1;0" keyTimes="0;0.08;0.28;0.36" dur="6s" repeatCount="indefinite" />
-              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Jami oylik daromad</text>
-              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">12 000 000 so‘m</text>
-              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Daromadingizni kiriting</text>
-              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
-              <rect x="350" y="355" width="85" height="12" rx="6" fill="#10b981" />
-            </g>
-
-            <g opacity="0">
-              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0.2;0.28;0.48;0.56" dur="6s" repeatCount="indefinite" />
-              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Mavjud kreditlar</text>
-              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">2 000 000 so‘m</text>
-              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Boshqa majburiyatlar ham hisobga olinadi</text>
-              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
-              <rect x="350" y="355" width="135" height="12" rx="6" fill="#10b981" />
-            </g>
-
-            <g opacity="0">
-              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0.4;0.48;0.68;0.76" dur="6s" repeatCount="indefinite" />
-              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">50% qarz yuklamasi</text>
-              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">6 000 000 so‘m</text>
-              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Jami kredit to‘lovi daromadning 50%idan oshmaydi</text>
-              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
-              <rect x="350" y="355" width="190" height="12" rx="6" fill="#10b981" />
-            </g>
-
-            <g opacity="0">
-              <animate attributeName="opacity" values="0;1;1;1" keyTimes="0.6;0.68;0.88;1" dur="6s" repeatCount="indefinite" />
-              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Ipoteka uchun imkoniyat</text>
-              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">4 000 000 so‘m / oy</text>
-              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Endi sizga mos uylarni Royalhouse’dan tanlang</text>
-              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
-              <rect x="350" y="355" width="245" height="12" rx="6" fill="#10b981" />
-            </g>
-
-            <text x="64" y="505" fill="#a7f3d0" fontSize="17" fontWeight="800">ROYALHOUSE</text>
-            <text x="896" y="505" textAnchor="end" fill="#d1fae5" fontSize="15">royalhouse.uz</text>
-          </svg>
+        <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-emerald-800 to-teal-700 p-5 shadow-xl sm:p-8">
+          <div className="mb-5 text-center">
+            <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Ipoteka imkoniyatingizni hisoblang</h2>
+            <p className="mt-2 text-sm text-emerald-100 sm:text-base">Daromad va mavjud kreditlaringiz asosida taxminiy hisob</p>
+          </div>
+          <div className="mx-auto max-w-[340px] rounded-[38px] bg-slate-900 p-2 shadow-2xl ring-1 ring-white/20">
+            <div className="relative overflow-hidden rounded-[31px] bg-white px-5 py-7 text-center">
+              <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-slate-900" />
+              <div className="rh-mortgage-stage">
+                <div className="rh-ms rh-ms-1"><p className="text-sm font-bold text-slate-700">Oylik daromad</p><p className="mt-2 text-2xl font-black text-emerald-600">12 000 000</p><p className="text-xs text-slate-400">so‘m / oy</p></div>
+                <div className="rh-ms rh-ms-2"><p className="text-sm font-bold text-slate-700">Mavjud kreditlar</p><p className="mt-2 text-2xl font-black text-emerald-600">2 000 000</p><p className="text-xs text-slate-400">so‘m / oy</p></div>
+                <div className="rh-ms rh-ms-3"><p className="text-sm font-bold text-slate-700">Qarz yuklamasi</p><p className="mt-2 text-4xl font-black text-emerald-600">50%</p><p className="text-xs text-slate-400">jami daromadning maksimal chegarasi</p></div>
+                <div className="rh-ms rh-ms-4"><p className="text-sm font-bold text-slate-700">Ipoteka imkoniyati</p><p className="mt-2 text-2xl font-black text-emerald-600">4 000 000</p><p className="text-xs text-slate-400">so‘m / oy</p><div className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Sizga mos uylar topiladi</div></div>
+              </div>
+              <div className="mt-7 h-2 overflow-hidden rounded-full bg-emerald-100"><div className="rh-mortgage-progress h-full w-1/4 rounded-full bg-emerald-500" /></div>
+            </div>
+          </div>
+          <style jsx>{`
+            .rh-mortgage-stage{position:relative;min-height:150px}
+            .rh-ms{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;animation:rhms 8s infinite}
+            .rh-ms-1{animation-delay:0s}.rh-ms-2{animation-delay:2s}.rh-ms-3{animation-delay:4s}.rh-ms-4{animation-delay:6s}
+            .rh-mortgage-progress{animation:rhprog 8s infinite}
+            @keyframes rhms{0%,2%{opacity:0;transform:translateY(10px)}5%,22%{opacity:1;transform:translateY(0)}25%,100%{opacity:0;transform:translateY(-8px)}}
+            @keyframes rhprog{0%,24%{width:25%}25%,49%{width:50%}50%,74%{width:75%}75%,100%{width:100%}}
+          `}</style>
         </section>
       </div>
 
