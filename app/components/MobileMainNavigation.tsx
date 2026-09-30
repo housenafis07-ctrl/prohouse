@@ -20,7 +20,6 @@ export default function MobileMainNavigation() {
     style.textContent = `
       .prohouse-mobile-category-nav { display:none; }
       .prohouse-mobile-main-nav { display:none; }
-      .prohouse-mobile-contact-bar { display:none; }
       @media (max-width:767px) {
         .prohouse-mobile-category-nav {
           display:flex;
@@ -61,28 +60,6 @@ export default function MobileMainNavigation() {
           color:#047857;
         }
         .prohouse-mobile-category-nav a.primary { background:#059669; border-color:#059669; color:#fff; }
-        .prohouse-mobile-contact-bar {
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:8px;
-          width:100%;
-          box-sizing:border-box;
-          padding:7px 12px;
-          border-bottom:1px solid #e2e8f0;
-          background:#fff;
-        }
-        .prohouse-mobile-contact-bar a {
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          min-height:36px;
-          border-radius:10px;
-          text-decoration:none;
-          font:800 11px/1 Arial,sans-serif;
-          -webkit-tap-highlight-color:transparent;
-        }
-        .prohouse-mobile-contact-bar .phone { border:1px solid #d1fae5; background:#ecfdf5; color:#047857; }
-        .prohouse-mobile-contact-bar .telegram { background:#0ea5e9; color:#fff; }
         .prohouse-mobile-main-nav {
           position:fixed;
           left:0;
@@ -177,14 +154,9 @@ export default function MobileMainNavigation() {
       categoryNav.appendChild(link)
     })
 
-    const contactBar = document.createElement('div')
-    contactBar.className = 'prohouse-mobile-contact-bar'
-    contactBar.innerHTML = '<a class="phone" href="tel:+998998244494">☎ +998 99 824 44 94</a><a class="telegram" href="https://t.me/RoyalHouseUz_bot?start=support" target="_blank" rel="noreferrer">✈ Telegram orqali murojaat</a>'
-
     const firstHeader = document.querySelector('body > div header, body > header, header')
     if (firstHeader?.parentElement) {
       firstHeader.insertAdjacentElement('afterend', categoryNav)
-      categoryNav.insertAdjacentElement('afterend', contactBar)
     }
     else document.body.prepend(categoryNav)
 
@@ -241,7 +213,6 @@ export default function MobileMainNavigation() {
 
     return () => {
       categoryNav.remove()
-      contactBar.remove()
       nav.remove()
       style.remove()
     }
