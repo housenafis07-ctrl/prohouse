@@ -66,23 +66,51 @@ export default function IpotekaPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-10">
-        <div className="grid gap-5 md:grid-cols-2">
-          <Link href="/ipoteka/uy-qancha" className="rounded-3xl bg-slate-950 p-7 text-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-            <div className="text-3xl">💰</div>
-            <h2 className="mt-5 text-2xl font-black">Siz qancha uy olishingiz mumkin?</h2>
-            <p className="mt-2 text-slate-300">Daromad va boshlang‘ich badal asosida mos uy narxi diapazonini hisoblang.</p>
-            <span className="mt-6 inline-flex rounded-xl bg-emerald-500 px-4 py-2.5 font-bold text-white">Hisoblash →</span>
+      <section className="mx-auto max-w-7xl px-4 pb-12">
+        <div className="mb-6">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">ROYALHOUSE SMART HOME TOOLS</p>
+          <h2 className="mt-2 text-3xl font-black text-slate-950">Uy tanlashni osonlashtiradigan 6 ta funksiya</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Avval imkoniyatingizni hisoblang, keyin mos uylarni toping, saqlang, kuzating va solishtiring.</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Link href="/ipoteka/uy-qancha" className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <span className="text-2xl">💰</span><h3 className="mt-3 font-black">1. Siz qancha uy olishingiz mumkin?</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-300">Daromad va badal asosida taxminiy uy budjetini hisoblang.</p>
+            <span className="mt-3 inline-flex text-sm font-black text-emerald-300">Hisoblash →</span>
           </Link>
 
-          <Link href="/ipoteka/imkoniyatlari" className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-emerald-200 transition hover:-translate-y-1 hover:shadow-lg">
-            <div className="text-3xl">📊</div>
-            <h2 className="mt-5 text-2xl font-black">Ipoteka imkoniyatlari</h2>
-            <p className="mt-2 text-slate-500">Daromad, kreditlar va boshlang‘ich badal bo‘yicha banklar va mos uylarni aniqlang.</p>
-            <span className="mt-6 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white">Tekshirish →</span>
+          <Link href="/ipoteka/imkoniyatlari" className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <span className="text-2xl">💳</span><h3 className="mt-3 font-black">2. Ipoteka imkoniyatim</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Banklar, stavkalar, badal va taxminiy to‘lovlarni ko‘ring.</p>
+            <span className="mt-3 inline-flex text-sm font-black text-emerald-700">Tekshirish →</span>
+          </Link>
+
+          <Link href="/listings?tab=sale&mortgage=true" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <span className="text-2xl">🗺️</span><h3 className="mt-3 font-black">3. Menga mos uylar</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Ipotekaga mumkin bo‘lgan obyektlarni xaritada va ro‘yxatda toping.</p>
+            <span className="mt-3 inline-flex text-sm font-black text-emerald-700">Uylarni ko‘rish →</span>
+          </Link>
+
+          <Link href="/account/favorites" className="rounded-2xl border border-rose-100 bg-rose-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <span className="text-2xl">❤️</span><h3 className="mt-3 font-black">4. Saqlangan uylar</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Yoqtirgan uylaringizni narxi va holati bilan saqlang.</p>
+            <span className="mt-3 inline-flex text-sm font-black text-rose-700">Mening uylarim →</span>
+          </Link>
+
+          <Link href="/account/saved-searches" className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <span className="text-2xl">🔔</span><h3 className="mt-3 font-black">5. Narx va yangi uy xabarnomasi</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Saqlangan qidiruv va uylar bo‘yicha xabarlarni yoqing.</p>
+            <span className="mt-3 inline-flex text-sm font-black text-amber-700">Sozlash →</span>
+          </Link>
+
+          <Link href="/solishtirish" className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+            <span className="text-2xl">⚖️</span><h3 className="mt-3 font-black">6. Uylarni solishtirish</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">3 tagacha uyni narx, maydon va ipoteka bo‘yicha taqqoslang.</p>
+            <span className="mt-3 inline-flex text-sm font-black text-slate-700">Solishtirish →</span>
           </Link>
         </div>
-      </div>
+      </section>
     </main>
   )
 }
