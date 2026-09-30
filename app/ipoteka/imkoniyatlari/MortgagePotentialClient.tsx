@@ -30,13 +30,6 @@ const money = (value: number, lang: 'uz' | 'ru') =>
   new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { maximumFractionDigits: 0 })
     .format(Math.max(0, Math.round(value)))
 
-const monthlyPayment = (principal: number, annualRate: number, months: number) => {
-  if (principal <= 0 || months <= 0) return 0
-  const r = annualRate / 100 / 12
-  if (r === 0) return principal / months
-  return principal * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
-}
-
 const normalize = (value: string) => value.replace(/\D/g, '')
 
 export default function MortgagePotentialClient() {
