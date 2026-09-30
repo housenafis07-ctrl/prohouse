@@ -30,11 +30,9 @@ function replaceMortgageServiceLabel(dialog: Element) {
   // These service cards are placeholders for now. Keep only the title until
   // the corresponding mortgage products and requirements are finalized.
   const placeholders = [
-    'Ipoteka imkoniyatlari',
     'Uyni ta\'mirlashga',
     'Garov evaziga kredit',
     'Qayta moliyalash',
-    'Ипотечный потенциал',
     'На реконструкции',
     'Кредит под залог',
     'Рефинансирование',
@@ -109,6 +107,12 @@ export default function HomeBuildingNavigationFix() {
           if (isCalculatorCard) {
             event.preventDefault()
             window.location.assign('/ipoteka/kalkulyator')
+            return
+          }
+          const isPotentialCard = cardText.includes('Ipoteka imkoniyatlari') || cardText.includes('Ипотечный потенциал')
+          if (isPotentialCard) {
+            event.preventDefault()
+            window.location.assign('/ipoteka/imkoniyatlari')
             return
           }
         }
