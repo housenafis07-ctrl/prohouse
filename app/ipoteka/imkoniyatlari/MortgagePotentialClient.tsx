@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { mortgagePrograms } from '@/lib/mortgage-programs'
 import { loanFromPayment } from '@/lib/mortgage-affordability'
 import { useI18n } from '@/app/components/I18nProvider'
-import MortgageMap from '@/app/ipoteka/_components/MortgageMap'
+import ListingsMap from '@/app/components/ListingsMap'
 
 type Tool = 'homes' | 'banks' | 'map' | null
 
@@ -162,13 +162,11 @@ export default function MortgagePotentialClient() {
     if (!calculated) return
     setTool(nextTool)
     window.history.pushState({ tool: nextTool }, '', '?tool=' + nextTool)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const backToCalculator = () => {
     setTool(null)
     window.history.pushState({}, '', window.location.pathname)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const toolCards = [
@@ -329,13 +327,14 @@ export default function MortgagePotentialClient() {
           <div className="mt-6 rounded-2xl bg-rose-50 p-5 text-sm font-bold text-rose-700">{listingsError}</div>
         ) : tool === 'map' ? (
           <div className="mt-6">
-            {validMapItems.length ? (
-              <MortgageMap items={validMapItems} market="secondary" />
-            ) : (
-              <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
-                {tx('Hisoblangan budjetda koordinatasi mavjud ipotekali uylar topilmadi.', 'В рассчитанном бюджете не найдено ипотечных объектов с координатами.')}
-              </div>
-            )}
+            <ListingsMap
+              searchParams={new URLSearchParams({
+                tab: 'sale',
+                mortgage: 'true',
+                max: String(Math.round(result.maxHome)),
+                view: 'map',
+              }).toString()}
+            />
           </div>
         ) : (
           <div className="mt-6">
@@ -516,7 +515,6 @@ export default function MortgagePotentialClient() {
                     setCalculated(true)
                     setTool(null)
                     window.history.pushState({}, '', window.location.pathname)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
                   className="mt-6 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-base font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
