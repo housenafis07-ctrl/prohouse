@@ -16,12 +16,6 @@ const payment = (principal: number, annualRate: number, months: number) => {
   return principal * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1)
 }
 
-const loanFromPayment = (monthly: number, annualRate: number, months: number) => {
-  if (monthly <= 0 || months <= 0) return 0
-  const r = annualRate / 100 / 12
-  if (r === 0) return monthly * months
-  return monthly * (Math.pow(1 + r, months) - 1) / (r * Math.pow(1 + r, months))
-}
 
 export default function MortgagePotentialClient() {
   const router = useRouter()
