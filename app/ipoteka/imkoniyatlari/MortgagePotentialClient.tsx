@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { getMortgagePrograms } from '@/lib/mortgage-programs'
+import { loanFromPayment } from '@/lib/mortgage-affordability'
 
 const money = (value: number) =>
   new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(value)))
@@ -46,6 +49,9 @@ export default function MortgagePotentialClient() {
   }, [income, existingCredits, downPayment, rate, years, coBorrowerIncome, coBorrowerCredits])
 
   const canCalculate = Number(income) > 0 && Number(downPayment) >= 0
+
+  const matchingUrl = '/listings?tab=sale&min=' + Math.round(result.maxHome * 0.85) + '&max=' + Math.round(result.maxHome) + '&mortgage=true'
+  const matchingBanks = getMortgagePrograms('secondary').filter(p => Number(downPayment || 0) >= result.maxHome * (p.downPaymentMin / 100) && (!p.maxAmount || result.maxHome <= p.maxAmount)).slice(0, 6)
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -210,6 +216,32 @@ export default function MortgagePotentialClient() {
             )}
           </aside>
         </div>
+
+        {calculated && (
+          <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-black">Sizga mos banklar</h2>
+                <p className="mt-1 text-sm text-slate-500">Boshlang‘ich badal va taxminiy uy qiymatingizga mos dasturlar.</p>
+              </div>
+              <Link href={matchingUrl} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">Mos uylarni ko‘rish →</Link>
+            </div>
+            <div className="mt-5 space-y-3">
+              {(matchingBanks.length ? matchingBanks : getMortgagePrograms('secondary').slice(0, 6)).map(p => {
+                const loan = Math.max(0, result.maxHome - Number(downPayment || 0))
+                const payment = loanFromPayment(loan, p.rateMin, Math.max(12, Number(years || 20) * 12))
+                return (
+                  <div key={p.id} className="grid gap-3 rounded-2xl border border-slate-200 p-4 sm:grid-cols-[1.3fr_.6fr_.8fr_.9fr] sm:items-center">
+                    <div><b>{p.bank}</b><p className="text-xs text-slate-500">{p.program}</p></div>
+                    <div><span className="text-xs text-slate-400">Stavka</span><b className="block">{p.rateLabel}</b></div>
+                    <div><span className="text-xs text-slate-400">Badal</span><b className="block">{p.downPaymentLabel}</b></div>
+                    <div><span className="text-xs text-slate-400">Taxminiy to‘lov</span><b className="block text-emerald-700">{money(payment)} so‘m/oy</b></div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
           <strong>Eslatma:</strong> bu Royalhouse’ning dastlabki hisob-kitobi. Bankning yakuniy qarori daromadni tasdiqlash, kredit tarixi, qarz yuklamasi va tanlangan ipoteka dasturi shartlariga bog‘liq.
