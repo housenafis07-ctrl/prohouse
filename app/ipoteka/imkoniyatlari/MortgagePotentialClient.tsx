@@ -237,6 +237,56 @@ export default function MortgagePotentialClient() {
           </section>
         )}
 
+        {calculated && (
+          <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">ROYALHOUSE SMART TOOLS</p>
+              <h2 className="mt-2 text-2xl font-black text-slate-950">Keyingi qadamni tanlang</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">Hisob-kitobdan keyin Royalhouse’da mos uylarni topish, saqlash, xabarnoma olish va solishtirish mumkin.</p>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <Link href={matchingUrl} className="group rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                <span className="text-2xl">🗺️</span>
+                <h3 className="mt-2 font-black text-slate-950">Menga mos uylar</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Sizning budjetingiz va ipotekaga mos obyektlarni ko‘ring.</p>
+                <span className="mt-3 inline-flex text-sm font-black text-emerald-700">Mos uylarni ko‘rish →</span>
+              </Link>
+
+              <Link href="/account/favorites" className="group rounded-2xl border border-rose-100 bg-rose-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                <span className="text-2xl">❤️</span>
+                <h3 className="mt-2 font-black text-slate-950">Saqlangan uylar</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Yoqtirgan uylaringizni bitta joyda saqlang va kuzating.</p>
+                <span className="mt-3 inline-flex text-sm font-black text-rose-700">Mening uylarim →</span>
+              </Link>
+
+              <Link href="/account/saved-searches" className="group rounded-2xl border border-amber-100 bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                <span className="text-2xl">🔔</span>
+                <h3 className="mt-2 font-black text-slate-950">Yangi uy va narx xabarnomasi</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Saqlangan qidiruv va uylar bo‘yicha bildirishnomalarni yoqing.</p>
+                <span className="mt-3 inline-flex text-sm font-black text-amber-700">Xabarnomalarni sozlash →</span>
+              </Link>
+
+              <Link href="/solishtirish" className="group rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                <span className="text-2xl">⚖️</span>
+                <h3 className="mt-2 font-black text-slate-950">Uylarni solishtirish</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">3 tagacha uyni narx, maydon va ipoteka bo‘yicha taqqoslang.</p>
+                <span className="mt-3 inline-flex text-sm font-black text-slate-700">Solishtirish →</span>
+              </Link>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">💳</span>
+                <div>
+                  <h3 className="font-black text-slate-950">Sizga mos banklar</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Yuqoridagi banklar jadvalida stavka, boshlang‘ich badal va taxminiy to‘lovlar ko‘rsatilgan.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
           <strong>Eslatma:</strong> bu Royalhouse’ning dastlabki hisob-kitobi. Bankning yakuniy qarori daromadni tasdiqlash, kredit tarixi, qarz yuklamasi va tanlangan ipoteka dasturi shartlariga bog‘liq.
         </div>
