@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useI18n } from '@/app/components/I18nProvider'
 
 const PREF='royalhouse-alerts-enabled'
 const SNAP='royalhouse-alert-snapshot'
@@ -9,9 +10,16 @@ const SNAP='royalhouse-alert-snapshot'
 type Search={id:string;query:Record<string,unknown>;is_active:boolean}
 type Snapshot={searches:Record<string,string[]>;prices:Record<string,number>}
 
-function notify(title:string,body:string){
+async function notify(title:string,body:string){
   if(typeof window==='undefined' || !('Notification' in window) || Notification.permission!=='granted') return
-  new Notification(title,{body})
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration('/royalhouse-sw.js')
+    if (registration) {
+      await registration.showNotification(title, { body, icon: '/royalhouse-icon.svg', badge: '/royalhouse-icon.svg' })
+      return
+    }
+  } catch {}
+  try { new Notification(title,{body}) } catch {}
 }
 
 async function checkAlerts(seedOnly=false){
@@ -34,7 +42,7 @@ async function checkAlerts(seedOnly=false){
     const previous=old.searches[s.id]||[]
     if(!seedOnly && previous.length){
       const fresh=ids.filter(id=>!previous.includes(id))
-      if(fresh.length)notify('Royalhouse — yangi uylar',String(fresh.length)+' ta yangi e’lon saqlangan qidiruvingizga mos keldi.')
+      if(fresh.length) void notify('Royalhouse — yangi uylar',String(fresh.length)+' ta yangi e’lon saqlangan qidiruvingizga mos keldi.')
     }
     next.searches[s.id]=ids
   }
@@ -43,7 +51,7 @@ async function checkAlerts(seedOnly=false){
     if(!listing)continue
     const previous=old.prices[f.listing_id]
     if(!seedOnly && previous && Number(listing.price)<Number(previous)){
-      notify('Royalhouse — narx tushdi',String(listing.title_ru||listing.title)+': narx pasaydi.')
+      void notify('Royalhouse — narx tushdi',String(listing.title_ru||listing.title)+': narx pasaydi.')
     }
     next.prices[f.listing_id]=Number(listing.price)
   }
@@ -51,6 +59,8 @@ async function checkAlerts(seedOnly=false){
 }
 
 export default function SavedSearchAlertControls(){
+  const { lang } = useI18n()
+  const ru = lang === 'ru'
   const [enabled,setEnabled]=useState(false)
   const [busy,setBusy]=useState(false)
   const [status,setStatus]=useState('')
@@ -60,13 +70,14 @@ export default function SavedSearchAlertControls(){
   const enable=async()=>{
     setBusy(true);setStatus('')
     try{
-      if(!('Notification' in window)){setStatus('Brauzer bildirishnomalarni qo‘llab-quvvatlamaydi.');return}
+      if(!('Notification' in window)){setStatus(ru?'Браузер не поддерживает уведомления.':'Brauzer bildirishnomalarni qo‘llab-quvvatlamaydi.');return}
       const permission=await Notification.requestPermission()
-      if(permission!=='granted'){setStatus('Bildirishnomalarga ruxsat berilmadi.');return}
+      if(permission!=='granted'){setStatus(ru?'Разрешение на уведомления не предоставлено.':'Bildirishnomalarga ruxsat berilmadi.');return}
       localStorage.setItem(PREF,'1');setEnabled(true)
+      await navigator.serviceWorker?.register('/royalhouse-sw.js', { scope: '/' })
       await checkAlerts(true)
-      setStatus('Bildirishnomalar yoqildi.')
-    }catch{setStatus('Bildirishnomalarni yoqib bo‘lmadi.')}finally{setBusy(false)}
+      setStatus(ru?'Уведомления включены.':'Bildirishnomalar yoqildi.')
+    }catch{setStatus(ru?'Не удалось включить уведомления.':'Bildirishnomalarni yoqib bo‘lmadi.')}finally{setBusy(false)}
   }
 
   useEffect(()=>{
@@ -78,7 +89,7 @@ export default function SavedSearchAlertControls(){
   },[enabled])
 
   return <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-    <div><b className="text-sm">{enabled?'🔔 Bildirishnomalar yoqilgan':'🔔 Qidiruv va narx xabarnomalari'}</b><p className="mt-1 text-xs text-slate-600">{enabled?'Yangi mos uylar va saqlangan uy narxi tushganda brauzer xabari chiqadi.':'Saqlangan qidiruv va saqlangan uylar bo‘yicha brauzer xabarlarini yoqing.'}</p>{status&&<p className="mt-1 text-xs font-bold text-emerald-700">{status}</p>}</div>
+    <div><b className="text-sm">{enabled ? (ru?'🔔 Уведомления включены':'🔔 Bildirishnomalar yoqilgan') : (ru?'🔔 Уведомления поиска и цен':'🔔 Qidiruv va narx xabarnomalari')}</b><p className="mt-1 text-xs text-slate-600">{enabled ? (ru?'Новые подходящие объекты и снижение цены сохранённых объектов будут показываться в уведомлениях.':'Yangi mos uylar va saqlangan uy narxi tushganda brauzer xabari chiqadi.') : (ru?'Включите уведомления для сохранённых поисков и объектов.':'Saqlangan qidiruv va saqlangan uylar bo‘yicha brauzer xabarlarini yoqing.')}</p>{status&&<p className="mt-1 text-xs font-bold text-emerald-700">{status}</p>}</div>
     {!enabled&&<button type="button" disabled={busy} onClick={()=>void enable()} className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy?'...':'Xabarnomani yoqish'}</button>}
   </div>
 }
