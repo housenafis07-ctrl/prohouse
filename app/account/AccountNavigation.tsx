@@ -54,6 +54,7 @@ export default function AccountNavigation() {
   const toggleLanguage = () => setLang(ru ? 'uz' : 'ru')
 
   const primaryItems: NavItem[] = [
+    { href: '/solishtirish', label: ru ? '⚖️ Сравнение' : '⚖️ Solishtirish', className: 'bg-slate-100 text-slate-700' },
     { href: '/account/listings', label: text.myListings, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/listings/new', label: text.addListing, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/chat', label: text.messages, className: 'bg-emerald-50 text-emerald-700' },
