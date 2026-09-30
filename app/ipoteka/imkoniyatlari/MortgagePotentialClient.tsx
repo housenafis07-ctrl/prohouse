@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getMortgagePrograms, mortgagePrograms } from '@/lib/mortgage-programs'
+import { mortgagePrograms } from '@/lib/mortgage-programs'
 import { loanFromPayment } from '@/lib/mortgage-affordability'
 import { useI18n } from '@/app/components/I18nProvider'
 import MortgageMap from '@/app/ipoteka/_components/MortgageMap'
@@ -444,49 +444,6 @@ export default function MortgagePotentialClient() {
 
       {!tool ? (
         <>
-          <div className="mx-auto max-w-5xl px-4 pt-6 sm:pt-8">
-            <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">1-BOSQICH</p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950">{tx('Avval kalkulyatorni hisoblang', 'Сначала выполните расчёт')}</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  {tx('Natija chiqqach, pastdagi 1, 2 va 3 oynalar avtomatik faollashadi.', 'После расчёта три следующих шага автоматически станут активными.')}
-                </p>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                {toolCards.map((card) => (
-                  <button
-                    key={card.id}
-                    type="button"
-                    disabled={!calculated}
-                    onClick={() => openTool(card.id)}
-                    className={[
-                      'text-left rounded-2xl border p-4 transition',
-                      calculated
-                        ? 'cursor-pointer border-emerald-300 bg-white hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md'
-                        : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-55',
-                      card.id === 'banks' && calculated ? 'ring-1 ring-emerald-500' : '',
-                    ].join(' ')}
-                  >
-                    <span className="text-2xl">{card.icon}</span>
-                    <h3 className="mt-2 font-black text-slate-950">{card.title}</h3>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{card.text}</p>
-                    {calculated ? (
-                      <span className="mt-3 inline-flex rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
-                        {tx('Ochish →', 'Открыть →')}
-                      </span>
-                    ) : (
-                      <span className="mt-3 inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-400">
-                        {tx('Hisoblang', 'Сначала рассчитайте')}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </section>
-          </div>
-
           <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
@@ -608,6 +565,49 @@ export default function MortgagePotentialClient() {
               </aside>
             </div>
           </div>
+          <div className="mx-auto max-w-5xl px-4 pt-6 sm:pt-8">
+            <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">1-BOSQICH</p>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">{tx('Avval kalkulyatorni hisoblang', 'Сначала выполните расчёт')}</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {tx('Natija chiqqach, pastdagi 1, 2 va 3 oynalar avtomatik faollashadi.', 'После расчёта три следующих шага автоматически станут активными.')}
+                </p>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {toolCards.map((card) => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    disabled={!calculated}
+                    onClick={() => openTool(card.id)}
+                    className={[
+                      'text-left rounded-2xl border p-4 transition',
+                      calculated
+                        ? 'cursor-pointer border-emerald-300 bg-white hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md'
+                        : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-55',
+                      card.id === 'banks' && calculated ? 'ring-1 ring-emerald-500' : '',
+                    ].join(' ')}
+                  >
+                    <span className="text-2xl">{card.icon}</span>
+                    <h3 className="mt-2 font-black text-slate-950">{card.title}</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{card.text}</p>
+                    {calculated ? (
+                      <span className="mt-3 inline-flex rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
+                        {tx('Ochish →', 'Открыть →')}
+                      </span>
+                    ) : (
+                      <span className="mt-3 inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-400">
+                        {tx('Hisoblang', 'Сначала рассчитайте')}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+
         </>
       ) : (
         <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
