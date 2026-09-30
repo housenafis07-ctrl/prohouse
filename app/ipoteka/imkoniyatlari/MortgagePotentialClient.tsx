@@ -81,17 +81,67 @@ export default function MortgagePotentialClient() {
       </section>
 
       <div className="mx-auto max-w-5xl px-4 pt-8 sm:pt-10">
-        <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200">
-          <video
-            className="block h-auto w-full"
-            src="/videos/mortgage-potential.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            aria-label="Royalhouse ipoteka imkoniyatlari"
-          />
+        <section className="overflow-hidden rounded-3xl bg-slate-950 shadow-xl ring-1 ring-slate-800" aria-label="Royalhouse ipoteka imkoniyatlari">
+          <svg viewBox="0 0 960 540" className="block h-auto w-full" role="img" aria-label="Ipoteka imkoniyatini hisoblash animatsiyasi">
+            <defs>
+              <linearGradient id="rhMortgageBg" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stopColor="#064e3b" />
+                <stop offset="100%" stopColor="#0f766e" />
+              </linearGradient>
+              <filter id="rhShadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="10" stdDeviation="14" floodOpacity=".25" />
+              </filter>
+            </defs>
+            <rect width="960" height="540" fill="url(#rhMortgageBg)" />
+            <circle cx="820" cy="70" r="170" fill="#ffffff" opacity=".06">
+              <animate attributeName="r" values="150;190;150" dur="6s" repeatCount="indefinite" />
+            </circle>
+            <text x="64" y="72" fill="white" fontSize="28" fontWeight="800">IPOTEKA IMKONIYATINGIZNI HISOBLANG</text>
+            <text x="64" y="105" fill="#d1fae5" fontSize="17">Daromad va mavjud kreditlaringiz asosida taxminiy hisob</text>
+
+            <g filter="url(#rhShadow)">
+              <rect x="64" y="145" width="832" height="320" rx="30" fill="#ffffff" />
+            </g>
+
+            <g opacity="0">
+              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.28;0.36" dur="6s" repeatCount="indefinite" />
+              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Jami oylik daromad</text>
+              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">12 000 000 so‘m</text>
+              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Daromadingizni kiriting</text>
+              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
+              <rect x="350" y="355" width="85" height="12" rx="6" fill="#10b981" />
+            </g>
+
+            <g opacity="0">
+              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0.2;0.28;0.48;0.56" dur="6s" repeatCount="indefinite" />
+              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Mavjud kreditlar</text>
+              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">2 000 000 so‘m</text>
+              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Boshqa majburiyatlar ham hisobga olinadi</text>
+              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
+              <rect x="350" y="355" width="135" height="12" rx="6" fill="#10b981" />
+            </g>
+
+            <g opacity="0">
+              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0.4;0.48;0.68;0.76" dur="6s" repeatCount="indefinite" />
+              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">50% qarz yuklamasi</text>
+              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">6 000 000 so‘m</text>
+              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Jami kredit to‘lovi daromadning 50%idan oshmaydi</text>
+              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
+              <rect x="350" y="355" width="190" height="12" rx="6" fill="#10b981" />
+            </g>
+
+            <g opacity="0">
+              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0.6;0.68;0.88;0.96" dur="6s" repeatCount="indefinite" />
+              <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Ipoteka uchun imkoniyat</text>
+              <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">4 000 000 so‘m / oy</text>
+              <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Endi sizga mos uylarni Royalhouse’dan tanlang</text>
+              <rect x="350" y="355" width="260" height="12" rx="6" fill="#d1fae5" />
+              <rect x="350" y="355" width="245" height="12" rx="6" fill="#10b981" />
+            </g>
+
+            <text x="64" y="505" fill="#a7f3d0" fontSize="17" fontWeight="800">ROYALHOUSE</text>
+            <text x="896" y="505" textAnchor="end" fill="#d1fae5" fontSize="15">royalhouse.uz</text>
+          </svg>
         </section>
       </div>
 
