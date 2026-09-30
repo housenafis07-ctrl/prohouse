@@ -220,7 +220,7 @@ export default function MortgagePotentialClient() {
                   <p className="mt-1 text-2xl font-black">{money(result.maxLoan, lang)} {ru ? 'сум' : 'so‘m'}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx('Boshlang‘ich badal','Первоначальный взнос')} bilan uy qiymati</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx('Boshlang‘ich badal bilan uy qiymati','Стоимость жилья с первоначальным взносом')}</p>
                   <p className="mt-1 text-2xl font-black">{money(result.maxHome, lang)} {ru ? 'сум' : 'so‘m'}</p>
                 </div>
                 <div className="border-t border-white/10 pt-4 text-sm text-slate-400">
@@ -299,7 +299,7 @@ export default function MortgagePotentialClient() {
               <div className="flex items-start gap-3">
                 <span className="text-2xl">💳</span>
                 <div>
-                  <h3 className="font-black text-slate-950">{tx('{tx('Sizga mos banklar','Подходящие вам банки')}','Подходящие вам банки')}</h3>
+                  <h3 className="font-black text-slate-950">{tx('Sizga mos banklar','Подходящие вам банки')}</h3>
                   <p className="mt-1 text-xs leading-5 text-slate-500">{tx('Yuqoridagi banklar jadvalida stavka, boshlang‘ich badal va taxminiy to‘lovlar ko‘rsatilgan.','В таблице выше указаны ставки, первоначальный взнос и ориентировочный платёж.')}</p>
                 </div>
               </div>
