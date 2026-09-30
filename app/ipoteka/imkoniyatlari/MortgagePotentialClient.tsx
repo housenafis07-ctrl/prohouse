@@ -103,8 +103,8 @@ export default function MortgagePotentialClient() {
               <rect x="64" y="145" width="832" height="320" rx="30" fill="#ffffff" />
             </g>
 
-            <g opacity="0">
-              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.28;0.36" dur="6s" repeatCount="indefinite" />
+            <g opacity="1">
+              <animate attributeName="opacity" values="1;1;1;0" keyTimes="0;0.08;0.28;0.36" dur="6s" repeatCount="indefinite" />
               <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Jami oylik daromad</text>
               <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">12 000 000 so‘m</text>
               <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Daromadingizni kiriting</text>
@@ -131,7 +131,7 @@ export default function MortgagePotentialClient() {
             </g>
 
             <g opacity="0">
-              <animate attributeName="opacity" values="0;1;1;0" keyTimes="0.6;0.68;0.88;0.96" dur="6s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0;1;1;1" keyTimes="0.6;0.68;0.88;1" dur="6s" repeatCount="indefinite" />
               <text x="480" y="215" textAnchor="middle" fill="#0f172a" fontSize="30" fontWeight="800">Ipoteka uchun imkoniyat</text>
               <text x="480" y="270" textAnchor="middle" fill="#059669" fontSize="40" fontWeight="900">4 000 000 so‘m / oy</text>
               <text x="480" y="320" textAnchor="middle" fill="#64748b" fontSize="18">Endi sizga mos uylarni Royalhouse’dan tanlang</text>
