@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
   if (rooms !== null) query = query.gte('rooms', rooms)
   if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner')
   if (params.get('trusted') === 'true') query = query.eq('is_trusted_seller', true)
+  if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true)
   if (params.get('verified') === 'true') query = query.eq('is_verified', true)
 
   if (q) {
