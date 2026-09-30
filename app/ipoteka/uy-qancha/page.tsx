@@ -26,6 +26,8 @@ export default function AffordableHomePage() {
     years: Number(years),
   }), [income, existing, down, rate, years])
 
+  const canCalculate = Number(income) > 0 && Number(down) >= 0
+
   const matchingUrl = '/listings?tab=sale&min=' + Math.round(result.minHome) + '&max=' + Math.round(result.maxHome) + '&mortgage=true'
   const monthlyFor = (price: number) => monthlyPayment(Math.max(0, price - Number(down || 0)), Number(rate || 0), Number(years || 20) * 12)
 
@@ -56,7 +58,7 @@ export default function AffordableHomePage() {
                   <span className="text-sm font-bold text-slate-700">{label}</span>
                   <div className="mt-2 flex rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-400 focus-within:bg-white">
                     <input value={String(value)} onChange={e => (setter as (v: string) => void)(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={String(placeholder)} className="w-full bg-transparent py-3.5 font-bold outline-none" />
-                    <span className="py-3.5 text-sm font-bold text-slate-400">so‘m</span>
+                    <span className="py-3.5 text-sm font-bold text-slate-400">{ru ? 'сум' : 'so‘m'}</span>
                   </div>
                 </label>
               ))}
@@ -74,7 +76,7 @@ export default function AffordableHomePage() {
             <p className="text-sm font-bold text-emerald-300">{ru ? 'Ваш ориентировочный бюджет' : 'Sizning taxminiy uy budjetingiz'}</p>
             {!calculated ? <div className="py-12"><div className="text-5xl">🏠</div><h2 className="mt-5 text-2xl font-black">{ru ? 'Введите данные' : 'Ma’lumotlarni kiriting'}</h2><p className="mt-2 text-sm leading-6 text-slate-400">{ru ? 'После расчёта покажем диапазон и подходящие объекты.' : 'Hisoblagandan keyin diapazon va mos uylarni ko‘rsatamiz.'}</p></div> :
               <div className="mt-6"><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{ru ? 'Подходящий диапазон' : 'Mos kelishi mumkin bo‘lgan diapazon'}</p>
-                <p className="mt-2 text-3xl font-black text-emerald-300">{money(result.minHome, lang)} – {money(result.maxHome, lang)} so‘m</p>
+                <p className="mt-2 text-3xl font-black text-emerald-300">{money(result.minHome, lang)} – {money(result.maxHome, lang)} {ru ? 'сум' : 'so‘m'}</p>
                 <div className="mt-5 rounded-2xl bg-white/10 p-4"><p className="text-xs text-slate-400">{ru ? 'Ориентировочный платёж' : 'Taxminiy oylik to‘lov'}</p><p className="mt-1 text-2xl font-black">{money(result.mortgagePayment, lang)} so‘m/oy</p></div>
                 <Link href={matchingUrl} className="mt-5 flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-5 py-4 text-center font-black text-white">{ru ? 'Посмотреть подходящие дома →' : 'Sizga mos uylarni ko‘rish →'}</Link>
               </div>}
