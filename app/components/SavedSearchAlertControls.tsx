@@ -1,0 +1,84 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/utils/supabase/client'
+
+const PREF='royalhouse-alerts-enabled'
+const SNAP='royalhouse-alert-snapshot'
+
+type Search={id:string;query:Record<string,unknown>;is_active:boolean}
+type Snapshot={searches:Record<string,string[]>;prices:Record<string,number>}
+
+function notify(title:string,body:string){
+  if(typeof window==='undefined' || !('Notification' in window) || Notification.permission!=='granted') return
+  new Notification(title,{body})
+}
+
+async function checkAlerts(seedOnly=false){
+  const db=createClient()
+  const {data:{user}}=await db.auth.getUser()
+  if(!user)return
+  const {data:searches}=await db.from('saved_searches').select('id,query,is_active').eq('user_id',user.id)
+  const {data:favorites}=await db.from('listing_favorites').select('listing_id,listing:listings(id,price,title,title_ru)').eq('user_id',user.id)
+  const old:Snapshot=JSON.parse(localStorage.getItem(SNAP)||'{"searches":{},"prices":{}}')
+  const next:Snapshot={searches:{...old.searches},prices:{...old.prices}}
+  for(const s of (searches||[]) as Search[]){
+    if(!s.is_active)continue
+    const q=new URLSearchParams()
+    Object.entries(s.query||{}).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=='')q.set(k,String(v))})
+    q.set('limit','8')
+    const response=await fetch('/api/listings/search?'+q.toString(),{cache:'no-store'})
+    if(!response.ok)continue
+    const result=await response.json().catch(()=>({}))
+    const ids=((result.data||[]) as {id:string}[]).map(x=>x.id)
+    const previous=old.searches[s.id]||[]
+    if(!seedOnly && previous.length){
+      const fresh=ids.filter(id=>!previous.includes(id))
+      if(fresh.length)notify('Royalhouse — yangi uylar',String(fresh.length)+' ta yangi e’lon saqlangan qidiruvingizga mos keldi.')
+    }
+    next.searches[s.id]=ids
+  }
+  for(const f of (favorites||[]) as any[]){
+    const listing=Array.isArray(f.listing)?f.listing[0]:f.listing
+    if(!listing)continue
+    const previous=old.prices[f.listing_id]
+    if(!seedOnly && previous && Number(listing.price)<Number(previous)){
+      notify('Royalhouse — narx tushdi',String(listing.title_ru||listing.title)+': narx pasaydi.')
+    }
+    next.prices[f.listing_id]=Number(listing.price)
+  }
+  localStorage.setItem(SNAP,JSON.stringify(next))
+}
+
+export default function SavedSearchAlertControls(){
+  const [enabled,setEnabled]=useState(false)
+  const [busy,setBusy]=useState(false)
+  const [status,setStatus]=useState('')
+
+  useEffect(()=>{setEnabled(localStorage.getItem(PREF)==='1')},[])
+
+  const enable=async()=>{
+    setBusy(true);setStatus('')
+    try{
+      if(!('Notification' in window)){setStatus('Brauzer bildirishnomalarni qo‘llab-quvvatlamaydi.');return}
+      const permission=await Notification.requestPermission()
+      if(permission!=='granted'){setStatus('Bildirishnomalarga ruxsat berilmadi.');return}
+      localStorage.setItem(PREF,'1');setEnabled(true)
+      await checkAlerts(true)
+      setStatus('Bildirishnomalar yoqildi.')
+    }catch{setStatus('Bildirishnomalarni yoqib bo‘lmadi.')}finally{setBusy(false)}
+  }
+
+  useEffect(()=>{
+    if(!enabled)return
+    const run=()=>void checkAlerts(false)
+    const id=window.setInterval(run,10*60*1000)
+    window.addEventListener('focus',run)
+    return()=>{window.clearInterval(id);window.removeEventListener('focus',run)}
+  },[enabled])
+
+  return <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div><b className="text-sm">{enabled?'🔔 Bildirishnomalar yoqilgan':'🔔 Qidiruv va narx xabarnomalari'}</b><p className="mt-1 text-xs text-slate-600">{enabled?'Yangi mos uylar va saqlangan uy narxi tushganda brauzer xabari chiqadi.':'Saqlangan qidiruv va saqlangan uylar bo‘yicha brauzer xabarlarini yoqing.'}</p>{status&&<p className="mt-1 text-xs font-bold text-emerald-700">{status}</p>}</div>
+    {!enabled&&<button type="button" disabled={busy} onClick={()=>void enable()} className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy?'...':'Xabarnomani yoqish'}</button>}
+  </div>
+}
