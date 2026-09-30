@@ -49,15 +49,21 @@ export default function AffordableHomePage() {
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
             <h2 className="text-2xl font-black">{ru ? 'Ваши данные' : 'Ma’lumotlaringiz'}</h2>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {[
+              {([
                 [ru ? 'Ежемесячный доход' : 'Oylik daromad', income, setIncome, '10 000 000'],
                 [ru ? 'Текущие кредитные платежи' : 'Mavjud kredit to‘lovlari', existing, setExisting, '2 000 000'],
                 [ru ? 'Первоначальный взнос' : 'Boshlang‘ich badal', down, setDown, '150 000 000'],
-              ].map(([label, value, setter, placeholder]) => (
-                <label key={String(label)} className="block">
+              ] as Array<[string, string, (value: string) => void, string]>).map(([label, value, setter, placeholder]) => (
+                <label key={label} className="block">
                   <span className="text-sm font-bold text-slate-700">{label}</span>
                   <div className="mt-2 flex rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-400 focus-within:bg-white">
-                    <input value={String(value)} onChange={e => (setter as (v: string) => void)(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={String(placeholder)} className="w-full bg-transparent py-3.5 font-bold outline-none" />
+                    <input
+                      value={value}
+                      onChange={e => setter(e.target.value.replace(/\D/g, ''))}
+                      inputMode="numeric"
+                      placeholder={placeholder}
+                      className="w-full bg-transparent py-3.5 font-bold outline-none"
+                    />
                     <span className="py-3.5 text-sm font-bold text-slate-400">{ru ? 'сум' : 'so‘m'}</span>
                   </div>
                 </label>
