@@ -127,7 +127,7 @@ export default function MortgagePotentialClient() {
                 <span className="text-sm font-bold text-slate-700">{tx('Jami oylik daromad','Общий ежемесячный доход')}</span>
                 <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-400 focus-within:bg-white">
                   <input value={income} onChange={e => setIncome(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={ru ? '12 000 000' : '12 000 000'} className="w-full bg-transparent py-3.5 text-base font-bold outline-none" />
-                  <span className="text-sm font-bold text-slate-400">so‘m</span>
+                  <span className="text-sm font-bold text-slate-400">{ru ? 'сум' : 'so‘m'}</span>
                 </div>
               </label>
 
@@ -135,7 +135,7 @@ export default function MortgagePotentialClient() {
                 <span className="text-sm font-bold text-slate-700">{tx('Har oylik mavjud kreditlar to‘lovi','Текущие ежемесячные платежи по кредитам')}</span>
                 <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-400 focus-within:bg-white">
                   <input value={existingCredits} onChange={e => setExistingCredits(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={ru ? '2 000 000' : '2 000 000'} className="w-full bg-transparent py-3.5 text-base font-bold outline-none" />
-                  <span className="text-sm font-bold text-slate-400">so‘m</span>
+                  <span className="text-sm font-bold text-slate-400">{ru ? 'сум' : 'so‘m'}</span>
                 </div>
                 <span className="mt-1.5 block text-xs text-slate-400">{tx('Boshqa banklardagi kreditlar va boshqa majburiy oylik to‘lovlar.','Кредиты в других банках и другие обязательные ежемесячные платежи.')}</span>
               </label>
@@ -144,7 +144,7 @@ export default function MortgagePotentialClient() {
                 <span className="text-sm font-bold text-slate-700">{tx('Boshlang‘ich badal','Первоначальный взнос')}</span>
                 <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-400 focus-within:bg-white">
                   <input value={downPayment} onChange={e => setDownPayment(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={ru ? '150 000 000' : '150 000 000'} className="w-full bg-transparent py-3.5 text-base font-bold outline-none" />
-                  <span className="text-sm font-bold text-slate-400">so‘m</span>
+                  <span className="text-sm font-bold text-slate-400">{ru ? 'сум' : 'so‘m'}</span>
                 </div>
               </label>
 
@@ -159,7 +159,7 @@ export default function MortgagePotentialClient() {
               <label className="block sm:col-span-2">
                 <span className="text-sm font-bold text-slate-700">{tx('Ipoteka muddati','Срок ипотеки')}</span>
                 <select value={years} onChange={e => setYears(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-bold outline-none focus:border-emerald-400">
-                  {[5, 7, 10, 15, 20].map(y => <option key={y} value={y}>{y} yil</option>)}
+                  {[5, 7, 10, 15, 20].map(y => <option key={y} value={y}>{y} {ru ? 'лет' : 'yil'}</option>)}
                 </select>
               </label>
             </div>
@@ -235,7 +235,7 @@ export default function MortgagePotentialClient() {
           <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-black">{tx('{tx('Sizga mos banklar','Подходящие вам банки')}','Подходящие вам банки')}</h2>
+                <h2 className="text-2xl font-black">{tx('Sizga mos banklar','Подходящие вам банки')}</h2>
                 <p className="mt-1 text-sm text-slate-500">{tx('Boshlang‘ich badal','Первоначальный взнос')} va taxminiy uy qiymatingizga mos dasturlar.</p>
               </div>
               <Link href={matchingUrl} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">{tx('Mos uylarni ko‘rish →','Посмотреть подходящие объекты →')}</Link>
@@ -246,9 +246,9 @@ export default function MortgagePotentialClient() {
                 const payment = loanFromPayment(loan, p.rateMin, Math.max(12, Number(years || 20) * 12))
                 return (
                   <div key={p.id} className="grid gap-3 rounded-2xl border border-slate-200 p-4 sm:grid-cols-[1.3fr_.6fr_.8fr_.9fr] sm:items-center">
-                    <div><b>{p.bank}</b><p className="text-xs text-slate-500">{p.program}</p></div>
+                    <div><b>{p.bank}</b><p className="text-xs text-slate-500">{ru ? (p.programRu || p.program) : p.program}</p></div>
                     <div><span className="text-xs text-slate-400">{tx('Stavka','Ставка')}</span><b className="block">{p.rateLabel}</b></div>
-                    <div><span className="text-xs text-slate-400">{tx('Badal','Взнос')}</span><b className="block">{p.downPaymentLabel}</b></div>
+                    <div><span className="text-xs text-slate-400">{tx('Badal','Взнос')}</span><b className="block">{ru ? `${p.downPaymentMin}%+` : p.downPaymentLabel}</b></div>
                     <div><span className="text-xs text-slate-400">{tx('Taxminiy to‘lov','Ориентировочный платёж')}</span><b className="block text-emerald-700">{money(payment, lang)} {ru ? 'сум/мес.' : 'so‘m/oy'}</b></div>
                   </div>
                 )
@@ -277,7 +277,7 @@ export default function MortgagePotentialClient() {
                 <span className="text-2xl">❤️</span>
                 <h3 className="mt-2 font-black text-slate-950">{tx('Saqlangan uylar','Сохранённые объекты')}</h3>
                 <p className="mt-1 text-xs leading-5 text-slate-500">{tx('Yoqtirgan uylaringizni bitta joyda saqlang va kuzating.','Храните понравившиеся объекты и следите за ними в одном месте.')}</p>
-                <span className="mt-3 inline-flex text-sm font-black text-rose-700">Mening uylarim →</span>
+                <span className="mt-3 inline-flex text-sm font-black text-rose-700">{tx('Mening uylarim →','Мои объекты →')}</span>
               </Link>
 
               <Link href="/account/saved-searches" className="group rounded-2xl border border-amber-100 bg-amber-50 p-4 transition hover:-translate-y-0.5 hover:shadow-md">
