@@ -88,15 +88,10 @@ export default function LanguageRuntimeFix() {
         translatePrices()
       })
     }
-
-    const observer = new MutationObserver(schedule)
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-    window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('storage', schedule)
 
     return () => {
-      observer.disconnect()
       window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
