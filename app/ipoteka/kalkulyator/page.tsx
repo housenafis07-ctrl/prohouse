@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getMortgagePrograms } from '@/lib/mortgage-programs'
+import { useI18n } from '@/app/components/I18nProvider'
 import Link from 'next/link'
 
 type Lang = 'uz' | 'ru'
@@ -83,7 +84,7 @@ function escapeXml(value: string) {
 }
 
 export default function MortgageCalculatorPage() {
-  const [lang, setLang] = useState<Lang>('uz')
+  const { lang } = useI18n()
   const [propertyPrice, setPropertyPrice] = useState('1 000 000 000')
   const [downPayment, setDownPayment] = useState('200 000 000')
   const [downPercent, setDownPercent] = useState('20')
@@ -128,14 +129,6 @@ export default function MortgageCalculatorPage() {
       setDownPercent(String(selectedProgram.downPaymentMin))
       setYears(String(Math.min(15, Math.max(1, Math.round(selectedProgram.termMonths / 12)))))
     }
-  }, [])
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem('royalhouse-lang')
-    if (saved === 'ru') setLang('ru')
-    const onChange = () => setLang(window.localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
-    window.addEventListener('royalhouse-language-change', onChange)
-    return () => window.removeEventListener('royalhouse-language-change', onChange)
   }, [])
 
   const t = lang === 'ru' ? {
@@ -338,7 +331,7 @@ export default function MortgageCalculatorPage() {
         <h2 className="mt-2 text-3xl font-black tracking-tight">{t.faqTitle}</h2>
         <p className="mt-2 text-sm text-slate-500">{t.faqSub}</p>
         <div className="mt-8 divide-y divide-slate-200 rounded-3xl border border-slate-200 bg-white">{faq.map(([q,a],i)=><details key={q} open={i===0} className="group p-5 sm:p-6"><summary className="cursor-pointer list-none pr-8 text-base font-black marker:hidden">{q}<span className="float-right text-slate-400 transition group-open:rotate-180">⌄</span></summary><p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">{a}</p></details>)}</div>
-        <div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600"><span className="font-black text-slate-900">{t.sources}:</span> my.gov.uz va banklarning amaldagi kredit shartlari. Kalkulyatordagi raqamlar bank taklifi o‘rnini bosmaydi.</div>
+        <div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600"><span className="font-black text-slate-900">{t.sources}:</span> {lang === 'ru' ? 'my.gov.uz и актуальные кредитные условия банков. Цифры калькулятора не заменяют предложение банка.' : 'my.gov.uz va banklarning amaldagi kredit shartlari. Kalkulyatordagi raqamlar bank taklifi o‘rnini bosmaydi.'}</div>
       </div>
     </section>
   </main>
