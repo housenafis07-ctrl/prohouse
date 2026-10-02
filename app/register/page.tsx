@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type AccountType = 'individual' | 'partner'
 type PartnerType = 'self_employed' | 'sole_proprietor' | 'llc'
@@ -23,23 +24,13 @@ export default function RegisterPage() {
   const [form,setForm] = useState(emptyForm)
   const [offer,setOffer] = useState<Offer|null>(null)
   const [offerOpen,setOfferOpen] = useState(false)
-  const [lang,setLang] = useState<'uz'|'ru'>(() => typeof window !== 'undefined' && localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
+  const { lang } = useI18n()
   const ru = lang === 'ru'
   const t = (uz:string, russian:string) => ru ? russian : uz
 
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
   const getRedirectTo=()=>{ const next=new URLSearchParams(window.location.search).get('next'); return next && next.startsWith('/') ? next : '/account' }
 
-  useEffect(()=>{
-    const sync=()=>setLang(localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
-    sync()
-    window.addEventListener('royalhouse-language-change', sync)
-    window.addEventListener('storage', sync)
-    return()=>{
-      window.removeEventListener('royalhouse-language-change', sync)
-      window.removeEventListener('storage', sync)
-    }
-  },[])
 
   useEffect(()=>{
     let mounted=true
