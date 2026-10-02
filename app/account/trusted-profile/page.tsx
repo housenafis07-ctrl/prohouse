@@ -24,6 +24,13 @@ type Profile = {
   trusted_profile_rejection_reason: string | null
 }
 
+function TrustedBadge({ small = false, label }: { small?: boolean; label: string }) {
+  return <span className={`inline-flex items-center gap-1.5 rounded-full bg-emerald-50 font-extrabold text-emerald-700 ring-1 ring-emerald-100 ${small ? 'px-2.5 py-1 text-[11px]' : 'px-3 py-1.5 text-xs'}`}>
+    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-black text-white">✓</span>
+    {label}
+  </span>
+}
+
 export default function TrustedProfilePage() {
   const router = useRouter()
   const { lang } = useI18n()
