@@ -131,11 +131,11 @@ export default function MortgageCalculatorPage() {
   }, [])
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('prohouse-lang')
+    const saved = window.localStorage.getItem('royalhouse-lang')
     if (saved === 'ru') setLang('ru')
-    const onChange = () => setLang(window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz')
-    window.addEventListener('prohouse-language-change', onChange)
-    return () => window.removeEventListener('prohouse-language-change', onChange)
+    const onChange = () => setLang(window.localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
+    window.addEventListener('royalhouse-language-change', onChange)
+    return () => window.removeEventListener('royalhouse-language-change', onChange)
   }, [])
 
   const t = lang === 'ru' ? {
