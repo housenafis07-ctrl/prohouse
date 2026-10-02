@@ -122,12 +122,12 @@ export default function HomeBuildingNavigationFix() {
     }
 
     document.addEventListener('click', handleClick)
-    window.addEventListener('prohouse-language-change', polishAfterRender)
+    window.addEventListener('royalhouse-language-change', polishAfterRender)
     polishMortgageIcons()
 
     return () => {
       document.removeEventListener('click', handleClick)
-      window.removeEventListener('prohouse-language-change', polishAfterRender)
+      window.removeEventListener('royalhouse-language-change', polishAfterRender)
     }
   }, [])
 
