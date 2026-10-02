@@ -181,14 +181,12 @@ export default function ListingDetailLanguageFix() {
 
     run()
     window.addEventListener('royalhouse-language-change', schedule)
-    window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('storage', schedule)
 
     const observer = new MutationObserver(schedule)
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
     return () => {
-      window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
       observer.disconnect()
