@@ -16,9 +16,6 @@ export default function MobileMainNavigation() {
   const { lang } = useI18n()
 
   useEffect(() => {
-    const existing = document.querySelector('.prohouse-mobile-main-nav')
-    if (existing) return
-
     const style = document.createElement('style')
     style.textContent = `
       .prohouse-mobile-category-nav { display:none; }
