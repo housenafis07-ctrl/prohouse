@@ -46,11 +46,39 @@ const LOCATION_RU: Record<string, string> = {
   'Zangiota': 'Зангиатинский район',
   'Qibray': 'Кибрайский район',
 }
+const REGION_RU: Record<string,string> = {
+  "Qoraqalpog'iston Respublikasi": 'Республика Каракалпакстан',
+  'Andijon viloyati': 'Андижанская область',
+  'Buxoro viloyati': 'Бухарская область',
+  'Jizzax viloyati': 'Джизакская область',
+  'Qashqadaryo viloyati': 'Кашкадарьинская область',
+  'Navoiy viloyati': 'Навоийская область',
+  'Namangan viloyati': 'Наманганская область',
+  'Samarqand viloyati': 'Самаркандская область',
+  'Sirdaryo viloyati': 'Сырдарьинская область',
+  'Surxondaryo viloyati': 'Сурхандарьинская область',
+  'Toshkent viloyati': 'Ташкентская область',
+  "Farg'ona viloyati": 'Ферганская область',
+  'Xorazm viloyati': 'Хорезмская область',
+  'Toshkent shahri': 'г. Ташкент',
+}
+const transliterateUz = (value: string) => {
+  const map: Record<string,string> = { Sh:'Ш',sh:'ш',Ch:'Ч',ch:'ч',Ng:'Нг',ng:'нг',Ya:'Я',ya:'я',Yo:'Ё',yo:'ё',Yu:'Ю',yu:'ю',Ye:'Е',ye:'е',J:'Дж',j:'дж',Q:'К',q:'к',X:'Х',x:'х',H:'Х',h:'х',G:'Г',g:'г',O:'О',o:'о',A:'А',a:'а',B:'Б',b:'б',D:'Д',d:'д',E:'Е',e:'е',F:'Ф',f:'ф',I:'И',i:'и',K:'К',k:'к',L:'Л',l:'л',M:'М',m:'м',N:'Н',n:'н',P:'П',p:'п',R:'Р',r:'р',S:'С',s:'с',T:'Т',t:'т',U:'У',u:'у',V:'В',v:'в',Y:'Й',y:'й',Z:'З',z:'з',"g'":'г',"g’":'г',"gʻ":'г',"o'":'о',"o’":'о',"oʻ":'о',"O'":'О',"O’":'О',"Oʻ":'О',"G'":'Г',"G’":'Г',"Gʻ":'Г' }
+  let s=value
+  for(const [from,to] of Object.entries(map)) s=s.split(from).join(to)
+  return s.replace(/[ʻ’‘']/g,'')
+}
 const locationPart = (value: string | null | undefined, lang: Lang) => {
   if (!value) return ''
-  if (lang === 'ru') return LOCATION_RU[value] || value
-  const reverse = Object.entries(LOCATION_RU).find(([, ru]) => ru === value)?.[0]
-  return reverse || value
+  if (lang !== 'ru') {
+    const reverse = Object.entries({...LOCATION_RU,...REGION_RU}).find(([, ru]) => ru === value)?.[0]
+    return reverse || value
+  }
+  if (LOCATION_RU[value]) return LOCATION_RU[value]
+  if (REGION_RU[value]) return REGION_RU[value]
+  if (value.endsWith(' tumani')) return transliterateUz(value.slice(0,-7)) + 'ский район'
+  if (value.endsWith(' shahri')) return 'г. ' + transliterateUz(value.slice(0,-7))
+  return transliterateUz(value)
 }
 const locationOf = (x: Listing, lang: Lang) => [locationPart(x.city, lang), locationPart(x.district, lang)].filter(Boolean).join(', ')
 
