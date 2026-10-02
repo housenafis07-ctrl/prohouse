@@ -6,19 +6,19 @@ import { useI18n } from '@/app/components/I18nProvider'
 
 const copy = {
   uz: {
-    buy: 'Sotib olish', rent: 'Ijara', newHomes: 'Yangi uylar', build: 'Uy qurish', services: 'Xizmatlar', realtors: 'Rieltorlar', account: 'Shaxsiy kabinet',
+    buy: 'Sotib olish', rent: 'Ijara', newHomes: 'Yangi uylar', build: 'Uy qurish', navServices: 'Xizmatlar', realtors: 'Rieltorlar', account: 'Shaxsiy kabinet',
     title: 'Uy qurish', intro: 'Orzuyingizdagi uyni biz bilan birga quring. Loyiha, yer, pudratchi va xarajatlar — barchasi bir joyda.', choose: 'Loyihani tanlash →',
     imageTitle: 'O‘zingizga mos uy', imageSub: 'Loyihadan kalitgacha', servicesTitle: 'Uy qurish xizmatlari', servicesSub: 'Kerakli bosqichni tanlang',
     allProjects: 'Tayyor uy loyihalari', projectsSub: 'Turli uslub va maydondagi loyihalar', viewAll: 'Barchasini ko‘rish →', alt: 'Uy qurish',
-    services: ['Loyiha tanlash','Loyihalar katalogi','Pudratchi tanlash','Yer uchastkasini topish','Hisob-kitob qilish'],
+    serviceTitles: ['Loyiha tanlash','Loyihalar katalogi','Pudratchi tanlash','Yer uchastkasini topish','Hisob-kitob qilish'],
     serviceSubs: ['Tayyor uy loyihalari','1000+ tayyor loyiha','Ishonchli pudratchilar','Qurilish uchun yerlar','Taxminiy xarajatlar']
   },
   ru: {
-    buy: 'Купить', rent: 'Аренда', newHomes: 'Новостройки', build: 'Построить дом', services: 'Услуги', realtors: 'Риелторы', account: 'Личный кабинет',
+    buy: 'Купить', rent: 'Аренда', newHomes: 'Новостройки', build: 'Построить дом', navServices: 'Услуги', realtors: 'Риелторы', account: 'Личный кабинет',
     title: 'Построить дом', intro: 'Постройте дом своей мечты вместе с нами. Проект, участок, подрядчик и расчёты — всё в одном месте.', choose: 'Выбрать проект →',
     imageTitle: 'Дом под ваши задачи', imageSub: 'От проекта до ключей', servicesTitle: 'Услуги по строительству дома', servicesSub: 'Выберите нужный этап',
     allProjects: 'Готовые проекты домов', projectsSub: 'Проекты разных стилей и площадей', viewAll: 'Смотреть все →', alt: 'Строительство дома',
-    services: ['Выбор проекта','Каталог проектов','Выбор подрядчика','Поиск участка','Расчёт стоимости'],
+    serviceTitles: ['Выбор проекта','Каталог проектов','Выбор подрядчика','Поиск участка','Расчёт стоимости'],
     serviceSubs: ['Готовые проекты домов','Более 1000 готовых проектов','Надёжные подрядчики','Участки для строительства','Ориентировочная стоимость']
   }
 } as const
@@ -38,7 +38,7 @@ export default function BuildHome() {
       <div className="mx-auto flex min-h-[72px] max-w-[1400px] items-center gap-8 px-4">
         <Link href="/" className="flex items-center text-2xl font-black"><span className="mr-2 flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500 text-white">⌂</span>Royal<span className="text-emerald-500">house</span></Link>
         <nav className="hidden flex-1 items-center gap-6 text-sm font-semibold lg:flex">
-          <Link href="/listings?tab=sale">{t.buy}</Link><Link href="/listings?tab=rent">{t.rent}</Link><Link href="/listings?tab=sale&type=new_building">{t.newHomes}</Link><Link className="text-emerald-700" href="/uy-qurish">{t.build}</Link><Link href="/listings">{t.services}</Link><Link href="/realtors">{t.realtors}</Link>
+          <Link href="/listings?tab=sale">{t.buy}</Link><Link href="/listings?tab=rent">{t.rent}</Link><Link href="/listings?tab=sale&type=new_building">{t.newHomes}</Link><Link className="text-emerald-700" href="/uy-qurish">{t.build}</Link><Link href="/listings">{t.navServices}</Link><Link href="/realtors">{t.realtors}</Link>
         </nav>
         <Link href="/account" className="ml-auto rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white">{t.account}</Link>
       </div>
@@ -49,7 +49,7 @@ export default function BuildHome() {
         <div className="relative h-[300px] overflow-hidden rounded-3xl bg-slate-100"><img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=85" alt={t.alt} className="h-full w-full object-cover"/><div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent"/><div className="absolute bottom-5 left-5 text-white"><div className="text-xl font-black">{t.imageTitle}</div><div className="text-sm text-white/80">{t.imageSub}</div></div></div>
       </div>
     </section>
-    <section className="mx-auto max-w-[1400px] px-4 py-10 lg:px-8"><div className="mb-5"><h2 className="text-2xl font-black">{t.servicesTitle}</h2><p className="mt-1 text-sm text-slate-500">{t.servicesSub}</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{t.services.map((title, i)=><button key={title} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl font-black text-emerald-600">{['▣','⌂','♙','⌖','▤'][i]}</div><div className="mt-5 text-sm font-black">{title}</div><div className="mt-1 text-xs text-slate-500">{t.serviceSubs[i]}</div></button>)}</div></section>
+    <section className="mx-auto max-w-[1400px] px-4 py-10 lg:px-8"><div className="mb-5"><h2 className="text-2xl font-black">{t.servicesTitle}</h2><p className="mt-1 text-sm text-slate-500">{t.servicesSub}</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{t.serviceTitles.map((title, i)=><button key={title} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl font-black text-emerald-600">{['▣','⌂','♙','⌖','▤'][i]}</div><div className="mt-5 text-sm font-black">{title}</div><div className="mt-1 text-xs text-slate-500">{t.serviceSubs[i]}</div></button>)}</div></section>
     <section className="mx-auto max-w-[1400px] px-4 pb-14 lg:px-8"><div className="mb-5 flex items-end justify-between"><div><h2 className="text-2xl font-black">{t.allProjects}</h2><p className="mt-1 text-sm text-slate-500">{t.projectsSub}</p></div><Link href="/listings?tab=sale&type=house" className="font-bold text-emerald-700">{t.viewAll}</Link></div><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{projects.map(p=><Link href="/listings?tab=sale&type=house" key={p.title} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"><div className="aspect-[4/3] overflow-hidden bg-slate-100"><img src={p.image} alt={p.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105"/></div><div className="p-4"><h3 className="font-black">{lang === 'ru' ? (p.title === 'Karkasli uy 7,5×12 K-1.1' ? 'Каркасный дом 7,5×12 K-1.1' : p.title === 'Brusdan uy 6×9 D-81' ? 'Дом из бруса 6×9 D-81' : p.title === 'Zamonaviy uy Z-120' ? 'Современный дом Z-120' : 'Премиум дом P-200') : p.title}</h3><p className="mt-1 text-xs text-slate-500">{lang === 'ru' ? p.metaRu : p.meta}</p></div></Link>)}</div></section>
   </main>
 }
