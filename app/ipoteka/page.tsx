@@ -1,6 +1,8 @@
+'use client'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getMortgagePrograms } from '@/lib/mortgage-programs'
+import { useI18n } from '@/app/components/I18nProvider'
 
 export const metadata: Metadata = {
   title: 'Ipoteka kreditlari O‘zbekistonda | Royalhouse',
@@ -14,8 +16,47 @@ export const metadata: Metadata = {
 }
 
 export default function IpotekaPage() {
+  const { lang } = useI18n()
+  const ru = lang === 'ru'
   const secondary = getMortgagePrograms('secondary')
   const primary = getMortgagePrograms('primary')
+  const t = ru ? {
+    title: 'Ипотечные кредиты',
+    subtitle: 'Смотрите актуальные банковские программы, сравнивайте условия и рассчитывайте подходящий объект с ипотечным калькулятором.',
+    secondary: 'Ипотека на вторичном рынке',
+    primary: 'Ипотека на новостройку',
+    view: 'Подробнее',
+    secondaryDesc: 'готовое жильё · карта объектов, подходящих под ипотеку',
+    primaryDesc: 'новостройки · карта объектов, подходящих под ипотеку',
+    toolsTitle: '6 функций для удобного выбора жилья',
+    toolsSub: 'Сначала рассчитайте возможности, затем найдите, сохраните, отслеживайте и сравните подходящее жильё.',
+    cards: [
+      ['Сколько жилья вы можете купить?', 'Рассчитайте ориентировочный бюджет жилья на основе дохода и первоначального взноса.', 'Рассчитать'],
+      ['Мои ипотечные возможности', 'Посмотрите банки, ставки, первоначальный взнос и ориентировочный платёж.', 'Проверить'],
+      ['Подходящее мне жильё', 'Найдите подходящие для ипотеки объекты на карте и в списке.', 'Смотреть жильё'],
+      ['Сохранённые объекты', 'Сохраняйте понравившиеся объекты вместе с их ценой и статусом.', 'Мои объекты'],
+      ['Уведомления о цене и новых объектах', 'Включите уведомления по сохранённым поискам и объектам.', 'Настроить'],
+      ['Сравнение объектов', 'Сравните до 3 объектов по цене, площади и ипотеке.', 'Сравнить'],
+    ],
+  } : {
+    title: 'Ipoteka kreditlari',
+    subtitle: '{t.subtitle}',
+    secondary: 'Ipoteka ikkilamchi bozorda',
+    primary: 'Ipoteka yangi qurilishga',
+    view: 'Ko‘rish',
+    secondaryDesc: 'tayyor uy-joylar · ipotekaga mos obyektlar xaritasi',
+    primaryDesc: 'yangi qurilish · ipotekaga mos obyektlar xaritasi',
+    toolsTitle: 'Uy tanlashni osonlashtiradigan 6 ta funksiya',
+    toolsSub: 'Avval imkoniyatingizni hisoblang, keyin mos uylarni toping, saqlang, kuzating va solishtiring.',
+    cards: [
+      ['1. Siz qancha uy olishingiz mumkin?', 'Daromad va badal asosida taxminiy uy budjetini hisoblang.', 'Hisoblash'],
+      ['2. Ipoteka imkoniyatim', 'Banklar, stavkalar, badal va taxminiy to‘lovlarni ko‘ring.', 'Tekshirish'],
+      ['3. Menga mos uylar', 'Ipotekaga mumkin bo‘lgan obyektlarni xaritada va ro‘yxatda toping.', 'Uylarni ko‘rish'],
+      ['4. Saqlangan uylar', 'Yoqtirgan uylaringizni narxi va holati bilan saqlang.', 'Mening uylarim'],
+      ['5. Narx va yangi uy xabarnomasi', 'Saqlangan qidiruv va uylar bo‘yicha xabarlarni yoqing.', 'Sozlash'],
+      ['6. Uylarni solishtirish', '3 tagacha uyni narx, maydon va ipoteka bo‘yicha taqqoslang.', 'Solishtirish'],
+    ],
+  }
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -33,7 +74,7 @@ export default function IpotekaPage() {
       <section className="bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 text-white">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:py-20">
           <p className="text-sm font-black uppercase tracking-[.2em] text-emerald-100">ROYALHOUSE</p>
-          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">Ипотечные кредиты</h1>
+          <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">{t.title}</h1>
           <p className="mt-4 max-w-2xl text-base text-emerald-50 sm:text-lg">
             Amaldagi bank dasturlarini ko‘ring, shartlarini solishtiring va mos obyektni ipoteka kalkulyatori bilan hisoblang.
           </p>
@@ -53,14 +94,14 @@ export default function IpotekaPage() {
           <Link href="/ipoteka/vtorichnyy-rynok" className="group rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-lg">
             <div className="text-3xl">🏠</div>
             <h2 className="mt-5 text-2xl font-black">Ипотека на вторичном рынке</h2>
-            <p className="mt-2 text-slate-500">{secondary.length} ta bank dasturi · tayyor uy-joylar · ipotekaga mos obyektlar xaritasi</p>
-            <span className="mt-6 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white">Ko‘rish</span>
+            <p className="mt-2 text-slate-500">{secondary.length} {ru ? "банковские программы · " : "ta bank dasturi · "}{t.secondaryDesc}</p>
+            <span className="mt-6 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white">{t.view}</span>
           </Link>
 
           <Link href="/ipoteka/novostroyka" className="group rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-lg">
             <div className="text-3xl">🏗️</div>
             <h2 className="mt-5 text-2xl font-black">Ипотека на новостройку</h2>
-            <p className="mt-2 text-slate-500">{primary.length} ta bank dasturi · yangi qurilish · mos obyektlar xaritasi</p>
+            <p className="mt-2 text-slate-500">{primary.length} {ru ? "банковские программы · " : "ta bank dasturi · "}{t.primaryDesc}</p>
             <span className="mt-6 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 font-bold text-white">Ko‘rish</span>
           </Link>
         </div>
@@ -69,8 +110,8 @@ export default function IpotekaPage() {
       <section className="mx-auto max-w-7xl px-4 pb-12">
         <div className="mb-6">
           <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">ROYALHOUSE SMART HOME TOOLS</p>
-          <h2 className="mt-2 text-3xl font-black text-slate-950">Uy tanlashni osonlashtiradigan 6 ta funksiya</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Avval imkoniyatingizni hisoblang, keyin mos uylarni toping, saqlang, kuzating va solishtiring.</p>
+          <h2 className="mt-2 text-3xl font-black text-slate-950">{t.toolsTitle}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{t.toolsSub}</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
