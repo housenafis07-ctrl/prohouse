@@ -68,18 +68,18 @@ export default function WalletPage() {
               <div className="mt-2 flex items-end justify-between gap-4">
                 <div>
                   <h1 className="text-3xl font-black sm:text-4xl">{wallet ? money(Number(wallet.balance), wallet.currency) : '0 so‘m'}</h1>
-                  <p className="mt-2 text-sm text-slate-300">{wallet?.account_number || '{t('Hisob yaratilmagan','Счёт не создан')}'}</p>
+                  <p className="mt-2 text-sm text-slate-300">{wallet?.account_number || t('Hisob yaratilmagan','Счёт не создан')}</p>
                 </div>
-                <div className="rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-300">{wallet?.status === 'active' ? '{t('Faol','Активен')}' : wallet?.status || '—'}</div>
+                <div className="rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-300">{wallet?.status === 'active' ? t('Faol','Активен') : wallet?.status || '—'}</div>
               </div>
             </div>
             <div className="p-6 sm:p-8">
               <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                <b>{t('Balansni to‘ldirish','Пополнение баланса')}</b> funksiyasi keyingi bosqichda to‘lov provayderiga ulanadi. Hozircha hisob va barcha tranzaksiyalar tarixi tayyor.
+                {t('Balansni to‘ldirish funksiyasi keyingi bosqichda to‘lov provayderiga ulanadi. Hozircha hisob va barcha tranzaksiyalar tarixi tayyor.','Функция пополнения баланса будет подключена к платёжному провайдеру на следующем этапе. Пока доступны счёт и история всех транзакций.')}
               </div>
               <div className="mt-7 flex items-center justify-between gap-4">
                 <div><h2 className="text-lg font-extrabold text-slate-900">{t('Tranzaksiyalar tarixi','История транзакций')}</h2><p className="mt-1 text-sm text-slate-500">{t('Balansdagi barcha moliyaviy operatsiyalar.','Все финансовые операции по счёту.')}</p></div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{transactions.length} ta</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{transactions.length} {t('ta','шт.')}</span>
               </div>
               <div className="mt-4 divide-y divide-slate-100">
                 {transactions.length === 0 ? <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500">{t('Hozircha tranzaksiyalar mavjud emas.','Пока транзакций нет.')}</div> : transactions.map(tx => {
@@ -96,9 +96,9 @@ export default function WalletPage() {
           <aside className="space-y-5">
             <section className="rounded-3xl bg-white p-6 shadow-sm">
               <h2 className="text-lg font-extrabold text-slate-900">{t('Mening e’lonlarim','Мои объявления')}</h2>
-              <p className="mt-1 text-sm text-slate-500">{t('Har bir e’lonning doimiy RoyalHouse ID raqami mavjud.','У каждого объявления есть постоянный идентификатор RoyalHouse.')}</p>
+              <p className="mt-1 text-sm text-slate-500">{t('{t('Har bir e’lonning doimiy RoyalHouse ID raqami mavjud.','У каждого объявления есть постоянный идентификатор RoyalHouse.')}','У каждого объявления есть постоянный идентификатор RoyalHouse.')}</p>
               <div className="mt-4 space-y-3">
-                {listings.length === 0 ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">{t('Hozircha sizga tegishli e’lonlar yo‘q.','Пока у вас нет объявлений.')}</div> : listings.map(item => <Link key={item.id} href={`/listings/${item.id}`} className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:border-emerald-200"><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{item.listing_code}</span><span className="text-xs font-bold text-slate-400">{item.status}</span></div><p className="mt-3 font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-sm text-slate-500">{money(Number(item.price), item.currency)}</p></Link>)}
+                {listings.length === 0 ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">{t('{t('Hozircha sizga tegishli e’lonlar yo‘q.','Пока у вас нет объявлений.')}','Пока у вас нет объявлений.')}</div> : listings.map(item => <Link key={item.id} href={`/listings/${item.id}`} className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:border-emerald-200"><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{item.listing_code}</span><span className="text-xs font-bold text-slate-400">{item.status}</span></div><p className="mt-3 font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-sm text-slate-500">{money(Number(item.price), item.currency)}</p></Link>)}
               </div>
             </section>
             {error && <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">{error}</div>}
