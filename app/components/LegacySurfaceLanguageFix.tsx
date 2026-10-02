@@ -53,6 +53,16 @@ const PAIRS: Pair[] = [
 
   // Mortgage / listing detail UI
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
+  ['Ipoteka na ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
+  ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
+  ['Tayyor uylarni ipoteka orqali xarid qiling.', 'Покупайте готовое жильё в ипотеку.'],
+  ['Oylik to‘lov, maksimal summa va shartlarni hisoblang.', 'Рассчитайте ежемесячный платёж, максимальную сумму и условия.'],
+  ['Banklar dasturlarini solishtiring va shartlarni ko‘ring.', 'Сравните банковские программы и условия.'],
+  ['Daromadingizga mos bank dasturlarini toping.', 'Найдите банковские программы, подходящие под ваш доход.'],
+  ['Yangi quriladigan uylarni ipoteka orqali oling.', 'Покупайте жильё в новостройках в ипотеку.'],
+  ['Mavjud ipoteka bo‘yicha ma’lumot va xizmatlar.', 'Информация и услуги по действующей ипотеке.'],
+  ['Mulk garovi evaziga kredit imkoniyatlari.', 'Возможности кредитования под залог недвижимости.'],
+  ['Mavjud ipotekani qayta moliyalash imkoniyatlari.', 'Возможности рефинансирования действующей ипотеки.'],
   ['Ipoteka', 'Ипотека'],
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
   ['Ipoteka kalkulyatori', 'Калькулятор ипотеки'],
