@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
+import { useI18n } from '@/app/components/I18nProvider'
 
-type Lang = 'uz' | 'ru'
 type Category = { code: string; name_uz: string; name_ru: string | null; section_code: string; entity_type: string; is_listable?: boolean; sort_order: number }
 type Img = { file: File; preview: string }
 type ServiceRegion = { scope: 'all' | 'province' | 'district'; province: string; district?: string }
@@ -26,7 +26,7 @@ const cleanDistrict = (v: string) => v.replace(/ tumani$/i, '').replace(/ shahri
 export default function ServiceListingWizardV2() {
   const router = useRouter()
   const db = useMemo(() => createClient(), [])
-  const [lang, setLang] = useState<Lang>('uz')
+  const { lang, setLang } = useI18n()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -53,16 +53,6 @@ export default function ServiceListingWizardV2() {
 
   const update = (key: keyof typeof form, value: string) => setForm(v => ({ ...v, [key]: value }))
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem('royalhouse-lang')
-    if (saved === 'ru') setLang('ru')
-    const onLanguageChange = (event: Event) => {
-      const next = (event as CustomEvent<Lang>).detail
-      if (next === 'uz' || next === 'ru') setLang(next)
-    }
-    window.addEventListener('royalhouse-language-change', onLanguageChange)
-    return () => window.removeEventListener('royalhouse-language-change', onLanguageChange)
-  }, [])
 
   useEffect(() => {
     let active = true
@@ -244,7 +234,7 @@ export default function ServiceListingWizardV2() {
   if (loading) return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-4xl rounded-3xl bg-white p-10 text-center">{t('Yuklanmoqda...', 'Загрузка...')}</div></main>
 
   return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-4xl">
-    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">ROYALHOUSE</p><h1 className="mt-1 text-2xl font-bold text-slate-950">{t('Xizmat e’loni joylashtirish', 'Разместить объявление об услуге')}</h1><p className="mt-1 text-sm text-slate-500">{t('Xizmat ko‘rsatuvchi uchun alohida e’lon formasi.', 'Отдельная форма для поставщика услуг.')}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => { const n: Lang = ru ? 'uz' : 'ru'; setLang(n); window.localStorage.setItem('royalhouse-lang', n); window.dispatchEvent(new CustomEvent('royalhouse-language-change', { detail: n })) }} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700">{ru ? 'Ru / O‘z' : 'O‘z / Ru'}</button><Link href="/account" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">{t('Shaxsiy kabinet', 'Личный кабинет')}</Link></div></div>
+    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">ROYALHOUSE</p><h1 className="mt-1 text-2xl font-bold text-slate-950">{t('Xizmat e’loni joylashtirish', 'Разместить объявление об услуге')}</h1><p className="mt-1 text-sm text-slate-500">{t('Xizmat ko‘rsatuvchi uchun alohida e’lon formasi.', 'Отдельная форма для поставщика услуг.')}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => { setLang(ru ? 'uz' : 'ru') }} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700">{ru ? 'Ru / O‘z' : 'O‘z / Ru'}</button><Link href="/account" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">{t('Shaxsiy kabinet', 'Личный кабинет')}</Link></div></div>
     {partnerType && <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">{t('Xizmat e’lonlari xizmat ko‘rsatuvchi professional hamkorlar uchun mo‘ljallangan.', 'Объявления об услугах предназначены для профессиональных партнёров.')}</div>}
     <div className="mb-5 grid grid-cols-6 gap-1">{STEPS.map((item, i) => <div key={item.uz} className={`rounded-xl px-1 py-2 text-center text-[11px] font-semibold ${i + 1 === step ? 'bg-slate-950 text-white' : i + 1 < step ? 'bg-slate-200 text-slate-700' : 'bg-white text-slate-400'}`}><span className="hidden sm:inline">{i + 1}. </span>{ru ? item.ru : item.uz}</div>)}</div>
     <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-8">
