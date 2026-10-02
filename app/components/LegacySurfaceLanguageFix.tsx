@@ -231,11 +231,8 @@ export default function LegacySurfaceLanguageFix() {
     run()
     window.addEventListener('royalhouse-language-change', onLanguageChange)
     window.addEventListener('storage', onStorage)
-    const observer = new MutationObserver(() => schedule())
-    observer.observe(document.body, { childList: true, subtree: true })
 
     return () => {
-      observer.disconnect()
       window.removeEventListener('royalhouse-language-change', onLanguageChange)
       window.removeEventListener('storage', onStorage)
     }
