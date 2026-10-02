@@ -198,8 +198,8 @@ function translateText(value: string, lang: Lang) {
 
   // Rental period can be embedded in a price node, e.g. "5 000 000 сум / oy".
   // Translate only the slash-delimited period so place names such as "Yakkasaroy" are untouched.
-  if (lang === 'ru') value = value.replace(/\\s*\\/\\s*oy\\b/gi, ' / мес.')
-  else value = value.replace(/\\s*\\/\\s*мес\\.\\b/gi, ' / oy')
+  if (lang === 'ru') value = value.replace(/\s*\/\s*oy\b/gi, ' / мес.')
+  else value = value.replace(/\s*\/\s*мес\.\b/gi, ' / oy')
 
   const map = lang === 'ru' ? UZ_TO_RU : RU_TO_UZ
   const trimmed = value.trim()
