@@ -58,7 +58,7 @@ export default function RoyalhouseContactFooter() {
       setPhone('')
       setEmail('')
       setMessage('')
-      setResult('{tx('Xabaringiz yuborildi. Tez orada siz bilan bog‘lanamiz.','Сообщение отправлено. Мы свяжемся с вами в ближайшее время.')}')
+      setResult(tx('Xabaringiz yuborildi. Tez orada siz bilan bog‘lanamiz.','Сообщение отправлено. Мы свяжемся с вами в ближайшее время.'))
     } catch (error) {
       setResult(error instanceof Error ? error.message : tx('Xatolik yuz berdi.','Произошла ошибка.'))
     } finally {
