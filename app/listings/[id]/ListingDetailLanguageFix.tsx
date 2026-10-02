@@ -164,7 +164,7 @@ export default function ListingDetailLanguageFix() {
     const getLang = (): Lang => {
       const royalhouseLang = window.localStorage.getItem('royalhouse-lang')
       if (royalhouseLang === 'ru' || royalhouseLang === 'uz') return royalhouseLang
-      return window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+      return window.localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz'
     }
 
     const run = () => {
@@ -181,7 +181,7 @@ export default function ListingDetailLanguageFix() {
 
     run()
     window.addEventListener('royalhouse-language-change', schedule)
-    window.addEventListener('prohouse-language-change', schedule)
+    window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('storage', schedule)
 
     const observer = new MutationObserver(schedule)
@@ -189,7 +189,7 @@ export default function ListingDetailLanguageFix() {
 
     return () => {
       window.removeEventListener('royalhouse-language-change', schedule)
-      window.removeEventListener('prohouse-language-change', schedule)
+      window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
       observer.disconnect()
     }
