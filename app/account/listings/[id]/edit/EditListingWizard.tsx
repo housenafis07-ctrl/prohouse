@@ -14,7 +14,7 @@ type Category={code:string;parent_code:string|null;name_uz:string;name_ru:string
 type Attribute={id:string;category_code:string;code:string;name_uz:string;name_ru:string|null;data_type:string;options:unknown;unit:string|null;is_required:boolean;sort_order:number}
 type Listing={id:string;listing_code:string;title:string;description:string|null;listing_type:string;property_type:string;status:string;price:number;currency:string;area_m2:number|null;rooms:number|null;floor:number|null;floors_total:number|null;city:string;district:string|null;neighborhood:string|null;address:string|null;latitude:number|null;longitude:number|null;taxonomy_code:string|null;ownership_type:string|null;seller_type:string|null;is_mortgage_available:boolean;draft_data:Record<string,unknown>|null}
 
-const steps:{uz:string;ru:string}[]=[{uz:'Bo‘lim',ru:'Раздел'},{uz:'Tur',ru:'Тип'},{uz:'Joylashuv',ru:'Расположение'},{uz:'Xususiyatlar',ru:'Характеристики'},{uz:t('Narx','Цена'),ru:'Цена'},{uz:'Rasmlar',ru:'Фото'},{uz:'Tekshirish',ru:'Проверка'}]
+const steps:{uz:string;ru:string}[]=[{uz:'Bo‘lim',ru:'Раздел'},{uz:'Tur',ru:'Тип'},{uz:'Joylashuv',ru:'Расположение'},{uz:'Xususiyatlar',ru:'Характеристики'},{uz:'Narx',ru:'Цена'},{uz:'Rasmlar',ru:'Фото'},{uz:'Tekshirish',ru:'Проверка'}]
 const sections:Record<string,{uz:string;ru:string}>={sale:{uz:'Sotib olish',ru:'Покупка'},rent:{uz:'Ijara',ru:'Аренда'},new_building:{uz:'Yangi uylar',ru:'Новостройки'}}
 const cleanDistrict=(v:string)=>v.replace(/ tumani$/i,'').replace(/ shahri$/i,'')
 
