@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type Lang = 'uz' | 'ru'
 type Role = 'buyer' | 'seller'
@@ -22,13 +23,12 @@ const nextActionLabels: Record<Lang, Record<Status, string>> = {
 const actorHints: Record<Lang, Record<Role, string>> = { uz: { buyer: 'Xaridorning navbati', seller: 'Sotuvchining navbati' }, ru: { buyer: 'Ход покупателя', seller: 'Ход продавца' } }
 
 export default function TransactionPanel({ conversationId }: { conversationId: string | null }) {
-  const [lang, setLang] = useState<Lang>('uz')
+  const { lang } = useI18n()
   const [data, setData] = useState<TransactionResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [transitioning, setTransitioning] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => { const saved = window.localStorage.getItem('royalhouse-lang'); if (saved === 'ru') setLang('ru') }, [])
 
   const load = useCallback(async () => {
     if (!conversationId) { setData(null); return }
