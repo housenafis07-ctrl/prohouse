@@ -49,18 +49,18 @@ export default function ListingWizard(){
  const t=(uz:string,ruText:string)=>ru?ruText:uz
 
  useEffect(()=>{
-   const sync=()=>{ const saved=window.localStorage.getItem('prohouse-lang'); setLang(saved==='ru'?'ru':'uz') }
+   const sync=()=>{ const saved=window.localStorage.getItem('royalhouse-lang'); setLang(saved==='ru'?'ru':'uz') }
    sync()
    const onLanguageChange=(event:Event)=>{ const next=(event as CustomEvent<Lang>).detail; if(next==='ru'||next==='uz') setLang(next) }
-   window.addEventListener('prohouse-language-change',onLanguageChange)
-   return()=>window.removeEventListener('prohouse-language-change',onLanguageChange)
+   window.addEventListener('royalhouse-language-change',onLanguageChange)
+   return()=>window.removeEventListener('royalhouse-language-change',onLanguageChange)
  },[])
 
  const toggleLanguage=()=>{
    const next:Lang=ru?'uz':'ru'
    setLang(next)
-   window.localStorage.setItem('prohouse-lang',next)
-   window.dispatchEvent(new CustomEvent('prohouse-language-change',{detail:next}))
+   window.localStorage.setItem('royalhouse-lang',next)
+   window.dispatchEvent(new CustomEvent('royalhouse-language-change',{detail:next}))
  }
 
  useEffect(()=>{(async()=>{try{const r=await fetch('/api/listings/meta',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||t('Metadata yuklanmadi','Не удалось загрузить данные'));setCategories(d.categories||[]);setAttributes(d.attributes||[])}catch(e){setError(e instanceof Error?e.message:t('Yuklashda xatolik','Ошибка загрузки'))}finally{setLoading(false)}})()},[])
