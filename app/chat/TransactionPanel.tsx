@@ -28,7 +28,7 @@ export default function TransactionPanel({ conversationId }: { conversationId: s
   const [transitioning, setTransitioning] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => { const saved = window.localStorage.getItem('prohouse-lang'); if (saved === 'ru') setLang('ru') }, [])
+  useEffect(() => { const saved = window.localStorage.getItem('royalhouse-lang'); if (saved === 'ru') setLang('ru') }, [])
 
   const load = useCallback(async () => {
     if (!conversationId) { setData(null); return }
