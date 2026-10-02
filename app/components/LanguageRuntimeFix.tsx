@@ -93,7 +93,6 @@ export default function LanguageRuntimeFix() {
 
     return () => {
       window.removeEventListener('royalhouse-language-change', schedule)
-      window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
       if (frame) window.cancelAnimationFrame(frame)
     }
