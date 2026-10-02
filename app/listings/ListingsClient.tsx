@@ -19,6 +19,7 @@ const typeLabel = (v: string | null | undefined, l: Lang) => ({ apartment: l ===
 const periodLabel = (v: string, l: Lang) => v === 'rent' ? (l === 'ru' ? ' / мес.' : ' / oy') : v === 'daily' ? (l === 'ru' ? ' / сутки' : ' / kun') : ''
 
 const LOCATION_RU: Record<string, string> = {
+  'Toshkent': 'Ташкент',
   'Toshkent viloyati': 'Ташкентская область',
   'Toshkent shahri': 'г. Ташкент',
   'Toshkent shahar': 'г. Ташкент',
@@ -36,6 +37,14 @@ const LOCATION_RU: Record<string, string> = {
   'Uchtepa': 'Учтепинский район',
   'Mirobod': 'Мирабадский район',
   'Yangihayot': 'Янгихаётский район',
+  'Yangiyo‘l': 'Янгиюльский район',
+  "Yangiyo'l": 'Янгиюльский район',
+  'Chirchiq': 'Чирчик',
+  'Olmaliq': 'Алмалык',
+  'Angren': 'Ангрен',
+  'Bekobod': 'Бекабад',
+  'Zangiota': 'Зангиатинский район',
+  'Qibray': 'Кибрайский район',
 }
 const locationPart = (value: string | null | undefined, lang: Lang) => {
   if (!value) return ''
