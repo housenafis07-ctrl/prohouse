@@ -22,8 +22,7 @@ type Listing = {
   is_trusted_seller?: boolean
 }
 
-const money = (v: number, c: string, lang: 'uz'|'ru') => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${c === 'USD' ? '
-
+const money = (v: number, c: string, lang: 'uz'|'ru') => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${c === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
 const REGION_CENTERS: Record<string, [number, number]> = {
   "Qoraqalpog'iston Respublikasi": [43.8, 59.6],
   'Andijon viloyati': [40.78, 72.34],
@@ -169,7 +168,7 @@ export default function MapListingsPage() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black">{tx('Xaritadan topish','Поиск на карте')}</h1>
-          <p className="mt-1 text-sm text-slate-500">{locationTitle ? `${tx('Tanlangan hudud:','Выбранный регион:')} ${locationTitle}` : '{tx('Joylashuv bo‘yicha ko‘chmas mulklarni ko‘ring.','Смотрите недвижимость по местоположению.')}'}</p>
+          <p className="mt-1 text-sm text-slate-500">{locationTitle ? `${tx('Tanlangan hudud:','Выбранный регион:')} ${locationTitle}` : tx('Joylashuv bo‘yicha ko‘chmas mulklarni ko‘ring.','Смотрите недвижимость по местоположению.')}</p>
         </div>
         <div className="flex gap-2">
           <select value={mode} onChange={e => { setMode(e.target.value); setSelected(null) }} className="rounded-xl border bg-white px-3 py-2 text-sm font-bold">
@@ -382,7 +381,7 @@ export default function MapListingsPage() {
           <div className="divide-y">
             {items.map(x => <div key={x.id} className={`block w-full p-4 text-left transition ${selected === x.id ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}>
               <button type="button" onClick={() => setSelected(x.id)} className="w-full text-left">
-                <p className="font-black">{money(x.price, x.currency)}</p>
+                <p className="font-black">{money(x.price, x.currency, lang)}</p>
                 <h2 className="mt-1 line-clamp-2 text-sm font-bold">{x.title_ru || x.title}</h2>
                 <p className="mt-1 text-xs text-slate-500">⌖ {x.city}{x.district ? `, ${x.district}` : ''}</p>
                 <div className="mt-2 flex gap-1.5 text-[10px] font-bold text-slate-500">
