@@ -20,7 +20,7 @@ function getLang(): Lang {
   if (typeof window === 'undefined') return 'uz'
   const royalhouseLang = window.localStorage.getItem('royalhouse-lang')
   if (royalhouseLang === 'ru' || royalhouseLang === 'uz') return royalhouseLang
-  return window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+  return window.localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz'
 }
 
 function protectLanguageToggles() {
@@ -91,13 +91,13 @@ export default function LanguageRuntimeFix() {
 
     const observer = new MutationObserver(schedule)
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-    window.addEventListener('prohouse-language-change', schedule)
+    window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('royalhouse-language-change', schedule)
     window.addEventListener('storage', schedule)
 
     return () => {
       observer.disconnect()
-      window.removeEventListener('prohouse-language-change', schedule)
+      window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('royalhouse-language-change', schedule)
       window.removeEventListener('storage', schedule)
       if (frame) window.cancelAnimationFrame(frame)
