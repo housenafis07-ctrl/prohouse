@@ -104,33 +104,33 @@ export default function IpotekaPage() {
           </Link>
 
           <Link href="/ipoteka/imkoniyatlari" className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-            <span className="text-2xl">💳</span><h3 className="mt-3 font-black">{t.cards[0][0]}</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[0][1]}</p>
-            <span className="mt-3 inline-flex text-sm font-black text-emerald-700">{t.cards[0][2]} →</span>
+            <span className="text-2xl">💳</span><h3 className="mt-3 font-black">{t.cards[1][0]}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[1][1]}</p>
+            <span className="mt-3 inline-flex text-sm font-black text-emerald-700">{t.cards[1][2]} →</span>
           </Link>
 
           <Link href="/listings?tab=sale&mortgage=true" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-            <span className="text-2xl">🗺️</span><h3 className="mt-3 font-black">{t.cards[0][0]}</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[0][1]}</p>
-            <span className="mt-3 inline-flex text-sm font-black text-emerald-700">{t.cards[0][2]} →</span>
+            <span className="text-2xl">🗺️</span><h3 className="mt-3 font-black">{t.cards[2][0]}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[2][1]}</p>
+            <span className="mt-3 inline-flex text-sm font-black text-emerald-700">{t.cards[2][2]} →</span>
           </Link>
 
           <Link href="/account/favorites" className="rounded-2xl border border-rose-100 bg-rose-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-            <span className="text-2xl">❤️</span><h3 className="mt-3 font-black">{t.cards[0][0]}</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[0][1]}</p>
-            <span className="mt-3 inline-flex text-sm font-black text-rose-700">{t.cards[0][2]} →</span>
+            <span className="text-2xl">❤️</span><h3 className="mt-3 font-black">{t.cards[3][0]}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[3][1]}</p>
+            <span className="mt-3 inline-flex text-sm font-black text-rose-700">{t.cards[3][2]} →</span>
           </Link>
 
           <Link href="/account/saved-searches" className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-            <span className="text-2xl">🔔</span><h3 className="mt-3 font-black">{t.cards[0][0]}</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[0][1]}</p>
-            <span className="mt-3 inline-flex text-sm font-black text-amber-700">{t.cards[0][2]} →</span>
+            <span className="text-2xl">🔔</span><h3 className="mt-3 font-black">{t.cards[4][0]}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[4][1]}</p>
+            <span className="mt-3 inline-flex text-sm font-black text-amber-700">{t.cards[4][2]} →</span>
           </Link>
 
           <Link href="/solishtirish" className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-            <span className="text-2xl">⚖️</span><h3 className="mt-3 font-black">{t.cards[0][0]}</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[0][1]}</p>
-            <span className="mt-3 inline-flex text-sm font-black text-slate-700">{t.cards[0][2]} →</span>
+            <span className="text-2xl">⚖️</span><h3 className="mt-3 font-black">{t.cards[5][0]}</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t.cards[5][1]}</p>
+            <span className="mt-3 inline-flex text-sm font-black text-slate-700">{t.cards[5][2]} →</span>
           </Link>
         </div>
       </section>
