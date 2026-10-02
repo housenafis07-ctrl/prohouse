@@ -109,7 +109,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [apiReady, setApiReady] = useState(false)
-  const lang: Lang = typeof window !== 'undefined' && localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+  const lang: Lang = typeof window !== 'undefined' && localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz'
 
   useEffect(() => {
     if (window.L) {
