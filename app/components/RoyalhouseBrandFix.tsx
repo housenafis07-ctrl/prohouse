@@ -79,13 +79,6 @@ function normalizeHeaderLogo() {
 }
 
 function applyBrandFix() {
-  try {
-    const legacyLang = window.localStorage.getItem('royalhouse-lang')
-    const currentLang = window.localStorage.getItem('royalhouse-lang')
-    if (!currentLang && (legacyLang === 'uz' || legacyLang === 'ru')) window.localStorage.setItem('royalhouse-lang', legacyLang)
-  } catch {
-    // Ignore restricted storage access.
-  }
   replaceHead()
   replaceTextNodes(document.body)
   replaceAttributes()
