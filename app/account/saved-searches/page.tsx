@@ -9,7 +9,7 @@ import { useI18n } from '@/app/components/I18nProvider'
 
 type Search = { id: string; name: string; query: Record<string, unknown>; is_active: boolean; notify_push: boolean; notify_email: boolean; created_at: string }
 
-const label = (key: string, value: unknown) => {
+const label = (key: string, value: unknown, ru: boolean) => {
   const map: Record<string,string> = ru ? { sale:'Продажа', rent:'Аренда', daily:'Посуточно', apartment:'Квартира', house:'Частный дом', land:'Земля', commercial:'Коммерческая недвижимость', new_building:'Новостройка', owner:'От владельца', verified:'Подтверждено', mortgage:'Ипотека доступна' } : { sale:'Sotuv', rent:'Ijara', daily:'Kunlik', apartment:'Kvartira', house:'Xususiy uy', land:'Yer', commercial:'Tijorat', new_building:'Yangi bino', owner:'Egadan', verified:'Tasdiqlangan', mortgage:'Ipotekaga mumkin' }
   if (typeof value === 'boolean') return value ? (map[key] || key) : ''
   return map[String(value)] || String(value)
@@ -19,9 +19,9 @@ function summary(query: Record<string, unknown>, ru: boolean) {
   const parts: string[] = []
   for (const key of ['tab','region','district','type','rooms','min','max','currency']) {
     const value = query[key]
-    if (value !== undefined && value !== null && value !== '') parts.push(key === 'rooms' ? `${value}+ ${ru?'комн.':'xona'}` : key === 'min' ? `${ru?'от':'dan'} ${value}` : key === 'max' ? `${ru?'до':'gacha'} ${value}` : label(key, value))
+    if (value !== undefined && value !== null && value !== '') parts.push(key === 'rooms' ? `${value}+ ${ru?'комн.':'xona'}` : key === 'min' ? `${ru?'от':'dan'} ${value}` : key === 'max' ? `${ru?'до':'gacha'} ${value}` : label(key, value, ru))
   }
-  for (const key of ['owner','verified','mortgage']) if (query[key] === true) parts.push(label(key, true))
+  for (const key of ['owner','verified','mortgage']) if (query[key] === true) parts.push(label(key, true, ru))
   return parts.length ? parts.join(' · ') : (ru ? 'Все объявления' : 'Barcha e’lonlar')
 }
 
