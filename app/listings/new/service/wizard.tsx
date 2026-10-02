@@ -45,9 +45,9 @@ export default function ServiceListingWizard(){
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
 
   useEffect(()=>{
-    const saved=window.localStorage.getItem('prohouse-lang'); if(saved==='ru')setLang('ru')
+    const saved=window.localStorage.getItem('royalhouse-lang'); if(saved==='ru')setLang('ru')
     const onLanguageChange=(event:Event)=>{const next=(event as CustomEvent<Lang>).detail;if(next==='uz'||next==='ru')setLang(next)}
-    window.addEventListener('prohouse-language-change',onLanguageChange); return()=>window.removeEventListener('prohouse-language-change',onLanguageChange)
+    window.addEventListener('royalhouse-language-change',onLanguageChange); return()=>window.removeEventListener('royalhouse-language-change',onLanguageChange)
   },[])
   useEffect(()=>{(async()=>{try{
     const r=await fetch('/api/listings/meta',{cache:'no-store'}); const d=await r.json(); if(!r.ok)throw new Error(d.error||t('Ma’lumotlar yuklanmadi','Не удалось загрузить данные'))
@@ -89,7 +89,7 @@ export default function ServiceListingWizard(){
 
   if(loading)return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-4xl rounded-3xl bg-white p-10 text-center">{t('Yuklanmoqda...','Загрузка...')}</div></main>
   return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-4xl">
-    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">ROYALHOUSE</p><h1 className="mt-1 text-2xl font-bold text-slate-950">{t('Xizmat e’loni joylashtirish','Разместить объявление об услуге')}</h1><p className="mt-1 text-sm text-slate-500">{t('Xizmat ko‘rsatuvchi uchun alohida e’lon formasi.','Отдельная форма для поставщика услуг.')}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={()=>{const nextLang:Lang=ru?'uz':'ru';setLang(nextLang);window.localStorage.setItem('prohouse-lang',nextLang);window.dispatchEvent(new CustomEvent('prohouse-language-change',{detail:nextLang}))}} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700">{ru?'Ru / O‘z':'O‘z / Ru'}</button><Link href="/account" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">{t('Shaxsiy kabinet','Личный кабинет')}</Link></div></div>
+    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-500">ROYALHOUSE</p><h1 className="mt-1 text-2xl font-bold text-slate-950">{t('Xizmat e’loni joylashtirish','Разместить объявление об услуге')}</h1><p className="mt-1 text-sm text-slate-500">{t('Xizmat ko‘rsatuvchi uchun alohida e’lon formasi.','Отдельная форма для поставщика услуг.')}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={()=>{const nextLang:Lang=ru?'uz':'ru';setLang(nextLang);window.localStorage.setItem('royalhouse-lang',nextLang);window.dispatchEvent(new CustomEvent('royalhouse-language-change',{detail:nextLang}))}} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700">{ru?'Ru / O‘z':'O‘z / Ru'}</button><Link href="/account" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">{t('Shaxsiy kabinet','Личный кабинет')}</Link></div></div>
     {partnerType&&<div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">{t('Xizmat e’lonlari xizmat ko‘rsatuvchi professional hamkorlar uchun mo‘ljallangan.','Объявления об услугах предназначены для профессиональных партнёров.')}</div>}
     <div className="mb-5 grid grid-cols-6 gap-1">{STEPS.map((x,i)=><div key={x.uz} className={`rounded-xl px-1 py-2 text-center text-[11px] font-semibold ${i+1===step?'bg-slate-950 text-white':i+1<step?'bg-slate-200 text-slate-700':'bg-white text-slate-400'}`}><span className="hidden sm:inline">{i+1}. </span>{ru?x.ru:x.uz}</div>)}</div>
     <section className="rounded-3xl bg-white p-5 shadow-sm sm:p-8">
