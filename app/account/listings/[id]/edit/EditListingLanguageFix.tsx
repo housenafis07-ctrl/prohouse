@@ -141,7 +141,7 @@ function cleanupRentalEditFields() {
 
 export default function EditListingLanguageFix() {
   useEffect(() => {
-    const isRussian = () => window.localStorage.getItem('prohouse-lang') === 'ru'
+    const isRussian = () => window.localStorage.getItem('royalhouse-lang') === 'ru'
     const run = () => {
       if (isRussian()) translateText(document.body)
       cleanupRentalEditFields()
