@@ -3,8 +3,7 @@
 import Script from 'next/script'
 import { FormEvent, useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-
-type Lang = 'uz' | 'ru'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type NavItem = {
   label: string
@@ -57,7 +56,7 @@ const copy = {
 
 export default function TelegramMiniApp() {
   const [ready, setReady] = useState(false)
-  const [lang, setLang] = useState<Lang>(() => typeof window !== 'undefined' && localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
+  const { lang, setLang } = useI18n()
   const [keyword, setKeyword] = useState('')
   const t = copy[lang]
 
@@ -69,20 +68,9 @@ export default function TelegramMiniApp() {
       setReady(true)
     }
 
-    const syncLanguage = () => setLang(localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz')
-    window.addEventListener('royalhouse-language-change', syncLanguage)
-    window.addEventListener('storage', syncLanguage)
-    return () => {
-      window.removeEventListener('royalhouse-language-change', syncLanguage)
-      window.removeEventListener('storage', syncLanguage)
-    }
   }, [])
 
-  const changeLanguage = (next: Lang) => {
-    setLang(next)
-    localStorage.setItem('royalhouse-lang', next)
-    window.dispatchEvent(new Event('royalhouse-language-change'))
-  }
+  const changeLanguage = (next: 'uz' | 'ru') => setLang(next)
 
   const openPath = (path: string) => {
     const tg = (window as any).Telegram?.WebApp
