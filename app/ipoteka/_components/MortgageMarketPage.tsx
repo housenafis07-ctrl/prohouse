@@ -45,7 +45,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
   const programs = useMemo(() => getMortgagePrograms(market), [market])
 
   useEffect(() => {
-    const l = window.localStorage.getItem('prohouse-lang')
+    const l = window.localStorage.getItem('royalhouse-lang')
     if (l === 'ru') setLang('ru')
   }, [])
 
