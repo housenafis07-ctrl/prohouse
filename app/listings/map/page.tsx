@@ -211,8 +211,7 @@ export default function MapListingsPage() {
       {selectedItem && <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><div><p className="text-xs font-bold text-emerald-700">{tx('Tanlangan e’lon','Выбранное объявление')}</p><p className="font-black">{selectedItem.title}</p></div><Link href={`/listings/${selectedItem.id}`} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">{tx('Batafsil ko‘rish','Посмотреть подробнее')}</Link></div>}
     </div>
   </main>
-}
- : lang === 'ru' ? 'сум' : 'so‘m'}`
+
 
 const REGION_CENTERS: Record<string, [number, number]> = {
   "Qoraqalpog'iston Respublikasi": [43.8, 59.6],
