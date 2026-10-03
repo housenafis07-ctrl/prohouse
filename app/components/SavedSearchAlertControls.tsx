@@ -22,7 +22,7 @@ async function notify(title:string,body:string){
   try { new Notification(title,{body}) } catch {}
 }
 
-async function checkAlerts(seedOnly=false){
+async function checkAlerts(seedOnly=false, ru=false){
   const db=createClient()
   const {data:{user}}=await db.auth.getUser()
   if(!user)return
@@ -42,7 +42,7 @@ async function checkAlerts(seedOnly=false){
     const previous=old.searches[s.id]||[]
     if(!seedOnly && previous.length){
       const fresh=ids.filter(id=>!previous.includes(id))
-      if(fresh.length) void notify('Royalhouse — yangi uylar',String(fresh.length)+' ta yangi e’lon saqlangan qidiruvingizga mos keldi.')
+      if(fresh.length) void notify(ru?'Royalhouse — новые объявления':'Royalhouse — yangi uylar',ru?`${fresh.length} новых объявлений соответствуют сохранённому поиску.`:`${fresh.length} ta yangi e’lon saqlangan qidiruvingizga mos keldi.`)
     }
     next.searches[s.id]=ids
   }
@@ -51,7 +51,7 @@ async function checkAlerts(seedOnly=false){
     if(!listing)continue
     const previous=old.prices[f.listing_id]
     if(!seedOnly && previous && Number(listing.price)<Number(previous)){
-      void notify('Royalhouse — narx tushdi',String(listing.title_ru||listing.title)+': narx pasaydi.')
+      void notify(ru?'Royalhouse — снижение цены':'Royalhouse — narx tushdi',`${String(ru?(listing.title_ru||listing.title):listing.title)}: ${ru?'цена снизилась.':'narx pasaydi.'}`)
     }
     next.prices[f.listing_id]=Number(listing.price)
   }
@@ -75,14 +75,14 @@ export default function SavedSearchAlertControls(){
       if(permission!=='granted'){setStatus(ru?'Разрешение на уведомления не предоставлено.':'Bildirishnomalarga ruxsat berilmadi.');return}
       localStorage.setItem(PREF,'1');setEnabled(true)
       await navigator.serviceWorker?.register('/royalhouse-sw.js', { scope: '/' })
-      await checkAlerts(true)
+      await checkAlerts(true,ru)
       setStatus(ru?'Уведомления включены.':'Bildirishnomalar yoqildi.')
     }catch{setStatus(ru?'Не удалось включить уведомления.':'Bildirishnomalarni yoqib bo‘lmadi.')}finally{setBusy(false)}
   }
 
   useEffect(()=>{
     if(!enabled)return
-    const run=()=>void checkAlerts(false)
+    const run=()=>void checkAlerts(false,ru)
     const id=window.setInterval(run,10*60*1000)
     window.addEventListener('focus',run)
     return()=>{window.clearInterval(id);window.removeEventListener('focus',run)}
@@ -90,6 +90,6 @@ export default function SavedSearchAlertControls(){
 
   return <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
     <div><b className="text-sm">{enabled ? (ru?'🔔 Уведомления включены':'🔔 Bildirishnomalar yoqilgan') : (ru?'🔔 Уведомления поиска и цен':'🔔 Qidiruv va narx xabarnomalari')}</b><p className="mt-1 text-xs text-slate-600">{enabled ? (ru?'Новые подходящие объекты и снижение цены сохранённых объектов будут показываться в уведомлениях.':'Yangi mos uylar va saqlangan uy narxi tushganda brauzer xabari chiqadi.') : (ru?'Включите уведомления для сохранённых поисков и объектов.':'Saqlangan qidiruv va saqlangan uylar bo‘yicha brauzer xabarlarini yoqing.')}</p>{status&&<p className="mt-1 text-xs font-bold text-emerald-700">{status}</p>}</div>
-    {!enabled&&<button type="button" disabled={busy} onClick={()=>void enable()} className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy?'...':'Xabarnomani yoqish'}</button>}
+    {!enabled&&<button type="button" disabled={busy} onClick={()=>void enable()} className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy?'...':ru?'Включить уведомления':'Xabarnomani yoqish'}</button>}
   </div>
 }

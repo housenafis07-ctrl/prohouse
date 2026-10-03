@@ -19,6 +19,7 @@ const typeLabel = (v: string | null | undefined, l: Lang) => ({ apartment: l ===
 const periodLabel = (v: string, l: Lang) => v === 'rent' ? (l === 'ru' ? ' / мес.' : ' / oy') : v === 'daily' ? (l === 'ru' ? ' / сутки' : ' / kun') : ''
 
 const LOCATION_RU: Record<string, string> = {
+  'Toshkent': 'Ташкент',
   'Toshkent viloyati': 'Ташкентская область',
   'Toshkent shahri': 'г. Ташкент',
   'Toshkent shahar': 'г. Ташкент',
@@ -36,12 +37,48 @@ const LOCATION_RU: Record<string, string> = {
   'Uchtepa': 'Учтепинский район',
   'Mirobod': 'Мирабадский район',
   'Yangihayot': 'Янгихаётский район',
+  'Yangiyo‘l': 'Янгиюльский район',
+  "Yangiyo'l": 'Янгиюльский район',
+  'Chirchiq': 'Чирчик',
+  'Olmaliq': 'Алмалык',
+  'Angren': 'Ангрен',
+  'Bekobod': 'Бекабад',
+  'Zangiota': 'Зангиатинский район',
+  'Qibray': 'Кибрайский район',
+}
+const REGION_RU: Record<string,string> = {
+  "Qoraqalpog'iston Respublikasi": 'Республика Каракалпакстан',
+  'Andijon viloyati': 'Андижанская область',
+  'Buxoro viloyati': 'Бухарская область',
+  'Jizzax viloyati': 'Джизакская область',
+  'Qashqadaryo viloyati': 'Кашкадарьинская область',
+  'Navoiy viloyati': 'Навоийская область',
+  'Namangan viloyati': 'Наманганская область',
+  'Samarqand viloyati': 'Самаркандская область',
+  'Sirdaryo viloyati': 'Сырдарьинская область',
+  'Surxondaryo viloyati': 'Сурхандарьинская область',
+  'Toshkent viloyati': 'Ташкентская область',
+  "Farg'ona viloyati": 'Ферганская область',
+  'Xorazm viloyati': 'Хорезмская область',
+  'Toshkent shahri': 'г. Ташкент',
+}
+const transliterateUz = (value: string) => {
+  const map: Record<string,string> = { Sh:'Ш',sh:'ш',Ch:'Ч',ch:'ч',Ng:'Нг',ng:'нг',Ya:'Я',ya:'я',Yo:'Ё',yo:'ё',Yu:'Ю',yu:'ю',Ye:'Е',ye:'е',J:'Дж',j:'дж',Q:'К',q:'к',X:'Х',x:'х',H:'Х',h:'х',G:'Г',g:'г',O:'О',o:'о',A:'А',a:'а',B:'Б',b:'б',D:'Д',d:'д',E:'Е',e:'е',F:'Ф',f:'ф',I:'И',i:'и',K:'К',k:'к',L:'Л',l:'л',M:'М',m:'м',N:'Н',n:'н',P:'П',p:'п',R:'Р',r:'р',S:'С',s:'с',T:'Т',t:'т',U:'У',u:'у',V:'В',v:'в',Y:'Й',y:'й',Z:'З',z:'з',"g'":'г',"g’":'г',"gʻ":'г',"o'":'о',"o’":'о',"oʻ":'о',"O'":'О',"O’":'О',"Oʻ":'О',"G'":'Г',"G’":'Г',"Gʻ":'Г' }
+  let s=value
+  for(const [from,to] of Object.entries(map)) s=s.split(from).join(to)
+  return s.replace(/[ʻ’‘']/g,'')
 }
 const locationPart = (value: string | null | undefined, lang: Lang) => {
   if (!value) return ''
-  if (lang === 'ru') return LOCATION_RU[value] || value
-  const reverse = Object.entries(LOCATION_RU).find(([, ru]) => ru === value)?.[0]
-  return reverse || value
+  if (lang !== 'ru') {
+    const reverse = Object.entries({...LOCATION_RU,...REGION_RU}).find(([, ru]) => ru === value)?.[0]
+    return reverse || value
+  }
+  if (LOCATION_RU[value]) return LOCATION_RU[value]
+  if (REGION_RU[value]) return REGION_RU[value]
+  if (value.endsWith(' tumani')) return transliterateUz(value.slice(0,-7)) + 'ский район'
+  if (value.endsWith(' shahri')) return 'г. ' + transliterateUz(value.slice(0,-7))
+  return transliterateUz(value)
 }
 const locationOf = (x: Listing, lang: Lang) => [locationPart(x.city, lang), locationPart(x.district, lang)].filter(Boolean).join(', ')
 
@@ -151,6 +188,8 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
     if (!cursor && requestedPage > 1) q.set('page', String(requestedPage))
     return q.toString()
   }, [state, cursor, requestedPage])
+
+  const hasOnlyServerPagination = Array.from(searchParams.keys()).every((key) => key === 'page')
   const text = lang === 'ru'
     ? { title: 'Объявления', sub: 'Найдите подходящую недвижимость и услуги', filters: 'Фильтры', location: 'Расположение', district: 'Район / город', type: 'Тип недвижимости', currency: 'Валюта', rooms: 'Комнаты', from: 'от', to: 'до', owner: 'От владельца', trusted: 'Надёжный профиль', mortgage: 'Ипотека возможна', searchWord: 'Поиск по словам', searchPlaceholder: 'Например: дача, дом, Чиланзар', apply: 'Применить', clear: 'Сбросить', all: 'Все типы', allUz: 'Весь Узбекистан', allDistricts: 'Все районы и города', allCurrency: 'Все', empty: 'По вашему запросу объявлений нет.', newest: 'Новые', low: 'Дешевле', high: 'Дороже', save: 'Сохранить поиск', saveTitle: 'Название поиска', savePlaceholder: 'Например: 3-комнатная в Ташкенте', saveConfirm: 'Сохранить', cancel: 'Отмена', prev: 'Назад', next: 'Далее', loading: 'Загрузка...', saved: 'Поиск сохранён', table: 'Таблица', list: 'Список', grid: 'Карточки', map: 'На карте', mapHint: 'Показать выбранные объявления на карте', noPhoto: 'Нет фото', ownerShort: 'От владельца', seller: 'Продавец', listing: 'Объявление', price: 'Цена', locationCol: 'Расположение', typeCol: 'Тип', roomsArea: 'Комнаты / площадь', saveError: 'Не удалось сохранить поиск.', loadError: 'Не удалось загрузить объявления.', genericError: 'Произошла ошибка.', results: 'объявлений', room: 'комн.', floor: 'эт.' }
     : { title: 'E’lonlar', sub: 'Sizga mos ko‘chmas mulk va xizmatlarni toping', filters: 'Filtrlar', location: 'Joylashuv', district: 'Tuman / shahar', type: 'Ko‘chmas mulk turi', currency: 'Valyuta', rooms: 'Xonalar', from: 'dan', to: 'gacha', owner: 'Egadan', trusted: 'Ishonchli profil', mortgage: 'Ipotekaga mumkin', searchWord: 'So‘z bilan qidirish', searchPlaceholder: 'Masalan: dacha, hovli, Chilonzor', apply: 'Qo‘llash', clear: 'Tozalash', all: 'Barcha turlar', allUz: 'Butun O‘zbekiston', allDistricts: 'Barcha tuman va shaharlar', allCurrency: 'Barchasi', empty: 'Tanlangan shartlar bo‘yicha e’lon topilmadi.', newest: 'Eng yangi', low: 'Arzonidan', high: 'Qimmatidan', save: 'Qidiruvni saqlash', saveTitle: 'Qidiruv nomi', savePlaceholder: 'Masalan: Toshkentda 3 xonali', saveConfirm: 'Saqlash', cancel: 'Bekor qilish', prev: 'Orqaga', next: 'Keyingi', loading: 'Yuklanmoqda...', saved: 'Qidiruv saqlandi', table: 'Jadval', list: 'Ro‘yxat', grid: 'Kartochkalar', map: 'Xaritada', mapHint: 'Tanlangan e’lonlarni xaritada ko‘rsatish', noPhoto: 'Rasm yo‘q', ownerShort: 'Egadan', seller: 'Sotuvchi', listing: 'E’lon', price: 'Narx', locationCol: 'Joylashuv', typeCol: 'Turi', roomsArea: 'Xona / maydon', saveError: 'Qidiruvni saqlab bo‘lmadi.', loadError: 'E’lonlarni yuklab bo‘lmadi.', genericError: 'Xatolik yuz berdi.', results: 'ta e’lon', room: 'xona', floor: 'qavat' }
@@ -173,10 +212,10 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
   useEffect(() => {
     if (skipInitialLoad.current) {
       skipInitialLoad.current = false
-      return
+      if (hasOnlyServerPagination) return
     }
     void load()
-  }, [load])
+  }, [load, hasOnlyServerPagination])
 
   const districts = useMemo(() => state.region ? UZBEKISTAN_LOCATIONS.find(x => x.name === state.region)?.districts ?? [] : [], [state.region])
   const propertyTypes = useMemo(() => state.tab === 'sale' || state.tab === 'all' ? ['apartment', 'house', 'land', 'commercial', 'new_building'] : state.tab === 'rent' ? ['apartment', 'house', 'commercial'] : ['apartment', 'house'], [state.tab])

@@ -9,6 +9,7 @@ import {
   type MortgageProgram,
 } from '@/lib/mortgage-programs'
 import MortgageMap from './MortgageMap'
+import { useI18n } from '@/app/components/I18nProvider'
 
 const money = (n: number) =>
   new Intl.NumberFormat('ru-RU').format(Math.round(n)) + ' so‘m'
@@ -28,7 +29,7 @@ const infoImages = [
 ]
 
 export default function MortgageMarketPage({ market }: { market: MortgageMarket }) {
-  const [lang, setLang] = useState<'uz' | 'ru'>('uz')
+  const { lang } = useI18n()
   const [selected, setSelected] = useState<MortgageProgram | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [listing, setListing] = useState<any>(null)
@@ -43,11 +44,6 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
   const router = useRouter()
 
   const programs = useMemo(() => getMortgagePrograms(market), [market])
-
-  useEffect(() => {
-    const l = window.localStorage.getItem('prohouse-lang')
-    if (l === 'ru') setLang('ru')
-  }, [])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -254,9 +250,7 @@ export default function MortgageMarketPage({ market }: { market: MortgageMarket 
         <div className="mx-auto max-w-7xl px-4 pb-12 pt-5 sm:pb-16">
           <div className="mb-8 flex justify-end">
             <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">
-              {market === 'secondary'
-                ? 'Ikkilamchi bozor / Вторичный рынок'
-                : 'Yangi qurilish / Новостройка'}
+              {market === 'secondary' ? (lang === 'ru' ? 'Вторичный рынок' : 'Ikkilamchi bozor') : (lang === 'ru' ? 'Новостройка' : 'Yangi qurilish')}
             </span>
           </div>
 

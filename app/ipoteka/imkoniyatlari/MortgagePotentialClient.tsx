@@ -439,7 +439,7 @@ export default function MortgagePotentialClient() {
           <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
-                <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">KALKULYATOR</p>
+                <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">{tx('KALKULYATOR', 'КАЛЬКУЛЯТОР')}</p>
                 <h2 className="mt-2 text-2xl font-black text-slate-950">{tx('Ma’lumotlaringiz', 'Ваши данные')}</h2>
                 <p className="mt-1 text-sm text-slate-500">{tx('Hisob-kitob dastlabki taxmin hisoblanadi.', 'Расчёт является предварительным.')}</p>
 
@@ -559,7 +559,7 @@ export default function MortgagePotentialClient() {
           <div className="mx-auto max-w-5xl px-4 pt-6 sm:pt-8">
             <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
               <div>
-                <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">1-BOSQICH</p>
+                <p className="text-xs font-black uppercase tracking-[.16em] text-emerald-600">{tx('1-BOSQICH', 'ШАГ 1')}</p>
                 <h2 className="mt-2 text-2xl font-black text-slate-950">{tx('Avval kalkulyatorni hisoblang', 'Сначала выполните расчёт')}</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
                   {tx('Natija chiqqach, pastdagi 1, 2 va 3 oynalar avtomatik faollashadi.', 'После расчёта три следующих шага автоматически станут активными.')}

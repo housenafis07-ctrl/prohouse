@@ -53,6 +53,16 @@ const PAIRS: Pair[] = [
 
   // Mortgage / listing detail UI
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
+  ['Ipoteka na ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
+  ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
+  ['Tayyor uylarni ipoteka orqali xarid qiling.', 'Покупайте готовое жильё в ипотеку.'],
+  ['Oylik to‘lov, maksimal summa va shartlarni hisoblang.', 'Рассчитайте ежемесячный платёж, максимальную сумму и условия.'],
+  ['Banklar dasturlarini solishtiring va shartlarni ko‘ring.', 'Сравните банковские программы и условия.'],
+  ['Daromadingizga mos bank dasturlarini toping.', 'Найдите банковские программы, подходящие под ваш доход.'],
+  ['Yangi quriladigan uylarni ipoteka orqali oling.', 'Покупайте жильё в новостройках в ипотеку.'],
+  ['Mavjud ipoteka bo‘yicha ma’lumot va xizmatlar.', 'Информация и услуги по действующей ипотеке.'],
+  ['Mulk garovi evaziga kredit imkoniyatlari.', 'Возможности кредитования под залог недвижимости.'],
+  ['Mavjud ipotekani qayta moliyalash imkoniyatlari.', 'Возможности рефинансирования действующей ипотеки.'],
   ['Ipoteka', 'Ипотека'],
   ['Ipoteka ikkilamchi bozorda', 'Ипотека на вторичном рынке'],
   ['Ipoteka kalkulyatori', 'Калькулятор ипотеки'],
@@ -213,7 +223,7 @@ export default function LegacySurfaceLanguageFix() {
   useEffect(() => {
     let applying = false
     let queued = false
-    const getLang = (): Lang => window.localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+    const getLang = (): Lang => window.localStorage.getItem('royalhouse-lang') === 'ru' ? 'ru' : 'uz'
     const run = () => {
       if (applying) return
       applying = true
@@ -226,17 +236,14 @@ export default function LegacySurfaceLanguageFix() {
       window.requestAnimationFrame(() => { queued = false; run() })
     }
     const onLanguageChange = () => run()
-    const onStorage = (event: StorageEvent) => { if (event.key === 'prohouse-lang') run() }
+    const onStorage = (event: StorageEvent) => { if (event.key === 'royalhouse-lang') run() }
 
     run()
-    window.addEventListener('prohouse-language-change', onLanguageChange)
+    window.addEventListener('royalhouse-language-change', onLanguageChange)
     window.addEventListener('storage', onStorage)
-    const observer = new MutationObserver(() => schedule())
-    observer.observe(document.body, { childList: true, subtree: true })
 
     return () => {
-      observer.disconnect()
-      window.removeEventListener('prohouse-language-change', onLanguageChange)
+      window.removeEventListener('royalhouse-language-change', onLanguageChange)
       window.removeEventListener('storage', onStorage)
     }
   }, [])

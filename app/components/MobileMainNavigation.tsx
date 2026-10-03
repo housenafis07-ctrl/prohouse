@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { useI18n } from '@/app/components/I18nProvider'
 
 const ICONS = {
   home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v8.7a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-8.7Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
@@ -12,10 +13,9 @@ const ICONS = {
 } as const
 
 export default function MobileMainNavigation() {
-  useEffect(() => {
-    const existing = document.querySelector('.prohouse-mobile-main-nav')
-    if (existing) return
+  const { lang } = useI18n()
 
+  useEffect(() => {
     const style = document.createElement('style')
     style.textContent = `
       .prohouse-mobile-category-nav { display:none; }
@@ -115,7 +115,7 @@ export default function MobileMainNavigation() {
     `
     document.head.appendChild(style)
 
-    const isRussian = /Купить|Аренда|Новостройки|Ипотека/.test(document.body?.innerText || '')
+    const isRussian = lang === 'ru'
     const currentPath = window.location.pathname
     const currentSearch = window.location.search
 
@@ -216,7 +216,7 @@ export default function MobileMainNavigation() {
       nav.remove()
       style.remove()
     }
-  }, [])
+  }, [lang])
 
   return null
 }

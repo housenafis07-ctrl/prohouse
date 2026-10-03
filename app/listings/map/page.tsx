@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type Listing = {
   id: string
@@ -22,8 +22,7 @@ type Listing = {
   is_trusted_seller?: boolean
 }
 
-const money = (v: number, c: string) => `${new Intl.NumberFormat('ru-RU').format(Number(v))} ${c === 'USD' ? '$' : 'so‘m'}`
-
+const money = (v: number, c: string, lang: 'uz'|'ru') => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${c === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
 const REGION_CENTERS: Record<string, [number, number]> = {
   "Qoraqalpog'iston Respublikasi": [43.8, 59.6],
   'Andijon viloyati': [40.78, 72.34],
@@ -105,6 +104,9 @@ function MapView({ items, selected, onSelect, fallbackCenter }: { items: Listing
 }
 
 export default function MapListingsPage() {
+  const { lang } = useI18n()
+  const ru = lang === 'ru'
+  const tx = (uz: string, rr: string) => ru ? rr : uz
   const searchParams = useSearchParams()
   const [items, setItems] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
@@ -139,11 +141,11 @@ export default function MapListingsPage() {
       try {
         const response = await fetch(`/api/listings/map${queryString ? `?${queryString}` : ''}`, { cache: 'no-store' })
         const result = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(result.error || 'Xaritadagi e’lonlarni yuklab bo‘lmadi.')
+        if (!response.ok) throw new Error(result.error || tx('Xaritadagi e’lonlarni yuklab bo‘lmadi.','Не удалось загрузить объявления на карте.'))
         setItems((result.data || []) as Listing[])
       } catch (e) {
         setItems([])
-        setError(e instanceof Error ? e.message : 'Xatolik yuz berdi.')
+        setError(e instanceof Error ? e.message : tx('Xatolik yuz berdi.','Произошла ошибка.'))
       } finally {
         setLoading(false)
       }
@@ -157,7 +159,7 @@ export default function MapListingsPage() {
   return <main className="min-h-screen bg-slate-50 text-slate-900">
     <header className="border-b bg-white">
       <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4">
-        <Link href="/listings" className="font-black text-emerald-600">← Royalhouse e’lonlari</Link>
+        <Link href="/listings" className="font-black text-emerald-600">← {tx('Royalhouse e’lonlari','Объявления Royalhouse')}</Link>
         <Link href="/" className="text-xl font-black">Royal<span className="text-emerald-500">house</span></Link>
       </div>
     </header>
@@ -165,15 +167,15 @@ export default function MapListingsPage() {
     <div className="mx-auto max-w-[1440px] px-4 py-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black">Xaritadan topish</h1>
-          <p className="mt-1 text-sm text-slate-500">{locationTitle ? `Tanlangan hudud: ${locationTitle}` : 'Joylashuv bo‘yicha ko‘chmas mulklarni ko‘ring.'}</p>
+          <h1 className="text-2xl font-black">{tx('Xaritadan topish','Поиск на карте')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{locationTitle ? `${tx('Tanlangan hudud:','Выбранный регион:')} ${locationTitle}` : tx('Joylashuv bo‘yicha ko‘chmas mulklarni ko‘ring.','Смотрите недвижимость по местоположению.')}</p>
         </div>
         <div className="flex gap-2">
           <select value={mode} onChange={e => { setMode(e.target.value); setSelected(null) }} className="rounded-xl border bg-white px-3 py-2 text-sm font-bold">
-            <option value="sale">Sotuv</option><option value="rent">Ijara</option><option value="daily">Kunlik</option><option value="all">Barchasi</option>
+            <option value="sale">{tx('Sotuv','Продажа')}</option><option value="rent">{tx('Ijara','Аренда')}</option><option value="daily">{tx('Kunlik','Посуточно')}</option><option value="all">{tx('Barchasi','Все')}</option>
           </select>
           <select value={type} onChange={e => { setType(e.target.value); setSelected(null) }} className="rounded-xl border bg-white px-3 py-2 text-sm font-bold">
-            <option value="">Barcha turlar</option><option value="apartment">Kvartira</option><option value="house">Xususiy uy</option><option value="commercial">Tijorat</option><option value="land">Yer</option><option value="new_building">Yangi bino</option>
+            <option value="">{tx('Barcha turlar','Все типы')}</option><option value="apartment">{tx('Kvartira','Квартира')}</option><option value="house">{tx('Xususiy uy','Частный дом')}</option><option value="commercial">{tx('Tijorat','Коммерческая недвижимость')}</option><option value="land">{tx('Yer','Земельный участок')}</option><option value="new_building">{tx('Yangi bino','Новостройка')}</option>
           </select>
         </div>
       </div>
@@ -182,31 +184,31 @@ export default function MapListingsPage() {
         <div className="order-2 min-h-[560px] lg:order-1"><MapView items={items} selected={selected} onSelect={setSelected} fallbackCenter={fallbackCenter} /></div>
         <aside className="order-1 max-h-[680px] overflow-y-auto border-b bg-white lg:order-2 lg:border-b-0 lg:border-l">
           <div className="sticky top-0 z-10 border-b bg-white px-5 py-4">
-            <b>{items.length} ta e’lon</b>
+            <b>{items.length} {tx('ta e’lon','объявлений')}</b>
             {locationTitle && <p className="mt-1 text-xs text-emerald-700">📍 {locationTitle}</p>}
             {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-            {loading && <p className="mt-2 text-xs text-slate-400">Yuklanmoqda...</p>}
+            {loading && <p className="mt-2 text-xs text-slate-400">{tx('Yuklanmoqda...','Загрузка...')}</p>}
           </div>
-          {!loading && !items.length && <div className="p-8 text-center text-sm text-slate-500">Bu hudud/tur bo‘yicha xaritada e’lon yo‘q.</div>}
+          {!loading && !items.length && <div className="p-8 text-center text-sm text-slate-500">{tx('Bu hudud/tur bo‘yicha xaritada e’lon yo‘q.','По выбранному региону/типу объявлений нет.')}</div>}
           <div className="divide-y">
             {items.map(x => <div key={x.id} className={`block w-full p-4 text-left transition ${selected === x.id ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}>
               <button type="button" onClick={() => setSelected(x.id)} className="w-full text-left">
-                <p className="font-black">{money(x.price, x.currency)}</p>
+                <p className="font-black">{money(x.price, x.currency, lang)}</p>
                 <h2 className="mt-1 line-clamp-2 text-sm font-bold">{x.title_ru || x.title}</h2>
                 <p className="mt-1 text-xs text-slate-500">⌖ {x.city}{x.district ? `, ${x.district}` : ''}</p>
                 <div className="mt-2 flex gap-1.5 text-[10px] font-bold text-slate-500">
-                  {x.rooms != null && <span className="rounded bg-slate-100 px-1.5 py-1">{x.rooms} xona</span>}
+                  {x.rooms != null && <span className="rounded bg-slate-100 px-1.5 py-1">{x.rooms} {tx('xona','комн.')}</span>}
                   {x.area_m2 != null && <span className="rounded bg-slate-100 px-1.5 py-1">{x.area_m2} m²</span>}
                   {x.is_trusted_seller && <span className="rounded bg-emerald-50 px-1.5 py-1 text-emerald-700">✓</span>}
                 </div>
               </button>
-              <Link href={`/listings/${x.id}`} className="mt-3 inline-flex text-xs font-extrabold text-emerald-700">Batafsil →</Link>
+              <Link href={`/listings/${x.id}`} className="mt-3 inline-flex text-xs font-extrabold text-emerald-700">{tx('Batafsil →','Подробнее →')}</Link>
             </div>)}
           </div>
         </aside>
       </div>
 
-      {selectedItem && <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><div><p className="text-xs font-bold text-emerald-700">Tanlangan e’lon</p><p className="font-black">{selectedItem.title}</p></div><Link href={`/listings/${selectedItem.id}`} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">Batafsil ko‘rish</Link></div>}
+      {selectedItem && <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><div><p className="text-xs font-bold text-emerald-700">{tx('Tanlangan e’lon','Выбранное объявление')}</p><p className="font-black">{selectedItem.title}</p></div><Link href={`/listings/${selectedItem.id}`} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">{tx('Batafsil ko‘rish','Посмотреть подробнее')}</Link></div>}
     </div>
   </main>
 }

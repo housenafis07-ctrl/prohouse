@@ -8,8 +8,8 @@ import ListingLocationPicker from '@/app/components/ListingLocationPicker'
 import RentalBookingSettings from '@/app/components/RentalBookingSettings'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
+import { useI18n } from '@/app/components/I18nProvider'
 
-type Lang = 'uz' | 'ru'
 type Category = { code:string; parent_code:string|null; name_uz:string; name_ru:string|null; section_code:string; listing_type:string|null; property_type:string|null; entity_type:string; is_mortgage_filter:boolean; is_new_construction_filter:boolean; sort_order:number }
 type Attribute = { id:string; category_code:string; code:string; name_uz:string; name_ru:string|null; data_type:string; options:unknown; unit:string|null; is_required:boolean; sort_order:number }
 type Img = { file:File; preview:string }
@@ -30,7 +30,7 @@ const getImageDimensions = (file: File): Promise<{ width: number | null; height:
 
 export default function ListingWizard(){
  const router=useRouter()
- const [lang,setLang]=useState<Lang>('uz')
+  const { lang, setLang } = useI18n()
  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [error,setError]=useState(''); const [success,setSuccess]=useState('')
  const [categories,setCategories]=useState<Category[]>([]); const [attributes,setAttributes]=useState<Attribute[]>([]); const [step,setStep]=useState(1); const [listingId,setListingId]=useState<string|null>(null)
  const [selectedSection,setSelectedSection]=useState<string|null>(null)
@@ -48,19 +48,9 @@ export default function ListingWizard(){
  const update=(k:keyof typeof form,v:string)=>setForm(x=>({...x,[k]:v}))
  const t=(uz:string,ruText:string)=>ru?ruText:uz
 
- useEffect(()=>{
-   const sync=()=>{ const saved=window.localStorage.getItem('prohouse-lang'); setLang(saved==='ru'?'ru':'uz') }
-   sync()
-   const onLanguageChange=(event:Event)=>{ const next=(event as CustomEvent<Lang>).detail; if(next==='ru'||next==='uz') setLang(next) }
-   window.addEventListener('prohouse-language-change',onLanguageChange)
-   return()=>window.removeEventListener('prohouse-language-change',onLanguageChange)
- },[])
 
  const toggleLanguage=()=>{
-   const next:Lang=ru?'uz':'ru'
-   setLang(next)
-   window.localStorage.setItem('prohouse-lang',next)
-   window.dispatchEvent(new CustomEvent('prohouse-language-change',{detail:next}))
+   setLang(ru ? 'uz' : 'ru')
  }
 
  useEffect(()=>{(async()=>{try{const r=await fetch('/api/listings/meta',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||t('Metadata yuklanmadi','Не удалось загрузить данные'));setCategories(d.categories||[]);setAttributes(d.attributes||[])}catch(e){setError(e instanceof Error?e.message:t('Yuklashda xatolik','Ошибка загрузки'))}finally{setLoading(false)}})()},[])

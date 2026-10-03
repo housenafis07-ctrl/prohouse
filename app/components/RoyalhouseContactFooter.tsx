@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { useI18n } from '@/app/components/I18nProvider'
 import { createPortal } from 'react-dom'
 
 export default function RoyalhouseContactFooter() {
@@ -12,6 +13,9 @@ export default function RoyalhouseContactFooter() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState('')
+  const { lang } = useI18n()
+  const ru = lang === 'ru'
+  const tx = (uz: string, rr: string) => ru ? rr : uz
 
   useEffect(() => {
     const find = () => {
@@ -49,14 +53,14 @@ export default function RoyalhouseContactFooter() {
         body: JSON.stringify({ name, phone, email, message }),
       })
       const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || 'Xabar yuborilmadi.')
+      if (!response.ok) throw new Error(data.error || tx('Xabar yuborilmadi.','Сообщение не отправлено.'))
       setName('')
       setPhone('')
       setEmail('')
       setMessage('')
-      setResult('Xabaringiz yuborildi. Tez orada siz bilan bog‘lanamiz.')
+      setResult(tx('Xabaringiz yuborildi. Tez orada siz bilan bog‘lanamiz.','Сообщение отправлено. Мы свяжемся с вами в ближайшее время.'))
     } catch (error) {
-      setResult(error instanceof Error ? error.message : 'Xatolik yuz berdi.')
+      setResult(error instanceof Error ? error.message : tx('Xatolik yuz berdi.','Произошла ошибка.'))
     } finally {
       setBusy(false)
     }
@@ -85,7 +89,7 @@ export default function RoyalhouseContactFooter() {
                 ▾
               </span>
             </button>
-            <p className="mt-1 text-sm text-slate-300">Shikoyat va takliflar</p>
+            <p className="mt-1 text-sm text-slate-300">{tx('Shikoyat va takliflar','Жалобы и предложения')}</p>
           </div>
 
           <div className="min-w-0 lg:flex-1">
@@ -95,7 +99,7 @@ export default function RoyalhouseContactFooter() {
             >
               +998 99 824 44 94
             </a>
-            <p className="mt-1 text-xs text-slate-400">Har kuni 09:00 dan 18:00 gacha</p>
+            <p className="mt-1 text-xs text-slate-400">{tx('Har kuni 09:00 dan 18:00 gacha','Ежедневно с 09:00 до 18:00')}</p>
           </div>
 
           <div className="min-w-0 lg:flex-1">
@@ -119,13 +123,13 @@ export default function RoyalhouseContactFooter() {
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="Ismingiz"
+                placeholder={tx("Ismingiz","Ваше имя")}
                 className="min-w-0 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400 outline-none focus:border-emerald-400"
               />
               <input
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
-                placeholder="Telefon raqamingiz"
+                placeholder={tx("Telefon raqamingiz","Номер телефона")}
                 className="min-w-0 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400 outline-none focus:border-emerald-400"
               />
             </div>
@@ -133,7 +137,7 @@ export default function RoyalhouseContactFooter() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               type="email"
-              placeholder="Email (ixtiyoriy)"
+              placeholder={tx("Email (ixtiyoriy)","Email (необязательно)")}
               className="mt-3 w-full rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400 outline-none focus:border-emerald-400"
             />
             <textarea
@@ -141,7 +145,7 @@ export default function RoyalhouseContactFooter() {
               onChange={e => setMessage(e.target.value)}
               required
               rows={4}
-              placeholder="Xabaringizni yozing..."
+              placeholder={tx("Xabaringizni yozing...","Введите сообщение...")}
               className="mt-3 w-full resize-none rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-400 outline-none focus:border-emerald-400"
             />
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -150,7 +154,7 @@ export default function RoyalhouseContactFooter() {
                 disabled={busy || !message.trim()}
                 className="w-full rounded-xl bg-white px-5 py-2.5 text-sm font-black text-slate-900 disabled:opacity-50 sm:w-auto"
               >
-                {busy ? 'Yuborilmoqda...' : 'Yuborish'}
+                {busy ? tx('Yuborilmoqda...','Отправка...') : tx('Yuborish','Отправить')}
               </button>
             </div>
           </form>

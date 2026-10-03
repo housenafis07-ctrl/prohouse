@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useI18n } from './I18nProvider'
 
 if (typeof document !== 'undefined' && !document.getElementById('prohouse-listing-view-controls')) {
   const style = document.createElement('style')
@@ -109,7 +110,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [apiReady, setApiReady] = useState(false)
-  const lang: Lang = typeof window !== 'undefined' && localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
+  const { lang } = useI18n()
 
   useEffect(() => {
     if (window.L) {
