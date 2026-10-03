@@ -8,6 +8,7 @@ import ListingLocationPicker from '@/app/components/ListingLocationPicker'
 import ListingImageManager, { type ListingImageManagerHandle } from '@/app/components/ListingImageManager'
 import RentalBookingSettings from '@/app/components/RentalBookingSettings'
 import { useI18n } from '@/app/components/I18nProvider'
+import type { Lang } from '@/lib/i18n'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 
 type Category={code:string;parent_code:string|null;name_uz:string;name_ru:string|null;section_code:string;listing_type:string|null;property_type:string|null;entity_type:string;is_mortgage_filter:boolean;is_new_construction_filter:boolean;sort_order:number}
