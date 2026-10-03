@@ -5,12 +5,16 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { formatMoney } from '@/lib/money'
 import { useI18n } from '@/app/components/I18nProvider'
+import type { Lang } from '@/lib/i18n'
 
 type Item = {
   id:string; title:string; title_ru?:string|null; price:number; currency:string; city:string; district:string|null;
   area_m2:number|null; rooms:number|null; floor:number|null; floors_total:number|null; property_type:string|null;
   is_mortgage_available:boolean; latitude:number|null; longitude:number|null; listing_type:string; primary_image_url?:string|null
 }
+
+const LOCATION_RU: Record<string,string> = {'Toshkent':'Ташкент','Toshkent viloyati':'Ташкентская область','Toshkent shahri':'г. Ташкент','Yangiyo‘l':'Янгиюль','Yangiyo\'l':'Янгиюль','Chirchiq':'Чирчик','Olmaliq':'Алмалык','Angren':'Ангрен','Bekobod':'Бекабад','Zangiota':'Зангиатинский район','Qibray':'Кибрайский район','Samarqand':'Самарканд','Samarqand viloyati':'Самаркандская область','Samarqand shahri':'г. Самарканд','Buxoro':'Бухара','Buxoro viloyati':'Бухарская область','Andijon':'Андижан','Andijon viloyati':'Андижанская область','Farg‘ona':'Фергана',"Farg'ona":'Фергана','Farg‘ona viloyati':'Ферганская область','Namangan':'Наманган','Namangan viloyati':'Наманганская область','Navoiy':'Навои','Navoiy viloyati':'Навоийская область','Qashqadaryo viloyati':'Кашкадарьинская область','Jizzax viloyati':'Джизакская область','Sirdaryo viloyati':'Сырдарьинская область','Surxondaryo viloyati':'Сурхандарьинская область','Xorazm viloyati':'Хорезмская область','Qoraqalpog‘iston Respublikasi':'Республика Каракалпакстан',"Qoraqalpog'iston Respublikasi":'Республика Каракалпакстан'}
+const localizeLocation=(value:string|null|undefined,lang:Lang)=>value?(lang==='ru'?(LOCATION_RU[value]||value):value):''
 
 const KEY='royalhouse-compare'
 
@@ -36,7 +40,7 @@ export default function ComparePage(){
     [ru?'Первоначальный взнос (20%)':'Boshlang‘ich badal (20%)',x=>x.is_mortgage_available?formatMoney(x.price*0.2,x.currency,lang):'—'],
     [ru?'Ипотечный платёж*':'Ipoteka to‘lovi*',x=>x.is_mortgage_available?formatMoney(x.price*0.8*0.0215/(1-Math.pow(1+0.0215,-240)),x.currency,lang):'—'],
     [ru?'Ипотека':'Ipoteka',x=>x.is_mortgage_available?(ru?'Да':'Ha'):(ru?'Нет':'Yo‘q')],
-    [ru?'Расположение':'Joylashuv',x=>[x.city,x.district].filter(Boolean).join(', ')],
+    [ru?'Расположение':'Joylashuv',x=>[localizeLocation(x.city,lang),localizeLocation(x.district,lang)].filter(Boolean).join(', ')],
   ]
 
   return <main className="min-h-screen bg-slate-50 text-slate-900">

@@ -37,6 +37,8 @@ const dictionary = {
     account: 'Shaxsiy kabinet',
     monetization: 'Monetizatsiya',
     error: 'Xatolik',
+    orderCreateFailed: 'Buyurtma yaratilmadi.',
+    paymentNotReady: 'To‘lov hozircha tayyor emas.',
   },
   ru: {
     backToMonetization: '← Монетизация',
@@ -70,6 +72,8 @@ const dictionary = {
     account: 'Личный кабинет',
     monetization: 'Монетизация',
     error: 'Ошибка',
+    orderCreateFailed: 'Не удалось создать заказ.',
+    paymentNotReady: 'Оплата пока недоступна.',
   },
 } as const
 
