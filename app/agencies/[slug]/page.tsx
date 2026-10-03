@@ -1,23 +1,16 @@
+'use client'
 import Link from 'next/link'
-import {createClient} from '@/utils/supabase/server'
+import {useEffect,useState} from 'react'
+import {useParams} from 'next/navigation'
+import {createClient} from '@/utils/supabase/client'
 import {useI18n} from '@/app/components/I18nProvider'
 
-type Props={params:Promise<{slug:string}>}
-
-export default async function AgencyProfile({params}:Props){
- const{slug}=await params
- const db=await createClient()
- const{data:a}=await db.from('agency_profiles').select('*').eq('slug',slug).maybeSingle()
- if(!a)return <main className="p-10">Agentlik topilmadi.</main>
- const{data:team}=await db.from('agency_agents').select('user_id,role').eq('agency_id',a.id).eq('status','active')
- const ids=(team||[]).map(x=>x.user_id)
- const{data:agents}=ids.length?await db.from('realtor_profiles').select('id,display_name,avatar_url,rating,reviews_count,experience_years,verification_status').in('user_id',ids):{data:[]}
- return <main className="min-h-screen bg-slate-50">
-  <header className="border-b bg-white"><div className="mx-auto max-w-5xl px-4 py-5"><Link href="/agencies" className="text-sm font-bold text-emerald-700">← Агентства</Link></div></header>
-  <section className="mx-auto max-w-5xl px-4 py-10">
-   <div className="rounded-3xl border bg-white p-7 shadow-sm"><div className="flex items-center gap-5"><div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-2xl font-black">{a.logo_url?<img src={a.logo_url} alt="" className="h-full w-full object-cover"/>:'A'}</div><div><h1 className="text-3xl font-black">{a.name}</h1><p className="mt-1 text-sm font-bold text-emerald-600">{a.verification_status==='verified'?'✓ Проверенное агентство':'Профессиональное агентство'}</p></div></div><p className="mt-6 leading-7 text-slate-600">{a.description||'Профессиональное агентство недвижимости.'}</p></div>
-   <div className="mt-10 flex items-end justify-between"><h2 className="text-2xl font-black">Команда</h2><span className="text-sm text-slate-500">{(agents||[]).length} специалистов</span></div>
-   <div className="mt-5 grid gap-4 md:grid-cols-2">{(agents||[]).map(r=><Link key={r.id} href={`/realtors/${r.id}`} className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-slate-100 font-black">{r.avatar_url?<img src={r.avatar_url} alt="" className="h-full w-full object-cover"/>:'R'}</div><div><h3 className="font-black">{r.display_name}</h3><p className="text-xs text-slate-500">★ {Number(r.rating).toFixed(1)} · {r.experience_years} лет опыта</p></div></div></Link>)}</div>
-  </section>
- </main>
+export default function AgencyProfile(){
+ const{slug}=useParams<{slug:string}>()
+ const{lang}=useI18n(); const ru=lang==='ru'; const tx=(uz:string,rr:string)=>ru?rr:uz
+ const[a,setA]=useState<any>(null); const[agents,setAgents]=useState<any[]>([]); const[loading,setLoading]=useState(true)
+ useEffect(()=>{if(!slug)return;(async()=>{const db=createClient();const{data:agency}=await db.from('agency_profiles').select('*').eq('slug',slug).maybeSingle();if(!agency){setLoading(false);return}setA(agency);const{data:team}=await db.from('agency_agents').select('user_id,role').eq('agency_id',agency.id).eq('status','active');const ids=(team||[]).map(x=>x.user_id);if(ids.length){const{data:rows}=await db.from('realtor_profiles').select('id,display_name,avatar_url,rating,reviews_count,experience_years,verification_status').in('user_id',ids);setAgents(rows||[])}setLoading(false)})()},[slug])
+ if(loading)return <main className="min-h-screen bg-slate-50 p-10"><div className="mx-auto max-w-5xl rounded-3xl bg-white p-10 text-center">{tx('Yuklanmoqda…','Загрузка…')}</div></main>
+ if(!a)return <main className="min-h-screen bg-slate-50 p-10"><div className="mx-auto max-w-5xl rounded-3xl bg-white p-10 text-center">{tx('Agentlik topilmadi.','Агентство не найдено.')}</div></main>
+ return <main className="min-h-screen bg-slate-50"><header className="border-b bg-white"><div className="mx-auto max-w-5xl px-4 py-5"><Link href="/agencies" className="text-sm font-bold text-emerald-700">← {tx('Agentliklar','Агентства')}</Link></div></header><section className="mx-auto max-w-5xl px-4 py-10"><div className="rounded-3xl border bg-white p-7 shadow-sm"><div className="flex items-center gap-5"><div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-2xl font-black">{a.logo_url?<img src={a.logo_url} alt="" className="h-full w-full object-cover"/>:'A'}</div><div><h1 className="text-3xl font-black">{a.name}</h1><p className="mt-1 text-sm font-bold text-emerald-600">{a.verification_status==='verified'?('✓ '+tx('Tasdiqlangan agentlik','Проверенное агентство')):tx('Professional agentlik','Профессиональное агентство')}</p></div></div><p className="mt-6 leading-7 text-slate-600">{a.description||tx('Ko‘chmas mulk bo‘yicha professional agentlik.','Профессиональное агентство недвижимости.')}</p></div><div className="mt-10 flex items-end justify-between"><h2 className="text-2xl font-black">{tx('Jamoa','Команда')}</h2><span className="text-sm text-slate-500">{agents.length} {tx('mutaxassis','специалистов')}</span></div><div className="mt-5 grid gap-4 md:grid-cols-2">{agents.map(r=><Link key={r.id} href={'/realtors/'+r.id} className="rounded-2xl border bg-white p-5 shadow-sm"><div className="flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-slate-100 font-black">{r.avatar_url?<img src={r.avatar_url} alt="" className="h-full w-full object-cover"/>:'R'}</div><div><h3 className="font-black">{r.display_name}</h3><p className="text-xs text-slate-500">★ {Number(r.rating).toFixed(1)} · {r.reviews_count} {tx('ta sharh','отзывов')} · {r.experience_years} {tx('yil tajriba','лет опыта')}</p></div></div></Link>)}</div></section></main>
 }
