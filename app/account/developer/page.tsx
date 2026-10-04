@@ -9,7 +9,7 @@ type Developer={id:string;developer_name:string;description:string|null;verifica
 type Complex={id:string;name:string;slug:string;status:string;city:string;district:string|null}
 type Lead={id:string;name:string;phone:string;message:string|null;status:string;created_at:string;complex_id:string|null;unit_id:string|null}
 const statuses=['new','contacted','qualified','meeting','reserved','sold','lost']
-const labels={new:['Yangi','Новый'],contacted:['Bog‘lanildi','Связались'],qualified:['Malakali lead','Квалифицированный лид'],meeting:['Uchrashuv','Встреча'],reserved:['Bron','Бронь'],sold:['Sotildi','Продано'],lost:['Bekor qilindi','Отменено']} as const
+const labels: Record<string, readonly [string, string]> = {new:['Yangi','Новый'],contacted:['Bog‘lanildi','Связались'],qualified:['Malakali lead','Квалифицированный лид'],meeting:['Uchrashuv','Встреча'],reserved:['Bron','Бронь'],sold:['Sotildi','Продано'],lost:['Bekor qilindi','Отменено']}
 export default function DeveloperCabinet(){
  const {lang}=useI18n(); const ru=lang==='ru'; const tx=(uz:string,rr:string)=>ru?rr:uz;
  const [developer,setDeveloper]=useState<Developer|null>(null); const [complexes,setComplexes]=useState<Complex[]>([]); const [leads,setLeads]=useState<Lead[]>([]); const [loading,setLoading]=useState(true)
