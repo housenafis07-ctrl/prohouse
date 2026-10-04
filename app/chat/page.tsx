@@ -45,10 +45,10 @@ function ChatPageContent() {
       if (ids.length) {
         const { data: rows, error: conversationError } = await supabase.from('conversations').select('id,listing_id,updated_at,listings(title)').in('id', ids).order('updated_at', { ascending: false })
         if (conversationError) setError(conversationError.message)
-        list = (rows ?? []).map((row: any) => ({ id: row.id, listing_id: row.listing_id, updated_at: row.updated_at, title: row.listings?.title || 'E’lon bo‘yicha suhbat', lastMessage: '', unread: 0 }))
+        list = (rows ?? []).map((row: any) => ({ id: row.id, listing_id: row.listing_id, updated_at: row.updated_at, title: row.listings?.title || t.listingChat, lastMessage: '', unread: 0 }))
         for (const conversation of list) {
           const { data: last } = await supabase.from('messages').select('body,sender_id,created_at').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
-          conversation.lastMessage = last?.body || 'Hali xabar yo‘q'
+          conversation.lastMessage = last?.body || t.noMessages
           const { count } = await supabase.from('messages').select('id', { count: 'exact', head: true }).eq('conversation_id', conversation.id).neq('sender_id', user.id).is('read_at', null)
           conversation.unread = count ?? 0
         }
@@ -119,7 +119,7 @@ function ChatPageContent() {
         setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, lastMessage: data.body, updated_at: data.created_at } : item))
       }
       setText('')
-    } catch (sendError) { setError(sendError instanceof Error ? sendError.message : 'Xabar yuborilmadi') }
+    } catch (sendError) { setError(sendError instanceof Error ? sendError.message : t.error) }
     finally { setSending(false) }
   }
 
