@@ -70,7 +70,7 @@ export default function WalletPage() {
                   <h1 className="text-3xl font-black sm:text-4xl">{wallet ? money(Number(wallet.balance), wallet.currency) : '0 so‘m'}</h1>
                   <p className="mt-2 text-sm text-slate-300">{wallet?.account_number || t('Hisob yaratilmagan','Счёт не создан')}</p>
                 </div>
-                <div className="rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-300">{wallet?.status === 'active' ? t('Faol','Активен') : wallet?.status || '—'}</div>
+                <div className="rounded-xl bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-300">{wallet?.status === 'active' ? t('Faol','Активен') : wallet?.status === 'blocked' ? t('Bloklangan','Заблокирован') : wallet?.status === 'suspended' ? t('To‘xtatilgan','Приостановлен') : wallet?.status || '—'}</div>
               </div>
             </div>
             <div className="p-6 sm:p-8">
@@ -98,7 +98,7 @@ export default function WalletPage() {
               <h2 className="text-lg font-extrabold text-slate-900">{t('Mening e’lonlarim','Мои объявления')}</h2>
               <p className="mt-1 text-sm text-slate-500">{t('Har bir e’lonning doimiy RoyalHouse ID raqami mavjud.','У каждого объявления есть постоянный идентификатор RoyalHouse.')}</p>
               <div className="mt-4 space-y-3">
-                {listings.length === 0 ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">{t('Hozircha sizga tegishli e’lonlar yo‘q.','Пока у вас нет объявлений.')}</div> : listings.map(item => <Link key={item.id} href={`/listings/${item.id}`} className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:border-emerald-200"><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{item.listing_code}</span><span className="text-xs font-bold text-slate-400">{item.status}</span></div><p className="mt-3 font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-sm text-slate-500">{money(Number(item.price), item.currency)}</p></Link>)}
+                {listings.length === 0 ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">{t('Hozircha sizga tegishli e’lonlar yo‘q.','Пока у вас нет объявлений.')}</div> : listings.map(item => <Link key={item.id} href={`/listings/${item.id}`} className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 hover:border-emerald-200"><div className="flex items-start justify-between gap-3"><span className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700">{item.listing_code}</span><span className="text-xs font-bold text-slate-400">{item.status === 'active' ? t('Faol','Активен') : item.status === 'pending' ? t('Kutilmoqda','Ожидает') : item.status === 'blocked' ? t('Bloklangan','Заблокирован') : item.status === 'cancelled' ? t('Bekor qilingan','Отменён') : item.status}</span></div><p className="mt-3 font-extrabold text-slate-900">{item.title}</p><p className="mt-1 text-sm text-slate-500">{money(Number(item.price), item.currency)}</p></Link>)}
               </div>
             </section>
             {error && <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">{error}</div>}
