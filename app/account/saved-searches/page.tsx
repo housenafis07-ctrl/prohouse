@@ -9,10 +9,13 @@ import { useI18n } from '@/app/components/I18nProvider'
 
 type Search = { id: string; name: string; query: Record<string, unknown>; is_active: boolean; notify_push: boolean; notify_email: boolean; created_at: string }
 
+const LOCATION_RU: Record<string,string> = {'Toshkent':'Ташкент','Toshkent viloyati':'Ташкентская область','Toshkent shahri':'г. Ташкент','Samarqand viloyati':'Самаркандская область','Andijon viloyati':'Андижанская область','Buxoro viloyati':'Бухарская область','Jizzax viloyati':'Джизакская область','Qashqadaryo viloyati':'Кашкадарьинская область','Navoiy viloyati':'Навоийская область','Namangan viloyati':'Наманганская область','Sirdaryo viloyati':'Сырдарьинская область','Surxondaryo viloyati':'Сурхандарьинская область','Farg‘ona viloyati':'Ферганская область',"Farg'ona viloyati":'Ферганская область','Xorazm viloyati':'Хорезмская область'}
+const locationLabel=(v:string,ru:boolean)=>{if(!ru)return v;if(LOCATION_RU[v])return LOCATION_RU[v];return v.replace(/ tumani$/,'ский район').replace(/ shahri$/,'')}
+
 const label = (key: string, value: unknown, ru: boolean) => {
   const map: Record<string,string> = ru ? { sale:'Продажа', rent:'Аренда', daily:'Посуточно', apartment:'Квартира', house:'Частный дом', land:'Земля', commercial:'Коммерческая недвижимость', new_building:'Новостройка', owner:'От владельца', verified:'Подтверждено', mortgage:'Ипотека доступна' } : { sale:'Sotuv', rent:'Ijara', daily:'Kunlik', apartment:'Kvartira', house:'Xususiy uy', land:'Yer', commercial:'Tijorat', new_building:'Yangi bino', owner:'Egadan', verified:'Tasdiqlangan', mortgage:'Ipotekaga mumkin' }
   if (typeof value === 'boolean') return value ? (map[key] || key) : ''
-  return map[String(value)] || String(value)
+  return (key === 'region' || key === 'district') ? locationLabel(String(value), ru) : map[String(value)] || String(value)
 }
 
 function summary(query: Record<string, unknown>, ru: boolean) {
