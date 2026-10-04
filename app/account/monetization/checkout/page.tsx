@@ -62,7 +62,31 @@ export default function MonetizationCheckoutPage() {
   const money = (v: number) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${t('sum')}`
   const localizeLocation = (value: string | null | undefined) => {
     if (!value || lang !== 'ru') return value || ''
-    const map: Record<string, string> = { Toshkent: 'Ташкент', 'Toshkent viloyati': 'Ташкентская область', 'Toshkent shahri': 'г. Ташкент', Yunusobod: 'Юнусабад', Chilonzor: 'Чиланзар', 'Mirzo Ulug‘bek': 'Мирзо-Улугбекский район', Shayxontahur: 'Шайхантахурский район', Olmazor: 'Алмазарский район', Yakkasaroy: 'Яккасарайский район', Sergeli: 'Сергелийский район', Bektemir: 'Бектемирский район', Uchtepa: 'Учтепинский район', Mirobod: 'Мирабадский район', Yangihayot: 'Янгиҳаётский район', Yangiyo‘l: 'Янгиюльский район', "Yangiyo'l": 'Янгиюльский район', Chirchiq: 'Чирчик', Olmaliq: 'Алмалык', Angren: 'Ангрен', Bekobod: 'Бекабад', Zangiota: 'Зангиатинский район', Qibray: 'Кибрайский район' }
+    const map: Record<string, string> = {
+      "Toshkent": "Ташкент",
+      "Toshkent viloyati": "Ташкентская область",
+      "Toshkent shahri": "г. Ташкент",
+      "Yunusobod": "Юнусабад",
+      "Chilonzor": "Чиланзар",
+      "Mirzo Ulug‘bek": "Мирзо-Улугбекский район",
+      "Mirzo Ulug'bek": "Мирзо-Улугбекский район",
+      "Shayxontahur": "Шайхантахурский район",
+      "Olmazor": "Алмазарский район",
+      "Yakkasaroy": "Яккасарайский район",
+      "Sergeli": "Сергелийский район",
+      "Bektemir": "Бектемирский район",
+      "Uchtepa": "Учтепинский район",
+      "Mirobod": "Мирабадский район",
+      "Yangihayot": "Янгиҳаётский район",
+      "Yangiyo‘l": "Янгиюльский район",
+      "Yangiyo'l": "Янгиюльский район",
+      "Chirchiq": "Чирчик",
+      "Olmaliq": "Алмалык",
+      "Angren": "Ангрен",
+      "Bekobod": "Бекабад",
+      "Zangiota": "Зангиатинский район",
+      "Qibray": "Кибрайский район",
+    }
     return map[value] || value
   }
   const orderStatus = (value: string) => lang === 'ru'
