@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useI18n } from '@/app/components/I18nProvider'
 
-const labels = {
+const labels: Record<string, readonly [string, string]> = {
   mortgage: ['Ipoteka', 'Ипотека'],
   insurance: ['Sug‘urta', 'Страхование'],
   legal: ['Huquqiy tekshiruv', 'Юридическая проверка'],
@@ -43,5 +43,5 @@ function ServiceRequestForm() {
 }
 
 export default function ServiceRequestPage() {
-  return <Suspense fallback={<main className="min-h-screen bg-slate-50 px-4 py-10"><div className="mx-auto max-w-2xl rounded-3xl bg-white p-8 text-sm font-semibold text-slate-500">{tx('Yuklanmoqda...','Загрузка...')}</div></main>}><ServiceRequestForm /></Suspense>
+  return <Suspense fallback={<main className="min-h-screen bg-slate-50 px-4 py-10"><div className="mx-auto max-w-2xl rounded-3xl bg-white p-8 text-sm font-semibold text-slate-500">Yuklanmoqda... </div></main>}><ServiceRequestForm /></Suspense>
 }
