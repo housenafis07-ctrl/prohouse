@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useI18n } from '@/app/components/I18nProvider'
 
 type Message = {
   id: string
@@ -18,19 +19,25 @@ type Message = {
 }
 
 const statusLabels = {
-  new: 'Yangi',
-  in_progress: 'Jarayonda',
-  replied: 'Javob berildi',
-  closed: 'Yopilgan',
+  new: '{t('Yangi','Новые')}',
+  in_progress: '{t('Jarayonda','В работе')}',
+  replied: '{t('Javob berildi','Ответ дан')}',
+  closed: '{t('Yopilgan','Закрытые')}',
 } as const
+
+const statusLabelsRu = { new: 'Новый', in_progress: 'В работе', replied: 'Ответ дан', closed: 'Закрыт' } as const
 
 const sourceLabels = {
   website: 'Sayt',
   telegram: 'Telegram',
   system: 'Tizim',
 } as const
+const sourceLabelsRu = { website: 'Сайт', telegram: 'Telegram', system: 'Система' } as const
 
 export default function SupportMessagesPage() {
+  const { lang } = useI18n()
+  const ru = lang === 'ru'
+  const t = (uz: string, ruText: string) => ru ? ruText : uz
   const [messages, setMessages] = useState<Message[]>([])
   const [selected, setSelected] = useState<Message | null>(null)
   const [filter, setFilter] = useState<'all' | Message['status']>('all')
@@ -48,7 +55,7 @@ export default function SupportMessagesPage() {
     }
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      alert(data.error || 'Xabarlarni yuklab bo‘lmadi.')
+      alert(data.error || '{t('{t('Xabarlar','Сообщения')}ni yuklab bo‘lmadi.','Не удалось загрузить сообщения.')}')
       setLoading(false)
       return
     }
@@ -81,7 +88,7 @@ export default function SupportMessagesPage() {
     const data = await response.json().catch(() => ({}))
     setSaving(false)
     if (!response.ok) {
-      alert(data.error || 'O‘zgartirish saqlanmadi.')
+      alert(data.error || '{t('O‘zgartirish saqlanmadi.','Изменение не сохранено.')}')
       return
     }
     setSelected({ ...selected, status, admin_note: note })
@@ -93,18 +100,18 @@ export default function SupportMessagesPage() {
       <header className="border-b bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <Link href="/admin" className="font-black text-emerald-700">← Admin</Link>
-          <h1 className="font-black">📨 Xabarlar</h1>
+          <h1 className="font-black">📨 {t('Xabarlar','Сообщения')}</h1>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-7">
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
           {([
-            ['all', 'Barchasi'],
-            ['new', 'Yangi'],
-            ['in_progress', 'Jarayonda'],
-            ['replied', 'Javob berildi'],
-            ['closed', 'Yopilgan'],
+            ['all', '{t('Barchasi','Все')}'],
+            ['new', '{t('Yangi','Новые')}'],
+            ['in_progress', '{t('Jarayonda','В работе')}'],
+            ['replied', '{t('Javob berildi','Ответ дан')}'],
+            ['closed', '{t('Yopilgan','Закрытые')}'],
           ] as const).map(([key, label]) => (
             <button key={key} onClick={() => setFilter(key)} className={'rounded-2xl bg-white p-4 text-left shadow-sm ' + (filter === key ? 'ring-2 ring-emerald-500' : '')}>
               <p className="text-xs font-bold text-slate-500">{label}</p>
@@ -116,26 +123,26 @@ export default function SupportMessagesPage() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
           <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
             <div className="border-b px-5 py-4">
-              <h2 className="font-black">Murojaatlar</h2>
-              <p className="mt-1 text-xs text-slate-500">Sayt va Telegram orqali kelgan barcha murojaatlar.</p>
+              <h2 className="font-black">{t('Murojaatlar','Обращения')}</h2>
+              <p className="mt-1 text-xs text-slate-500">{t('Sayt va Telegram orqali kelgan barcha murojaatlar.','Все обращения, поступившие через сайт и Telegram.')}</p>
             </div>
             {loading ? (
-              <p className="p-6 text-sm text-slate-500">Yuklanmoqda...</p>
+              <p className="p-6 text-sm text-slate-500">{t('Yuklanmoqda...','Загрузка...')}</p>
             ) : messages.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-400">Hozircha xabarlar yo‘q.</p>
+              <p className="p-8 text-center text-sm text-slate-400">{t('Hozircha xabarlar yo‘q.','Пока сообщений нет.')}</p>
             ) : (
               <div className="divide-y">
                 {messages.map(item => (
                   <button key={item.id} onClick={() => setSelected(item)} className={'w-full p-5 text-left hover:bg-slate-50 ' + (selected?.id === item.id ? 'bg-emerald-50' : '')}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate font-black text-slate-900">{item.name || item.telegram_username || 'Noma’lum mijoz'}</p>
+                        <p className="truncate font-black text-slate-900">{item.name || item.telegram_username || '{t('Noma’lum mijoz','Неизвестный клиент')}'}</p>
                         <p className="mt-1 truncate text-sm font-semibold text-slate-700">{item.subject}</p>
                         <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.message}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{sourceLabels[item.source]}</span>
-                        <p className="mt-2 text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString('uz-UZ')}</p>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{(ru ? sourceLabelsRu[item.source] : sourceLabels[item.source])}</span>
+                        <p className="mt-2 text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</p>
                       </div>
                     </div>
                   </button>
@@ -146,18 +153,18 @@ export default function SupportMessagesPage() {
 
           <aside className="rounded-3xl bg-white p-5 shadow-sm">
             {!selected ? (
-              <div className="py-16 text-center text-sm text-slate-400">Murojaatni tanlang.</div>
+              <div className="py-16 text-center text-sm text-slate-400">{t('Murojaatni tanlang.','Выберите обращение.')}</div>
             ) : (
               <>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">{sourceLabels[selected.source]}</p>
-                    <h2 className="mt-1 text-xl font-black">{selected.name || selected.telegram_username || 'Noma’lum mijoz'}</h2>
+                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">{(ru ? sourceLabelsRu[selected.source] : sourceLabels[selected.source])}</p>
+                    <h2 className="mt-1 text-xl font-black">{selected.name || selected.telegram_username || '{t('Noma’lum mijoz','Неизвестный клиент')}'}</h2>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{statusLabels[selected.status]}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{(ru ? statusLabelsRu[selected.status] : statusLabels[selected.status])}</span>
                 </div>
                 <div className="mt-5 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm">
-                  {selected.phone && <p><b>Telefon:</b> {selected.phone}</p>}
+                  {selected.phone && <p><b>{t('Telefon:','Телефон:')}</b> {selected.phone}</p>}
                   {selected.email && <p><b>Email:</b> {selected.email}</p>}
                   {selected.telegram_username && <p><b>Telegram:</b> {selected.telegram_username}</p>}
                 </div>
@@ -165,11 +172,11 @@ export default function SupportMessagesPage() {
                   <p className="text-xs font-bold text-slate-500">{selected.subject}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selected.message}</p>
                 </div>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={4} placeholder="Admin izohi..." className="mt-4 w-full resize-none rounded-2xl border p-3 text-sm outline-none focus:border-emerald-500" />
+                <textarea value={note} onChange={e => setNote(e.target.value)} rows={4} placeholder="{t('Admin izohi...','Комментарий администратора...')}" className="mt-4 w-full resize-none rounded-2xl border p-3 text-sm outline-none focus:border-emerald-500" />
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {(['new', 'in_progress', 'replied', 'closed'] as const).map(status => (
                     <button key={status} disabled={saving} onClick={() => void saveStatus(status)} className={'rounded-xl border px-3 py-2 text-xs font-bold ' + (selected.status === status ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'bg-white')}>
-                      {statusLabels[status]}
+                      {(ru ? statusLabelsRu[status] : statusLabels[status])}
                     </button>
                   ))}
                 </div>
