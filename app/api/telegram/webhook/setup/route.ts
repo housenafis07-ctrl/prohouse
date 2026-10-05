@@ -5,7 +5,9 @@ export const dynamic = 'force-dynamic'
 function getConfig() {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
+  const previewUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
+  const baseUrl = process.env.VERCEL_ENV === 'production' || !previewUrl ? siteUrl : previewUrl
   return { token, secret, webhookUrl: `${baseUrl}/api/telegram/webhook` }
 }
 
