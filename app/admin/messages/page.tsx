@@ -35,7 +35,7 @@ const sourceLabels = {
 const sourceLabelsRu = { website: 'Сайт', telegram: 'Telegram', system: 'Система' } as const
 
 export default function SupportMessagesPage() {
-  const { lang } = useI18n()
+  const { lang, setLang } = useI18n()
   const ru = lang === 'ru'
   const t = (uz: string, ruText: string) => ru ? ruText : uz
   const [messages, setMessages] = useState<Message[]>([])
@@ -99,8 +99,7 @@ export default function SupportMessagesPage() {
     <main className="min-h-screen bg-slate-50">
       <header className="border-b bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-          <Link href="/admin" className="font-black text-emerald-700">← Admin</Link>
-          <h1 className="font-black">📨 {t('Xabarlar','Сообщения')}</h1>
+          <div className="flex items-center gap-4"><Link href="/admin" className="font-black text-emerald-700">← {t('Admin','Админ')}</Link><h1 className="font-black">📨 {t('Xabarlar','Сообщения')}</h1></div><div className="flex overflow-hidden rounded-xl border text-xs font-bold"><button onClick={()=>setLang('uz')} className={`px-3 py-2 ${!ru?'bg-slate-900 text-white':''}`}>UZ</button><button onClick={()=>setLang('ru')} className={`px-3 py-2 ${ru?'bg-slate-900 text-white':''}`}>RU</button></div>
         </div>
       </header>
 
