@@ -19,10 +19,10 @@ type Message = {
 }
 
 const statusLabels = {
-  new: '{t('Yangi','Новые')}',
-  in_progress: '{t('Jarayonda','В работе')}',
-  replied: '{t('Javob berildi','Ответ дан')}',
-  closed: '{t('Yopilgan','Закрытые')}',
+  new: 'Yangi',
+  in_progress: 'Jarayonda',
+  replied: 'Javob berildi',
+  closed: 'Yopilgan',
 } as const
 
 const statusLabelsRu = { new: 'Новый', in_progress: 'В работе', replied: 'Ответ дан', closed: 'Закрыт' } as const
