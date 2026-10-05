@@ -61,7 +61,6 @@ type Listing = {
   listing_images?: ImageItem[] | null
 }
 const money=(v:number,c:string,ru:boolean)=>`${new Intl.NumberFormat(ru?'ru-RU':'uz-UZ').format(Number(v))} ${c==='USD'?'$':c==='EUR'?'€':ru?'сум':'so‘m'}`
-const money=(v:number,c:string,ru:boolean)=>`${new Intl.NumberFormat(ru?'ru-RU':'uz-UZ').format(Number(v))} ${c==='USD'?'
 const typeLabel=(t:string,ru:boolean)=>(ru?({sale:'Покупка',rent:'Аренда',daily:'Посуточная аренда',new_building:'Новостройки',service:'Услуги',realtor:'Риелторы'}[t]):({sale:'Sotib olish',rent:'Ijara',daily:'Kunlik ijara',new_building:'Yangi uylar',service:'Xizmatlar',realtor:'Rieltorlar'}[t]))||t
 const propertyLabel=(t:string|null,ru:boolean)=>(ru?({apartment:'Квартира',house:'Частный дом',land:'Земельный участок',commercial:'Коммерческая недвижимость',new_building:'Новостройка'}[t||'']):({apartment:'Kvartira',house:'Xususiy uy',land:'Yer uchastkasi',commercial:'Tijorat ko‘chmas mulki',new_building:'Yangi bino'}[t||'']))||t||'—'
 const sellerTypeLabel=(t:string,ru:boolean)=>(ru?({owner:'Собственник',realtor:'Риелтор',agency:'Агентство',developer:'Застройщик',company:'Компания'}[t]):({owner:'Mulk egasi',realtor:'Rieltor',agency:'Agentlik',developer:'Quruvchi',company:'Kompaniya'}[t]))||t
