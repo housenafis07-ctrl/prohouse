@@ -70,7 +70,8 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
   return <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</div><div className="mt-1 break-words font-bold text-slate-900">{value ?? '—'}</div></div>
 }
 
-function Gallery({ listing }: { listing: Listing }) {
+function Gallery({ listing, ru }: { listing: Listing; ru: boolean }) {
+  const t = (uz:string, ruText:string) => ru ? ruText : uz
   const images = useMemo(() => (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)), [listing.listing_images])
   const [selected, setSelected] = useState(0)
   const [failed, setFailed] = useState<Record<string, boolean>>({})
@@ -99,7 +100,7 @@ function Gallery({ listing }: { listing: Listing }) {
 }
 
 export default function ModerationPage() {
-  const { lang } = useI18n()
+  const { lang, setLang } = useI18n()
   const ru = lang === 'ru'
   const t = (uz:string, ruText:string) => ru ? ruText : uz
   const supabase = createClient()
@@ -149,19 +150,19 @@ export default function ModerationPage() {
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-              <Gallery listing={i} />
+              <Gallery listing={i} ru={ru} />
               <div className="space-y-6">
                 <section><h3 className="mb-3 text-lg font-black">{t('Asosiy ma’lumotlar','Основная информация')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Mulk turi','Тип недвижимости')} value={propertyLabel(i.property_type,ru)} /><Field label={t('Narx','Цена')} value={money(i.price,i.currency,ru)} />{i.area_m2 != null && <Field label={t('Maydon','Площадь')} value={`${i.area_m2} m²`} />}{i.rooms != null && <Field label={t('Xonalar','Комнаты')} value={i.rooms} />}{i.floor != null && <Field label={t('Qavat','Этаж')} value={`${i.floor}${i.floors_total != null ? ` / ${i.floors_total}` : ''}`} />}{i.accommodation_type && <Field label={t('Turar joy turi','Тип размещения')} value={i.accommodation_type} />}{i.max_guests != null && <Field label={t('Maks. mehmonlar','Макс. гостей')} value={i.max_guests} />}</div></section>
-                <section><h3 className="mb-3 text-lg font-black">{t('Joylashuv','Расположение')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Shahar','Город')} value={i.city} /><Field label={t('Tuman','Район')} value={i.district || '—'} /><Field label={t('Mahalla','Махалля')} value={i.neighborhood || '—'} /><Field label={t('Manzil','Адрес')} value={i.address || '—'} /><Field label={t('Koordinata','Координаты')} value={i.latitude != null && i.longitude != null ? `${i.latitude}, ${i.longitude}` : 'Belgilanmagan'} /></div></section>
+                <section><h3 className="mb-3 text-lg font-black">{t('Joylashuv','Расположение')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Shahar','Город')} value={i.city} /><Field label={t('Tuman','Район')} value={i.district || '—'} /><Field label={t('Mahalla','Махалля')} value={i.neighborhood || '—'} /><Field label={t('Manzil','Адрес')} value={i.address || '—'} /><Field label={t('Koordinata','Координаты')} value={i.latitude != null && i.longitude != null ? `${i.latitude}, ${i.longitude}` : t('Belgilanmagan','Не указано')} /></div></section>
               </div>
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
-              <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-black">{t('Hamkor / sotuvchi','Партнёр / продавец')}</h3><div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label={t('Turi','Тип')} value={sellerTypeLabel(i.seller_type)} /><Field label={t('F.I.Sh. / nomi','Ф.И.О. / название')} value={i.seller_name || '—'} /><Field label={t('Telefon','Телефон')} value={i.seller_phone || '—'} /><Field label={t('Tasdiqlangan','Подтверждён')} value={i.is_verified ? t('Ha','Да') : t('Yo‘q','Нет')} /><Field label={t('Ishonchli profil','Надёжный профиль')} value={i.is_trusted_seller ? t('Ha','Да') : t('Yo‘q','Нет')} /><Field label={t('Ko‘rishlar','Просмотры')} value={i.views_count ?? 0} /></div></section>
-              <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-black">Tavsif</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{i.description || t('Tavsif kiritilmagan.','Описание не указано.')}</p></section>
+              <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-black">{t('Hamkor / sotuvchi','Партнёр / продавец')}</h3><div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label={t('Turi','Тип')} value={sellerTypeLabel(i.seller_type,ru)} /><Field label={t('F.I.Sh. / nomi','Ф.И.О. / название')} value={i.seller_name || '—'} /><Field label={t('Telefon','Телефон')} value={i.seller_phone || '—'} /><Field label={t('Tasdiqlangan','Подтверждён')} value={i.is_verified ? t('Ha','Да') : t('Yo‘q','Нет')} /><Field label={t('Ishonchli profil','Надёжный профиль')} value={i.is_trusted_seller ? t('Ha','Да') : t('Yo‘q','Нет')} /><Field label={t('Ko‘rishlar','Просмотры')} value={i.views_count ?? 0} /></div></section>
+              <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-black">{t('Tavsif','Описание')}</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{i.description || t('Tavsif kiritilmagan.','Описание не указано.')}</p></section>
             </div>
 
-            <section className="mt-6 rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-black">Moderatsiya va tizim ma’lumotlari</h3><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field label="Status" value={i.status} /><Field label="Taxonomy" value={i.taxonomy_code || '—'} /><Field label="Oxirgi yangilanish" value={dateTime(i.updated_at,ru)} /><Field label="Moderatsiya yangilanishi" value={dateTime(i.moderation_updated_at,ru)} /></div></section>
+            <section className="mt-6 rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-black">{t('Moderatsiya va tizim ma’lumotlari','Данные модерации и системы')}</h3><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field label={t("Status","Статус")} value={i.status} /><Field label="Taxonomy" value={i.taxonomy_code || "—"} /><Field label={t("Oxirgi yangilanish","Последнее обновление")} value={dateTime(i.updated_at,ru)} /><Field label={t("Moderatsiya yangilanishi","Обновление модерации")} value={dateTime(i.moderation_updated_at,ru)} /></div></section>
 
             <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5"><h3 className="font-black">{t('Qaror','Решение')}</h3><div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]"><input value={reason[i.id] || ''} onChange={e => setReason({ ...reason, [i.id]: e.target.value })} placeholder={t('Rad etish sababi (rad etishda majburiy)','Причина отказа (обязательно при отклонении)')} className="rounded-xl border bg-white px-4 py-3 text-sm"/><button disabled={busy === i.id} onClick={() => void moderate(i.id, 'reject')} className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 font-bold text-red-700 disabled:opacity-50">{t('Rad etish','Отклонить')}</button><button disabled={busy === i.id} onClick={() => void moderate(i.id, 'approve')} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{t('Tasdiqlash','Подтвердить')}</button></div></div>
           </div>
