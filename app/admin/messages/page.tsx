@@ -55,7 +55,7 @@ export default function SupportMessagesPage() {
     }
     const data = await response.json().catch(() => ({}))
     if (!response.ok) {
-      alert(data.error || '{t('{t('Xabarlar','Сообщения')}ni yuklab bo‘lmadi.','Не удалось загрузить сообщения.')}')
+      alert(data.error || t('Xabarlarni yuklab bo‘lmadi.','Не удалось загрузить сообщения.'))
       setLoading(false)
       return
     }
@@ -88,7 +88,7 @@ export default function SupportMessagesPage() {
     const data = await response.json().catch(() => ({}))
     setSaving(false)
     if (!response.ok) {
-      alert(data.error || '{t('O‘zgartirish saqlanmadi.','Изменение не сохранено.')}')
+      alert(data.error || t('O‘zgartirish saqlanmadi.','Изменение не сохранено.'))
       return
     }
     setSelected({ ...selected, status, admin_note: note })
@@ -107,11 +107,11 @@ export default function SupportMessagesPage() {
       <div className="mx-auto max-w-7xl px-4 py-7">
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
           {([
-            ['all', '{t('Barchasi','Все')}'],
-            ['new', '{t('Yangi','Новые')}'],
-            ['in_progress', '{t('Jarayonda','В работе')}'],
-            ['replied', '{t('Javob berildi','Ответ дан')}'],
-            ['closed', '{t('Yopilgan','Закрытые')}'],
+            ['all', t('Barchasi','Все')],
+            ['new', t('Yangi','Новые')],
+            ['in_progress', t('Jarayonda','В работе')],
+            ['replied', t('Javob berildi','Ответ дан')],
+            ['closed', t('Yopilgan','Закрытые')],
           ] as const).map(([key, label]) => (
             <button key={key} onClick={() => setFilter(key)} className={'rounded-2xl bg-white p-4 text-left shadow-sm ' + (filter === key ? 'ring-2 ring-emerald-500' : '')}>
               <p className="text-xs font-bold text-slate-500">{label}</p>
@@ -136,7 +136,7 @@ export default function SupportMessagesPage() {
                   <button key={item.id} onClick={() => setSelected(item)} className={'w-full p-5 text-left hover:bg-slate-50 ' + (selected?.id === item.id ? 'bg-emerald-50' : '')}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate font-black text-slate-900">{item.name || item.telegram_username || '{t('Noma’lum mijoz','Неизвестный клиент')}'}</p>
+                        <p className="truncate font-black text-slate-900">{item.name || item.telegram_username || t('Noma’lum mijoz','Неизвестный клиент')}</p>
                         <p className="mt-1 truncate text-sm font-semibold text-slate-700">{item.subject}</p>
                         <p className="mt-1 line-clamp-2 text-xs text-slate-500">{item.message}</p>
                       </div>
@@ -159,7 +159,7 @@ export default function SupportMessagesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">{(ru ? sourceLabelsRu[selected.source] : sourceLabels[selected.source])}</p>
-                    <h2 className="mt-1 text-xl font-black">{selected.name || selected.telegram_username || '{t('Noma’lum mijoz','Неизвестный клиент')}'}</h2>
+                    <h2 className="mt-1 text-xl font-black">{selected.name || selected.telegram_username || t('Noma’lum mijoz','Неизвестный клиент')}</h2>
                   </div>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{(ru ? statusLabelsRu[selected.status] : statusLabels[selected.status])}</span>
                 </div>
@@ -172,7 +172,7 @@ export default function SupportMessagesPage() {
                   <p className="text-xs font-bold text-slate-500">{selected.subject}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selected.message}</p>
                 </div>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={4} placeholder="{t('Admin izohi...','Комментарий администратора...')}" className="mt-4 w-full resize-none rounded-2xl border p-3 text-sm outline-none focus:border-emerald-500" />
+                <textarea value={note} onChange={e => setNote(e.target.value)} rows={4} placeholder={t('Admin izohi...','Комментарий администратора...')} className="mt-4 w-full resize-none rounded-2xl border p-3 text-sm outline-none focus:border-emerald-500" />
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {(['new', 'in_progress', 'replied', 'closed'] as const).map(status => (
                     <button key={status} disabled={saving} onClick={() => void saveStatus(status)} className={'rounded-xl border px-3 py-2 text-xs font-bold ' + (selected.status === status ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'bg-white')}>
