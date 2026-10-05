@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentAdmin, serviceClient } from '@/utils/admin/auth'
+import AdminHomeClient from './AdminHomeClient'
 
 async function getStats() {
   const supabase = serviceClient()
@@ -19,13 +20,5 @@ export default async function AdminHome() {
   const admin = await getCurrentAdmin()
   if (!admin) redirect('/admin/login')
   const stats = await getStats()
-  const cards = [
-    ['Jami e’lonlar', stats.total, 'Barcha e’lonlar'],
-    ['Moderatsiyada', stats.moderation, 'Tekshiruv kutilmoqda'],
-    ['Faol e’lonlar', stats.active, 'Saytda ko‘rinayotgan'],
-    ['Rad etilgan', stats.rejected, 'Qayta ishlash mumkin'],
-    ['Hamkorlar', stats.partners, 'Hamkor akkauntlar'],
-    ['Bugun qo‘shilgan', stats.today, 'Bugungi yangi e’lonlar'],
-  ]
-  return <main className="min-h-screen bg-slate-50"><header className="border-b bg-white"><div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4"><b className="text-xl">Royalhouse Admin</b><span className="text-sm text-slate-500">{admin.user.email}</span></div></header><div className="mx-auto max-w-6xl px-4 py-8"><p className="font-bold text-emerald-600">Boshqaruv markazi</p><h1 className="mt-1 text-3xl font-black">Admin panel</h1><div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-3"><>{cards.map(([label,value,desc])=><div key={label} className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p><p className="mt-1 text-xs text-slate-400">{desc}</p></div>)}</></div><div className="mt-7 grid gap-5 md:grid-cols-3"><Link href="/admin/moderation" className="rounded-3xl bg-white p-6 shadow-sm transition hover:-translate-y-0.5"><div className="text-3xl">✓</div><h2 className="mt-4 text-xl font-black">E’lonlar moderatsiyasi</h2><p className="mt-2 text-sm text-slate-500">Hamkorlar yuborgan e’lonlarni tekshirish, tasdiqlash yoki rad etish.</p><span className="mt-5 inline-block rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">{stats.moderation} ta e’lonni ko‘rish</span></Link><Link href="/admin/messages" className="rounded-3xl bg-white p-6 shadow-sm transition hover:-translate-y-0.5"><div className="text-3xl">📨</div><h2 className="mt-4 text-xl font-black">Xabarlar</h2><p className="mt-2 text-sm text-slate-500">Sayt va Telegram orqali kelgan murojaatlarni ko‘ring va holatini boshqaring.</p><span className="mt-5 inline-block rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">Xabarlarni ochish</span></Link>{admin.role.role==='super_admin'&&<Link href="/admin/administrators" className="rounded-3xl bg-white p-6 shadow-sm transition hover:-translate-y-0.5"><div className="text-3xl">♙</div><h2 className="mt-4 text-xl font-black">Administratorlar</h2><p className="mt-2 text-sm text-slate-500">Oddiy adminlarni yaratish, vakolatlarini berish va bloklash.</p><span className="mt-5 inline-block rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Boshqarish</span></Link>}</div><Link href="/admin/mortgage" className="block rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 hover:ring-emerald-300"><p className="text-xs font-black uppercase tracking-wider text-emerald-600">Royalhouse</p><h2 className="mt-2 text-xl font-black">Ipoteka arizalari</h2><p className="mt-1 text-sm text-slate-500">Bank, kalkulyator va aniq e’lon bilan bog‘langan mortgage leadlar.</p><span className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white">Ochish</span></Link></div></main>
+  return <AdminHomeClient email={admin.user.email || ''} role={admin.role.role} stats={stats} />
 }
