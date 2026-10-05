@@ -44,6 +44,8 @@ export default function SupportMessagesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [note, setNote] = useState('')
+  const [reply, setReply] = useState('')
+  const [replying, setReplying] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -67,6 +69,7 @@ export default function SupportMessagesPage() {
 
   useEffect(() => {
     setNote(selected?.admin_note || '')
+    setReply('')
   }, [selected])
 
   const counts = useMemo(() => ({
@@ -76,6 +79,27 @@ export default function SupportMessagesPage() {
     replied: messages.filter(x => x.status === 'replied').length,
     closed: messages.filter(x => x.status === 'closed').length,
   }), [messages])
+
+  async function sendTelegramReply() {
+    if (!selected || selected.source !== 'telegram' || replying) return
+    const text = reply.trim()
+    if (!text) return
+    setReplying(true)
+    const response = await fetch('/api/admin/support-messages/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: selected.id, reply: text }),
+    })
+    const data = await response.json().catch(() => ({}))
+    setReplying(false)
+    if (!response.ok) {
+      alert(data.error || t('Javob yuborilmadi.', 'Ответ не отправлен.'))
+      return
+    }
+    setReply('')
+    setSelected({ ...selected, status: 'replied', admin_note: 'Javob: ' + text })
+    await load()
+  }
 
   async function saveStatus(status: Message['status']) {
     if (!selected || saving) return
@@ -171,7 +195,26 @@ export default function SupportMessagesPage() {
                   <p className="text-xs font-bold text-slate-500">{selected.subject}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selected.message}</p>
                 </div>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={4} placeholder={t('Admin izohi...','Комментарий администратора...')} className="mt-4 w-full resize-none rounded-2xl border p-3 text-sm outline-none focus:border-emerald-500" />
+                {selected.source === 'telegram' && (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+                    <p className="text-xs font-bold text-emerald-700">{t('Telegram orqali javob berish','Ответить в Telegram')}</p>
+                    <textarea
+                      value={reply}
+                      onChange={e => setReply(e.target.value)}
+                      rows={4}
+                      placeholder={t('Mijozga javob yozing...','Напишите ответ клиенту...')}
+                      className="mt-2 w-full resize-none rounded-xl border bg-white p-3 text-sm outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      disabled={replying || !reply.trim()}
+                      onClick={() => void sendTelegramReply()}
+                      className="mt-2 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {replying ? t('Yuborilmoqda...','Отправка...') : t('Telegram orqali yuborish','Отправить в Telegram')}
+                    </button>
+                  </div>
+                )}
+                <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder={t('Admin izohi...','Комментарий администратора...')} className="mt-4 w-full resize-none rounded-2xl border p-3 text-sm outline-none focus:border-emerald-500" />
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {(['new', 'in_progress', 'replied', 'closed'] as const).map(status => (
                     <button key={status} disabled={saving} onClick={() => void saveStatus(status)} className={'rounded-xl border px-3 py-2 text-xs font-bold ' + (selected.status === status ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'bg-white')}>
