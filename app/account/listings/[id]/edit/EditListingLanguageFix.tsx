@@ -107,7 +107,7 @@ const DUPLICATE_RENTAL_LABELS = [
   'Односпальных мест', 'Двуспальных мест', 'Санузлов',
 ]
 
-function translateText(root: ParentNode) {
+function translateText(root: ParentNode, lang: 'uz' | 'ru') {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
   let current: Node | null = walker.nextNode()
