@@ -38,7 +38,7 @@ export default function SupportMessagesPage() {
   const { lang, setLang } = useI18n()
   const ru = lang === 'ru'
   const t = (uz: string, ruText: string) => ru ? ruText : uz
-  const [messages, setMessages] = useState<Message[]>([])
+  const [allMessages, setAllMessages] = useState<Message[]>([])
   const [selected, setSelected] = useState<Message | null>(null)
   const [filter, setFilter] = useState<'all' | Message['status']>('all')
   const [loading, setLoading] = useState(true)
@@ -49,8 +49,7 @@ export default function SupportMessagesPage() {
 
   async function load() {
     setLoading(true)
-    const url = filter === 'all' ? '/api/admin/support-messages' : '/api/admin/support-messages?status=' + filter
-    const response = await fetch(url, { cache: 'no-store' })
+    const response = await fetch('/api/admin/support-messages', { cache: 'no-store' })
     if (response.status === 401 || response.status === 403) {
       window.location.href = '/admin/login'
       return
@@ -61,11 +60,16 @@ export default function SupportMessagesPage() {
       setLoading(false)
       return
     }
-    setMessages(data.messages || [])
+    setAllMessages(data.messages || [])
     setLoading(false)
   }
 
-  useEffect(() => { void load() }, [filter])
+  useEffect(() => { void load() }, [])
+
+  const messages = useMemo(() => {
+    if (filter === 'all') return allMessages
+    return allMessages.filter(item => item.status === filter)
+  }, [allMessages, filter])
 
   useEffect(() => {
     setNote(selected?.admin_note || '')
@@ -73,12 +77,12 @@ export default function SupportMessagesPage() {
   }, [selected])
 
   const counts = useMemo(() => ({
-    all: messages.length,
-    new: messages.filter(x => x.status === 'new').length,
-    in_progress: messages.filter(x => x.status === 'in_progress').length,
-    replied: messages.filter(x => x.status === 'replied').length,
-    closed: messages.filter(x => x.status === 'closed').length,
-  }), [messages])
+    all: allMessages.length,
+    new: allMessages.filter(x => x.status === 'new').length,
+    in_progress: allMessages.filter(x => x.status === 'in_progress').length,
+    replied: allMessages.filter(x => x.status === 'replied').length,
+    closed: allMessages.filter(x => x.status === 'closed').length,
+  }), [allMessages])
 
   async function sendTelegramReply() {
     if (!selected || selected.source !== 'telegram' || replying) return
