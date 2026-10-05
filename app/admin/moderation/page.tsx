@@ -60,7 +60,7 @@ type Listing = {
   }[] | null
   listing_images?: ImageItem[] | null
 }
-
+const money=(v:number,c:string,ru:boolean)=>`${new Intl.NumberFormat(ru?'ru-RU':'uz-UZ').format(Number(v))} ${c==='USD'?'$':c==='EUR'?'€':ru?'сум':'so‘m'}`
 const money=(v:number,c:string,ru:boolean)=>`${new Intl.NumberFormat(ru?'ru-RU':'uz-UZ').format(Number(v))} ${c==='USD'?'
 const typeLabel=(t:string,ru:boolean)=>(ru?({sale:'Покупка',rent:'Аренда',daily:'Посуточная аренда',new_building:'Новостройки',service:'Услуги',realtor:'Риелторы'}[t]):({sale:'Sotib olish',rent:'Ijara',daily:'Kunlik ijara',new_building:'Yangi uylar',service:'Xizmatlar',realtor:'Rieltorlar'}[t]))||t
 const propertyLabel=(t:string|null,ru:boolean)=>(ru?({apartment:'Квартира',house:'Частный дом',land:'Земельный участок',commercial:'Коммерческая недвижимость',new_building:'Новостройка'}[t||'']):({apartment:'Kvartira',house:'Xususiy uy',land:'Yer uchastkasi',commercial:'Tijorat ko‘chmas mulki',new_building:'Yangi bino'}[t||'']))||t||'—'
@@ -78,24 +78,24 @@ function Gallery({ listing }: { listing: Listing }) {
 
   useEffect(() => setSelected(0), [listing.id])
 
-  if (!images.length) return <div className="flex min-h-[420px] items-center justify-center rounded-3xl bg-slate-100 text-sm text-slate-400">E’lon uchun rasm yuklanmagan</div>
+  if (!images.length) return <div className="flex min-h-[420px] items-center justify-center rounded-3xl bg-slate-100 text-sm text-slate-400">{t('E’lon uchun rasm yuklanmagan','Изображение для объявления не загружено.')}</div>
 
   const current = images[Math.min(selected, images.length - 1)]
 
   return <div>
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-100">
       <div className="relative flex min-h-[420px] items-center justify-center sm:min-h-[520px]">
-        {failed[current.id] ? <div className="p-8 text-center text-sm text-slate-500">Bu rasmni yuklab bo‘lmadi.<br /><span className="text-xs">Storage URL tekshirilishi kerak.</span></div> : <img src={current.image_url} alt={`${listing.title} — ${selected + 1}-rasm`} className="max-h-[620px] w-full object-contain" onError={() => setFailed(v => ({ ...v, [current.id]: true }))} />}
+        {failed[current.id] ? <div className="p-8 text-center text-sm text-slate-500">{t('Bu rasmni yuklab bo‘lmadi.','Не удалось загрузить это изображение.')}<br /><span className="text-xs">{t('Storage URL tekshirilishi kerak.','Необходимо проверить URL хранилища.')}</span></div> : <img src={current.image_url} alt={`${listing.title} — ${selected + 1}-rasm`} className="max-h-[620px] w-full object-contain" onError={() => setFailed(v => ({ ...v, [current.id]: true }))} />}
         <div className="absolute left-4 top-4 rounded-full bg-black/70 px-3 py-1.5 text-xs font-bold text-white">{selected + 1} / {images.length}</div>
-        {images.length > 1 && <><button type="button" aria-label="Oldingi rasm" onClick={() => setSelected(v => v === 0 ? images.length - 1 : v - 1)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">‹</button><button type="button" aria-label="Keyingi rasm" onClick={() => setSelected(v => v === images.length - 1 ? 0 : v + 1)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">›</button></>}
+        {images.length > 1 && <><button type="button" aria-label={t('Oldingi rasm','Предыдущее изображение')} onClick={() => setSelected(v => v === 0 ? images.length - 1 : v - 1)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">‹</button><button type="button" aria-label={t('Keyingi rasm','Следующее изображение')} onClick={() => setSelected(v => v === images.length - 1 ? 0 : v + 1)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-4 py-3 text-xl font-black shadow">›</button></>}
       </div>
     </div>
     <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8">
       {images.map((image, index) => <button type="button" key={image.id} onClick={() => setSelected(index)} className={`overflow-hidden rounded-xl border-2 bg-slate-100 ${index === selected ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-transparent'}`}>
-        {failed[image.id] ? <div className="flex aspect-square items-center justify-center text-[10px] text-slate-400">Xato</div> : <img src={image.image_url} alt={`${index + 1}-rasm`} className="aspect-square w-full object-cover" onError={() => setFailed(v => ({ ...v, [image.id]: true }))} />}
+        {failed[image.id] ? <div className="flex aspect-square items-center justify-center text-[10px] text-slate-400">{t('Xato','Ошибка')}</div> : <img src={image.image_url} alt={`${index + 1} ${t('rasm','изображение')}`} className="aspect-square w-full object-cover" onError={() => setFailed(v => ({ ...v, [image.id]: true }))} />}
       </button>)}
     </div>
-    <p className="mt-2 text-xs text-slate-500">Jami {images.length} ta rasm. Birinchi rasm hamkor tanlagan asosiy rasm.</p>
+    <p className="mt-2 text-xs text-slate-500">{t('Jami ','Всего ')}{images.length}{t(' ta rasm. Birinchi rasm hamkor tanlagan asosiy rasm.',' изображений. Первое изображение выбрано партнёром как основное.')}</p>
   </div>
 }
 
@@ -118,7 +118,7 @@ export default function ModerationPage() {
     setAdmin(await me.json())
     const r = await fetch('/api/admin/listings', { cache: 'no-store' })
     const d = await r.json()
-    if (!r.ok) { setError(d.error || 'Xatolik'); setLoading(false); return }
+    if (!r.ok) { setError(d.error || t('Xatolik','Ошибка')); setLoading(false); return }
     setItems((d.listings || []) as Listing[])
     setLoading(false)
   }
@@ -126,11 +126,11 @@ export default function ModerationPage() {
   useEffect(() => { void load() }, [])
 
   async function moderate(id: string, action: 'approve' | 'reject') {
-    if (action === 'reject' && !reason[id]?.trim()) { setError('Rad etish sababini kiriting.'); return }
+    if (action === 'reject' && !reason[id]?.trim()) { setError(t('Rad etish sababini kiriting.','Укажите причину отклонения.')); return }
     setBusy(id); setError('')
     const r = await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action, reason: reason[id] || '' }) })
     const d = await r.json()
-    if (!r.ok) setError(d.error || 'Amal bajarilmadi')
+    if (!r.ok) setError(d.error || t('Amal bajarilmadi','Не удалось выполнить действие'))
     else setItems(x => x.filter(i => i.id !== id))
     setBusy('')
   }
@@ -138,11 +138,11 @@ export default function ModerationPage() {
   async function logout() { await supabase.auth.signOut(); location.href = '/admin/login' }
 
   return <main className="min-h-screen bg-slate-50">
-    <header className="border-b bg-white"><div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4"><div className="flex items-center gap-5"><Link href="/admin" className="font-black text-emerald-700">← {t('Admin','Админ')}</Link><b>{t('Moderatsiya','Модерация')}</b></div><div className="flex items-center gap-3 text-sm"><span className="hidden text-slate-500 sm:block">{admin?.email}</span><button onClick={logout} className="rounded-xl border px-4 py-2 font-bold">Chiqish</button></div></div></header>
+    <header className="border-b bg-white"><div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4"><div className="flex items-center gap-5"><Link href="/admin" className="font-black text-emerald-700">← {t('Admin','Админ')}</Link><b>{t('Moderatsiya','Модерация')}</b></div><div className="flex items-center gap-3 text-sm"><div className="flex overflow-hidden rounded-xl border text-xs font-bold"><button onClick={()=>setLang('uz')} className={`px-3 py-2 ${!ru?'bg-slate-900 text-white':''}`}>UZ</button><button onClick={()=>setLang('ru')} className={`px-3 py-2 ${ru?'bg-slate-900 text-white':''}`}>RU</button></div><span className="hidden text-slate-500 sm:block">{admin?.email}</span><button onClick={logout} className="rounded-xl border px-4 py-2 font-bold">{t('Chiqish','Выйти')}</button></div></div></header>
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="flex items-end justify-between"><div><p className="font-bold text-emerald-600">Royalhouse Admin</p><h1 className="mt-1 text-3xl font-black">{t('E’lonlar moderatsiyasi','Модерация объявлений')}</h1><p className="mt-2 text-sm text-slate-500">{t('Hamkor yuborgan e’lonning barcha ma’lumotlari va barcha rasmlarini tekshiring.','Проверьте все данные и изображения объявления, отправленного партнёром.')}</p></div><div className="rounded-2xl bg-white px-5 py-4 shadow-sm"><div className="text-xs text-slate-400">{t('Navbat','Очередь')}</div><b className="text-2xl">{items.length}</b></div></div>
       {error && <div className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-      {loading ? <div className="mt-6 rounded-3xl bg-white p-12 text-center">Yuklanmoqda...</div> : !items.length ? <div className="mt-6 rounded-3xl bg-white p-12 text-center shadow-sm"><div className="text-4xl">✓</div><h2 className="mt-3 text-xl font-black">Moderatsiya navbati bo‘sh</h2></div> : <div className="mt-6 space-y-8">
+      {loading ? <div className="mt-6 rounded-3xl bg-white p-12 text-center">{t('Yuklanmoqda...','Загрузка...')}</div> : !items.length ? <div className="mt-6 rounded-3xl bg-white p-12 text-center shadow-sm"><div className="text-4xl">✓</div><h2 className="mt-3 text-xl font-black">{t('Moderatsiya navbati bo‘sh','Очередь модерации пуста')}</h2></div> : <div className="mt-6 space-y-8">
         {items.map(i => <article key={i.id} className="overflow-hidden rounded-3xl bg-white shadow-sm">
           <div className="p-5 sm:p-7">
             <div className="flex flex-col gap-4 border-b border-slate-100 pb-6 lg:flex-row lg:items-start lg:justify-between">
@@ -152,8 +152,8 @@ export default function ModerationPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
               <Gallery listing={i} />
               <div className="space-y-6">
-                <section><h3 className="mb-3 text-lg font-black">Asosiy ma’lumotlar</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Mulk turi','Тип недвижимости')} value={propertyLabel(i.property_type,ru)} /><Field label={t('Narx','Цена')} value={money(i.price,i.currency,ru)} />{i.area_m2 != null && <Field label={t('Maydon','Площадь')} value={`${i.area_m2} m²`} />}{i.rooms != null && <Field label={t('Xonalar','Комнаты')} value={i.rooms} />}{i.floor != null && <Field label={t('Qavat','Этаж')} value={`${i.floor}${i.floors_total != null ? ` / ${i.floors_total}` : ''}`} />}{i.accommodation_type && <Field label={t('Turar joy turi','Тип размещения')} value={i.accommodation_type} />}{i.max_guests != null && <Field label={t('Maks. mehmonlar','Макс. гостей')} value={i.max_guests} />}</div></section>
-                <section><h3 className="mb-3 text-lg font-black">Joylashuv</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Shahar','Город')} value={i.city} /><Field label={t('Tuman','Район')} value={i.district || '—'} /><Field label={t('Mahalla','Махалля')} value={i.neighborhood || '—'} /><Field label={t('Manzil','Адрес')} value={i.address || '—'} /><Field label={t('Koordinata','Координаты')} value={i.latitude != null && i.longitude != null ? `${i.latitude}, ${i.longitude}` : 'Belgilanmagan'} /></div></section>
+                <section><h3 className="mb-3 text-lg font-black">{t('Asosiy ma’lumotlar','Основная информация')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Mulk turi','Тип недвижимости')} value={propertyLabel(i.property_type,ru)} /><Field label={t('Narx','Цена')} value={money(i.price,i.currency,ru)} />{i.area_m2 != null && <Field label={t('Maydon','Площадь')} value={`${i.area_m2} m²`} />}{i.rooms != null && <Field label={t('Xonalar','Комнаты')} value={i.rooms} />}{i.floor != null && <Field label={t('Qavat','Этаж')} value={`${i.floor}${i.floors_total != null ? ` / ${i.floors_total}` : ''}`} />}{i.accommodation_type && <Field label={t('Turar joy turi','Тип размещения')} value={i.accommodation_type} />}{i.max_guests != null && <Field label={t('Maks. mehmonlar','Макс. гостей')} value={i.max_guests} />}</div></section>
+                <section><h3 className="mb-3 text-lg font-black">{t('Joylashuv','Расположение')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Shahar','Город')} value={i.city} /><Field label={t('Tuman','Район')} value={i.district || '—'} /><Field label={t('Mahalla','Махалля')} value={i.neighborhood || '—'} /><Field label={t('Manzil','Адрес')} value={i.address || '—'} /><Field label={t('Koordinata','Координаты')} value={i.latitude != null && i.longitude != null ? `${i.latitude}, ${i.longitude}` : 'Belgilanmagan'} /></div></section>
               </div>
             </div>
 
