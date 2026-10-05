@@ -60,6 +60,38 @@ export default function MonetizationCheckoutPage() {
   const [error, setError] = useState('')
 
   const money = (v: number) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${t('sum')}`
+  const localizeLocation = (value: string | null | undefined) => {
+    if (!value || lang !== 'ru') return value || ''
+    const map: Record<string, string> = {
+      "Toshkent": "Ташкент",
+      "Toshkent viloyati": "Ташкентская область",
+      "Toshkent shahri": "г. Ташкент",
+      "Yunusobod": "Юнусабад",
+      "Chilonzor": "Чиланзар",
+      "Mirzo Ulug‘bek": "Мирзо-Улугбекский район",
+      "Mirzo Ulug'bek": "Мирзо-Улугбекский район",
+      "Shayxontahur": "Шайхантахурский район",
+      "Olmazor": "Алмазарский район",
+      "Yakkasaroy": "Яккасарайский район",
+      "Sergeli": "Сергелийский район",
+      "Bektemir": "Бектемирский район",
+      "Uchtepa": "Учтепинский район",
+      "Mirobod": "Мирабадский район",
+      "Yangihayot": "Янгиҳаётский район",
+      "Yangiyo‘l": "Янгиюльский район",
+      "Yangiyo'l": "Янгиюльский район",
+      "Chirchiq": "Чирчик",
+      "Olmaliq": "Алмалык",
+      "Angren": "Ангрен",
+      "Bekobod": "Бекабад",
+      "Zangiota": "Зангиатинский район",
+      "Qibray": "Кибрайский район",
+    }
+    return map[value] || value
+  }
+  const orderStatus = (value: string) => lang === 'ru'
+    ? ({ pending: 'Ожидает оплаты', paid: 'Оплачен', failed: 'Ошибка оплаты', cancelled: 'Отменён', completed: 'Завершён' } as Record<string, string>)[value] || value
+    : ({ pending: 'To‘lov kutilmoqda', paid: 'To‘langan', failed: 'To‘lov xatosi', cancelled: 'Bekor qilingan', completed: 'Yakunlangan' } as Record<string, string>)[value] || value
 
   useEffect(() => {
     ;(async () => {
@@ -113,10 +145,10 @@ export default function MonetizationCheckoutPage() {
         body: JSON.stringify({ productCode: product.code, listingId: listingId || null, quantity: 1, idempotencyKey: crypto.randomUUID() }),
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || 'BUYURTMA_YARATILMADI')
+      if (!response.ok) throw new Error(data?.error || t('orderCreateFailed'))
       setOrder(data.order as Order)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'BUYURTMA_YARATILMADI')
+      setError(e instanceof Error ? e.message : t('orderCreateFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -133,10 +165,10 @@ export default function MonetizationCheckoutPage() {
         body: JSON.stringify({ orderId: order.id, idempotencyKey: crypto.randomUUID() }),
       })
       const data = await response.json()
-      if (!response.ok || !data.checkoutUrl) throw new Error(data?.error || 'PAYMENT_NOT_READY')
+      if (!response.ok || !data.checkoutUrl) throw new Error(data?.error || t('paymentNotReady'))
       window.location.href = data.checkoutUrl
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'PAYMENT_NOT_READY')
+      setError(e instanceof Error ? e.message : t('paymentNotReady'))
       setPaying(null)
     }
   }
@@ -167,7 +199,7 @@ export default function MonetizationCheckoutPage() {
               </div>
             </div>
 
-            {needsListing && <div className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-lg font-black">2. {t('listing')}</h2><select value={listingId} onChange={e => setListingId(e.target.value)} className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-500"><option value="">{t('selectListing')}</option>{listings.map(l => <option key={l.id} value={l.id}>{l.title || t('noName')} — {l.city || ''}{l.district ? `, ${l.district}` : ''}</option>)}</select>{listings.length === 0 && <p className="mt-3 text-sm text-slate-500">{t('noListings')}</p>}</div>}
+            {needsListing && <div className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-lg font-black">2. {t('listing')}</h2><select value={listingId} onChange={e => setListingId(e.target.value)} className="mt-4 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-500"><option value="">{t('selectListing')}</option>{listings.map(l => <option key={l.id} value={l.id}>{l.title || t('noName')} — {localizeLocation(l.city)}{l.district ? `, ${localizeLocation(l.district)}` : ''}</option>)}</select>{listings.length === 0 && <p className="mt-3 text-sm text-slate-500">{t('noListings')}</p>}</div>}
           </div>
 
           <aside className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm lg:sticky lg:top-5">
@@ -181,7 +213,7 @@ export default function MonetizationCheckoutPage() {
             {order && <div className="mt-5 rounded-2xl bg-white p-4 text-slate-900"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Click</div><div className="mt-3 flex items-center gap-3"><ClickLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithClick')}</span></div></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-cyan-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Payme</div><div className="mt-3 flex items-center gap-3"><PaymeLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithPayme')}</span></div></button></div>{paying && <div className="mt-3 text-center text-xs font-semibold text-slate-500">{t('redirectingPayment')}</div>}</div>}
 
             {error && <div className="mt-4 rounded-2xl bg-red-500/15 p-3 text-sm font-semibold text-red-200">{t('error')}: {error}</div>}
-            {order && <div className="mt-4 rounded-2xl bg-emerald-500/15 p-4"><div className="font-black text-emerald-300">{t('orderCreated')}</div><div className="mt-1 break-all text-xs text-slate-300">№ {order.id}</div><div className="mt-3 text-sm text-slate-200">{t('status')}: <b>{order.status}</b></div></div>}
+            {order && <div className="mt-4 rounded-2xl bg-emerald-500/15 p-4"><div className="font-black text-emerald-300">{t('orderCreated')}</div><div className="mt-1 break-all text-xs text-slate-300">№ {order.id}</div><div className="mt-3 text-sm text-slate-200">{t('status')}: <b>{orderStatus(order.status)}</b></div></div>}
           </aside>
         </section>
       </div>

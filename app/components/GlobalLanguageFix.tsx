@@ -26,7 +26,7 @@ const PAIRS: Pair[] = [
   ['Ro‘yxatdan o‘tish', 'Регистрация'],
   ['Qidirish', 'Поиск'],
   ['Filtrlar', 'Фильтры'],
-  ['Filtrni tozalash', 'Сбросить filtrlar'],
+  ['Filtrni tozalash', 'Сбросить фильтры'],
   ['Barchasi', 'Все'],
   ['Sotib olish', 'Купить'],
   ['Ijara', 'Аренда'],

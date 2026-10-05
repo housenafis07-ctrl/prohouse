@@ -50,7 +50,7 @@ export default function IpotekaPage() {
     <main className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center px-4">
-          <Link href="/" className="flex items-center gap-2" aria-label="Royalhouse — bosh sahifa">
+          <Link href="/" className="flex items-center gap-2" aria-label={ru ? "Royalhouse — главная" : "Royalhouse — bosh sahifa"}>
             <img src="/royalhouse-icon.svg" alt="Royalhouse" className="h-10 w-10 rounded-xl object-cover" />
             <span className="text-2xl font-black tracking-tight text-slate-900">
               Royal<span className="text-emerald-500">house</span>

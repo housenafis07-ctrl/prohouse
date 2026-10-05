@@ -107,7 +107,7 @@ const DUPLICATE_RENTAL_LABELS = [
   'Односпальных мест', 'Двуспальных мест', 'Санузлов',
 ]
 
-function translateText(root: ParentNode) {
+function translateText(root: ParentNode, lang: 'uz' | 'ru') {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
   let current: Node | null = walker.nextNode()
@@ -143,13 +143,18 @@ export default function EditListingLanguageFix() {
   useEffect(() => {
     const isRussian = () => window.localStorage.getItem('royalhouse-lang') === 'ru'
     const run = () => {
-      if (isRussian()) translateText(document.body)
+      const lang = isRussian() ? 'ru' : 'uz'
+      translateText(document.body, lang)
       cleanupRentalEditFields()
     }
     run()
     const observer = new MutationObserver(() => run())
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-    return () => observer.disconnect()
+    window.addEventListener('royalhouse-language-change', run)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('royalhouse-language-change', run)
+    }
   }, [])
   return null
 }
