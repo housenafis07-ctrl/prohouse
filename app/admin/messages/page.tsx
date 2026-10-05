@@ -140,7 +140,7 @@ export default function SupportMessagesPage() {
             ['replied', t('Javob berildi','Ответ дан')],
             ['closed', t('Yopilgan','Закрытые')],
           ] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setFilter(key)} className={'rounded-2xl bg-white p-4 text-left shadow-sm ' + (filter === key ? 'ring-2 ring-emerald-500' : '')}>
+            <button key={key} onClick={() => { setFilter(key); setSelected(null) }} className={'rounded-2xl bg-white p-4 text-left shadow-sm ' + (filter === key ? 'ring-2 ring-emerald-500' : '')}>
               <p className="text-xs font-bold text-slate-500">{label}</p>
               <p className="mt-1 text-2xl font-black">{counts[key]}</p>
             </button>
