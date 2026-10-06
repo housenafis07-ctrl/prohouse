@@ -162,6 +162,50 @@ export async function POST(request: NextRequest) {
       return rpcResult(body.id, { transaction: attempt.id, cancel_time: Date.now(), state })
     }
 
+    if (method === 'GetStatement') {
+      const from = Number(params.from)
+      const to = Number(params.to)
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) {
+        return rpcError(body.id, -32602, 'Invalid params')
+      }
+
+      const { data: attempts, error } = await admin
+        .from('monetization_payment_attempts')
+        .select('id,provider_payment_id,status,amount_uzs,provider_payload,created_at')
+        .eq('provider', 'payme')
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+
+      const transactions = (attempts || [])
+        .map((attempt: any) => {
+          const payload = (attempt.provider_payload || {}) as Record<string, unknown>
+          const payme = (payload.payme || {}) as Record<string, unknown>
+          const time = Number(payme.time || payme.create_time || new Date(attempt.created_at).getTime())
+          const state = attempt.status === 'paid'
+            ? 2
+            : attempt.status === 'cancelled'
+              ? Number(payme.state || (Number(payme.perform_time || 0) > 0 ? -2 : -1))
+              : 1
+
+          return {
+            id: attempt.provider_payment_id,
+            time,
+            amount: Number(payme.amount || Math.round(Number(attempt.amount_uzs) * 100)),
+            account: payme.account || {},
+            create_time: Number(payme.create_time || new Date(attempt.created_at).getTime()),
+            perform_time: Number(payme.perform_time || 0),
+            cancel_time: Number(payme.cancel_time || 0),
+            transaction: attempt.id,
+            state,
+            reason: payme.cancel_reason ?? null,
+          }
+        })
+        .filter((transaction: any) => transaction.id && transaction.time >= from && transaction.time <= to)
+
+      return rpcResult(body.id, { transactions })
+    }
+
     if (method === 'CheckTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,status,provider_payload,created_at').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
