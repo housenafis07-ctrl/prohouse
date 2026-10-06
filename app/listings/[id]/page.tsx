@@ -14,7 +14,7 @@ type Listing = {
   district: string | null; city: string; address?: string | null; latitude?: number | null; longitude?: number | null
   seller_type: string; seller_name: string | null; seller_phone?: string | null; taxonomy_code?: string | null
   is_mortgage_available: boolean; is_verified: boolean; is_trusted_seller: boolean; is_featured: boolean
-  promotion_badge?: string | null; promoted_until?: string | null; bumped_at?: string | null
+  promotion_rank?: number | null; promotion_badge?: string | null; promoted_until?: string | null; bumped_at?: string | null
   published_at: string | null; draft_data?: Record<string, any> | null; listing_images?: ListingImage[]
 }
 
@@ -26,7 +26,7 @@ async function getListing(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('listings')
-    .select('id,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_badge,promoted_until,bumped_at,published_at,draft_data,listing_images(image_url,sort_order)')
+    .select('id,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_rank,promotion_badge,promoted_until,bumped_at,published_at,draft_data,listing_images(image_url,sort_order)')
     .eq('id', id).eq('status', 'active').maybeSingle()
 
   if (error || !data) return null
