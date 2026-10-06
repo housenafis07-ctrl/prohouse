@@ -437,6 +437,7 @@ select
   l.rooms,
   l.floor,
   l.floors_total,
+  l.land_area,
   l.district,
   l.city,
   l.latitude,
