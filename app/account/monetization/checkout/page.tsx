@@ -193,7 +193,7 @@ export default function MonetizationCheckoutPage() {
                 {products.length === 0 ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">{t('noProducts')}</div> : products.map(p => (
                   <button key={p.code} type="button" onClick={() => setProductCode(p.code)} className={`w-full rounded-2xl border p-4 text-left transition ${productCode === p.code ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                     <div className="flex items-start justify-between gap-3"><div><div className="font-black">{pickLocalized(lang, p.name, p.name_ru)}</div><div className="mt-1 text-sm text-slate-500">{pickLocalized(lang, p.description, p.description_ru) || '—'}</div></div>{(p.badge || p.badge_ru) && <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-black text-white">{pickLocalized(lang, p.badge, p.badge_ru)}</span>}</div>
-                    <div className="mt-3 flex items-center justify-between text-sm"><b>{money(p.price_uzs)}</b><span className="text-slate-400">{p.duration_days} {t('day')}</span></div>
+                    <div className="mt-3 flex items-center justify-between text-sm"><b>{money(p.price_uzs)}</b><span className="text-slate-400">{p.product_type === 'extra_listing' ? t('Bir martalik','Одноразово') : `${p.duration_days} ${t('day')}`}</span></div>
                   </button>
                 ))}
               </div>
