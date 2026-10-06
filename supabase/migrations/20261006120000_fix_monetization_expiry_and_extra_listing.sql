@@ -98,7 +98,7 @@ end;
 $$;
 
 revoke all on function public.assert_individual_listing_limit(uuid) from public;
-grant execute on function public.assert_individual_listing_limit(uuid) to authenticated;
+grant execute on function public.assert_individual_listing_limit(uuid) to authenticated, service_role;
 
 -- Final server-side quota guard. A paid extra listing is allowed and does not
 -- consume one of the three free slots.
