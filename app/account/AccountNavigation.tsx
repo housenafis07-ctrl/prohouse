@@ -70,12 +70,16 @@ export default function AccountNavigation() {
   return (
     <nav className="border-b border-slate-100 bg-white px-3 py-2">
       <div className="mx-auto max-w-6xl">
-        <div className="hidden items-center gap-1.5 overflow-x-auto whitespace-nowrap md:flex">
-          <Link href="/account" className="rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
-          {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
-          <Link href="/account/saved-searches" className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
-          {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
-          <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="ml-auto shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
+        <div className="hidden gap-1.5 md:flex md:flex-col">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Link href="/account" className="rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
+            {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+            <Link href="/account/saved-searches" className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-1.5">
+            {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
+          </div>
         </div>
 
         <div className="md:hidden">
