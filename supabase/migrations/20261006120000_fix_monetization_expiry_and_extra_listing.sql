@@ -441,6 +441,7 @@ select
   l.longitude,
   l.seller_type,
   l.seller_name,
+  l.primary_image_url,
   l.is_mortgage_available,
   l.is_verified,
   l.is_featured,
