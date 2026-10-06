@@ -14,7 +14,7 @@ type Listing = {
   district: string | null; city: string; address?: string | null; latitude?: number | null; longitude?: number | null
   seller_type: string; seller_name: string | null; seller_phone?: string | null; taxonomy_code?: string | null
   is_mortgage_available: boolean; is_verified: boolean; is_trusted_seller: boolean; is_featured: boolean
-  promotion_badge?: string | null; promoted_until?: string | null
+  promotion_rank?: number | null; promotion_badge?: string | null; promoted_until?: string | null; bumped_at?: string | null
   published_at: string | null; draft_data?: Record<string, any> | null; listing_images?: ListingImage[]
 }
 
@@ -26,11 +26,50 @@ async function getListing(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('listings')
-    .select('id,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_badge,promoted_until,published_at,draft_data,listing_images(image_url,sort_order)')
+    .select('id,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_rank,promotion_badge,promoted_until,bumped_at,published_at,draft_data,listing_images(image_url,sort_order)')
     .eq('id', id).eq('status', 'active').maybeSingle()
 
   if (error || !data) return null
-  return data as Listing
+
+  const now = new Date()
+  const nowIso = now.toISOString()
+  const { data: promotionRows } = await supabase
+    .from('listing_promotions')
+    .select('product_code,starts_at,ends_at,status')
+    .eq('listing_id', id)
+    .eq('status', 'active')
+    .lte('starts_at', nowIso)
+    .not('ends_at', 'is', null)
+    .gt('ends_at', nowIso)
+
+  const productCodes = Array.from(new Set((promotionRows || []).map((row: any) => row.product_code).filter(Boolean)))
+  const { data: promotionProducts } = productCodes.length
+    ? await supabase.from('monetization_products').select('code,boost_rank,badge').in('code', productCodes)
+    : { data: [] as any[] }
+
+  const productByCode = new Map((promotionProducts || []).map((product: any) => [product.code, product]))
+  const activePromotions = (promotionRows || [])
+    .map((row: any) => ({ ...row, product: productByCode.get(row.product_code) }))
+    .filter((row: any) => row.product)
+    .sort((a: any, b: any) => Number(b.product.boost_rank || 0) - Number(a.product.boost_rank || 0))
+
+  const topPromotion = activePromotions[0]
+  const bumpActive = !!data.bumped_at && new Date(data.bumped_at).getTime() > now.getTime() - 24 * 60 * 60 * 1000
+  const fallbackPromotionActive = !topPromotion && data.promoted_until && new Date(data.promoted_until).getTime() > now.getTime()
+  const effectiveBadge = topPromotion?.product?.badge || (bumpActive ? 'UP' : fallbackPromotionActive ? data.promotion_badge : null)
+  const effectiveUntil = topPromotion?.ends_at || (bumpActive ? new Date(new Date(data.bumped_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : fallbackPromotionActive ? data.promoted_until : null)
+  const effectiveRank = Math.max(
+    Number(topPromotion?.product?.boost_rank || 0),
+    bumpActive ? 20 : 0,
+    fallbackPromotionActive ? Number(data.promotion_rank || 0) : 0,
+  )
+
+  return {
+    ...(data as Listing),
+    promotion_badge: effectiveBadge,
+    promoted_until: effectiveUntil,
+    is_featured: effectiveRank >= 60,
+  }
 }
 
 function formatPrice(listing: Listing) {

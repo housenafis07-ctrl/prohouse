@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     ? text(profile?.phone) || user.phone || null
     : (isIndividualOwner ? text(profile?.phone) || user.phone || null : null)
 
-  if (status === 'moderation') {
+  if (status === 'moderation' && !listingId) {
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
     if (limitError) {
       if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({ error: 'LISTING_LIMIT_REACHED', message: '3 ta bepul faol e’lon limitingiz tugagan. Qo‘shimcha e’lon uchun monetizatsiya xizmatini tanlang.' }, { status: 402 })
