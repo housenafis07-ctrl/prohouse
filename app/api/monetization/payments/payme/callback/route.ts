@@ -378,7 +378,7 @@ export async function POST(request: NextRequest) {
       if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
       const payload = (attempt.provider_payload || {}) as Record<string, unknown>
       const payme = (payload.payme || {}) as Record<string, unknown>
-      const state = attempt.status === 'paid' ? 2 : attempt.status === 'cancelled' ? -2 : 1
+      const state = attempt.status === 'paid' ? 2 : attempt.status === 'cancelled' ? Number(payme.state || -1) : 1
       return rpcResult(body.id, { create_time: Number(payme.create_time || new Date(attempt.created_at).getTime()), perform_time: Number(payme.perform_time || 0), cancel_time: Number(payme.cancel_time || 0), transaction: attempt.id, state, reason: payme.cancel_reason ?? null })
     }
 
