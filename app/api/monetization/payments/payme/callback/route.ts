@@ -13,7 +13,7 @@ function rpcResult(id: RpcRequest['id'], result: unknown) {
 }
 
 function rpcError(id: RpcRequest['id'], code: number, message: string, data?: unknown) {
-  return NextResponse.json({ jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } }, { status: 200 })
+  return NextResponse.json({ jsonrpc: '2.0', id: id ?? null, result: null, error: { code, message, ...(data === undefined ? {} : { data }) } }, { status: 200 })
 }
 
 function constantTimeEqual(a: string, b: string) {
@@ -131,10 +131,10 @@ export async function POST(request: NextRequest) {
 
     if (method === 'PerformTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
-      if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found')
+      if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found', 'id')
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
-      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
+      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found', 'id')
       if (attempt.status === 'paid') {
         const payload = (attempt.provider_payload || {}) as Record<string, unknown>
         const payme = (payload.payme || {}) as Record<string, unknown>
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
       const reason = Number.isFinite(Number(params.reason)) ? Number(params.reason) : -1
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
-      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
+      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found', 'id')
       const payload = (attempt.provider_payload || {}) as Record<string, unknown>
       const payme = (payload.payme || {}) as Record<string, unknown>
 
