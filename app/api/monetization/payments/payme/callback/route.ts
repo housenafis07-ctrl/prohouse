@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
       const { data: active, error: activeError } = await admin.from('monetization_payment_attempts').select('id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('order_id', orderId).in('status', ['pending', 'processing', 'paid']).order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (activeError) throw activeError
-      if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+      if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order')
 
       const createTime = Date.now()
       const { data: attempt, error: insertError } = await admin.from('monetization_payment_attempts').insert({
