@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       if (!transactionId || !orderId || !Number.isFinite(time)) return rpcError(body.id, -31008, 'Operation is not allowed')
       if (!isUuid(orderId)) return rpcError(body.id, -31050, 'Order not found', 'order_id')
 
-      const { data: order, error: orderError } = await admin.from('monetization_orders').select('id,user_id,status,subtotal_uzs,currency').eq('id', orderId).maybeSingle()
+      const { data: order, error: orderError } = await admin.from('monetization_orders').select('id,user_id,status,subtotal_uzs,currency,provider').eq('id', orderId).maybeSingle()
       if (orderError) throw orderError
       if (!order) return rpcError(body.id, -31050, 'Order not found', 'order_id')
       if (order.currency !== 'UZS' || Math.round(Number(order.subtotal_uzs) * 100) !== amount) return rpcError(body.id, -31001, 'Incorrect amount')
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
       if (existing) {
         const payload = (existing.provider_payload || {}) as Record<string, unknown>
         const payme = (payload.payme || {}) as Record<string, unknown>
-        return rpcResult(body.id, { create_time: Number(payme.create_time || Date.now()), transaction: existing.id, state: existing.status === 'paid' ? 2 : existing.status === 'cancelled' ? -2 : 1 })
+        return rpcResult(body.id, { create_time: Number(payme.create_time || Date.now()), transaction: existing.id, state: existing.status === 'paid' ? 2 : existing.status === 'cancelled' ? Number(payme.state || -1) : 1 })
       }
 
       const { data: active, error: activeError } = await admin.from('monetization_payment_attempts').select('id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('order_id', orderId).in('status', ['pending', 'processing', 'paid']).order('created_at', { ascending: false }).limit(1).maybeSingle()
