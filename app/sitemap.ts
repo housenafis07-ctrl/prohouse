@@ -90,6 +90,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from('listings')
       .select('id,published_at,updated_at')
       .eq('status', 'active')
+      .in('listing_type', ['sale', 'rent', 'daily'])
       .order('published_at', { ascending: false })
       .limit(5000)
 
