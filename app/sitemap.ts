@@ -36,6 +36,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ['yakkasaroy', 'Yakkasaroy', 'kvartira-sotiladi'],
       ['mirzo-ulugbek', 'Mirzo Ulug‘bek', 'kvartira-sotiladi'],
       ['sergeli', 'Sergeli', 'kvartira-sotiladi'],
+      ['bektemir', 'Bektemir', 'kvartira-sotiladi'],
+      ['uchtepa', 'Uchtepa', 'kvartira-sotiladi'],
+      ['olmazor', 'Olmazor', 'kvartira-sotiladi'],
+      ['shayxontohur', 'Shayxontohur', 'kvartira-sotiladi'],
+      ['yashnobod', 'Yashnobod', 'kvartira-sotiladi'],
+      ['yangihayot', 'Yangihayot', 'kvartira-sotiladi'],
     ] as const
 
     const districtSeoRoutes = (
