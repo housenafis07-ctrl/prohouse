@@ -29,6 +29,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ] as const
 
     const cityFilter = 'city.eq.Toshkent,city.eq.Toshkent shahri,city.eq.Toshkent shahar'
+    const districtSeoPages = [
+      ['yunusobod', 'Yunusobod', 'kvartira-sotiladi'],
+      ['chilonzor', 'Chilonzor', 'kvartira-sotiladi'],
+      ['mirobod', 'Mirobod', 'kvartira-sotiladi'],
+      ['yakkasaroy', 'Yakkasaroy', 'kvartira-sotiladi'],
+      ['mirzo-ulugbek', 'Mirzo Ulug‘bek', 'kvartira-sotiladi'],
+      ['sergeli', 'Sergeli', 'kvartira-sotiladi'],
+    ] as const
+
+    const districtSeoRoutes = (
+      await Promise.all(
+        districtSeoPages.map(async ([slug, district, category]) => {
+          const { count } = await supabase
+            .from('listing_search')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'active')
+            .or(cityFilter)
+            .eq('district', district)
+            .eq('listing_type', 'sale')
+            .eq('property_type', 'apartment')
+          return count ? { url: `${SITE_URL}/toshkent/${slug}/${category}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.8 } : null
+        }),
+      )
+    ).filter(Boolean) as MetadataRoute.Sitemap
+
     const seoRoutes = (
       await Promise.all(
         tashkentSeoPages.map(async ([slug, listingType, propertyType]) => {
@@ -57,7 +82,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
 
-    return [...staticRoutes, { url: `${SITE_URL}/toshkent`, lastModified: now, changeFrequency: 'daily', priority: 0.9 }, ...seoRoutes, ...listingRoutes]
+    return [...staticRoutes, { url: `${SITE_URL}/toshkent`, lastModified: now, changeFrequency: 'daily', priority: 0.9 }, ...seoRoutes, ...districtSeoRoutes, ...listingRoutes]
   } catch {
     return staticRoutes
   }
