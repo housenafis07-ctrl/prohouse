@@ -133,7 +133,7 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     robots: { index: page.slug !== 'hovli-sotiladi' && !hasQueryParams, follow: true },
     openGraph: {
       type: 'website',
-      url,
+      url: canonicalUrl,
       siteName: 'Royalhouse',
       title: page.title,
       description: page.description,
