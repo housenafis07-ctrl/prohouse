@@ -86,7 +86,13 @@ function buildDescription(listing: Listing) {
     listing.rooms ? `${listing.rooms} xona` : null,
   ].filter(Boolean).join(' · ')
   const base = listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`
-  return `${base.replace(/\s+/g, ' ').trim()} ${details}`.trim().slice(0, 160)
+  const intent = listing.listing_type === 'rent'
+    ? 'ijara'
+    : listing.listing_type === 'sale'
+      ? 'sotuv'
+      : listing.listing_type
+  const summary = `${base.replace(/\s+/g, ' ').trim()} ${details}. RoyalHouse’da ${intent} bo‘yicha batafsil ma’lumotni ko‘ring.`
+  return summary.replace(/\s+/g, ' ').trim().slice(0, 160)
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -102,7 +108,19 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
   const location = [listing.district, listing.city].filter(Boolean).join(', ')
-  const title = `${listing.title} — ${formatPrice(listing)} | Royalhouse`
+  const propertyLabel = listing.property_type === 'apartment'
+    ? (listing.listing_type === 'rent' ? 'kvartira ijaraga' : 'kvartira sotiladi')
+    : listing.property_type === 'house'
+      ? (listing.listing_type === 'rent' ? 'uy ijaraga' : 'uy sotiladi')
+      : listing.property_type === 'new_building'
+        ? 'novostroyka'
+        : listing.property_type === 'land'
+          ? 'yer sotiladi'
+          : listing.property_type === 'commercial'
+            ? 'tijorat ko‘chmas mulki'
+            : 'ko‘chmas mulk'
+  const titleParts = [listing.title, location, propertyLabel].filter(Boolean)
+  const title = `${titleParts.join(' — ')} | Royalhouse`
   const description = buildDescription(listing)
   const firstImage = listing.listing_images?.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0]?.image_url
   const imageUrl = firstImage
