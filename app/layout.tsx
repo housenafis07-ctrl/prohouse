@@ -20,10 +20,19 @@ import AuthLanguageFix from "./components/AuthLanguageFix";
 import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
 import TaxCalculatorServiceFix from "./components/TaxCalculatorServiceFix";
 
+const SITE_URL = "https://royalhouse.uz";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Royalhouse — Ko‘chmas mulk platformasi",
   description: "O‘zbekistonda uy topish, sotish, ijaraga olish va ipoteka uchun zamonaviy platforma.",
-  alternates: { languages: { uz: 'https://royalhouse.uz/uz', ru: 'https://royalhouse.uz/ru', 'x-default': 'https://royalhouse.uz/uz' } },
+  alternates: {
+    languages: {
+      uz: `${SITE_URL}/uz`,
+      ru: `${SITE_URL}/ru`,
+      'x-default': SITE_URL,
+    },
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
