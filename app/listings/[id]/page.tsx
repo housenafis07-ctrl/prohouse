@@ -131,7 +131,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title,
     description,
     alternates: { canonical: url },
-    robots: { index: true, follow: true },
+    robots: { index: listing.listing_type !== 'service', follow: true },
     openGraph: {
       type: 'website',
       url,
@@ -164,9 +164,10 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
   const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
   const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
+  const isService = listing.listing_type === 'service'
 
   const structuredData = {
-    '@context': 'https://schema.org', '@type': 'RealEstateListing', name: title, description, url,
+    '@context': 'https://schema.org', '@type': isService ? 'WebPage' : 'RealEstateListing', name: title, description, url,
     image: images.map((image) => image.image_url.startsWith('http') ? image.image_url : `${SITE_URL}${image.image_url}`), datePosted: listing.published_at || undefined,
     ...(location ? { address: { '@type': 'PostalAddress', streetAddress: listing.address || undefined, addressLocality: listing.district || listing.city, addressRegion: listing.city, addressCountry: 'UZ' } } : {}),
     ...(listing.latitude != null && listing.longitude != null ? { geo: { '@type': 'GeoCoordinates', latitude: listing.latitude, longitude: listing.longitude } } : {}),
