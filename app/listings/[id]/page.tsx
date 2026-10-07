@@ -156,13 +156,56 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     ...(listing.seller_name ? { seller: { '@type': 'Person', name: listing.seller_name } } : {}),
   }
 
+  const category = (() => {
+    if (listing.listing_type === 'rent' && listing.property_type === 'apartment') return { slug: 'kvartira-ijara', name: 'Toshkentda kvartira ijaraga' }
+    if (listing.listing_type === 'rent' && listing.property_type === 'house') return { slug: 'uy-ijara', name: 'Toshkentda uy ijaraga' }
+    if (listing.listing_type === 'sale' && listing.property_type === 'apartment') return { slug: 'kvartira-sotiladi', name: 'Toshkentda kvartira sotiladi' }
+    if (listing.listing_type === 'sale' && listing.property_type === 'house') return { slug: 'uy-sotiladi', name: 'Toshkentda uy sotiladi' }
+    if (listing.listing_type === 'sale' && listing.property_type === 'new_building') return { slug: 'novostroyka', name: 'Toshkentda yangi uylar va novostroyka' }
+    if (listing.listing_type === 'sale' && listing.property_type === 'land') return { slug: 'yer-sotiladi', name: 'Toshkentda yer sotiladi' }
+    if (listing.listing_type === 'sale' && listing.property_type === 'commercial') return { slug: 'tijorat', name: 'Toshkentda tijorat ko‘chmas mulki' }
+    return null
+  })()
+  const districtSlugs: Record<string, string> = {
+    Yunusobod: 'yunusobod',
+    Chilonzor: 'chilonzor',
+    Mirobod: 'mirobod',
+    Yakkasaroy: 'yakkasaroy',
+    'Mirzo Ulug‘bek': 'mirzo-ulugbek',
+    'Mirzo Ulugbek': 'mirzo-ulugbek',
+    Sergeli: 'sergeli',
+    Bektemir: 'bektemir',
+    Uchtepa: 'uchtepa',
+    Olmazor: 'olmazor',
+    Shayxontohur: 'shayxontohur',
+    Yashnobod: 'yashnobod',
+    Yangihayot: 'yangihayot',
+  }
+  const districtSlug = listing.district ? districtSlugs[listing.district] : undefined
+  const useDistrictBreadcrumb = !!category
+    && category.slug === 'kvartira-sotiladi'
+    && !!districtSlug
+    && (listing.city === 'Toshkent' || listing.city === 'Toshkent shahri' || listing.city === 'Toshkent shahar')
+
+  const breadcrumbItems = [
+    { '@type': 'ListItem', position: 1, name: 'RoyalHouse', item: SITE_URL },
+    ...(category ? [
+      { '@type': 'ListItem', position: 2, name: 'Toshkent', item: `${SITE_URL}/toshkent` },
+      ...(useDistrictBreadcrumb ? [
+        { '@type': 'ListItem', position: 3, name: listing.district!, item: `${SITE_URL}/toshkent/${districtSlug}/kvartira-sotiladi` },
+        { '@type': 'ListItem', position: 4, name: category.name, item: `${SITE_URL}/toshkent/${category.slug}` },
+      ] : [
+        { '@type': 'ListItem', position: 3, name: category.name, item: `${SITE_URL}/toshkent/${category.slug}` },
+      ]),
+    ] : [
+      { '@type': 'ListItem', position: 2, name: 'E’lonlar', item: `${SITE_URL}/listings` },
+    ]),
+    { '@type': 'ListItem', position: category ? (useDistrictBreadcrumb ? 5 : 4) : 3, name: title, item: url },
+  ]
+
   const breadcrumbData = {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'RoyalHouse', item: SITE_URL },
-      { '@type': 'ListItem', position: 2, name: 'E’lonlar', item: `${SITE_URL}/listings` },
-      { '@type': 'ListItem', position: 3, name: title, item: url },
-    ],
+    itemListElement: breadcrumbItems,
   }
 
   return <>
