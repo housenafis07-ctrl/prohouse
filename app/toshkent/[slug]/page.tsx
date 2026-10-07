@@ -13,6 +13,8 @@ type LandingConfig = {
   description: string
   h1: string
   intro: string
+  seoHeading: string
+  seoText: string
   listingType: 'sale' | 'rent'
   propertyType: 'apartment' | 'house' | 'land' | 'commercial' | 'new_building'
 }
@@ -24,6 +26,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentda sotiladigan kvartiralarni toping: narx, maydon, xona soni va tuman bo‘yicha e’lonlarni ko‘ring.',
     h1: 'Toshkentda kvartira sotiladi',
     intro: 'Toshkent shahrida sotiladigan kvartiralarni Royalhouse orqali toping. E’lonlarni narx, maydon, xona soni va tuman bo‘yicha ko‘rib chiqing.',
+    seoHeading: 'Toshkentda kvartira tanlash',
+    seoText: 'Toshkentda kvartira sotib olayotganda tuman, xona soni, maydon, qavat va uy holatini birgalikda solishtirish muhim. Royalhouse’dagi sotuv e’lonlari orqali turli hududlardagi kvartiralarni ko‘rib, o‘zingizga mos variantni tanlashingiz mumkin. Narxni baholashda uy joylashuvi va maydonini ham hisobga oling.',
     listingType: 'sale',
     propertyType: 'apartment',
   },
@@ -33,6 +37,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentda sotiladigan xususiy uy va hovlilarni toping. Narx, maydon va tuman bo‘yicha e’lonlarni ko‘ring.',
     h1: 'Toshkentda uy sotiladi',
     intro: 'Toshkentdagi sotuvdagi xususiy uy va hovlilarni bir joyda ko‘ring. Royalhouse’da yangi e’lonlarni solishtirish va sotuvchi bilan bog‘lanish mumkin.',
+    seoHeading: 'Toshkentda uy va hovli tanlash',
+    seoText: 'Toshkentda uy sotib olish uchun hovlining maydoni, uy maydoni, xona soni, qavatlar soni va joylashuvini solishtiring. Royalhouse’da sotuvdagi xususiy uy va hovlilarni ko‘rib, e’lon tafsilotlari orqali sotuvchi yoki rieltor bilan bog‘lanishingiz mumkin.',
     listingType: 'sale',
     propertyType: 'house',
   },
@@ -42,6 +48,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentda hovli sotib olish uchun mavjud e’lonlarni ko‘ring. Narx, maydon va joylashuvni solishtiring.',
     h1: 'Toshkentda hovli sotiladi',
     intro: 'Toshkent shahrida sotiladigan hovlilarni Royalhouse katalogidan toping. Hudud, narx va uy maydonini solishtirib, mos e’lonni tanlang.',
+    seoHeading: 'Toshkentda hovli tanlash',
+    seoText: 'Toshkentda hovli sotib olishda yer maydoni, uy maydoni, xonalar soni va tuman bo‘yicha farqlarni solishtirish foydali. Bu sahifa uy sotilishi bo‘yicha asosiy katalogga birlashtirilgan; mos hovli va xususiy uylarni Royalhouse’da ko‘rishingiz mumkin.',
     listingType: 'sale',
     propertyType: 'house',
   },
@@ -51,6 +59,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentda ijaraga beriladigan kvartiralarni toping. Narx, tuman va xona soni bo‘yicha e’lonlarni ko‘ring.',
     h1: 'Toshkentda kvartira ijaraga',
     intro: 'Toshkentdagi ijara kvartiralarini Royalhouse orqali toping. Oylik narx, tuman, xona soni va maydon bo‘yicha e’lonlarni solishtiring.',
+    seoHeading: 'Toshkentda kvartira ijarasi',
+    seoText: 'Toshkentda kvartira ijaraga olayotganda oylik ijara narxi bilan birga tuman, xona soni, maydon va qavatni solishtiring. Royalhouse’dagi ijara e’lonlari orqali mavjud kvartiralarni ko‘rib, mos variant bo‘yicha e’lon egasi yoki rieltor bilan bog‘lanish mumkin.',
     listingType: 'rent',
     propertyType: 'apartment',
   },
@@ -60,6 +70,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentda ijaraga beriladigan xususiy uy va hovlilarni toping. Joylashuv va narx bo‘yicha e’lonlarni ko‘ring.',
     h1: 'Toshkentda uy ijaraga',
     intro: 'Toshkentdagi ijara uy va hovlilarini Royalhouse katalogidan toping. Mavjud e’lonlarni joylashuv, maydon va narx bo‘yicha solishtiring.',
+    seoHeading: 'Toshkentda uy ijarasi',
+    seoText: 'Toshkentda uy ijaraga olish uchun joylashuv, uy va hovli maydoni, xonalar soni hamda oylik narxni birgalikda baholang. Royalhouse’da ijaraga beriladigan xususiy uy va hovlilarni ko‘rib, e’lon tafsilotlarini solishtirishingiz mumkin.',
     listingType: 'rent',
     propertyType: 'house',
   },
@@ -69,6 +81,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentdagi yangi qurilish va novostroykalardan kvartira toping. Narx, maydon va joylashuv bo‘yicha e’lonlarni ko‘ring.',
     h1: 'Toshkentda yangi uylar va novostroyka',
     intro: 'Toshkentdagi yangi qurilish loyihalari va novostroyka e’lonlarini Royalhouse’da ko‘ring. Yangi uylarni narx, maydon va joylashuv bo‘yicha solishtiring.',
+    seoHeading: 'Toshkentda yangi uylar va novostroyka',
+    seoText: 'Toshkentda yangi uy yoki novostroyka tanlashda qurilish turi, maydon, xona soni, joylashuv va narxni solishtirish muhim. Royalhouse’dagi yangi qurilish e’lonlari xarid uchun mavjud variantlarni bir joyda ko‘rishga yordam beradi. Ipoteka imkoniyatlarini hisoblash uchun kalkulyatordan ham foydalanishingiz mumkin.',
     listingType: 'sale',
     propertyType: 'new_building',
   },
@@ -78,6 +92,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentda sotiladigan yer uchastkalarini toping. Qurilish va investitsiya uchun mavjud e’lonlarni ko‘ring.',
     h1: 'Toshkentda yer sotiladi',
     intro: 'Toshkent shahrida sotiladigan yer uchastkalarini Royalhouse orqali toping. Maydon, narx va joylashuv bo‘yicha mos variantlarni solishtiring.',
+    seoHeading: 'Toshkentda yer uchastkasi',
+    seoText: 'Toshkentda yer sotib olishda uchastka maydoni, joylashuvi, foydalanish maqsadi va narxini tekshirish muhim. Royalhouse’dagi yer uchastkasi e’lonlarini solishtirib, qurilish yoki investitsiya uchun mos variantlarni topishingiz mumkin.',
     listingType: 'sale',
     propertyType: 'land',
   },
@@ -87,6 +103,8 @@ const PAGES: LandingConfig[] = [
     description: 'Toshkentdagi tijorat ko‘chmas mulk e’lonlarini toping: ofis, do‘kon va boshqa biznes obyektlari.',
     h1: 'Toshkentda tijorat ko‘chmas mulki',
     intro: 'Toshkentdagi tijorat ko‘chmas mulk e’lonlarini Royalhouse’da toping. Biznes uchun mos obyektlarni narx, maydon va joylashuv bo‘yicha ko‘rib chiqing.',
+    seoHeading: 'Toshkentda tijorat ko‘chmas mulki',
+    seoText: 'Toshkentda tijorat ko‘chmas mulki izlayotganlar uchun obyektning maydoni, joylashuvi, narxi va biznes uchun mosligi asosiy mezonlardan hisoblanadi. Royalhouse’da ofis, do‘kon va boshqa tijorat obyektlari bo‘yicha mavjud e’lonlarni ko‘rib, mos variantni tanlash mumkin.',
     listingType: 'sale',
     propertyType: 'commercial',
   },
@@ -144,6 +162,22 @@ export default async function TashkentSeoLanding({ params }: { params: Promise<{
   const { data, count, error } = await query
   if (error) throw error
   if (!count) notFound()
+
+  const districtCounts = await Promise.all(
+    ['Yunusobod','Chilonzor','Mirobod','Yakkasaroy','Mirzo Ulug‘bek','Sergeli','Bektemir','Uchtepa','Olmazor','Shayxontohur','Yashnobod','Yangihayot'].map(async (district) => {
+      const { count } = await supabase
+        .from('listing_search')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .or('city.eq.Toshkent,city.eq.Toshkent shahri,city.eq.Toshkent shahar')
+        .in('district', [district, `${district} tumani`, `${district} shahri`])
+        .eq('listing_type', page.listingType)
+        .eq('property_type', page.propertyType)
+      return { district, count: count || 0 }
+    })
+  )
+  const activeDistricts = districtCounts.filter((item) => item.count > 0)
+  const districtSlug = (name: string) => name.toLowerCase().replace(/['‘’]/g, '').replace(/\s+/g, '-')
 
   const ids = (data || []).map((item) => item.id)
   const { data: images } = ids.length
@@ -216,9 +250,25 @@ export default async function TashkentSeoLanding({ params }: { params: Promise<{
         </section>
 
         <section className="mt-12 max-w-4xl rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-          <h2 className="text-2xl font-black">Royalhouse’da Toshkent ko‘chmas mulki</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">{page.intro} E’lonlarni ko‘rib chiqing, batafsil ma’lumotni oching va mos variant bo‘yicha sotuvchi yoki rieltor bilan bog‘laning.</p>
+          <h2 className="text-2xl font-black">{page.seoHeading}</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">{page.seoText}</p>
+          <div className="mt-5 flex flex-wrap gap-2 text-sm font-bold">
+            <Link href="/toshkent" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Toshkent bo‘yicha barcha yo‘nalishlar</Link>
+            <Link href="/ipoteka/kalkulyator" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Toshkent ipoteka kalkulyatori</Link>
+          </div>
         </section>
+        {activeDistricts.length > 0 ? (
+          <section className="mt-8 max-w-5xl">
+            <h2 className="text-xl font-black">Toshkent tumanlarida mavjud variantlar</h2>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {activeDistricts.map((item) => (
+                <Link key={item.district} href={`/toshkent/${districtSlug(item.district)}/${page.slug}`} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold hover:border-emerald-300">
+                  {item.district} ({item.count})
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
     </main>
