@@ -46,7 +46,15 @@ function errorCode(message: string) {
   if (message === 'AMOUNT_MISMATCH') return -31001
   if (message === 'TRANSACTION_NOT_ALLOWED') return -31008
   if (message === 'ORDER_NOT_FOUND') return -31050
+  // Supabase/Postgres can raise 22P02 when a malformed UUID reaches a UUID column.
+  // Treat that as an invalid/non-existent order instead of exposing a generic
+  // merchant error to Payme.
+  if (message.includes('invalid input syntax for type uuid')) return -31050
   return -32400
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 }
 
 export async function POST(request: NextRequest) {
@@ -69,7 +77,7 @@ export async function POST(request: NextRequest) {
       const amount = Number(params.amount)
       const account = params.account as Record<string, unknown> | undefined
       const orderId = typeof account?.order_id === 'string' ? account.order_id : ''
-      if (!orderId) return rpcError(body.id, -31050, 'Invalid account', 'order_id')
+      if (!orderId || !isUuid(orderId)) return rpcError(body.id, -31050, 'Order not found', 'order_id')
       const { data: order, error } = await admin.from('monetization_orders').select('id,status,subtotal_uzs,currency').eq('id', orderId).maybeSingle()
       if (error) throw error
       if (!order) return rpcError(body.id, -31050, 'Order not found', 'order_id')
@@ -85,6 +93,7 @@ export async function POST(request: NextRequest) {
       const account = params.account as Record<string, unknown> | undefined
       const orderId = typeof account?.order_id === 'string' ? account.order_id : ''
       if (!transactionId || !orderId || !Number.isFinite(time)) return rpcError(body.id, -31008, 'Operation is not allowed')
+      if (!isUuid(orderId)) return rpcError(body.id, -31050, 'Order not found', 'order_id')
 
       const { data: order, error: orderError } = await admin.from('monetization_orders').select('id,user_id,status,subtotal_uzs,currency').eq('id', orderId).maybeSingle()
       if (orderError) throw orderError
