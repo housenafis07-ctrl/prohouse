@@ -48,6 +48,8 @@ export default function TashkentHub() {
             <Link href="/listings" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Barcha e’lonlar</Link>
             <Link href="/ipoteka/kalkulyator" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Ipoteka kalkulyatori</Link>
             <Link href="/realtors" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Rieltorlar</Link>
+            <Link href="/toshkent/uy-narxlari" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Uy va kvartira narxlari</Link>
+            <Link href="/toshkent/ipoteka" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Toshkentda ipoteka</Link>
           </div>
         </section>
       </div>
