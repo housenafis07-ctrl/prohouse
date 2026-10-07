@@ -146,9 +146,9 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
       <ListingsClient
-      initialItems={initialItems}
-      initialTotal={count ?? null}
-      initialHasNext={hasNext}
+        initialItems={initialItems}
+        initialTotal={count ?? null}
+        initialHasNext={hasNext}
         initialNextCursor={initialNextCursor}
       />
     </>
