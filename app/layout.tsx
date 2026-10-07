@@ -26,13 +26,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "Royalhouse — Ko‘chmas mulk platformasi",
   description: "O‘zbekistonda uy topish, sotish, ijaraga olish va ipoteka uchun zamonaviy platforma.",
-  alternates: {
-    languages: {
-      uz: `${SITE_URL}/uz`,
-      ru: `${SITE_URL}/ru`,
-      'x-default': SITE_URL,
-    },
-  },
+  alternates: { canonical: SITE_URL },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
