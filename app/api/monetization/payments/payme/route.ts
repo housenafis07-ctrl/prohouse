@@ -6,6 +6,12 @@ function getSiteUrl(request: NextRequest) {
   return (process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_URL || new URL(request.url).origin).replace(/\/$/, '')
 }
 
+function buildPaymeCheckoutUrl(params: Record<string, string>) {
+  // Payme GET checkout format: base64(m=...;ac.order_id=...;a=...;...)
+  const raw = Object.entries(params).map(([key, value]) => `${key}=${value}`).join(';')
+  return `https://checkout.paycom.uz/${Buffer.from(raw, 'utf8').toString('base64')}`
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -17,9 +23,10 @@ export async function POST(request: NextRequest) {
     const idempotencyKey = typeof body.idempotencyKey === 'string' && body.idempotencyKey.trim()
       ? body.idempotencyKey.trim().slice(0, 128)
       : crypto.randomUUID()
+
     if (!orderId) return NextResponse.json({ error: 'ORDER_REQUIRED' }, { status: 400 })
 
-    const merchantId = process.env.PAYME_MERCHANT_ID
+    const merchantId = process.env.PAYME_MERCHANT_ID?.trim()
     if (!merchantId) return NextResponse.json({ error: 'PAYME_NOT_CONFIGURED' }, { status: 503 })
 
     const { data: attemptId, error: attemptError } = await supabase.rpc('create_monetization_payment_attempt', {
@@ -27,36 +34,57 @@ export async function POST(request: NextRequest) {
       p_provider: 'payme',
       p_idempotency_key: idempotencyKey,
     })
+
     if (attemptError) {
-      const status = /ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED/.test(attemptError.message) ? 400 : 500
+      const status = /ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED|UNSUPPORTED_PAYMENT_PROVIDER/.test(attemptError.message) ? 400 : 500
       return NextResponse.json({ error: attemptError.message }, { status })
     }
 
     const admin = serviceClient()
-    const { data: attempt, error: fetchError } = await admin.from('monetization_payment_attempts')
+    const { data: attempt, error: fetchError } = await admin
+      .from('monetization_payment_attempts')
       .select('id,order_id,user_id,provider,status,amount_uzs,currency,checkout_url,provider_payment_id')
       .eq('id', attemptId)
       .eq('user_id', user.id)
       .maybeSingle()
+
     if (fetchError) throw fetchError
     if (!attempt) return NextResponse.json({ error: 'PAYMENT_ATTEMPT_NOT_FOUND' }, { status: 404 })
 
+    if (attempt.currency !== 'UZS' || Number(attempt.amount_uzs) <= 0) {
+      return NextResponse.json({ error: 'INVALID_PAYMENT_AMOUNT' }, { status: 400 })
+    }
+
     const amountTiyin = Math.round(Number(attempt.amount_uzs) * 100)
-    const params = new URLSearchParams({
-      merchant: merchantId,
-      'account[order_id]': attempt.order_id,
-      amount: String(amountTiyin),
-      lang: 'uz',
-      callback: `${getSiteUrl(request)}/account/monetization/checkout?orderId=${encodeURIComponent(attempt.order_id)}`,
-      description: `Royalhouse monetization order ${attempt.order_id}`,
+    const siteUrl = getSiteUrl(request)
+    const callback = `${siteUrl}/account/monetization/checkout?orderId=${encodeURIComponent(attempt.order_id)}&transaction=:transaction`
+
+    const checkoutUrl = buildPaymeCheckoutUrl({
+      m: merchantId,
+      'ac.order_id': attempt.order_id,
+      a: String(amountTiyin),
+      l: 'uz',
+      c: callback,
+      ct: '15000',
+      cr: '860',
     })
-    const checkoutUrl = `https://checkout.paycom.uz/${Buffer.from(params.toString()).toString('base64')}`
 
     if (attempt.checkout_url !== checkoutUrl) {
-      const { error: updateError } = await admin.from('monetization_payment_attempts')
-        .update({ checkout_url: checkoutUrl, provider_payload: { mode: 'hosted_checkout', merchant_id: merchantId } })
+      const { error: updateError } = await admin
+        .from('monetization_payment_attempts')
+        .update({
+          checkout_url: checkoutUrl,
+          provider_payload: {
+            mode: 'hosted_checkout_get',
+            merchant_id: merchantId,
+            amount_tiyin: amountTiyin,
+            callback,
+          },
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', attempt.id)
         .eq('user_id', user.id)
+
       if (updateError) throw updateError
     }
 
