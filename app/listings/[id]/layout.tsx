@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     description,
     keywords: keywords.filter(Boolean),
     alternates: { canonical: `${SITE_URL}/listings/${encodeURIComponent(id)}` },
-    robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large' } },
+    robots: { index: data.listing_type !== 'service', follow: true, googleBot: { index: data.listing_type !== 'service', follow: true, 'max-image-preview': 'large' } },
     openGraph: {
       type: 'website',
       url: `${SITE_URL}/listings/${encodeURIComponent(id)}`,
