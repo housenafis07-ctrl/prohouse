@@ -16,6 +16,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     const supabase = await createClient()
+
+    const tashkentSeoPages = [
+      ['kvartira-sotiladi', 'sale', 'apartment'],
+      ['uy-sotiladi', 'sale', 'house'],
+      ['hovli-sotiladi', 'sale', 'house'],
+      ['kvartira-ijara', 'rent', 'apartment'],
+      ['uy-ijara', 'rent', 'house'],
+      ['novostroyka', 'sale', 'new_building'],
+      ['yer-sotiladi', 'sale', 'land'],
+      ['tijorat', 'sale', 'commercial'],
+    ] as const
+
+    const cityFilter = 'city.eq.Toshkent,city.eq.Toshkent shahri,city.eq.Toshkent shahar'
+    const seoRoutes = (
+      await Promise.all(
+        tashkentSeoPages.map(async ([slug, listingType, propertyType]) => {
+          const { count } = await supabase
+            .from('listing_search')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'active')
+            .or(cityFilter)
+            .eq('listing_type', listingType)
+            .eq('property_type', propertyType)
+          return count ? { url: `${SITE_URL}/toshkent/${slug}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.85 } : null
+        }),
+      )
+    ).filter(Boolean) as MetadataRoute.Sitemap
     const { data } = await supabase
       .from('listings')
       .select('id,published_at,updated_at')
@@ -30,7 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
 
-    return [...staticRoutes, ...listingRoutes]
+    return [...staticRoutes, { url: `${SITE_URL}/toshkent`, lastModified: now, changeFrequency: 'daily', priority: 0.9 }, ...seoRoutes, ...listingRoutes]
   } catch {
     return staticRoutes
   }
