@@ -107,11 +107,12 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   const paramsObject = (await searchParams) || {}
   const hasQueryParams = Object.keys(paramsObject).length > 0
   const url = `${SITE_URL}/toshkent/${page.slug}`
+  const canonicalUrl = page.slug === 'hovli-sotiladi' ? `${SITE_URL}/toshkent/uy-sotiladi` : url
   return {
     title: page.title,
     description: page.description,
-    alternates: { canonical: url },
-    robots: { index: !hasQueryParams, follow: true },
+    alternates: { canonical: canonicalUrl },
+    robots: { index: page.slug !== 'hovli-sotiladi' && !hasQueryParams, follow: true },
     openGraph: {
       type: 'website',
       url,
