@@ -130,7 +130,7 @@ export default async function TashkentSeoLanding({ params }: { params: Promise<{
     .from('listing_search')
     .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,seller_name,effective_promotion_badge,published_at', { count: 'exact' })
     .eq('status', 'active')
-    .eq('city', 'Toshkent')
+    .or('city.eq.Toshkent,city.eq.Toshkent shahri,city.eq.Toshkent shahar')
     .eq('listing_type', page.listingType)
     .eq('property_type', page.propertyType)
     .order('effective_promotion_rank', { ascending: false })
