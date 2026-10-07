@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
 
     if (method === 'PerformTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
-      if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found', 'id')
+      if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found')
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
       if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
