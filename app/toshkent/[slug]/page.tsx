@@ -190,7 +190,7 @@ export default async function TashkentSeoLanding({ params }: { params: Promise<{
               <h2 className="text-2xl font-black">{page.h1}</h2>
               <p className="mt-1 text-sm text-slate-500">{count} ta faol e’lon</p>
             </div>
-            <Link href={`/listings?tab=${page.listingType}&type=${page.propertyType}&region=Toshkent%20shahri`} className="font-bold text-emerald-700">Barchasini ko‘rish →</Link>
+            <Link href={`/listings?tab=${page.listingType}&property_type=${page.propertyType}&region=Toshkent%20shahri`} className="font-bold text-emerald-700">Barchasini ko‘rish →</Link>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {(data || []).map((item) => (
