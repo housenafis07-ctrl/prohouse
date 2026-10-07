@@ -316,6 +316,18 @@ export async function POST(request: NextRequest) {
         return rpcError(body.id, -31007, 'Order has already been completed')
       }
 
+      // Payme may retry CancelTransaction. For an already-cancelled transaction,
+      // the response must be identical to the first successful cancellation.
+      if (attempt.status === 'cancelled') {
+        const cancelTime = Number(payme.cancel_time || 0)
+        const state = Number(payme.state || -1)
+        return rpcResult(body.id, {
+          transaction: attempt.id,
+          cancel_time: cancelTime,
+          state,
+        })
+      }
+
       const cancelTime = Date.now()
       const state = -1
       const nextPayload = { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }
