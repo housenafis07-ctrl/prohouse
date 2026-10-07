@@ -90,8 +90,7 @@ export default async function DistrictSeoPage({ params }: { params: Promise<{ di
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Royalhouse', item: SITE_URL },
       { '@type': 'ListItem', position: 2, name: 'Toshkent', item: `${SITE_URL}/toshkent` },
-      { '@type': 'ListItem', position: 3, name: page.district, item: `${SITE_URL}/toshkent/${page.districtSlug}/kvartira-sotiladi` },
-      { '@type': 'ListItem', position: 4, name: page.h1, item: url },
+      { '@type': 'ListItem', position: 3, name: page.h1, item: url },
     ],
   }
   const jsonLd = JSON.stringify(breadcrumbData).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
