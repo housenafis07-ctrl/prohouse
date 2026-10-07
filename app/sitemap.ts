@@ -20,7 +20,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const tashkentSeoPages = [
       ['kvartira-sotiladi', 'sale', 'apartment'],
       ['uy-sotiladi', 'sale', 'house'],
-      ['hovli-sotiladi', 'sale', 'house'],
       ['kvartira-ijara', 'rent', 'apartment'],
       ['uy-ijara', 'rent', 'house'],
       ['novostroyka', 'sale', 'new_building'],
