@@ -25,6 +25,10 @@ export const revalidate = 60
 const SITE_URL = 'https://royalhouse.uz'
 const BASE_URL = `${SITE_URL}/listings`
 
+function jsonLd(value: unknown) {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
+}
+
 type ListingsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
@@ -129,12 +133,24 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
         })
       : null
 
+  const breadcrumbData = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'RoyalHouse', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'E’lonlar', item: BASE_URL },
+    ],
+  }
+
   return (
-    <ListingsClient
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
+      <ListingsClient
       initialItems={initialItems}
       initialTotal={count ?? null}
       initialHasNext={hasNext}
-      initialNextCursor={initialNextCursor}
-    />
+        initialNextCursor={initialNextCursor}
+      />
+    </>
   )
 }
