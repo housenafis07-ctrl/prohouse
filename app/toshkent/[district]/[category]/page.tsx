@@ -37,6 +37,19 @@ function getConfig(district: string, category: string) {
   return PAGES.find((page) => page.districtSlug === district && page.category === category)
 }
 
+function districtVariants(district: string) {
+  const variants = new Set<string>([district])
+  const withoutSuffix = district.replace(/\s+(tumani|shahri)$/i, '').trim()
+  if (withoutSuffix) {
+    variants.add(withoutSuffix)
+    variants.add(`${withoutSuffix} tumani`)
+    variants.add(`${withoutSuffix} shahri`)
+  }
+  variants.add(district.replace(/'/g, '‘'))
+  variants.add(district.replace(/‘/g, "'"))
+  return Array.from(variants)
+}
+
 export function generateStaticParams() {
   return PAGES.map(({ districtSlug, category }) => ({ district: districtSlug, category }))
 }
@@ -68,7 +81,7 @@ export default async function DistrictSeoPage({ params }: { params: Promise<{ di
     .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,seller_name,effective_promotion_badge,published_at', { count: 'exact' })
     .eq('status', 'active')
     .or('city.eq.Toshkent,city.eq.Toshkent shahri,city.eq.Toshkent shahar')
-    .eq('district', page.district)
+    .in('district', districtVariants(page.district))
     .eq('listing_type', page.listingType)
     .eq('property_type', page.propertyType)
     .order('effective_promotion_rank', { ascending: false })
