@@ -96,6 +96,7 @@ export default function MonetizationCheckoutPage() {
   useEffect(() => {
     ;(async () => {
       const params = new URLSearchParams(window.location.search)
+      const requestedOrderId = params.get('orderId') || ''
       setProductCode(params.get('product') || '')
       setListingId(params.get('listingId') || '')
 
@@ -106,9 +107,10 @@ export default function MonetizationCheckoutPage() {
         return
       }
 
-      const [{ data: p }, listingsResponse] = await Promise.all([
+      const [{ data: p }, listingsResponse, orderResponse] = await Promise.all([
         db.from('monetization_products').select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,unit,quantity,badge,badge_ru').eq('active', true).order('product_type').order('duration_days'),
         fetch('/api/monetization/listings', { cache: 'no-store' }),
+        requestedOrderId ? fetch(`/api/monetization/orders/${encodeURIComponent(requestedOrderId)}`, { cache: 'no-store' }) : Promise.resolve(null),
       ])
 
       const listingsPayload = listingsResponse.ok ? await listingsResponse.json() : { listings: [] }
@@ -121,6 +123,15 @@ export default function MonetizationCheckoutPage() {
       if (requestedListingId && !ownListings.some((listing) => listing.id === requestedListingId)) {
         setListingId('')
         setError(lang === 'ru' ? 'Можно продвигать только свои объявления.' : 'Faqat o‘zingiz joylagan e’lonni ilgari surishingiz mumkin.')
+      }
+
+      if (requestedOrderId && orderResponse) {
+        const orderPayload = orderResponse.ok ? await orderResponse.json() : null
+        if (orderPayload?.order) {
+          setOrder(orderPayload.order as Order)
+        } else {
+          setError(lang === 'ru' ? 'Заказ не найден.' : 'Buyurtma topilmadi.')
+        }
       }
 
       setLoading(false)
