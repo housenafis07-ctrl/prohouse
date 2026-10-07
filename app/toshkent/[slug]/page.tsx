@@ -111,6 +111,7 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     title: page.title,
     description: page.description,
     alternates: { canonical: url },
+    robots: { index: !hasQueryParams, follow: true },
     openGraph: {
       type: 'website',
       url,
