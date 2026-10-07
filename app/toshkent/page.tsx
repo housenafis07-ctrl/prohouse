@@ -6,7 +6,6 @@ const SITE_URL = 'https://royalhouse.uz'
 const categories = [
   ['kvartira-sotiladi', 'Kvartira sotiladi'],
   ['uy-sotiladi', 'Uy sotiladi'],
-  ['hovli-sotiladi', 'Hovli sotiladi'],
   ['kvartira-ijara', 'Kvartira ijaraga'],
   ['uy-ijara', 'Uy ijaraga'],
   ['novostroyka', 'Yangi uylar va novostroyka'],
