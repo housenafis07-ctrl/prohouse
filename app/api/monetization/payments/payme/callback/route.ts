@@ -68,11 +68,6 @@ function localizedMessage(code: number, message?: string) {
       ru: 'Внутренняя ошибка мерчанта',
       uz: 'Merchant ichki xatosi',
       en: 'Internal merchant error'
-    },
-    'Payme is not configured': {
-      ru: 'Payme не настроен',
-      uz: 'Payme sozlanmagan',
-      en: 'Payme is not configured'
     }
   }
 
@@ -201,6 +196,8 @@ export async function POST(request: NextRequest) {
       if (orderError) throw orderError
       if (!order) return rpcError(body.id, -31050, 'Order not found', 'order_id')
       if (order.currency !== 'UZS' || Math.round(Number(order.subtotal_uzs) * 100) !== amount) return rpcError(body.id, -31001, 'Incorrect amount')
+      if (!['pending', 'awaiting_payment'].includes(order.status)) return rpcError(body.id, -31008, 'Operation is not allowed')
+      if (order.provider && !['unconfigured', 'payme'].includes(order.provider)) return rpcError(body.id, -31008, 'Operation is not allowed')
 
       const { data: existing, error: existingError } = await admin.from('monetization_payment_attempts').select('id,order_id,user_id,provider_payment_id,status,amount_uzs,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (existingError) throw existingError
@@ -215,6 +212,14 @@ export async function POST(request: NextRequest) {
       if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) return rpcError(body.id, -31008, 'Operation is not allowed')
 
       const createTime = Date.now()
+
+      const { error: reserveError } = await admin.from('monetization_orders')
+        .update({ status: 'awaiting_payment', provider: 'payme', updated_at: new Date().toISOString() })
+        .eq('id', order.id)
+        .in('status', ['pending', 'awaiting_payment'])
+        .in('provider', ['unconfigured', 'payme'])
+      if (reserveError) throw reserveError
+
       const { data: attempt, error: insertError } = await admin.from('monetization_payment_attempts').insert({
         order_id: order.id,
         user_id: order.user_id,
@@ -382,4 +387,8 @@ export async function POST(request: NextRequest) {
     const message = e instanceof Error ? e.message : 'Payme merchant error'
     return rpcError(body.id, errorCode(message), undefined)
   }
+}
+
+export async function GET() {
+  return rpcError(null, -32300, 'Request method must be POST')
 }
