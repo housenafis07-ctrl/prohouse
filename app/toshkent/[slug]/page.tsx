@@ -100,10 +100,12 @@ export function generateStaticParams() {
   return PAGES.map(({ slug }) => ({ slug }))
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { slug } = await params
   const page = getConfig(slug)
   if (!page) return {}
+  const paramsObject = (await searchParams) || {}
+  const hasQueryParams = Object.keys(paramsObject).length > 0
   const url = `${SITE_URL}/toshkent/${page.slug}`
   return {
     title: page.title,
