@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (attemptError) {
-      const status = /ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED|UNSUPPORTED_PAYMENT_PROVIDER/.test(attemptError.message) ? 400 : 500
+      const status = /ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED|ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED|UNSUPPORTED_PAYMENT_PROVIDER|PAYMENT_PROVIDER_MISMATCH/.test(attemptError.message) ? 400 : 500
       return NextResponse.json({ error: attemptError.message }, { status })
     }
 
