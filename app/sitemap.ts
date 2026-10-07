@@ -17,6 +17,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const supabase = await createClient()
 
+    const tashkentContentRoutes: MetadataRoute.Sitemap = [
+      { url: `${SITE_URL}/toshkent/uy-narxlari`, lastModified: now, changeFrequency: 'daily', priority: 0.8 },
+      { url: `${SITE_URL}/toshkent/ipoteka`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    ]
+
     const tashkentSeoPages = [
       ['kvartira-sotiladi', 'sale', 'apartment'],
       ['uy-sotiladi', 'sale', 'house'],
@@ -101,7 +106,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
 
-    return [...staticRoutes, { url: `${SITE_URL}/toshkent`, lastModified: now, changeFrequency: 'daily', priority: 0.9 }, ...seoRoutes, ...districtSeoRoutes, ...listingRoutes]
+    return [...staticRoutes, { url: `${SITE_URL}/toshkent`, lastModified: now, changeFrequency: 'daily', priority: 0.9 }, ...tashkentContentRoutes, ...seoRoutes, ...districtSeoRoutes, ...listingRoutes]
   } catch {
     return staticRoutes
   }
