@@ -28,6 +28,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ] as const
 
     const cityFilter = 'city.eq.Toshkent,city.eq.Toshkent shahri,city.eq.Toshkent shahar'
+    function districtVariants(district: string) {
+      const variants = new Set<string>([district])
+      const withoutSuffix = district.replace(/\s+(tumani|shahri)$/i, '').trim()
+      if (withoutSuffix) {
+        variants.add(withoutSuffix)
+        variants.add(`${withoutSuffix} tumani`)
+        variants.add(`${withoutSuffix} shahri`)
+      }
+      variants.add(district.replace(/'/g, '‘'))
+      variants.add(district.replace(/‘/g, "'"))
+      return Array.from(variants)
+    }
+
     const districtSeoPages = [
       ['yunusobod', 'Yunusobod', 'kvartira-sotiladi'],
       ['chilonzor', 'Chilonzor', 'kvartira-sotiladi'],
@@ -51,7 +64,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             .select('id', { count: 'exact', head: true })
             .eq('status', 'active')
             .or(cityFilter)
-            .eq('district', district)
+            .in('district', districtVariants(district))
             .eq('listing_type', 'sale')
             .eq('property_type', 'apartment')
           return count ? { url: `${SITE_URL}/toshkent/${slug}/${category}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.8 } : null
