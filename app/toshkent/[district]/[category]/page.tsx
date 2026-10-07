@@ -14,6 +14,7 @@ type Config = {
   title: string
   description: string
   h1: string
+  seoText: string
   propertyType: 'apartment' | 'house'
   listingType: 'sale' | 'rent'
 }
@@ -31,7 +32,7 @@ const PAGES: Config[] = [
   ['shayxontohur','kvartira-sotiladi','Shayxontohur','Shayxontohurda kvartira sotiladi — Royalhouse','Shayxontohur, Toshkentdagi sotiladigan kvartiralarni toping. Narx, maydon va xona soni bo‘yicha e’lonlarni ko‘ring.','Shayxontohurda kvartira sotiladi','apartment','sale'],
   ['yashnobod','kvartira-sotiladi','Yashnobod','Yashnobodda kvartira sotiladi — Royalhouse','Yashnobod, Toshkentdagi sotiladigan kvartiralarni toping. Mavjud e’lonlarni narx va maydon bo‘yicha solishtiring.','Yashnobodda kvartira sotiladi','apartment','sale'],
   ['yangihayot','kvartira-sotiladi','Yangihayot','Yangihayotda kvartira sotiladi — Royalhouse','Yangihayot, Toshkentdagi sotiladigan kvartiralarni toping. Narx va xona soni bo‘yicha mos variantlarni solishtiring.','Yangihayotda kvartira sotiladi','apartment','sale'],
-].map(([districtSlug, category, district, title, description, h1, propertyType, listingType]) => ({ districtSlug, category, district, title, description, h1, propertyType, listingType } as Config))
+].map(([districtSlug, category, district, title, description, h1, propertyType, listingType]) => ({ districtSlug, category, district, title, description, h1, seoText: `${district} tumanida kvartira sotib olish uchun e’lonlarni narx, maydon, xona soni va joylashuv bo‘yicha solishtiring. Royalhouse’dagi faol e’lonlarni ko‘rib, mos variant bo‘yicha sotuvchi yoki rieltor bilan bog‘lanishingiz mumkin.`, propertyType, listingType } as Config))
 
 function getConfig(district: string, category: string) {
   return PAGES.find((page) => page.districtSlug === district && page.category === category)
@@ -148,8 +149,13 @@ export default async function DistrictSeoPage({ params }: { params: Promise<{ di
           </div>
         </section>
         <section className="mt-12 max-w-4xl rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-          <h2 className="text-2xl font-black">{page.district} tumanida ko‘chmas mulk</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">Royalhouse’da {page.district} tumanidagi ko‘chmas mulk e’lonlarini ko‘ring. E’lonni ochib, batafsil ma’lumot va sotuvchi yoki rieltor bilan bog‘lanish imkoniyatlarini ko‘rib chiqing.</p>
+          <h2 className="text-2xl font-black">{page.district} tumanida kvartira sotib olish</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">{page.seoText}</p>
+          <div className="mt-5 flex flex-wrap gap-2 text-sm font-bold">
+            <Link href="/toshkent/kvartira-sotiladi" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Toshkentda kvartira sotiladi</Link>
+            <Link href="/ipoteka/kalkulyator" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Ipoteka kalkulyatori</Link>
+            <Link href="/realtors" className="rounded-xl bg-emerald-50 px-4 py-2 text-emerald-700">Rieltorlar</Link>
+          </div>
         </section>
       </div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
