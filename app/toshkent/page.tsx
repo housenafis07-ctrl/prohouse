@@ -14,10 +14,15 @@ const categories = [
   ['tijorat', 'Tijorat ko‘chmas mulki'],
 ]
 
-export const metadata: Metadata = {
-  title: 'Toshkentda ko‘chmas mulk — Royalhouse',
-  description: 'Toshkentda kvartira, uy, hovli, yer va tijorat ko‘chmas mulkini sotib olish yoki ijaraga olish uchun e’lonlarni toping.',
-  alternates: { canonical: `${SITE_URL}/toshkent` },
+export async function generateMetadata({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const params = (await searchParams) || {}
+  const hasQueryParams = Object.keys(params).length > 0
+  return {
+    title: 'Toshkentda ko‘chmas mulk — Royalhouse',
+    description: 'Toshkentda kvartira, uy, hovli, yer va tijorat ko‘chmas mulkini sotib olish yoki ijaraga olish uchun e’lonlarni toping.',
+    alternates: { canonical: `${SITE_URL}/toshkent` },
+    robots: { index: !hasQueryParams, follow: true },
+  }
 }
 
 export default function TashkentHub() {
