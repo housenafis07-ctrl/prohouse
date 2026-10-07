@@ -12,8 +12,105 @@ function rpcResult(id: RpcRequest['id'], result: unknown) {
   return NextResponse.json({ jsonrpc: '2.0', id: id ?? null, result }, { status: 200 })
 }
 
-function rpcError(id: RpcRequest['id'], code: number, message: string, data?: unknown) {
-  return NextResponse.json({ jsonrpc: '2.0', id: id ?? null, result: null, error: { code, message, ...(data === undefined ? {} : { data }) } }, { status: 200 })
+function localizedMessage(code: number, message?: string) {
+  const byMessage: Record<string, { ru: string; uz: string; en: string }> = {
+    'Insufficient privileges': {
+      ru: 'Недостаточно привилегий для выполнения метода',
+      uz: 'Metodni bajarish uchun yetarli huquq yo‘q',
+      en: 'Insufficient privileges to perform the method'
+    },
+    'Parse error': {
+      ru: 'Ошибка разбора JSON',
+      uz: 'JSONni tahlil qilishda xatolik',
+      en: 'JSON parse error'
+    },
+    'Invalid params': {
+      ru: 'Неверные параметры',
+      uz: 'Noto‘g‘ri parametrlar',
+      en: 'Invalid parameters'
+    },
+    'Method not found': {
+      ru: 'Метод не найден',
+      uz: 'Metod topilmadi',
+      en: 'Method not found'
+    },
+    'Payme is not configured': {
+      ru: 'Payme не настроен',
+      uz: 'Payme sozlanmagan',
+      en: 'Payme is not configured'
+    },
+    'Incorrect amount': {
+      ru: 'Неверная сумма',
+      uz: 'Noto‘g‘ri summa',
+      en: 'Incorrect amount'
+    },
+    'Order not found': {
+      ru: 'Номер заказа не найден',
+      uz: 'Buyurtma raqami topilmadi',
+      en: 'Order number not found'
+    },
+    'Operation is not allowed': {
+      ru: 'Невозможно выполнить операцию',
+      uz: 'Operatsiyani bajarib bo‘lmaydi',
+      en: 'Unable to perform the operation'
+    },
+    'Transaction not found': {
+      ru: 'Транзакция не найдена',
+      uz: 'Tranzaksiya topilmadi',
+      en: 'Transaction not found'
+    },
+    'Order has already been completed': {
+      ru: 'Заказ выполнен. Невозможно отменить транзакцию',
+      uz: 'Buyurtma bajarilgan. Tranzaksiyani bekor qilib bo‘lmaydi',
+      en: 'Order has already been completed. The transaction cannot be cancelled'
+    },
+    'Payme merchant error': {
+      ru: 'Внутренняя ошибка мерчанта',
+      uz: 'Merchant ichki xatosi',
+      en: 'Internal merchant error'
+    }
+  }
+
+  if (message && byMessage[message]) return byMessage[message]
+
+  switch (code) {
+    case -32300:
+      return { ru: 'Метод запроса должен быть POST', uz: 'So‘rov metodi POST bo‘lishi kerak', en: 'Request method must be POST' }
+    case -32600:
+      return { ru: 'Неверный RPC-запрос', uz: 'RPC so‘rovi noto‘g‘ri', en: 'Invalid RPC request' }
+    case -32601:
+      return { ru: 'Метод не найден', uz: 'Metod topilmadi', en: 'Method not found' }
+    case -32700:
+      return { ru: 'Ошибка разбора JSON', uz: 'JSONni tahlil qilishda xatolik', en: 'JSON parse error' }
+    case -32504:
+      return { ru: 'Недостаточно привилегий для выполнения метода', uz: 'Metodni bajarish uchun yetarli huquq yo‘q', en: 'Insufficient privileges to perform the method' }
+    case -32400:
+      return { ru: 'Системная ошибка', uz: 'Tizim xatosi', en: 'System error' }
+    case -31001:
+      return { ru: 'Неверная сумма', uz: 'Noto‘g‘ri summa', en: 'Incorrect amount' }
+    case -31003:
+      return { ru: 'Транзакция не найдена', uz: 'Tranzaksiya topilmadi', en: 'Transaction not found' }
+    case -31007:
+      return { ru: 'Заказ выполнен. Невозможно отменить транзакцию', uz: 'Buyurtma bajarilgan. Tranzaksiyani bekor qilib bo‘lmaydi', en: 'Order has already been completed. The transaction cannot be cancelled' }
+    case -31008:
+      return { ru: 'Невозможно выполнить операцию', uz: 'Operatsiyani bajarib bo‘lmaydi', en: 'Unable to perform the operation' }
+    case -31050:
+      return { ru: 'Номер заказа не найден', uz: 'Buyurtma raqami topilmadi', en: 'Order number not found' }
+    default:
+      return { ru: 'Внутренняя ошибка мерчанта', uz: 'Merchant ichki xatosi', en: 'Internal merchant error' }
+  }
+}
+
+function rpcError(id: RpcRequest['id'], code: number, message?: string, data?: unknown) {
+  return NextResponse.json({
+    jsonrpc: '2.0',
+    id: id ?? null,
+    error: {
+      code,
+      message: localizedMessage(code, message),
+      ...(data === undefined ? {} : { data })
+    }
+  }, { status: 200 })
 }
 
 function constantTimeEqual(a: string, b: string) {
@@ -95,24 +192,34 @@ export async function POST(request: NextRequest) {
       if (!transactionId || !orderId || !Number.isFinite(time)) return rpcError(body.id, -31008, 'Operation is not allowed')
       if (!isUuid(orderId)) return rpcError(body.id, -31050, 'Order not found', 'order_id')
 
-      const { data: order, error: orderError } = await admin.from('monetization_orders').select('id,user_id,status,subtotal_uzs,currency').eq('id', orderId).maybeSingle()
+      const { data: order, error: orderError } = await admin.from('monetization_orders').select('id,user_id,status,subtotal_uzs,currency,provider').eq('id', orderId).maybeSingle()
       if (orderError) throw orderError
       if (!order) return rpcError(body.id, -31050, 'Order not found', 'order_id')
       if (order.currency !== 'UZS' || Math.round(Number(order.subtotal_uzs) * 100) !== amount) return rpcError(body.id, -31001, 'Incorrect amount')
+      if (!['pending', 'awaiting_payment'].includes(order.status)) return rpcError(body.id, -31008, 'Operation is not allowed')
+      if (order.provider && !['unconfigured', 'payme'].includes(order.provider)) return rpcError(body.id, -31008, 'Operation is not allowed')
 
       const { data: existing, error: existingError } = await admin.from('monetization_payment_attempts').select('id,order_id,user_id,provider_payment_id,status,amount_uzs,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (existingError) throw existingError
       if (existing) {
         const payload = (existing.provider_payload || {}) as Record<string, unknown>
         const payme = (payload.payme || {}) as Record<string, unknown>
-        return rpcResult(body.id, { create_time: Number(payme.create_time || Date.now()), transaction: existing.id, state: existing.status === 'paid' ? 2 : existing.status === 'cancelled' ? -2 : 1 })
+        return rpcResult(body.id, { create_time: Number(payme.create_time || Date.now()), transaction: existing.id, state: existing.status === 'paid' ? 2 : existing.status === 'cancelled' ? Number(payme.state || -1) : 1 })
       }
 
       const { data: active, error: activeError } = await admin.from('monetization_payment_attempts').select('id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('order_id', orderId).in('status', ['pending', 'processing', 'paid']).order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (activeError) throw activeError
-      if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order')
+      if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) return rpcError(body.id, -31008, 'Operation is not allowed')
 
       const createTime = Date.now()
+
+      const { error: reserveError } = await admin.from('monetization_orders')
+        .update({ status: 'awaiting_payment', provider: 'payme', updated_at: new Date().toISOString() })
+        .eq('id', order.id)
+        .in('status', ['pending', 'awaiting_payment'])
+        .in('provider', ['unconfigured', 'payme'])
+      if (reserveError) throw reserveError
+
       const { data: attempt, error: insertError } = await admin.from('monetization_payment_attempts').insert({
         order_id: order.id,
         user_id: order.user_id,
@@ -131,10 +238,10 @@ export async function POST(request: NextRequest) {
 
     if (method === 'PerformTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
-      if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found', 'id')
+      if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found')
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
-      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found', 'id')
+      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
       if (attempt.status === 'paid') {
         const payload = (attempt.provider_payload || {}) as Record<string, unknown>
         const payme = (payload.payme || {}) as Record<string, unknown>
@@ -193,7 +300,7 @@ export async function POST(request: NextRequest) {
       const reason = Number.isFinite(Number(params.reason)) ? Number(params.reason) : -1
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
-      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found', 'id')
+      if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
       const payload = (attempt.provider_payload || {}) as Record<string, unknown>
       const payme = (payload.payme || {}) as Record<string, unknown>
 
@@ -271,13 +378,17 @@ export async function POST(request: NextRequest) {
       if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
       const payload = (attempt.provider_payload || {}) as Record<string, unknown>
       const payme = (payload.payme || {}) as Record<string, unknown>
-      const state = attempt.status === 'paid' ? 2 : attempt.status === 'cancelled' ? -2 : 1
+      const state = attempt.status === 'paid' ? 2 : attempt.status === 'cancelled' ? Number(payme.state || -1) : 1
       return rpcResult(body.id, { create_time: Number(payme.create_time || new Date(attempt.created_at).getTime()), perform_time: Number(payme.perform_time || 0), cancel_time: Number(payme.cancel_time || 0), transaction: attempt.id, state, reason: payme.cancel_reason ?? null })
     }
 
-    return rpcError(body.id, -32601, 'Method not found')
+    return rpcError(body.id, -32601, 'Method not found', method)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Payme merchant error'
-    return rpcError(body.id, errorCode(message), message)
+    return rpcError(body.id, errorCode(message), undefined)
   }
+}
+
+export async function GET() {
+  return rpcError(null, -32300, 'Request method must be POST')
 }
