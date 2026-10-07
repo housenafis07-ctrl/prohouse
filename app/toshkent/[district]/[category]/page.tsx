@@ -41,10 +41,12 @@ export function generateStaticParams() {
   return PAGES.map(({ districtSlug, category }) => ({ district: districtSlug, category }))
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ district: string; category: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ district: string; category: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { district, category } = await params
   const page = getConfig(district, category)
   if (!page) return {}
+  const paramsObject = (await searchParams) || {}
+  const hasQueryParams = Object.keys(paramsObject).length > 0
   const url = `${SITE_URL}/toshkent/${page.districtSlug}/${page.category}`
   return {
     title: page.title,
