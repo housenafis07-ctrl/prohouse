@@ -390,7 +390,9 @@ export async function POST(request: NextRequest) {
         for (const item of items || []) {
           const { error: entitlementError } = await admin.from('monetization_entitlements')
             .update({
-              status: 'cancelled',
+              // Entitlements do not allow a `cancelled` status; revoked is the
+              // schema-supported terminal state for a performed entitlement.
+              status: 'revoked',
               quantity_remaining: 0,
               updated_at: new Date().toISOString()
             })
