@@ -234,9 +234,81 @@ export async function POST(request: NextRequest) {
 
       const { data: active, error: activeError } = await admin.from('monetization_payment_attempts').select('id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('order_id', orderId).in('status', ['pending', 'processing', 'paid']).order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (activeError) throw activeError
-      if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
 
       const createTime = Date.now()
+
+      // Checkout creates a pending payment attempt before Payme calls
+      // CreateTransaction. That attempt has no provider transaction id yet.
+      // Bind the first Payme transaction to that reserved attempt instead of
+      // inserting a second row (the active order/provider index intentionally
+      // allows only one pending/processing attempt).
+      if (active && !active.provider_payment_id) {
+        const nextPayload = {
+          payme: {
+            id: transactionId,
+            time,
+            amount,
+            account,
+            create_time: createTime,
+            state: 1
+          }
+        }
+
+        const { data: bound, error: bindError } = await admin
+          .from('monetization_payment_attempts')
+          .update({
+            provider_payment_id: transactionId,
+            status: 'processing',
+            provider_payload: nextPayload,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', active.id)
+          .eq('provider', 'payme')
+          .eq('status', 'pending')
+          .is('provider_payment_id', null)
+          .select('id,provider_payment_id,status,provider_payload')
+          .maybeSingle()
+
+        if (bindError) {
+          // A concurrent CreateTransaction may have claimed the pending
+          // attempt first. Re-read the winner and apply normal idempotency.
+          const message = bindError.message || ''
+          if (!message.includes('monetization_payment_attempts_provider_payment_key')) {
+            throw bindError
+          }
+        }
+
+        if (bound?.provider_payment_id === transactionId) {
+          return rpcResult(body.id, {
+            create_time: Number((bound.provider_payload as any)?.payme?.create_time || createTime),
+            transaction: bound.id,
+            state: 1
+          })
+        }
+
+        const { data: claimed, error: claimedError } = await admin
+          .from('monetization_payment_attempts')
+          .select('id,provider_payment_id,status,provider_payload')
+          .eq('id', active.id)
+          .maybeSingle()
+        if (claimedError) throw claimedError
+
+        if (claimed?.provider_payment_id === transactionId) {
+          const claimedPayload = (claimed.provider_payload || {}) as Record<string, unknown>
+          const claimedPayme = (claimedPayload.payme || {}) as Record<string, unknown>
+          return rpcResult(body.id, {
+            create_time: Number(claimedPayme.create_time || createTime),
+            transaction: claimed.id,
+            state: 1
+          })
+        }
+
+        return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+      }
+
+      if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) {
+        return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+      }
 
       const { error: reserveError } = await admin.from('monetization_orders')
         .update({ status: 'awaiting_payment', provider: 'payme', updated_at: new Date().toISOString() })
@@ -256,7 +328,39 @@ export async function POST(request: NextRequest) {
         idempotency_key: `payme:${transactionId}`,
         provider_payload: { payme: { id: transactionId, time, amount, account, create_time: createTime, state: 1 } },
       }).select('id').single()
-      if (insertError) throw insertError
+      if (insertError) {
+        // The partial unique index reserves one active Payme transaction per
+        // order. Under Payme's repeated/concurrent CreateTransaction requests,
+        // the pre-check above can race and the second insert can hit that
+        // unique constraint. Re-read the winner and make the retry idempotent.
+        const message = insertError.message || ''
+        if (message.includes('monetization_payment_attempts_active_order_provider_key')) {
+          const { data: raced, error: racedError } = await admin
+            .from('monetization_payment_attempts')
+            .select('id,provider_payment_id,status,provider_payload')
+            .eq('provider', 'payme')
+            .eq('order_id', order.id)
+            .in('status', ['pending', 'processing'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (racedError) throw racedError
+
+          if (raced?.provider_payment_id === transactionId) {
+            const racedPayload = (raced.provider_payload || {}) as Record<string, unknown>
+            const racedPayme = (racedPayload.payme || {}) as Record<string, unknown>
+            return rpcResult(body.id, {
+              create_time: Number(racedPayme.create_time || createTime),
+              transaction: raced.id,
+              state: 1
+            })
+          }
+
+          return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+        }
+
+        throw insertError
+      }
 
       return rpcResult(body.id, { create_time: createTime, transaction: attempt.id, state: 1 })
     }
