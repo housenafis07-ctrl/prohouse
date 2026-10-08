@@ -323,21 +323,20 @@ export async function POST(request: NextRequest) {
     if (method === 'CancelTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
       const reason = Number.isFinite(Number(params.reason)) ? Number(params.reason) : -1
-      const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
+      const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload,paid_at').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
       if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
       const payload = (attempt.provider_payload || {}) as Record<string, unknown>
       const payme = (payload.payme || {}) as Record<string, unknown>
 
-      // Royalhouse activates the purchased entitlement during PerformTransaction.
-      // A post-payment cancellation therefore requires a controlled refund flow;
-      // it must not silently cancel the payment while leaving the entitlement active.
-      if (attempt.status === 'paid' || Number(payme.perform_time || 0) > 0) {
-        return rpcError(body.id, -31007, 'Order has already been completed')
-      }
+      // Payme has two cancellation states:
+      // -1 = cancelled before PerformTransaction
+      // -2 = cancelled after PerformTransaction.
+      // The sandbox explicitly verifies the latter and expects CheckTransaction
+      // to expose cancel_time, state=-2 and the original cancellation reason.
+      const alreadyPerformed = Number(payme.perform_time || 0) > 0 || attempt.status === 'paid'
 
-      // Payme may retry CancelTransaction. For an already-cancelled transaction,
-      // the response must be identical to the first successful cancellation.
+      // Payme may retry CancelTransaction. Return the same persisted values.
       if (attempt.status === 'cancelled') {
         const cancelTime = Number(payme.cancel_time || 0)
         const state = Number(payme.state || -1)
@@ -349,8 +348,17 @@ export async function POST(request: NextRequest) {
       }
 
       const cancelTime = Date.now()
-      const state = -1
-      const nextPayload = { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }
+      const state = alreadyPerformed ? -2 : -1
+      const nextPayload = {
+        ...payload,
+        payme: {
+          ...payme,
+          cancel_reason: reason,
+          cancel_time: cancelTime,
+          state,
+        }
+      }
+
       const { error: updateError } = await admin.from('monetization_payment_attempts')
         .update({
           status: 'cancelled',
@@ -358,8 +366,61 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq('id', attempt.id)
-        .in('status', ['pending', 'processing'])
+        .in('status', ['pending', 'processing', 'paid'])
       if (updateError) throw updateError
+
+      if (alreadyPerformed) {
+        // A performed Payme transaction has already activated the order.
+        // Cancellation must revoke that activation as well as the payment state.
+        const { error: orderError } = await admin.from('monetization_orders')
+          .update({
+            status: 'cancelled',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', attempt.order_id)
+          .eq('status', 'paid')
+        if (orderError) throw orderError
+
+        const { data: items, error: itemsError } = await admin
+          .from('monetization_order_items')
+          .select('id,listing_id,product_code')
+          .eq('order_id', attempt.order_id)
+        if (itemsError) throw itemsError
+
+        for (const item of items || []) {
+          const { error: entitlementError } = await admin.from('monetization_entitlements')
+            .update({
+              status: 'cancelled',
+              quantity_remaining: 0,
+              updated_at: new Date().toISOString()
+            })
+            .eq('order_item_id', item.id)
+            .eq('status', 'active')
+          if (entitlementError) throw entitlementError
+
+          if (item.listing_id) {
+            const paidAt = attempt.status === 'paid' ? (attempt as any).paid_at : null
+            const startFloor = paidAt ? new Date(paidAt).getTime() - 60_000 : Date.now() - 60_000
+            const { error: promotionError } = await admin.from('listing_promotions')
+              .update({ status: 'cancelled' })
+              .eq('listing_id', item.listing_id)
+              .eq('product_code', item.product_code)
+              .eq('status', 'active')
+              .gte('starts_at', new Date(startFloor).toISOString())
+            if (promotionError) throw promotionError
+
+            const { error: listingError } = await admin.from('listings')
+              .update({
+                promoted_until: null,
+                promotion_rank: 0,
+                promotion_badge: null,
+                is_featured: false
+              })
+              .eq('id', item.listing_id)
+            if (listingError) throw listingError
+          }
+        }
+      }
 
       return rpcResult(body.id, { transaction: attempt.id, cancel_time: cancelTime, state })
     }
