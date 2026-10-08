@@ -256,7 +256,39 @@ export async function POST(request: NextRequest) {
         idempotency_key: `payme:${transactionId}`,
         provider_payload: { payme: { id: transactionId, time, amount, account, create_time: createTime, state: 1 } },
       }).select('id').single()
-      if (insertError) throw insertError
+      if (insertError) {
+        // The partial unique index reserves one active Payme transaction per
+        // order. Under Payme's repeated/concurrent CreateTransaction requests,
+        // the pre-check above can race and the second insert can hit that
+        // unique constraint. Re-read the winner and make the retry idempotent.
+        const message = insertError.message || ''
+        if (message.includes('monetization_payment_attempts_active_order_provider_key')) {
+          const { data: raced, error: racedError } = await admin
+            .from('monetization_payment_attempts')
+            .select('id,provider_payment_id,status,provider_payload')
+            .eq('provider', 'payme')
+            .eq('order_id', order.id)
+            .in('status', ['pending', 'processing'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (racedError) throw racedError
+
+          if (raced?.provider_payment_id === transactionId) {
+            const racedPayload = (raced.provider_payload || {}) as Record<string, unknown>
+            const racedPayme = (racedPayload.payme || {}) as Record<string, unknown>
+            return rpcResult(body.id, {
+              create_time: Number(racedPayme.create_time || createTime),
+              transaction: raced.id,
+              state: 1
+            })
+          }
+
+          return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+        }
+
+        throw insertError
+      }
 
       return rpcResult(body.id, { create_time: createTime, transaction: attempt.id, state: 1 })
     }
