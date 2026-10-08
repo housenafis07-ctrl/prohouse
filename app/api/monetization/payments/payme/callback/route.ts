@@ -303,11 +303,11 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+        return rpcError(body.id, -31008, 'Operation is not allowed')
       }
 
       if (active && active.provider_payment_id && active.provider_payment_id !== transactionId) {
-        return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+        return rpcError(body.id, -31008, 'Operation is not allowed')
       }
 
       const { error: reserveError } = await admin.from('monetization_orders')
@@ -356,7 +356,7 @@ export async function POST(request: NextRequest) {
             })
           }
 
-          return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+          return rpcError(body.id, -31008, 'Operation is not allowed')
         }
 
         throw insertError
@@ -396,16 +396,59 @@ export async function POST(request: NextRequest) {
       const payload = (attempt.provider_payload || {}) as Record<string, unknown>
       const payme = (payload.payme || {}) as Record<string, unknown>
       const nextPayload = { ...payload, payme: { ...payme, perform_time: performTime, state: 2 } }
-      const { error: updateError } = await admin.from('monetization_payment_attempts')
+      const paidAt = new Date().toISOString()
+      const { data: paidAttempt, error: updateError } = await admin.from('monetization_payment_attempts')
         .update({
           status: 'paid',
-          paid_at: new Date().toISOString(),
+          paid_at: paidAt,
           provider_payload: nextPayload,
-          updated_at: new Date().toISOString()
+          updated_at: paidAt
         })
         .eq('id', attempt.id)
         .eq('status', 'processing')
+        .select('id,status,provider_payload,paid_at')
+        .maybeSingle()
       if (updateError) throw updateError
+
+      // Another Payme retry may have won the processing race. In that case,
+      // return the exact persisted result instead of generating a new
+      // perform_time. Payme requires duplicate PerformTransaction responses
+      // to match the first response.
+      if (!paidAttempt) {
+        const { data: current, error: currentError } = await admin
+          .from('monetization_payment_attempts')
+          .select('id,status,provider_payload,paid_at')
+          .eq('id', attempt.id)
+          .maybeSingle()
+        if (currentError) throw currentError
+        if (!current || current.status !== 'paid') {
+          return rpcError(body.id, -31008, 'Operation is not allowed')
+        }
+
+        const currentPayload = (current.provider_payload || {}) as Record<string, unknown>
+        const currentPayme = (currentPayload.payme || {}) as Record<string, unknown>
+        const currentPerformTime = Number(currentPayme.perform_time || 0)
+
+        const { error: retryOrderError } = await admin.from('monetization_orders')
+          .update({
+            status: 'paid',
+            provider: 'payme',
+            provider_order_id: transactionId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', attempt.order_id)
+          .in('status', ['pending', 'awaiting_payment', 'paid'])
+        if (retryOrderError) throw retryOrderError
+
+        const { error: retryActivationError } = await admin.rpc('activate_monetization_order', { p_order_id: attempt.order_id })
+        if (retryActivationError) throw retryActivationError
+
+        return rpcResult(body.id, {
+          transaction: current.id,
+          perform_time: currentPerformTime,
+          state: 2
+        })
+      }
 
       const { error: orderError } = await admin.from('monetization_orders')
         .update({
@@ -463,7 +506,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const { error: updateError } = await admin.from('monetization_payment_attempts')
+      const { data: cancelledAttempt, error: updateError } = await admin.from('monetization_payment_attempts')
         .update({
           status: 'cancelled',
           provider_payload: nextPayload,
@@ -471,7 +514,31 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', attempt.id)
         .in('status', ['pending', 'processing', 'paid'])
+        .select('id,status,provider_payload,paid_at')
+        .maybeSingle()
       if (updateError) throw updateError
+
+      // Another Payme retry may have won the race. Return the persisted
+      // cancellation result instead of generating a second cancel_time.
+      if (!cancelledAttempt) {
+        const { data: current, error: currentError } = await admin
+          .from('monetization_payment_attempts')
+          .select('id,status,provider_payload,paid_at')
+          .eq('id', attempt.id)
+          .maybeSingle()
+        if (currentError) throw currentError
+        if (!current || current.status !== 'cancelled') {
+          return rpcError(body.id, -31008, 'Operation is not allowed')
+        }
+
+        const currentPayload = (current.provider_payload || {}) as Record<string, unknown>
+        const currentPayme = (currentPayload.payme || {}) as Record<string, unknown>
+        return rpcResult(body.id, {
+          transaction: current.id,
+          cancel_time: Number(currentPayme.cancel_time || 0),
+          state: Number(currentPayme.state || -1),
+        })
+      }
 
       if (alreadyPerformed) {
         // A performed Payme transaction has already activated the order.
