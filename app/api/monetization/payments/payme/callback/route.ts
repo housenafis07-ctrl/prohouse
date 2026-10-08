@@ -209,7 +209,27 @@ export async function POST(request: NextRequest) {
       if (existing) {
         const payload = (existing.provider_payload || {}) as Record<string, unknown>
         const payme = (payload.payme || {}) as Record<string, unknown>
-        return rpcResult(body.id, { create_time: Number(payme.create_time || Date.now()), transaction: existing.id, state: existing.status === 'paid' ? 2 : existing.status === 'cancelled' ? Number(payme.state || -1) : 1 })
+        const originalAccount = (payme.account || {}) as Record<string, unknown>
+        const originalOrderId = typeof originalAccount.order_id === 'string' ? originalAccount.order_id : ''
+        const originalAmount = Number(payme.amount)
+
+        // Payme retries CreateTransaction with the same transaction id only when
+        // the request is identical. Never acknowledge a replay whose order or
+        // amount differs from the transaction that was originally created.
+        if (
+          existing.order_id !== orderId ||
+          originalOrderId !== orderId ||
+          !Number.isFinite(originalAmount) ||
+          originalAmount !== amount
+        ) {
+          return rpcError(body.id, -31001, 'Incorrect amount')
+        }
+
+        return rpcResult(body.id, {
+          create_time: Number(payme.create_time || Date.now()),
+          transaction: existing.id,
+          state: existing.status === 'paid' ? 2 : existing.status === 'cancelled' ? Number(payme.state || -1) : 1
+        })
       }
 
       const { data: active, error: activeError } = await admin.from('monetization_payment_attempts').select('id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('order_id', orderId).in('status', ['pending', 'processing', 'paid']).order('created_at', { ascending: false }).limit(1).maybeSingle()
