@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const merchantId = process.env.PAYME_MERCHANT_ID?.trim()
     if (!merchantId) return NextResponse.json({ error: 'PAYME_NOT_CONFIGURED' }, { status: 503 })
 
-    const { data: attemptId, error: attemptError } = await supabase.rpc('create_monetization_payment_attempt', {
+    const { data: attemptRow, error: attemptError } = await supabase.rpc('create_monetization_payment_attempt', {
       p_order_id: orderId,
       p_provider: 'payme',
       p_idempotency_key: idempotencyKey,
@@ -40,6 +40,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: attemptError.message }, { status })
     }
 
+    const attemptId = attemptRow && typeof attemptRow === 'object' && 'id' in attemptRow ? String((attemptRow as { id: string }).id) : ''
+    if (!attemptId) return NextResponse.json({ error: 'PAYMENT_ATTEMPT_ID_MISSING' }, { status: 500 })
+
     const admin = serviceClient()
     const { data: attempt, error: fetchError } = await admin
       .from('monetization_payment_attempts')
@@ -48,7 +51,17 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (fetchError) throw fetchError
+    if (fetchError) {
+      console.error('[Payme checkout] Failed to load payment attempt', {
+        attemptId: String(attemptId),
+        orderId,
+        code: fetchError.code,
+        message: fetchError.message,
+        details: fetchError.details,
+        hint: fetchError.hint,
+      })
+      throw new Error('PAYME_ATTEMPT_FETCH_FAILED')
+    }
     if (!attempt) return NextResponse.json({ error: 'PAYMENT_ATTEMPT_NOT_FOUND' }, { status: 404 })
 
     if (attempt.currency !== 'UZS' || Number(attempt.amount_uzs) <= 0) {
@@ -85,7 +98,20 @@ export async function POST(request: NextRequest) {
         .eq('id', attempt.id)
         .eq('user_id', user.id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('[Payme checkout] Failed to persist checkout metadata', {
+          attemptId: attempt.id,
+          orderId: attempt.order_id,
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+        })
+        // Do not redirect until checkout metadata persistence is confirmed. The
+        // callback still binds to the pending attempt; returning a generic error
+        // here avoids exposing database details while logs preserve the root cause.
+        throw new Error('PAYME_CHECKOUT_METADATA_SAVE_FAILED')
+      }
     }
 
     return NextResponse.json({
@@ -94,6 +120,26 @@ export async function POST(request: NextRequest) {
       amountTiyin,
     })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'PAYME_CHECKOUT_FAILED' }, { status: 500 })
+    if (e instanceof Error) {
+      console.error('[Payme checkout] Request failed', { message: e.message })
+      return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+    // Some SDK/network layers can reject with a plain object rather than Error.
+    // Preserve only safe diagnostic fields and expose its message when available,
+    // so the checkout UI does not hide the actionable failure behind a generic code.
+    const unknownError = e && typeof e === 'object' ? e as Record<string, unknown> : null
+    const message = typeof unknownError?.message === 'string'
+      ? unknownError.message
+      : typeof e === 'string'
+        ? e
+        : 'PAYME_CHECKOUT_FAILED'
+    console.error('[Payme checkout] Request failed with non-Error value', {
+      message,
+      name: typeof unknownError?.name === 'string' ? unknownError.name : undefined,
+      code: typeof unknownError?.code === 'string' ? unknownError.code : undefined,
+      details: typeof unknownError?.details === 'string' ? unknownError.details : undefined,
+      hint: typeof unknownError?.hint === 'string' ? unknownError.hint : undefined,
+    })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
