@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const merchantId = process.env.PAYME_MERCHANT_ID?.trim()
     if (!merchantId) return NextResponse.json({ error: 'PAYME_NOT_CONFIGURED' }, { status: 503 })
 
-    const { data: attemptId, error: attemptError } = await supabase.rpc('create_monetization_payment_attempt', {
+    const { data: attemptRow, error: attemptError } = await supabase.rpc('create_monetization_payment_attempt', {
       p_order_id: orderId,
       p_provider: 'payme',
       p_idempotency_key: idempotencyKey,
@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
       const status = /ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED|ORDER_NOT_FOUND|ORDER_NOT_PAYABLE|AUTH_REQUIRED|UNSUPPORTED_PAYMENT_PROVIDER|PAYMENT_PROVIDER_MISMATCH/.test(attemptError.message) ? 400 : 500
       return NextResponse.json({ error: attemptError.message }, { status })
     }
+
+    const attemptId = attemptRow && typeof attemptRow === 'object' && 'id' in attemptRow ? String((attemptRow as { id: string }).id) : ''
+    if (!attemptId) return NextResponse.json({ error: 'PAYMENT_ATTEMPT_ID_MISSING' }, { status: 500 })
 
     const admin = serviceClient()
     const { data: attempt, error: fetchError } = await admin
