@@ -160,8 +160,18 @@ function isUuid(value: string) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!process.env.PAYME_MERCHANT_KEY) return rpcError(null, -32400, 'Payme is not configured')
-  if (!authorized(request)) return rpcError(null, -32504, 'Insufficient privileges')
+  if (!process.env.PAYME_MERCHANT_KEY) {
+    console.error('[payme-callback] PAYME_MERCHANT_KEY is missing in this deployment')
+    return rpcError(null, -32400, 'Payme is not configured')
+  }
+  if (!authorized(request)) {
+    // Never log the Authorization header or the merchant key.
+    console.warn('[payme-callback] authorization rejected', {
+      hasAuthorizationHeader: Boolean(request.headers.get('authorization')),
+      hasConfiguredKey: Boolean(process.env.PAYME_MERCHANT_KEY)
+    })
+    return rpcError(null, -32504, 'Insufficient privileges')
+  }
 
   let body: RpcRequest
   try {
@@ -589,6 +599,13 @@ export async function POST(request: NextRequest) {
     return rpcError(body.id, -32601, 'Method not found', method)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Payme merchant error'
+    // Keep the JSON-RPC response generic, but log the actual DB/RPC cause for diagnosis.
+    console.error('[payme-callback] request failed', {
+      method,
+      requestId: body.id ?? null,
+      code: errorCode(message),
+      message
+    })
     return rpcError(body.id, errorCode(message), undefined)
   }
 }
