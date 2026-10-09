@@ -124,7 +124,22 @@ export async function POST(request: NextRequest) {
       console.error('[Payme checkout] Request failed', { message: e.message })
       return NextResponse.json({ error: e.message }, { status: 500 })
     }
-    console.error('[Payme checkout] Request failed with non-Error value', e)
-    return NextResponse.json({ error: 'PAYME_CHECKOUT_FAILED' }, { status: 500 })
+    // Some SDK/network layers can reject with a plain object rather than Error.
+    // Preserve only safe diagnostic fields and expose its message when available,
+    // so the checkout UI does not hide the actionable failure behind a generic code.
+    const unknownError = e && typeof e === 'object' ? e as Record<string, unknown> : null
+    const message = typeof unknownError?.message === 'string'
+      ? unknownError.message
+      : typeof e === 'string'
+        ? e
+        : 'PAYME_CHECKOUT_FAILED'
+    console.error('[Payme checkout] Request failed with non-Error value', {
+      message,
+      name: typeof unknownError?.name === 'string' ? unknownError.name : undefined,
+      code: typeof unknownError?.code === 'string' ? unknownError.code : undefined,
+      details: typeof unknownError?.details === 'string' ? unknownError.details : undefined,
+      hint: typeof unknownError?.hint === 'string' ? unknownError.hint : undefined,
+    })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
