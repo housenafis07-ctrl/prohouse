@@ -48,7 +48,17 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (fetchError) throw fetchError
+    if (fetchError) {
+      console.error('[Payme checkout] Failed to load payment attempt', {
+        attemptId: String(attemptId),
+        orderId,
+        code: fetchError.code,
+        message: fetchError.message,
+        details: fetchError.details,
+        hint: fetchError.hint,
+      })
+      throw new Error('PAYME_ATTEMPT_FETCH_FAILED')
+    }
     if (!attempt) return NextResponse.json({ error: 'PAYMENT_ATTEMPT_NOT_FOUND' }, { status: 404 })
 
     if (attempt.currency !== 'UZS' || Number(attempt.amount_uzs) <= 0) {
@@ -86,9 +96,6 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user.id)
 
       if (updateError) {
-        // Persisting the checkout URL is useful for diagnostics/resume, but it must
-        // not prevent redirecting to Payme after a valid payment attempt exists.
-        // The callback binds the Payme transaction to the pending attempt.
         console.error('[Payme checkout] Failed to persist checkout metadata', {
           attemptId: attempt.id,
           orderId: attempt.order_id,
@@ -97,6 +104,10 @@ export async function POST(request: NextRequest) {
           details: updateError.details,
           hint: updateError.hint,
         })
+        // Do not redirect until checkout metadata persistence is confirmed. The
+        // callback still binds to the pending attempt; returning a generic error
+        // here avoids exposing database details while logs preserve the root cause.
+        throw new Error('PAYME_CHECKOUT_METADATA_SAVE_FAILED')
       }
     }
 
@@ -106,6 +117,11 @@ export async function POST(request: NextRequest) {
       amountTiyin,
     })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'PAYME_CHECKOUT_FAILED' }, { status: 500 })
+    if (e instanceof Error) {
+      console.error('[Payme checkout] Request failed', { message: e.message })
+      return NextResponse.json({ error: e.message }, { status: 500 })
+    }
+    console.error('[Payme checkout] Request failed with non-Error value', e)
+    return NextResponse.json({ error: 'PAYME_CHECKOUT_FAILED' }, { status: 500 })
   }
 }
