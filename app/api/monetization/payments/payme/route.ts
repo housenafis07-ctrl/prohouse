@@ -85,7 +85,19 @@ export async function POST(request: NextRequest) {
         .eq('id', attempt.id)
         .eq('user_id', user.id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        // Persisting the checkout URL is useful for diagnostics/resume, but it must
+        // not prevent redirecting to Payme after a valid payment attempt exists.
+        // The callback binds the Payme transaction to the pending attempt.
+        console.error('[Payme checkout] Failed to persist checkout metadata', {
+          attemptId: attempt.id,
+          orderId: attempt.order_id,
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+        })
+      }
     }
 
     return NextResponse.json({
