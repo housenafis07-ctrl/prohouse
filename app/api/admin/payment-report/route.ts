@@ -1,0 +1,166 @@
+import { NextResponse } from 'next/server'
+import { requireAdmin, serviceClient } from '@/utils/admin/auth'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+type Attempt = {
+  id: string
+  order_id: string
+  user_id: string | null
+  provider: string
+  status: string
+  amount_uzs: number | string
+  currency: string | null
+  provider_payment_id: string | null
+  paid_at: string | null
+  created_at: string
+}
+
+function startOfUzbekDay(date: Date) {
+  const uz = new Date(date.getTime() + 5 * 60 * 60 * 1000)
+  return Date.UTC(uz.getUTCFullYear(), uz.getUTCMonth(), uz.getUTCDate()) - 5 * 60 * 60 * 1000
+}
+
+function inPeriod(value: string | null, start: number, end: number) {
+  if (!value) return false
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) && time >= start && time < end
+}
+
+export async function GET() {
+  const { error } = await requireAdmin()
+  if (error) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
+
+  try {
+    const db = serviceClient()
+    const now = new Date()
+    const todayStart = startOfUzbekDay(now)
+    const uzNow = new Date(now.getTime() + 5 * 60 * 60 * 1000)
+    const monthStart = Date.UTC(uzNow.getUTCFullYear(), uzNow.getUTCMonth(), 1) - 5 * 60 * 60 * 1000
+    const yearStart = Date.UTC(uzNow.getUTCFullYear(), 0, 1) - 5 * 60 * 60 * 1000
+    const nowMs = now.getTime()
+
+    const [{ data: paidRows, error: paidError }, { data: recentRows, error: recentError }] = await Promise.all([
+      db.from('monetization_payment_attempts')
+        .select('id,order_id,user_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
+        .eq('status', 'paid')
+        .order('paid_at', { ascending: false })
+        .range(0, 9999),
+      db.from('monetization_payment_attempts')
+        .select('id,order_id,user_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
+        .order('created_at', { ascending: false })
+        .range(0, 999),
+    ])
+    if (paidError) throw paidError
+    if (recentError) throw recentError
+
+    const paid = (paidRows || []) as Attempt[]
+    const recent = (recentRows || []) as Attempt[]
+    const orderIds = [...new Set([...paid, ...recent].map(row => row.order_id).filter(Boolean))]
+    const userIds = [...new Set([...paid, ...recent].map(row => row.user_id).filter((id): id is string => Boolean(id)))]
+
+    const [{ data: orders, error: ordersError }, { data: items, error: itemsError }, { data: profiles, error: profilesError }] = await Promise.all([
+      orderIds.length
+        ? db.from('monetization_orders').select('id,user_id,listing_id,subtotal_uzs,status,created_at,paid_at,provider').in('id', orderIds)
+        : Promise.resolve({ data: [], error: null }),
+      orderIds.length
+        ? db.from('monetization_order_items').select('order_id,product_code,listing_id,quantity,unit_price_uzs').in('order_id', orderIds)
+        : Promise.resolve({ data: [], error: null }),
+      userIds.length
+        ? db.from('profiles').select('id,full_name,phone,company_name').in('id', userIds)
+        : Promise.resolve({ data: [], error: null }),
+    ])
+    if (ordersError) throw ordersError
+    if (itemsError) throw itemsError
+    if (profilesError) throw profilesError
+
+    const productCodes = [...new Set((items || []).map((item: any) => item.product_code).filter(Boolean))]
+    const { data: products, error: productsError } = productCodes.length
+      ? await db.from('monetization_products').select('code,name_uz,name_ru,product_type').in('code', productCodes)
+      : { data: [], error: null }
+    if (productsError) throw productsError
+
+    const orderMap = new Map((orders || []).map((order: any) => [order.id, order]))
+    const profileMap = new Map((profiles || []).map((profile: any) => [profile.id, profile]))
+    const productMap = new Map((products || []).map((product: any) => [product.code, product]))
+    const itemsByOrder = new Map<string, any[]>()
+    for (const item of items || []) {
+      const bucket = itemsByOrder.get(item.order_id) || []
+      bucket.push(item)
+      itemsByOrder.set(item.order_id, bucket)
+    }
+
+    const paidAmount = (rows: Attempt[]) => rows.reduce((sum, row) => sum + Number(row.amount_uzs || 0), 0)
+    const paidThisMonth = paid.filter(row => inPeriod(row.paid_at, monthStart, nowMs + 1))
+    const paidThisYear = paid.filter(row => inPeriod(row.paid_at, yearStart, nowMs + 1))
+    const paidToday = paid.filter(row => inPeriod(row.paid_at, todayStart, nowMs + 1))
+    const customerCount = new Set(paid.map(row => row.user_id).filter(Boolean)).size
+    const monthlyCustomerCount = new Set(paidThisMonth.map(row => row.user_id).filter(Boolean)).size
+    const yearlyCustomerCount = new Set(paidThisYear.map(row => row.user_id).filter(Boolean)).size
+
+    const transactions = recent.map(row => {
+      const order: any = orderMap.get(row.order_id)
+      const profile: any = profileMap.get(row.user_id || order?.user_id)
+      const orderItems = itemsByOrder.get(row.order_id) || []
+      const serviceNames = orderItems.map(item => {
+        const product: any = productMap.get(item.product_code)
+        return {
+          code: item.product_code,
+          name_uz: product?.name_uz || item.product_code || 'Xizmat',
+          name_ru: product?.name_ru || product?.name_uz || item.product_code || 'Услуга',
+          product_type: product?.product_type || '',
+          quantity: Number(item.quantity || 1),
+          listing_id: item.listing_id || order?.listing_id || null,
+        }
+      })
+      return {
+        id: row.id,
+        order_id: row.order_id,
+        customer_id: row.user_id || order?.user_id || null,
+        customer_name: profile?.full_name || profile?.company_name || 'Noma’lum mijoz',
+        customer_phone: profile?.phone || null,
+        provider: row.provider,
+        status: row.status,
+        amount_uzs: Number(row.amount_uzs || 0),
+        currency: row.currency || 'UZS',
+        provider_payment_id: row.provider_payment_id,
+        paid_at: row.paid_at,
+        created_at: row.created_at,
+        services: serviceNames,
+      }
+    })
+
+    const byService = new Map<string, { code: string; name_uz: string; name_ru: string; count: number; amount_uzs: number }>()
+    for (const row of paid) {
+      for (const item of itemsByOrder.get(row.order_id) || []) {
+        const product: any = productMap.get(item.product_code)
+        const code = item.product_code || 'unknown'
+        const entry = byService.get(code) || {
+          code,
+          name_uz: product?.name_uz || code,
+          name_ru: product?.name_ru || product?.name_uz || code,
+          count: 0,
+          amount_uzs: 0,
+        }
+        entry.count += 1
+        entry.amount_uzs += Number(item.unit_price_uzs || 0) * Number(item.quantity || 1)
+        byService.set(code, entry)
+      }
+    }
+
+    return NextResponse.json({
+      summary: {
+        all_time: { amount_uzs: paidAmount(paid), payments: paid.length, customers: customerCount },
+        today: { amount_uzs: paidAmount(paidToday), payments: paidToday.length, customers: new Set(paidToday.map(row => row.user_id).filter(Boolean)).size },
+        month: { amount_uzs: paidAmount(paidThisMonth), payments: paidThisMonth.length, customers: monthlyCustomerCount },
+        year: { amount_uzs: paidAmount(paidThisYear), payments: paidThisYear.length, customers: yearlyCustomerCount },
+      },
+      by_service: [...byService.values()].sort((a, b) => b.amount_uzs - a.amount_uzs),
+      transactions,
+      truncated: paid.length === 10000,
+    }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'PAYMENT_REPORT_FAILED' }, { status: 500 })
+  }
+}
