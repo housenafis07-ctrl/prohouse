@@ -145,23 +145,63 @@ export async function GET() {
       }
     })
 
-    const byService = new Map<string, { code: string; name_uz: string; name_ru: string; count: number; amount_uzs: number }>()
+    const byService = new Map<string, {
+      code: string; name_uz: string; name_ru: string; product_type: string;
+      payments: number; customers: Set<string>; all_time: number; today: number; month: number; year: number;
+      order_ids: Set<string>
+    }>()
+    const seenServicePayments = new Set<string>()
     for (const row of paid) {
-      for (const item of itemsByOrder.get(row.order_id) || []) {
+      const orderItems = itemsByOrder.get(row.order_id) || []
+      if (!orderItems.length) continue
+      const itemTotals = orderItems.map((item: any) => Math.max(0, Number(item.unit_price_uzs || 0) * Number(item.quantity || 1)))
+      const itemsTotal = itemTotals.reduce((sum: number, amount: number) => sum + amount, 0)
+      // Allocate the actual received amount across the order's products proportionally.
+      // If line prices are unavailable/zero, use an equal split rather than inventing revenue.
+      const allocatedAmounts = orderItems.map((item: any, index: number) =>
+        itemsTotal > 0 ? Number(row.amount_uzs || 0) * itemTotals[index] / itemsTotal : Number(row.amount_uzs || 0) / orderItems.length
+      )
+      for (let index = 0; index < orderItems.length; index++) {
+        const item = orderItems[index]
         const product: any = productMap.get(item.product_code)
         const code = item.product_code || 'unknown'
         const entry = byService.get(code) || {
           code,
           name_uz: product?.name || code,
           name_ru: product?.name_ru || product?.name || code,
-          count: 0,
-          amount_uzs: 0,
+          product_type: product?.product_type || 'other',
+          payments: 0,
+          customers: new Set<string>(),
+          all_time: 0,
+          today: 0,
+          month: 0,
+          year: 0,
+          order_ids: new Set<string>(),
         }
-        entry.count += 1
-        entry.amount_uzs += Number(item.unit_price_uzs || 0) * Number(item.quantity || 1)
+        const allocated = allocatedAmounts[index]
+        entry.all_time += allocated
+        if (inPeriod(row.paid_at, todayStart, nowMs + 1)) entry.today += allocated
+        if (inPeriod(row.paid_at, monthStart, nowMs + 1)) entry.month += allocated
+        if (inPeriod(row.paid_at, yearStart, nowMs + 1)) entry.year += allocated
+        const paymentKey = row.id + ':' + code
+        if (!seenServicePayments.has(paymentKey)) {
+          entry.payments += 1
+          seenServicePayments.add(paymentKey)
+        }
+        const customerId = orderMap.get(row.order_id)?.user_id
+        if (customerId) entry.customers.add(customerId)
+        entry.order_ids.add(row.order_id)
         byService.set(code, entry)
       }
     }
+    const serviceReport = [...byService.values()]
+      .map(({ customers, order_ids, ...item }) => ({
+        ...item,
+        customers: customers.size,
+        orders: order_ids.size,
+        share_percent: paidAmount(paid) > 0 ? Math.round(item.all_time / paidAmount(paid) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.all_time - a.all_time)
 
     return NextResponse.json({
       summary: {
@@ -170,7 +210,7 @@ export async function GET() {
         month: { amount_uzs: paidAmount(paidThisMonth), payments: paidThisMonth.length, customers: monthlyCustomerCount },
         year: { amount_uzs: paidAmount(paidThisYear), payments: paidThisYear.length, customers: yearlyCustomerCount },
       },
-      by_service: [...byService.values()].sort((a, b) => b.amount_uzs - a.amount_uzs),
+      by_service: serviceReport,
       transactions,
       truncated: paid.length === 10000,
     }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
