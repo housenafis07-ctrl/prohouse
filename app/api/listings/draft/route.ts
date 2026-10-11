@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('account_type,full_name,phone,company_name,director_full_name')
+    .select('account_type,partner_type,full_name,phone,company_name,director_full_name')
     .eq('id', user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
@@ -103,6 +103,21 @@ export async function POST(request: Request) {
   const accountType = profile?.account_type || 'individual'
   const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
   const isServiceListing = data.listing_type === 'service' || data.property_type === 'service'
+  if (isServiceListing) {
+    if (profile?.account_type !== 'partner') {
+      return NextResponse.json({ error: 'SERVICE_PARTNER_REQUIRED', message: 'Xizmat e’loni joylashtirish uchun professional hamkor sifatida ro‘yxatdan o‘ting.' }, { status: 403 })
+    }
+    const { data: partnerProfile, error: partnerProfileError } = await supabase
+      .from('partner_profiles')
+      .select('partner_type')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (partnerProfileError) return NextResponse.json({ error: partnerProfileError.message }, { status: 400 })
+    const effectivePartnerType = partnerProfile?.partner_type || profile.partner_type
+    if (!['service_provider', 'contractor'].includes(effectivePartnerType || '')) {
+      return NextResponse.json({ error: 'SERVICE_PARTNER_REQUIRED', message: 'Xizmat e’loni uchun “Xizmat ko‘rsatuvchi hamkor” maqomi kerak.' }, { status: 403 })
+    }
+  }
   const sellerRole = isServiceListing ? 'service_provider' : (accountType === 'individual' ? 'owner' : null)
   const isIndividualOwner = accountType === 'individual' && ownershipType === 'owner' && !isServiceListing
   const sellerType = isServiceListing ? 'service_provider' : (isIndividualOwner ? 'owner' : null)
