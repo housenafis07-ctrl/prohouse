@@ -70,7 +70,13 @@ export default function AccountPage() {
     load(); return () => { mounted = false }
   }, [router])
 
-  const setField = (key: keyof Profile, value: string) => setForm(v => v ? { ...v, [key]: value } : v)
+  const setField = (key: keyof Profile, value: string) => setForm(v => {
+    if (!v) return v
+    if (key === 'account_type') {
+      return { ...v, account_type: value === 'partner' ? 'partner' : 'individual' }
+    }
+    return { ...v, [key]: value }
+  })
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault(); if (!form) return
