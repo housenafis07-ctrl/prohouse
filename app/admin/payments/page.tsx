@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type SummaryItem = { amount_uzs: number; payments: number; customers: number }
-type ServiceSummary = { code: string; name_uz: string; name_ru: string; count: number; amount_uzs: number }
+type ServiceSummary = { code: string; name_uz: string; name_ru: string; product_type: string; payments: number; customers: number; orders: number; share_percent: number; all_time: number; today: number; month: number; year: number }
 type Transaction = {
   id: string; order_id: string; customer_id: string | null; customer_name: string; customer_phone: string | null
   provider: string; status: string; amount_uzs: number; currency: string; provider_payment_id: string | null
@@ -27,6 +27,7 @@ export default function PaymentReportPage() {
   const [status, setStatus] = useState('all')
   const [provider, setProvider] = useState('all')
   const [search, setSearch] = useState('')
+  const [servicePeriod, setServicePeriod] = useState<'today' | 'month' | 'year' | 'all_time'>('month')
 
   async function load() {
     setLoading(true); setError('')
@@ -83,8 +84,9 @@ export default function PaymentReportPage() {
         {statCards.map(card => <section key={card.label} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100"><p className="text-sm font-medium text-slate-500">{card.label}</p><p className="mt-2 break-words text-2xl font-black text-slate-900">{card.item ? money(card.item.amount_uzs) : '—'}</p><p className="mt-2 text-xs text-slate-500">{card.item ? card.item.payments + ' ' + t('ta to‘lov', 'платежей') + ' · ' + card.item.customers + ' ' + t('mijoz', 'клиентов') : card.note}</p></section>)}
       </div>
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.5fr)]">
-        <section className="rounded-3xl bg-white p-5 shadow-sm"><h3 className="text-lg font-black">{t('Xizmatlar bo‘yicha tushum', 'Поступления по услугам')}</h3><p className="mt-1 text-sm text-slate-500">{t('Muvaffaqiyatli to‘lovlar tarkibi', 'Состав успешных платежей')}</p>
-          {!report?.by_service.length ? <p className="py-8 text-center text-sm text-slate-400">{t('Hozircha to‘langan xizmatlar yo‘q', 'Пока нет оплаченных услуг')}</p> : <div className="mt-4 divide-y">{report.by_service.map(item => <div key={item.code} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="font-bold">{ru ? item.name_ru : item.name_uz}</p><p className="mt-1 text-xs text-slate-500">{item.count} {t('ta xizmat', 'услуг')}</p></div><p className="shrink-0 text-right font-black">{money(item.amount_uzs)}</p></div>)}</div>}
+        <section className="rounded-3xl bg-white p-5 shadow-sm"><h3 className="text-lg font-black">{t('Monetizatsiya yo‘nalishlari', 'Направления монетизации')}</h3><p className="mt-1 text-sm text-slate-500">{t('Tushum, mijozlar soni va umumiy tushumdagi ulush bo‘yicha taqqoslash', 'Сравнение поступлений, клиентов и доли в общей выручке')}</p>
+          <div className="mt-4 flex flex-wrap gap-2">{([{value:'today',label:t('Bugun','Сегодня')},{value:'month',label:t('Oy','Месяц')},{value:'year',label:t('Yil','Год')},{value:'all_time',label:t('Jami','Всё время')}] as const).map(option => <button key={option.value} onClick={() => setServicePeriod(option.value)} className={'rounded-lg border px-3 py-2 text-xs font-bold ' + (servicePeriod === option.value ? 'border-slate-900 bg-slate-900 text-white' : 'bg-white text-slate-600')}>{option.label}</button>)}</div>
+          {!report?.by_service.length ? <p className="py-8 text-center text-sm text-slate-400">{t('Hozircha to‘langan xizmatlar yo‘q', 'Пока нет оплаченных услуг')}</p> : <div className="mt-4 divide-y">{report.by_service.slice().sort((a,b) => b[servicePeriod] - a[servicePeriod]).map(item => <div key={item.code} className="py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-bold">{ru ? item.name_ru : item.name_uz}</p><p className="mt-1 text-xs text-slate-500">{item.payments} {t('to‘lov','платежей')} · {item.customers} {t('mijoz','клиентов')}</p></div><p className="shrink-0 text-right font-black">{money(item[servicePeriod])}</p></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{width: Math.min(100, item.share_percent) + '%'}} /></div><p className="mt-1 text-right text-xs text-slate-500">{t('Jami tushumdagi ulushi','Доля общей выручки')}: {item.share_percent}%</p></div>)}</div>}
         </section>
         <section className="min-w-0 rounded-3xl bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-black">{t('Tranzaksiyalar', 'Транзакции')}</h3><p className="mt-1 text-sm text-slate-500">{t('Oxirgi 1 000 ta operatsiya', 'Последние 1 000 операций')}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{transactions.length}</span></div>
           <div className="mt-4 grid gap-2 sm:grid-cols-3"><input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('Mijoz, telefon, xizmat…', 'Клиент, телефон, услуга…')} className="min-w-0 rounded-xl border px-3 py-2 text-sm outline-none focus:border-emerald-500" />
