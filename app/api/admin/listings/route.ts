@@ -19,15 +19,15 @@ export async function GET() {
 
     const listings = (data ?? []) as Array<Record<string, any>>
     const ownerIds = [...new Set(listings.map(item => item.owner_id).filter(Boolean))]
-    const profilesById = new Map<string, { full_name: string | null; phone: string | null }>()
+    const profilesById = new Map<string, { full_name: string | null; phone: string | null; company_name: string | null; director_full_name: string | null }>()
 
     if (ownerIds.length) {
       const { data: profiles, error: profilesError } = await adminClient
         .from('profiles')
-        .select('id,full_name,phone')
+        .select('id,full_name,phone,company_name,director_full_name')
         .in('id', ownerIds)
       if (profilesError) throw profilesError
-      for (const profile of profiles ?? []) profilesById.set(profile.id, { full_name: profile.full_name, phone: profile.phone })
+      for (const profile of profiles ?? []) profilesById.set(profile.id, { full_name: profile.full_name, phone: profile.phone, company_name: profile.company_name, director_full_name: profile.director_full_name })
     }
 
     // Older drafts may have location only in draft_data. Prefer the persisted
@@ -38,7 +38,8 @@ export async function GET() {
       const attributes = draft.attributes && typeof draft.attributes === 'object' ? draft.attributes as Record<string, any> : {}
       const profile = profilesById.get(item.owner_id)
       const ownershipType = item.ownership_type || draft.ownership_type || attributes.ownership_type || null
-      const isOwner = ownershipType === 'owner'
+      // Older/current individual listings can have seller_type='owner' while
+      // ownership_type is null. Use the explicit seller type as a valid fallback signal.
 
       return {
         ...item,
@@ -49,9 +50,9 @@ export async function GET() {
         latitude: item.latitude ?? (typeof draft.latitude === 'number' ? draft.latitude : Number.isFinite(Number(draft.latitude)) ? Number(draft.latitude) : null),
         longitude: item.longitude ?? (typeof draft.longitude === 'number' ? draft.longitude : Number.isFinite(Number(draft.longitude)) ? Number(draft.longitude) : null),
         ownership_type: ownershipType,
-        seller_type: item.seller_type || (isOwner ? 'owner' : null),
-        seller_name: item.seller_name || (isOwner ? profile?.full_name || null : null),
-        seller_phone: item.seller_phone || (isOwner ? profile?.phone || null : null),
+        seller_type: item.seller_type || (ownershipType === 'owner' ? 'owner' : null),
+        seller_name: item.seller_name || profile?.company_name || profile?.director_full_name || profile?.full_name || null,
+        seller_phone: item.seller_phone || profile?.phone || null,
         is_mortgage_available: item.is_mortgage_available ?? (attributes.mortgage === 'true' ? true : attributes.mortgage === 'false' ? false : null),
       }
     })
