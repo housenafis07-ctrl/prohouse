@@ -8,6 +8,8 @@ export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const referer = request.headers.get('referer') || ''
+  const requestedFlow = new URL(request.url).searchParams.get('flow')
+  const flow = requestedFlow === 'service' || requestedFlow === 'property' ? requestedFlow : (referer.includes('/listings/new/service') ? 'service' : 'property')
   const editMatch = referer.match(/\/account\/listings\/([^/?#]+)\/edit(?:[/?#]|$)/)
 
   const [{ data: categories, error: categoryError }, { data: attributes, error: attributeError }] = await Promise.all([
@@ -87,14 +89,16 @@ export async function GET(request: Request) {
     allowedCodes = new Set((permissions || []).map((x) => x.category_code))
   }
 
-  // Service listings have their own dedicated wizard. Keep service directions
-  // available to that flow even when the partner's property-listing permissions
-  // do not include service taxonomy codes.
-  const filtered = (categories || []).filter((c) =>
-    c.entity_type === 'service' && c.section_code === 'services'
-      ? true
-      : !allowedCodes || allowedCodes.has(c.code)
-  )
+  // The property and service wizards need different taxonomy sets.
+  // Individual accounts may create property listings without partner permission rows.
+  // Service categories are only exposed in the dedicated service wizard.
+  const filtered = (categories || []).filter((c) => {
+    const isServiceCategory = c.entity_type === 'service' && c.section_code === 'services'
+    if (flow === 'service') return isServiceCategory
+    if (isServiceCategory) return false
+    if (partnerType === 'owner' || !user) return true
+    return !allowedCodes || allowedCodes.has(c.code)
+  })
   const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
 
   return NextResponse.json(

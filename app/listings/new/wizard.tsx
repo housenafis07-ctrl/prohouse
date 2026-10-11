@@ -55,7 +55,7 @@ export default function ListingWizard(){
    setLang(ru ? 'uz' : 'ru')
  }
 
- useEffect(()=>{(async()=>{try{const r=await fetch('/api/listings/meta',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||t('Metadata yuklanmadi','Не удалось загрузить данные'));setCategories(d.categories||[]);setAttributes(d.attributes||[])}catch(e){setError(e instanceof Error?e.message:t('Yuklashda xatolik','Ошибка загрузки'))}finally{setLoading(false)}})()},[])
+ useEffect(()=>{(async()=>{try{const r=await fetch('/api/listings/meta?flow=property',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||t('Metadata yuklanmadi','Не удалось загрузить данные'));setCategories(d.categories||[]);setAttributes(d.attributes||[])}catch(e){setError(e instanceof Error?e.message:t('Yuklashda xatolik','Ошибка загрузки'))}finally{setLoading(false)}})()},[])
  useEffect(()=>()=>images.forEach(i=>URL.revokeObjectURL(i.preview)),[images])
 
  const payload=()=>({...form,price:form.price.replace(/\s/g,''),area_m2:form.area_m2,rooms:form.rooms,floor:form.floor,floors_total:form.floors_total,latitude:location.latitude,longitude:location.longitude,attributes:values,ownership_type:isHouseSale&&isOwner?'owner':null})
