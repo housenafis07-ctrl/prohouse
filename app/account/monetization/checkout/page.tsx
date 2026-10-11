@@ -177,7 +177,19 @@ export default function MonetizationCheckoutPage() {
       })
       const data = await response.json()
       if (!response.ok || !data.checkoutUrl) throw new Error(data?.error || t('paymentNotReady'))
-      window.location.href = data.checkoutUrl
+
+      // Payme may hand off to a bank/Payme app using a custom URL scheme.
+      // Telegram's embedded WebView can reject that scheme with ERR_UNKNOWN_URL_SCHEME,
+      // so open the hosted checkout in Telegram's external browser when available.
+      const telegramWebApp = (window as Window & {
+        Telegram?: { WebApp?: { openLink?: (url: string) => void } }
+      }).Telegram?.WebApp
+
+      if (provider === 'payme' && typeof telegramWebApp?.openLink === 'function') {
+        telegramWebApp.openLink(data.checkoutUrl)
+      } else {
+        window.location.href = data.checkoutUrl
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t('paymentNotReady'))
       setPaying(null)
