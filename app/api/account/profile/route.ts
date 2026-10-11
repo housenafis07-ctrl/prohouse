@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
   const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''
   const accountType = body.account_type === 'partner' ? 'partner' : 'individual'
-  const legalForm = typeof body.partner_type === 'string' && legalForms.has(body.partner_type) ? body.partner_type : null
+  const legalForm = typeof body.partner_type === 'string' && legalForms.has(body.partner_type) ? body.partner_type : (body.account_type === 'partner' ? 'self_employed' : null)
   const companyName = typeof body.company_name === 'string' ? body.company_name.trim() : ''
   const inn = typeof body.inn === 'string' ? body.inn.trim() : ''
   const bankName = typeof body.bank_name === 'string' ? body.bank_name.trim() : ''
