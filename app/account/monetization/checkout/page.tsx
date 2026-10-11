@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Script from 'next/script'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { pickLocalized } from '@/lib/i18n'
@@ -58,6 +59,8 @@ export default function MonetizationCheckoutPage() {
   const [paying, setPaying] = useState<'click' | 'payme' | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [error, setError] = useState('')
+  const [pendingCheckoutUrl, setPendingCheckoutUrl] = useState('')
+  const [pendingCheckoutProvider, setPendingCheckoutProvider] = useState<'click' | 'payme' | null>(null)
 
   const money = (v: number) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(v))} ${t('sum')}`
   const localizeLocation = (value: string | null | undefined) => {
@@ -177,6 +180,17 @@ export default function MonetizationCheckoutPage() {
       })
       const data = await response.json()
       if (!response.ok || !data.checkoutUrl) throw new Error(data?.error || t('paymentNotReady'))
+
+      if (provider === 'payme') {
+        // Prepare the hosted URL first, then require a second explicit tap.
+        // Telegram openLink must be called directly from a recent user gesture;
+        // calling it after this async fetch can be ignored by Telegram clients.
+        setPendingCheckoutUrl(data.checkoutUrl)
+        setPendingCheckoutProvider('payme')
+        setPaying(null)
+        return
+      }
+
       window.location.href = data.checkoutUrl
     } catch (e) {
       setError(e instanceof Error ? e.message : t('paymentNotReady'))
@@ -184,10 +198,33 @@ export default function MonetizationCheckoutPage() {
     }
   }
 
+  const openPendingCheckout = () => {
+    if (!pendingCheckoutUrl || !pendingCheckoutProvider) return
+
+    if (pendingCheckoutProvider === 'payme') {
+      const telegramWebApp = (window as Window & {
+        Telegram?: { WebApp?: { openLink?: (url: string) => void } }
+      }).Telegram?.WebApp
+
+      if (typeof telegramWebApp?.openLink === 'function') {
+        // This call is synchronous in the button click handler, as Telegram requires.
+        telegramWebApp.openLink(pendingCheckoutUrl)
+        return
+      }
+
+      // Outside a Telegram Mini App, use the normal browser navigation.
+      window.location.assign(pendingCheckoutUrl)
+      return
+    }
+
+    window.location.assign(pendingCheckoutUrl)
+  }
+
   if (loading) return <main className="min-h-screen bg-slate-50 p-8 text-center">{t('loading')}</main>
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8">
+      <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" />
       <div className="mx-auto max-w-4xl">
         <Link href="/account/monetization" className="text-sm font-bold text-emerald-700">{t('backToMonetization')}</Link>
         <header className="mt-4 rounded-3xl bg-white p-6 shadow-sm">
@@ -221,7 +258,7 @@ export default function MonetizationCheckoutPage() {
               {!order && <button type="button" disabled={submitting || (needsListing && !listingId)} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? t('creatingOrder') : t('createOrder')}</button>}
             </> : <p className="mt-4 text-sm text-slate-300">{t('selectProduct')}</p>}
 
-            {order && <div className="mt-5 rounded-2xl bg-white p-4 text-slate-900"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Click</div><div className="mt-3 flex items-center gap-3"><ClickLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithClick')}</span></div></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-cyan-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Payme</div><div className="mt-3 flex items-center gap-3"><PaymeLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithPayme')}</span></div></button></div>{paying && <div className="mt-3 text-center text-xs font-semibold text-slate-500">{t('redirectingPayment')}</div>}</div>}
+            {order && <div className="mt-5 rounded-2xl bg-white p-4 text-slate-900"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Click</div><div className="mt-3 flex items-center gap-3"><ClickLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithClick')}</span></div></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-cyan-400 disabled:opacity-60"><div className="text-center text-base font-black text-slate-900">Payme</div><div className="mt-3 flex items-center gap-3"><PaymeLogo /><span className="min-w-0 text-sm leading-6 text-slate-500">{t('payWithPayme')}</span></div></button></div>{paying && <div className="mt-3 text-center text-xs font-semibold text-slate-500">{t('redirectingPayment')}</div>}{pendingCheckoutProvider === 'payme' && pendingCheckoutUrl && <button type="button" onClick={openPendingCheckout} className="mt-4 w-full rounded-2xl bg-cyan-600 px-4 py-4 text-sm font-black text-white transition hover:bg-cyan-500">Payme’da davom etish / Продолжить в Payme</button>}</div>}
 
             {error && <div className="mt-4 rounded-2xl bg-red-500/15 p-3 text-sm font-semibold text-red-200">{t('error')}: {error}</div>}
             {order && <div className="mt-4 rounded-2xl bg-emerald-500/15 p-4"><div className="font-black text-emerald-300">{t('orderCreated')}</div><div className="mt-1 break-all text-xs text-slate-300">№ {order.id}</div><div className="mt-3 text-sm text-slate-200">{t('status')}: <b>{orderStatus(order.status)}</b></div></div>}
