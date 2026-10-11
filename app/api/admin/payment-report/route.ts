@@ -43,7 +43,7 @@ export async function GET() {
 
     const [{ data: paidRows, error: paidError }, { data: recentRows, error: recentError }] = await Promise.all([
       db.from('monetization_payment_attempts')
-        .select('id,order_id,user_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
+        .select('id,order_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
         .eq('status', 'paid')
         .order('paid_at', { ascending: false })
         .range(0, 9999),
@@ -58,7 +58,7 @@ export async function GET() {
     const paid = (paidRows || []) as Attempt[]
     const recent = (recentRows || []) as Attempt[]
     const orderIds = [...new Set([...paid, ...recent].map(row => row.order_id).filter(Boolean))]
-    const userIds = [...new Set([...paid, ...recent].map(row => row.user_id).filter((id): id is string => Boolean(id)))]
+    const userIds: string[] = []
 
     const orders: any[] = []
     const items: any[] = []
@@ -67,7 +67,7 @@ export async function GET() {
     for (let offset = 0; offset < orderIds.length; offset += 200) {
       const batch = orderIds.slice(offset, offset + 200)
       const [orderResult, itemResult] = await Promise.all([
-        db.from('monetization_orders').select('id,user_id,listing_id,subtotal_uzs,status,created_at,paid_at,provider').in('id', batch),
+        db.from('monetization_orders').select('*').in('id', batch),
         db.from('monetization_order_items').select('order_id,product_code,listing_id,quantity,unit_price_uzs').in('order_id', batch),
       ])
       if (orderResult.error) throw orderResult.error
@@ -91,6 +91,17 @@ export async function GET() {
       products.push(...(data || []))
     }
 
+    userIds.push(...new Set((orders || []).map((order: any) => order.user_id).filter((id: unknown): id is string => typeof id === 'string')))
+    // Fetch profiles for users resolved through the order record; payment attempts do not store user_id.
+    const uniqueUserIds = [...new Set(userIds)]
+    profiles.splice(0, profiles.length)
+    for (let offset = 0; offset < uniqueUserIds.length; offset += 200) {
+      const batch = uniqueUserIds.slice(offset, offset + 200)
+      const { data, error: profileError } = await db.from('profiles').select('id,full_name,phone,company_name').in('id', batch)
+      if (profileError) throw profileError
+      profiles.push(...(data || []))
+    }
+
     const orderMap = new Map((orders || []).map((order: any) => [order.id, order]))
     const profileMap = new Map((profiles || []).map((profile: any) => [profile.id, profile]))
     const productMap = new Map((products || []).map((product: any) => [product.code, product]))
@@ -105,13 +116,13 @@ export async function GET() {
     const paidThisMonth = paid.filter(row => inPeriod(row.paid_at, monthStart, nowMs + 1))
     const paidThisYear = paid.filter(row => inPeriod(row.paid_at, yearStart, nowMs + 1))
     const paidToday = paid.filter(row => inPeriod(row.paid_at, todayStart, nowMs + 1))
-    const customerCount = new Set(paid.map(row => row.user_id).filter(Boolean)).size
-    const monthlyCustomerCount = new Set(paidThisMonth.map(row => row.user_id).filter(Boolean)).size
-    const yearlyCustomerCount = new Set(paidThisYear.map(row => row.user_id).filter(Boolean)).size
+    const customerCount = new Set(paid.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size
+    const monthlyCustomerCount = new Set(paidThisMonth.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size
+    const yearlyCustomerCount = new Set(paidThisYear.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size
 
     const transactions = recent.map(row => {
       const order: any = orderMap.get(row.order_id)
-      const profile: any = profileMap.get(row.user_id || order?.user_id)
+      const profile: any = profileMap.get(order?.user_id)
       const orderItems = itemsByOrder.get(row.order_id) || []
       const serviceNames = orderItems.map(item => {
         const product: any = productMap.get(item.product_code)
@@ -127,7 +138,7 @@ export async function GET() {
       return {
         id: row.id,
         order_id: row.order_id,
-        customer_id: row.user_id || order?.user_id || null,
+        customer_id: order?.user_id || null,
         customer_name: profile?.full_name || profile?.company_name || 'Noma’lum mijoz',
         customer_phone: profile?.phone || null,
         provider: row.provider,
@@ -162,7 +173,7 @@ export async function GET() {
     return NextResponse.json({
       summary: {
         all_time: { amount_uzs: paidAmount(paid), payments: paid.length, customers: customerCount },
-        today: { amount_uzs: paidAmount(paidToday), payments: paidToday.length, customers: new Set(paidToday.map(row => row.user_id).filter(Boolean)).size },
+        today: { amount_uzs: paidAmount(paidToday), payments: paidToday.length, customers: new Set(paidToday.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size },
         month: { amount_uzs: paidAmount(paidThisMonth), payments: paidThisMonth.length, customers: monthlyCustomerCount },
         year: { amount_uzs: paidAmount(paidThisYear), payments: paidThisYear.length, customers: yearlyCustomerCount },
       },
