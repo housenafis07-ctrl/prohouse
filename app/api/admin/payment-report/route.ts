@@ -79,7 +79,7 @@ export async function GET() {
     const products: any[] = []
     for (let offset = 0; offset < productCodes.length; offset += 200) {
       const batch = productCodes.slice(offset, offset + 200)
-      const { data, error: productsError } = await db.from('monetization_products').select('code,name_uz,name_ru,product_type').in('code', batch)
+      const { data, error: productsError } = await db.from('monetization_products').select('code,name,name_ru,product_type').in('code', batch)
       if (productsError) throw productsError
       products.push(...(data || []))
     }
@@ -121,8 +121,8 @@ export async function GET() {
         const product: any = productMap.get(item.product_code)
         return {
           code: item.product_code,
-          name_uz: product?.name_uz || item.product_code || 'Xizmat',
-          name_ru: product?.name_ru || product?.name_uz || item.product_code || 'Услуга',
+          name_uz: product?.name || item.product_code || 'Xizmat',
+          name_ru: product?.name_ru || product?.name || item.product_code || 'Услуга',
           product_type: product?.product_type || '',
           quantity: Number(item.quantity || 1),
           listing_id: item.listing_id || order?.listing_id || null,
@@ -152,8 +152,8 @@ export async function GET() {
         const code = item.product_code || 'unknown'
         const entry = byService.get(code) || {
           code,
-          name_uz: product?.name_uz || code,
-          name_ru: product?.name_ru || product?.name_uz || code,
+          name_uz: product?.name || code,
+          name_ru: product?.name_ru || product?.name || code,
           count: 0,
           amount_uzs: 0,
         }
@@ -175,6 +175,8 @@ export async function GET() {
       truncated: paid.length === 10000,
     }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'PAYMENT_REPORT_FAILED' }, { status: 500 })
+    const detail = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message || '') : e instanceof Error ? e.message : ''
+    console.error('[admin/payment-report] failed:', detail || e)
+    return NextResponse.json({ error: detail || 'PAYMENT_REPORT_FAILED' }, { status: 500 })
   }
 }
