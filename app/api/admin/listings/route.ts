@@ -50,7 +50,7 @@ export async function GET() {
         latitude: item.latitude ?? (typeof draft.latitude === 'number' ? draft.latitude : Number.isFinite(Number(draft.latitude)) ? Number(draft.latitude) : null),
         longitude: item.longitude ?? (typeof draft.longitude === 'number' ? draft.longitude : Number.isFinite(Number(draft.longitude)) ? Number(draft.longitude) : null),
         ownership_type: ownershipType,
-        seller_type: item.seller_type || (isOwner ? 'owner' : null),
+        seller_type: item.seller_type || (ownershipType === 'owner' ? 'owner' : null),
         seller_name: item.seller_name || profile?.company_name || profile?.director_full_name || profile?.full_name || null,
         seller_phone: item.seller_phone || profile?.phone || null,
         is_mortgage_available: item.is_mortgage_available ?? (attributes.mortgage === 'true' ? true : attributes.mortgage === 'false' ? false : null),
