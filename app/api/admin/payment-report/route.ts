@@ -60,26 +60,36 @@ export async function GET() {
     const orderIds = [...new Set([...paid, ...recent].map(row => row.order_id).filter(Boolean))]
     const userIds = [...new Set([...paid, ...recent].map(row => row.user_id).filter((id): id is string => Boolean(id)))]
 
-    const [{ data: orders, error: ordersError }, { data: items, error: itemsError }, { data: profiles, error: profilesError }] = await Promise.all([
-      orderIds.length
-        ? db.from('monetization_orders').select('id,user_id,listing_id,subtotal_uzs,status,created_at,paid_at,provider').in('id', orderIds)
-        : Promise.resolve({ data: [], error: null }),
-      orderIds.length
-        ? db.from('monetization_order_items').select('order_id,product_code,listing_id,quantity,unit_price_uzs').in('order_id', orderIds)
-        : Promise.resolve({ data: [], error: null }),
-      userIds.length
-        ? db.from('profiles').select('id,full_name,phone,company_name').in('id', userIds)
-        : Promise.resolve({ data: [], error: null }),
-    ])
-    if (ordersError) throw ordersError
-    if (itemsError) throw itemsError
-    if (profilesError) throw profilesError
+    const orders: any[] = []
+    const items: any[] = []
+    const profiles: any[] = []
+    // Keep each IN query small enough for Supabase/PostgREST URL limits.
+    for (let offset = 0; offset < orderIds.length; offset += 200) {
+      const batch = orderIds.slice(offset, offset + 200)
+      const [orderResult, itemResult] = await Promise.all([
+        db.from('monetization_orders').select('id,user_id,listing_id,subtotal_uzs,status,created_at,paid_at,provider').in('id', batch),
+        db.from('monetization_order_items').select('order_id,product_code,listing_id,quantity,unit_price_uzs').in('order_id', batch),
+      ])
+      if (orderResult.error) throw orderResult.error
+      if (itemResult.error) throw itemResult.error
+      orders.push(...(orderResult.data || []))
+      items.push(...(itemResult.data || []))
+    }
+    for (let offset = 0; offset < userIds.length; offset += 200) {
+      const batch = userIds.slice(offset, offset + 200)
+      const { data, error: profileError } = await db.from('profiles').select('id,full_name,phone,company_name').in('id', batch)
+      if (profileError) throw profileError
+      profiles.push(...(data || []))
+    }
 
-    const productCodes = [...new Set((items || []).map((item: any) => item.product_code).filter(Boolean))]
-    const { data: products, error: productsError } = productCodes.length
-      ? await db.from('monetization_products').select('code,name_uz,name_ru,product_type').in('code', productCodes)
-      : { data: [], error: null }
-    if (productsError) throw productsError
+    const productCodes = [...new Set(items.map((item: any) => item.product_code).filter(Boolean))]
+    const products: any[] = []
+    for (let offset = 0; offset < productCodes.length; offset += 200) {
+      const batch = productCodes.slice(offset, offset + 200)
+      const { data, error: productsError } = await db.from('monetization_products').select('code,name_uz,name_ru,product_type').in('code', batch)
+      if (productsError) throw productsError
+      products.push(...(data || []))
+    }
 
     const orderMap = new Map((orders || []).map((order: any) => [order.id, order]))
     const profileMap = new Map((profiles || []).map((profile: any) => [profile.id, profile]))
