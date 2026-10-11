@@ -110,7 +110,23 @@ export default function RegisterPage() {
         if(consentError) throw consentError
       }
       router.replace(getRedirectTo())
-    }catch(e){setMessage(e instanceof Error?e.message:t('Ro‘yxatdan o‘tishda xatolik','Ошибка регистрации'))}
+    }catch(e){
+      const err = e && typeof e === 'object' ? e as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown } : null
+      const code = typeof err?.code === 'string' ? err.code : ''
+      const detail = typeof err?.message === 'string' ? err.message : e instanceof Error ? e.message : ''
+      console.error('[registration] finish failed', { code, message: detail, details: err?.details, hint: err?.hint })
+      if(code === '23505' && /phone/i.test(detail + ' ' + String(err?.details || ''))){
+        setMessage(t('Bu telefon raqami avval boshqa profilga biriktirilgan. Eski akkaunt orqali kiring yoki yordam xizmatiga murojaat qiling.','Этот номер телефона уже привязан к другому профилю. Войдите в прежний аккаунт или обратитесь в поддержку.'))
+      } else if(code === '23505'){
+        setMessage(t('Bu ma’lumot bilan profil avval ro‘yxatdan o‘tgan. Sahifani yangilang va qayta kiring.','Профиль с такими данными уже зарегистрирован. Обновите страницу и войдите снова.'))
+      } else if(code === '42501' || /row-level security|permission denied/i.test(detail)){
+        setMessage(t('Profilni saqlashga ruxsat berilmadi. Sessiyani yangilang: sahifani qayta ochib, telefonni yana tasdiqlang.','Нет разрешения сохранить профиль. Обновите сессию: откройте страницу заново и повторно подтвердите телефон.'))
+      } else if(detail){
+        setMessage(detail)
+      } else {
+        setMessage(t('Ro‘yxatdan o‘tishda xatolik. Sahifani yangilang va qayta urinib ko‘ring.','Ошибка регистрации. Обновите страницу и попробуйте снова.'))
+      }
+    }
     finally{setLoading(false)}
   }
 
