@@ -48,7 +48,7 @@ export async function GET() {
         .order('paid_at', { ascending: false })
         .range(0, 9999),
       db.from('monetization_payment_attempts')
-        .select('id,order_id,user_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
+        .select('id,order_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
         .order('created_at', { ascending: false })
         .range(0, 999),
     ])
@@ -75,13 +75,6 @@ export async function GET() {
       orders.push(...(orderResult.data || []))
       items.push(...(itemResult.data || []))
     }
-    for (let offset = 0; offset < userIds.length; offset += 200) {
-      const batch = userIds.slice(offset, offset + 200)
-      const { data, error: profileError } = await db.from('profiles').select('id,full_name,phone,company_name').in('id', batch)
-      if (profileError) throw profileError
-      profiles.push(...(data || []))
-    }
-
     const productCodes = [...new Set(items.map((item: any) => item.product_code).filter(Boolean))]
     const products: any[] = []
     for (let offset = 0; offset < productCodes.length; offset += 200) {
