@@ -59,7 +59,7 @@ export default function ServiceListingWizardV2() {
     let active = true
     ;(async () => {
       try {
-        const r = await fetch('/api/listings/meta', { cache: 'no-store' })
+        const r = await fetch('/api/listings/meta?flow=service', { cache: 'no-store' })
         const d = await r.json()
         if (!r.ok) throw new Error(d.error || t('Ma’lumotlar yuklanmadi', 'Не удалось загрузить данные'))
         const serviceCategories = (d.categories || []).filter((c: Category) => c.section_code === 'services' && c.entity_type === 'service' && c.is_listable !== false)
