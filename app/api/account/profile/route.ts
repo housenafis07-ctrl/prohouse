@@ -1,0 +1,68 @@
+import { NextResponse } from 'next/server'
+import { createClient } from '@/utils/supabase/server'
+import { serviceClient } from '@/utils/admin/auth'
+
+const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
+
+export async function POST(request: Request) {
+  const auth = await createClient()
+  const { data: { user } } = await auth.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
+  const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''
+  const accountType = body.account_type === 'partner' ? 'partner' : 'individual'
+  const legalForm = typeof body.partner_type === 'string' && legalForms.has(body.partner_type) ? body.partner_type : null
+  const companyName = typeof body.company_name === 'string' ? body.company_name.trim() : ''
+  const inn = typeof body.inn === 'string' ? body.inn.trim() : ''
+  const bankName = typeof body.bank_name === 'string' ? body.bank_name.trim() : ''
+  const bankAccount = typeof body.bank_account === 'string' ? body.bank_account.trim() : ''
+  const mfo = typeof body.mfo === 'string' ? body.mfo.trim() : ''
+  const oked = typeof body.oked === 'string' ? body.oked.trim() : ''
+  const directorName = typeof body.director_full_name === 'string' ? body.director_full_name.trim() : ''
+
+  if (!fullName) return NextResponse.json({ error: 'F.I.O. ni kiriting.' }, { status: 400 })
+  if (accountType === 'partner' && !legalForm) return NextResponse.json({ error: 'Hamkor turini tanlang.' }, { status: 400 })
+  if (accountType === 'partner' && !inn) return NextResponse.json({ error: 'INN ni kiriting.' }, { status: 400 })
+
+  const db = serviceClient()
+  const profilePatch = {
+    full_name: fullName,
+    account_type: accountType,
+    partner_type: accountType === 'partner' ? legalForm : null,
+    company_name: companyName || null,
+    inn: inn || null,
+    bank_name: bankName || null,
+    bank_account: bankAccount || null,
+    mfo: mfo || null,
+    oked: oked || null,
+    director_full_name: directorName || null,
+  }
+  const { error: updateError } = await db.from('profiles').update(profilePatch).eq('id', user.id)
+  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
+
+  if (accountType === 'partner') {
+    const { data: existingPartner, error: existingError } = await db.from('partner_profiles').select('id,verification_status').eq('user_id', user.id).maybeSingle()
+    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+    const { error: partnerError } = await db.from('partner_profiles').upsert({
+      ...(existingPartner?.id ? { id: existingPartner.id } : {}),
+      user_id: user.id,
+      partner_type: 'service_provider',
+      legal_form: legalForm,
+      display_name: companyName || fullName,
+      company_name: companyName || null,
+      verification_status: existingPartner?.verification_status || 'pending',
+      metadata: { inn: inn || null, bank_name: bankName || null, bank_account: bankAccount || null, mfo: mfo || null, oked: oked || null, director_full_name: directorName || null },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    if (partnerError) return NextResponse.json({ error: partnerError.message }, { status: 400 })
+  } else {
+    const { error: deleteError } = await db.from('partner_profiles').delete().eq('user_id', user.id)
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
+  }
+
+  const { data: updated, error: readError } = await db.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').eq('id', user.id).single()
+  if (readError) return NextResponse.json({ error: readError.message }, { status: 400 })
+  return NextResponse.json({ profile: updated })
+}
