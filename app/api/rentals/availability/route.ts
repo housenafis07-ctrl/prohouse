@@ -26,6 +26,6 @@ export async function GET(request:NextRequest){
   const booked=new Set<string>();for(const b of bookings||[]){for(const d of eachDay(b.check_in,addDays(b.check_out,-1)))booked.add(d)}
   const blocked=new Set<string>(settings.blocked_dates||[]);const prices=settings.date_prices||{};const {fee:extraGuestFee,included:includedGuests}=extraGuestSettings(settings);const extraGuests=Math.max(0,guests-includedGuests)
   const days=eachDay(from,to).map(date=>{const weekend=isWeekend(date);const override=prices[date]?num(prices[date]):null;const fallback=seasonalPrice(settings,!weekend,new Date(`${date}T00:00:00Z`).getUTCMonth());const base=override||fallback||num(listing.price);const price=base+(extraGuestFee*extraGuests);return {date,status:booked.has(date)?'booked':blocked.has(date)?'blocked':'free',price,basePrice:base,extraGuestFee,extraGuests,priceType:override?'date':fallback?(weekend?'weekend':'weekday'):'base'}})
-  return NextResponse.json({listingId,currency:listing.currency,depositPercent:num(settings.deposit_percent)||15,extraGuestFee,includedGuests,guests,days})
+  return NextResponse.json({listingId,currency:listing.currency,depositPercent:10,extraGuestFee,includedGuests,guests,days})
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Availability error'},{status:500})}
 }
