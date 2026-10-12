@@ -20,6 +20,7 @@ type Product = {
   quantity: number
   badge: string | null
   badge_ru: string | null
+  audience: string
 }
 
 type Listing = {
@@ -110,17 +111,25 @@ export default function MonetizationCheckoutPage() {
         return
       }
 
-      const [{ data: p }, listingsResponse, orderResponse] = await Promise.all([
-        db.from('monetization_products').select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,unit,quantity,badge,badge_ru').eq('active', true).order('product_type').order('duration_days'),
+      const [{ data: p }, listingsResponse, orderResponse, { data: profile }] = await Promise.all([
+        db.from('monetization_products').select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,unit,quantity,badge,badge_ru,audience').eq('active', true).order('product_type').order('duration_days'),
         fetch('/api/monetization/listings', { cache: 'no-store' }),
         requestedOrderId ? fetch(`/api/monetization/orders/${encodeURIComponent(requestedOrderId)}`, { cache: 'no-store' }) : Promise.resolve(null),
+        db.from('profiles').select('account_type').eq('id', user.id).maybeSingle(),
       ])
 
       const listingsPayload = listingsResponse.ok ? await listingsResponse.json() : { listings: [] }
       const ownListings = Array.isArray(listingsPayload.listings) ? listingsPayload.listings as Listing[] : []
 
-      setProducts((p || []) as Product[])
+      const accountType = profile?.account_type || ''
+      const eligibleProducts = ((p || []) as Product[]).filter((item) => item.audience === 'all' || item.audience === accountType)
+      setProducts(eligibleProducts)
       setListings(ownListings)
+      const requestedProductCode = params.get('product') || ''
+      if (requestedProductCode && !eligibleProducts.some((item) => item.code === requestedProductCode)) {
+        setProductCode('')
+        setError(lang === 'ru' ? 'Этот тариф недоступен для типа вашего аккаунта. Вернитесь в каталог и выберите доступный тариф.' : 'Bu tarif hisobingiz turiga mos emas. Katalogga qaytib, hisobingiz uchun mavjud tarifni tanlang.')
+      }
 
       const requestedListingId = params.get('listingId') || ''
       if (requestedListingId && !ownListings.some((listing) => listing.id === requestedListingId)) {
