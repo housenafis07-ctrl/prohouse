@@ -41,7 +41,7 @@ export async function GET() {
     const yearStart = Date.UTC(uzNow.getUTCFullYear(), 0, 1) - 5 * 60 * 60 * 1000
     const nowMs = now.getTime()
 
-    const [{ data: paidRows, error: paidError }, { data: recentRows, error: recentError }] = await Promise.all([
+    const [{ data: paidRows, error: paidError }, { data: recentRows, error: recentError }, { data: paidRentalRows, error: paidRentalError }, { data: recentRentalRows, error: recentRentalError }] = await Promise.all([
       db.from('monetization_payment_attempts')
         .select('id,order_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
         .eq('status', 'paid')
@@ -51,12 +51,42 @@ export async function GET() {
         .select('id,order_id,provider,status,amount_uzs,currency,provider_payment_id,paid_at,created_at')
         .order('created_at', { ascending: false })
         .range(0, 999),
+      db.from('rental_bookings')
+        .select('id,listing_id,guest_id,deposit_amount,currency,payment_provider,payment_status,status,provider_payment_id,paid_at,created_at,check_in,check_out')
+        .eq('payment_provider', 'payme').eq('payment_status', 'paid').eq('status', 'confirmed').not('provider_payment_id', 'is', null).not('paid_at', 'is', null)
+        .order('paid_at', { ascending: false }).range(0, 9999),
+      db.from('rental_bookings')
+        .select('id,listing_id,guest_id,deposit_amount,currency,payment_provider,payment_status,status,provider_payment_id,paid_at,created_at,check_in,check_out')
+        .eq('payment_provider', 'payme').order('created_at', { ascending: false }).range(0, 999),
     ])
     if (paidError) throw paidError
     if (recentError) throw recentError
+    if (paidRentalError) throw paidRentalError
+    if (recentRentalError) throw recentRentalError
 
     const paid = (paidRows || []) as Attempt[]
     const recent = (recentRows || []) as Attempt[]
+    const paidRentals: any[] = paidRentalRows || []
+    const recentRentals: any[] = recentRentalRows || []
+    const rentalGuestIds = [...new Set([...paidRentals, ...recentRentals].map(row => row.guest_id).filter(Boolean))]
+    const rentalListingIds = [...new Set([...paidRentals, ...recentRentals].map(row => row.listing_id).filter(Boolean))]
+    const rentalProfiles: any[] = []
+    const rentalListings: any[] = []
+    for (let offset = 0; offset < rentalGuestIds.length; offset += 200) {
+      const batch = rentalGuestIds.slice(offset, offset + 200)
+      const { data, error: rentalProfileError } = await db.from('profiles').select('id,full_name,phone,company_name').in('id', batch)
+      if (rentalProfileError) throw rentalProfileError
+      rentalProfiles.push(...(data || []))
+    }
+    for (let offset = 0; offset < rentalListingIds.length; offset += 200) {
+      const batch = rentalListingIds.slice(offset, offset + 200)
+      const { data, error: rentalListingError } = await db.from('listings').select('*').in('id', batch)
+      if (rentalListingError) throw rentalListingError
+      rentalListings.push(...(data || []))
+    }
+    const rentalProfileMap = new Map(rentalProfiles.map(profile => [profile.id, profile]))
+    const rentalListingMap = new Map(rentalListings.map(listing => [listing.id, listing]))
+    const rentalAmount = (rows: any[]) => rows.reduce((sum, row) => sum + Number(row.deposit_amount || 0), 0)
     const orderIds = [...new Set([...paid, ...recent].map(row => row.order_id).filter(Boolean))]
     const userIds: string[] = []
 
@@ -109,6 +139,9 @@ export async function GET() {
     const paidThisMonth = paid.filter(row => inPeriod(row.paid_at, monthStart, nowMs + 1))
     const paidThisYear = paid.filter(row => inPeriod(row.paid_at, yearStart, nowMs + 1))
     const paidToday = paid.filter(row => inPeriod(row.paid_at, todayStart, nowMs + 1))
+    const paidRentalsThisMonth = paidRentals.filter(row => inPeriod(row.paid_at, monthStart, nowMs + 1))
+    const paidRentalsThisYear = paidRentals.filter(row => inPeriod(row.paid_at, yearStart, nowMs + 1))
+    const paidRentalsToday = paidRentals.filter(row => inPeriod(row.paid_at, todayStart, nowMs + 1))
     const customerCount = new Set(paid.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size
     const monthlyCustomerCount = new Set(paidThisMonth.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size
     const yearlyCustomerCount = new Set(paidThisYear.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size
@@ -144,6 +177,21 @@ export async function GET() {
         services: serviceNames,
       }
     })
+
+    const rentalTransactions = recentRentals.map(row => {
+      const profile: any = rentalProfileMap.get(row.guest_id)
+      const listing: any = rentalListingMap.get(row.listing_id)
+      const listingName = listing?.title || listing?.name || listing?.draft_data?.title || listing?.draft_data?.name || 'Dacha bron avansi'
+      const status = row.payment_status === 'paid' && row.status === 'confirmed' && row.provider_payment_id && row.paid_at ? 'paid' : row.payment_status === 'cancelled' ? 'cancelled' : row.payment_status === 'failed' ? 'failed' : row.payment_status === 'processing' ? 'processing' : 'pending'
+      return {
+        id: 'rental:' + row.id, order_id: row.id, customer_id: row.guest_id || null,
+        customer_name: profile?.full_name || profile?.company_name || 'Noma’lum mijoz', customer_phone: profile?.phone || null,
+        provider: row.payment_provider || 'payme', status, amount_uzs: Number(row.deposit_amount || 0), currency: row.currency || 'UZS',
+        provider_payment_id: row.provider_payment_id || null, paid_at: row.paid_at || null, created_at: row.created_at,
+        services: [{ code: 'rental_deposit', name_uz: 'Dacha avans to‘lovi — ' + listingName, name_ru: 'Аванс за дачу — ' + listingName, product_type: 'rental_deposit', quantity: 1, listing_id: row.listing_id || null }],
+      }
+    })
+    const allTransactions = [...transactions, ...rentalTransactions].sort((a, b) => new Date(b.created_at || b.paid_at || 0).getTime() - new Date(a.created_at || a.paid_at || 0).getTime()).slice(0, 1000)
 
     const byService = new Map<string, {
       code: string; name_uz: string; name_ru: string; product_type: string;
@@ -194,25 +242,35 @@ export async function GET() {
         byService.set(code, entry)
       }
     }
+    if (paidRentals.length) {
+      const all = rentalAmount(paidRentals)
+      const today = rentalAmount(paidRentalsToday)
+      const month = rentalAmount(paidRentalsThisMonth)
+      const year = rentalAmount(paidRentalsThisYear)
+      byService.set('rental_deposit', {
+        code: 'rental_deposit', name_uz: 'Dacha avans to‘lovlari', name_ru: 'Авансовые платежи за дачу', product_type: 'rental_deposit',
+        payments: paidRentals.length, customers: new Set(paidRentals.map(row => row.guest_id).filter(Boolean)), all_time: all, today, month, year, order_ids: new Set(paidRentals.map(row => row.id)),
+      })
+    }
     const serviceReport = [...byService.values()]
       .map(({ customers, order_ids, ...item }) => ({
         ...item,
         customers: customers.size,
         orders: order_ids.size,
-        share_percent: paidAmount(paid) > 0 ? Math.round(item.all_time / paidAmount(paid) * 1000) / 10 : 0,
+        share_percent: (paidAmount(paid) + rentalAmount(paidRentals)) > 0 ? Math.round(item.all_time / (paidAmount(paid) + rentalAmount(paidRentals)) * 1000) / 10 : 0,
       }))
       .sort((a, b) => b.all_time - a.all_time)
 
     return NextResponse.json({
       summary: {
-        all_time: { amount_uzs: paidAmount(paid), payments: paid.length, customers: customerCount },
-        today: { amount_uzs: paidAmount(paidToday), payments: paidToday.length, customers: new Set(paidToday.map(row => orderMap.get(row.order_id)?.user_id).filter(Boolean)).size },
-        month: { amount_uzs: paidAmount(paidThisMonth), payments: paidThisMonth.length, customers: monthlyCustomerCount },
-        year: { amount_uzs: paidAmount(paidThisYear), payments: paidThisYear.length, customers: yearlyCustomerCount },
+        all_time: { amount_uzs: paidAmount(paid) + rentalAmount(paidRentals), payments: paid.length + paidRentals.length, customers: new Set([...paid.map(row => orderMap.get(row.order_id)?.user_id), ...paidRentals.map(row => row.guest_id)].filter(Boolean)).size },
+        today: { amount_uzs: paidAmount(paidToday) + rentalAmount(paidRentalsToday), payments: paidToday.length + paidRentalsToday.length, customers: new Set([...paidToday.map(row => orderMap.get(row.order_id)?.user_id), ...paidRentalsToday.map(row => row.guest_id)].filter(Boolean)).size },
+        month: { amount_uzs: paidAmount(paidThisMonth) + rentalAmount(paidRentalsThisMonth), payments: paidThisMonth.length + paidRentalsThisMonth.length, customers: new Set([...paidThisMonth.map(row => orderMap.get(row.order_id)?.user_id), ...paidRentalsThisMonth.map(row => row.guest_id)].filter(Boolean)).size },
+        year: { amount_uzs: paidAmount(paidThisYear) + rentalAmount(paidRentalsThisYear), payments: paidThisYear.length + paidRentalsThisYear.length, customers: new Set([...paidThisYear.map(row => orderMap.get(row.order_id)?.user_id), ...paidRentalsThisYear.map(row => row.guest_id)].filter(Boolean)).size },
       },
       by_service: serviceReport,
-      transactions,
-      truncated: paid.length === 10000,
+      transactions: allTransactions,
+      truncated: paid.length === 10000 || paidRentals.length === 10000,
     }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   } catch (e) {
     const detail = e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message || '') : e instanceof Error ? e.message : ''
