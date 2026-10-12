@@ -204,6 +204,25 @@ export async function POST(request: NextRequest) {
       if (!transactionId || !orderId || !Number.isFinite(time)) return rpcError(body.id, -31008, 'Operation is not allowed')
       if (!isUuid(orderId)) return rpcError(body.id, -31050, 'Order not found', 'order_id')
 
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,deposit_amount,currency,payment_expires_at,provider_payment_id,provider_payload,created_at').eq('id', orderId).maybeSingle()
+      if (rentalError) throw rentalError
+      if (rentalBooking) {
+        if (rentalBooking.currency !== 'UZS' || Math.round(Number(rentalBooking.deposit_amount) * 100) !== amount) return rpcError(body.id, -31001, 'Incorrect amount')
+        if (rentalBooking.status !== 'pending_payment' || !['pending','processing'].includes(rentalBooking.payment_status) || (rentalBooking.payment_expires_at && new Date(rentalBooking.payment_expires_at).getTime() < Date.now())) return rpcError(body.id, -31008, 'Operation is not allowed')
+        const prior = (rentalBooking.provider_payload || {}) as Record<string, any>
+        const priorPayme = (prior.payme || {}) as Record<string, any>
+        if (rentalBooking.provider_payment_id) {
+          if (rentalBooking.provider_payment_id !== transactionId || Number(priorPayme.amount) !== amount) return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+          return rpcResult(body.id, { create_time: Number(priorPayme.create_time || Date.now()), transaction: rentalBooking.id, state: rentalBooking.payment_status === 'paid' ? 2 : 1 })
+        }
+        const createTime = Date.now()
+        const providerPayload = { payme: { id: transactionId, time, amount, account, create_time: createTime, state: 1 } }
+        const { data: bound, error: bindError } = await admin.from('rental_bookings').update({ provider_payment_id: transactionId, payment_status: 'processing', provider_payload: providerPayload, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).eq('payment_status', 'pending').is('provider_payment_id', null).select('id').maybeSingle()
+        if (bindError) throw bindError
+        if (!bound) return rpcError(body.id, -31099, 'Other transaction for this order is in progress', 'order_id')
+        return rpcResult(body.id, { create_time: createTime, transaction: rentalBooking.id, state: 1 })
+      }
+
       const { data: order, error: orderError } = await admin.from('monetization_orders').select('id,user_id,status,subtotal_uzs,currency,provider').eq('id', orderId).maybeSingle()
       if (orderError) throw orderError
       if (!order) return rpcError(body.id, -31050, 'Order not found', 'order_id')
