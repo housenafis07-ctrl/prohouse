@@ -465,6 +465,19 @@ export async function POST(request: NextRequest) {
     if (method === 'CancelTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
       const reason = Number.isFinite(Number(params.reason)) ? Number(params.reason) : -1
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,provider_payload').eq('provider_payment_id', transactionId).maybeSingle()
+      if (rentalError) throw rentalError
+      if (rentalBooking) {
+        const payload = (rentalBooking.provider_payload || {}) as Record<string, any>
+        const payme = (payload.payme || {}) as Record<string, any>
+        if (rentalBooking.payment_status === 'cancelled') return rpcResult(body.id, { transaction: rentalBooking.id, cancel_time: Number(payme.cancel_time || Date.now()), state: Number(payme.state || -1) })
+        const alreadyPerformed = rentalBooking.payment_status === 'paid' || Number(payme.perform_time || 0) > 0
+        const cancelTime = Date.now()
+        const state = alreadyPerformed ? -2 : -1
+        const { error: updateError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).in('payment_status', ['pending','processing','paid'])
+        if (updateError) throw updateError
+        return rpcResult(body.id, { transaction: rentalBooking.id, cancel_time: cancelTime, state })
+      }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload,paid_at').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
       if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
