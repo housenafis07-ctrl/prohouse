@@ -120,7 +120,9 @@ export async function POST(request: Request) {
   }
   const sellerRole = isServiceListing ? 'service_provider' : (accountType === 'individual' ? 'owner' : null)
   const isIndividualOwner = accountType === 'individual' && ownershipType === 'owner' && !isServiceListing
-  const sellerType = isServiceListing ? 'service_provider' : (isIndividualOwner ? 'owner' : null)
+  // listings.seller_type is NOT NULL: every property draft must have a legacy seller type.
+  // Only an explicitly declared individual owner is tagged owner; all other property drafts use seller.
+  const sellerType = isServiceListing ? 'service_provider' : (isIndividualOwner ? 'owner' : 'seller')
   const sellerName = isServiceListing
     ? text(profile?.company_name) || text(profile?.full_name) || null
     : (isIndividualOwner ? text(profile?.full_name) || null : null)
