@@ -10,7 +10,7 @@ import { formatMoney } from '@/lib/money'
 import { useI18n } from './I18nProvider'
 
 type Lang='uz'|'ru'
-type Listing={id:string;title:string;title_ru?:string|null;listing_type:string;property_type:string;price:number;currency:string;area_m2:number|null;rooms:number|null;floor:number|null;floors_total:number|null;land_area:number|null;district:string|null;city:string;seller_name:string|null;is_verified:boolean;is_featured:boolean;promotion_badge?:string|null;promoted_until?:string|null;published_at:string|null;image_url?:string}
+type Listing={id:string;title:string;title_ru?:string|null;listing_type:string;taxonomy_code?:string|null;property_type:string;price:number;currency:string;area_m2:number|null;rooms:number|null;floor:number|null;floors_total:number|null;land_area:number|null;district:string|null;city:string;seller_name:string|null;is_verified:boolean;is_featured:boolean;promotion_badge?:string|null;promoted_until?:string|null;published_at:string|null;image_url?:string}
 const ruTitles:Record<string,string>={'2 xonali zamonaviy kvartira':'Современная 2-комнатная квартира','Yangi qurilgan premium uy':'Новый дом премиум-класса','3 xonali yorug‘ kvartira':'Светлая 3-комнатная квартира'}
 const money=(value:number,currency:string,lang:Lang)=>formatMoney(value,currency,lang)
 const locationRu:Record<string,string>={
