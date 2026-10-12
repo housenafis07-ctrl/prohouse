@@ -16,7 +16,7 @@ export async function POST(request:NextRequest){
   const body=await request.json();const listingId=String(body.listingId||'');const checkIn=String(body.checkIn||'');const checkOut=String(body.checkOut||'');const guests=Math.max(1,Number(body.guests||1))
   if(!listingId||!/^(?:\d{4})-\d{2}-\d{2}$/.test(checkIn)||!/^(?:\d{4})-\d{2}-\d{2}$/.test(checkOut)||checkOut<=checkIn)return NextResponse.json({error:'Sanalar noto‘g‘ri tanlangan'},{status:400})
   const merchantId=process.env.PAYME_MERCHANT_ID?.trim()
-  if(!merchantId)return NextResponse.json({error:'PAYMENT_NOT_CONFIGURED: Payme to‘lov sozlamalari topilmadi. Bron yaratilmadi.'},{status:503})
+  if(!merchantId||!process.env.PAYME_MERCHANT_KEY?.trim())return NextResponse.json({error:'PAYMENT_NOT_CONFIGURED: Payme to‘lov sozlamalari to‘liq emas. Bron yaratilmadi.'},{status:503})
   const db=serviceClient();const {data:listing,error}=await db.from('listings').select('id,owner_id,status,listing_type,taxonomy_code,price,currency,draft_data').eq('id',listingId).eq('status','active').maybeSingle();if(error)throw error;if(!listing)return NextResponse.json({error:'E’lon topilmadi'},{status:404})
   if(listing.owner_id===user.id)return NextResponse.json({error:'O‘z e’loningizni bron qila olmaysiz'},{status:400})
   if(!(listing.listing_type==='daily'||listing.taxonomy_code==='rent_dacha'))return NextResponse.json({error:'Bu e’lon uchun bron mavjud emas'},{status:400})
