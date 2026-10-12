@@ -180,6 +180,13 @@ export async function POST(request: NextRequest) {
       const account = params.account as Record<string, unknown> | undefined
       const orderId = typeof account?.order_id === 'string' ? account.order_id : ''
       if (!orderId || !isUuid(orderId)) return rpcError(body.id, -31050, 'Order not found', 'order_id')
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,deposit_amount,currency,payment_expires_at').eq('id', orderId).maybeSingle()
+      if (rentalError) throw rentalError
+      if (rentalBooking) {
+        if (rentalBooking.currency !== 'UZS' || Math.round(Number(rentalBooking.deposit_amount) * 100) !== amount) return rpcError(body.id, -31001, 'Incorrect amount')
+        if (rentalBooking.status !== 'pending_payment' || rentalBooking.payment_status !== 'pending' || (rentalBooking.payment_expires_at && new Date(rentalBooking.payment_expires_at).getTime() < Date.now())) return rpcError(body.id, -31008, 'Operation is not allowed')
+        return rpcResult(body.id, { allow: true })
+      }
       const { data: order, error } = await admin.from('monetization_orders').select('id,status,subtotal_uzs,currency').eq('id', orderId).maybeSingle()
       if (error) throw error
       if (!order) return rpcError(body.id, -31050, 'Order not found', 'order_id')
