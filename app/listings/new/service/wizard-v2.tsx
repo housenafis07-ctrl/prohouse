@@ -180,7 +180,7 @@ export default function ServiceListingWizardV2() {
     try {
       const files: File[] = []
       for (const original of selectedFiles) {
-        const isHeic = /\.(heic|heif)$/i.test(original.name) || /image\\/(heic|heif)/i.test(original.type)
+        const isHeic = /\.(heic|heif)$/i.test(original.name) || original.type.toLowerCase().includes('heic') || original.type.toLowerCase().includes('heif')
         let file = original
         if (isHeic) {
           // iPhone photos are often HEIC, which Telegram's embedded browser cannot preview.
