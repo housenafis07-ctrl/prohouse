@@ -105,6 +105,7 @@ export default function AccountPage() {
   const actions = [
     { icon: 'plus' as const, title: ru ? 'Разместить объявление' : 'E’lon joylashtirish', text: ru ? 'Продайте или сдайте недвижимость через Royalhouse.' : 'Mulkingizni Royalhouse’da soting yoki ijaraga bering.', href: '/listings/new', primary: true },
     { icon: 'home' as const, title: ru ? 'Мои объявления' : 'Mening e’lonlarim', text: ru ? 'Просматривайте, редактируйте и управляйте своими объявлениями.' : 'Joylashtirgan e’lonlaringizni ko‘ring, tahrirlang va holatini boshqaring.', href: '/account/listings', primary: false },
+    { icon: 'check' as const, title: ru ? 'Мои бронирования' : 'Mening bronlarim', text: ru ? 'Брони дач, статусы аванса и подтверждения оплаты.' : 'Dacha bronlari, avans holati va to‘lov tasdiqlari.', href: '/account/bookings', primary: false },
   ]
 
   return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-5xl"><header className="flex items-center justify-between gap-4"><Link href="/" className="text-sm font-extrabold text-emerald-700">← Royalhouse</Link><button onClick={signOut} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">{ru ? 'Выйти' : 'Chiqish'}</button></header>
