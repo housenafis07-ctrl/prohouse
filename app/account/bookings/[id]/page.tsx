@@ -43,7 +43,7 @@ export default function RentalBookingDetailsPage() {
   if (loading) return <main className="min-h-[60vh] bg-slate-50 p-8 text-center text-slate-500">{ru ? 'Загрузка...' : 'Yuklanmoqda...'}</main>
   if (error || !booking) return <main className="min-h-[60vh] bg-slate-50 px-4 py-10"><div className="mx-auto max-w-3xl rounded-2xl border border-rose-200 bg-white p-6 text-rose-700">{error || (ru ? 'Бронь не найдена.' : 'Bron topilmadi.')}<p className="mt-4"><Link className="font-bold text-emerald-700" href="/account/bookings">{ru ? 'К списку броней' : 'Bronlar ro‘yxatiga'}</Link></p></div></main>
 
-  return <main className="min-h-[65vh] bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-3xl">
+  return <><style jsx global>{`@media print { body * { visibility: hidden !important; } #payment-receipt, #payment-receipt * { visibility: visible !important; } #payment-receipt { position: absolute !important; left: 0; top: 0; width: 100%; margin: 0 !important; border: 0 !important; box-shadow: none !important; } .print\\:hidden { display: none !important; } }`}</style><main className="min-h-[65vh] bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-3xl">
     <Link href="/account/bookings" className="text-sm font-bold text-emerald-700">{ru ? '← Мои бронирования' : '← Mening bronlarim'}</Link>
     <section className="mt-4 overflow-hidden rounded-3xl bg-white shadow-sm">
       {booking.listing?.image && <img src={booking.listing.image} alt="" className="h-56 w-full object-cover" />}
