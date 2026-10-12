@@ -186,14 +186,6 @@ export default function ServiceListingWizardV2() {
     setMainImage(0)
   }
 
-  const getImageDimensions = (file: File): Promise<{ width: number | null; height: number | null }> => new Promise(resolve => {
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => { URL.revokeObjectURL(url); resolve({ width: image.naturalWidth, height: image.naturalHeight }) }
-    image.onerror = () => { URL.revokeObjectURL(url); resolve({ width: null, height: null }) }
-    image.src = url
-  })
-
   const submit = async () => {
     const validation = validate()
     if (validation) { setError(validation); return }
