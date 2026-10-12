@@ -28,7 +28,7 @@ export async function POST(request:NextRequest){
   const {data:overlap,error:overlapError}=await db.from('rental_bookings').select('id').eq('listing_id',listingId).or(`status.eq.confirmed,and(status.eq.pending_payment,payment_expires_at.gt.${now.toISOString()})`).lt('check_in',checkOut).gt('check_out',checkIn).limit(1);if(overlapError)throw overlapError
   if(overlap?.length)return NextResponse.json({error:'Tanlangan sanalar allaqachon band'},{status:409})
   const prices=settings.date_prices||{};const extraGuests=Math.max(0,guests-includedGuests)
-  const total=requested.reduce((sum,d)=>{const override=num(prices[d]);const weekday=!isWeekend(d);const fallback=seasonalPrice(settings,weekday,new Date(`${d}T00:00:00Z`).getUTCMonth());const base=override||fallback||num(listing.price);return sum+base+(extraGuestFee*extraGuests)},0)
+  const total=requested.reduce((sum,d)=>{const rateDate=addDays(d,1);const override=num(prices[rateDate]);const weekday=!isWeekend(rateDate);const fallback=seasonalPrice(settings,weekday,new Date(`${rateDate}T00:00:00Z`).getUTCMonth());const base=override||fallback||num(listing.price);return sum+base+(extraGuestFee*extraGuests)},0)
   if(!Number.isFinite(total)||total<=0)return NextResponse.json({error:'Bron summasi noto‘g‘ri hisoblandi'},{status:400})
   const depositPercent=10;const depositAmount=Math.round(total*depositPercent/100);if(depositAmount<=0)return NextResponse.json({error:'Avans summasi noto‘g‘ri'},{status:400})
   const paymentExpiresAt=new Date(Date.now()+20*60*1000).toISOString()
