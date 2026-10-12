@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
-import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
+import { isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type Category = { code: string; name_uz: string; name_ru: string | null; section_code: string; entity_type: string; is_listable?: boolean; sort_order: number }
@@ -186,50 +186,36 @@ export default function ServiceListingWizardV2() {
     setMainImage(0)
   }
 
-  const getImageDimensions = (file: File): Promise<{ width: number | null; height: number | null }> => new Promise(resolve => {
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-    image.onload = () => { URL.revokeObjectURL(url); resolve({ width: image.naturalWidth, height: image.naturalHeight }) }
-    image.onerror = () => { URL.revokeObjectURL(url); resolve({ width: null, height: null }) }
-    image.src = url
-  })
-
   const submit = async () => {
     const validation = validate()
     if (validation) { setError(validation); return }
     if (!listingId) { setError(t('Qoralama topilmadi.', 'Черновик не найден.')); return }
-    setSaving(true); setError('')
-    const uploaded: string[] = []
-    let persisted = false
+    setSaving(true)
+    setError('')
     try {
       const user = await ensureSession()
       if (!user) throw new Error('AUTH_REQUIRED')
+
+      // Upload private listing images and submit the draft in one authenticated
+      // server request. The bucket is private, so client-side upload policies
+      // must not be required for the service listing wizard.
       const ordered = [images[mainImage], ...images.filter((_, i) => i !== mainImage)]
-      const rows = []
-      for (let i = 0; i < ordered.length; i++) {
-        const file = ordered[i].file
-        const path = getListingImageStoragePath(user.id, listingId, file.name)
-        const upload = await db.storage.from(LISTING_IMAGE_BUCKET).upload(path, file, { cacheControl: '31536000', upsert: false })
-        if (upload.error) throw upload.error
-        uploaded.push(path)
-        const dimensions = await getImageDimensions(file)
-        const publicUrl = db.storage.from(LISTING_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl
-        rows.push({ listing_id: listingId, image_url: publicUrl, storage_path: path, sort_order: i, width: dimensions.width, height: dimensions.height, size_bytes: file.size, mime_type: file.type })
+      const body = new FormData()
+      body.set('listingId', listingId)
+      ordered.forEach(image => body.append('images', image.file, image.file.name))
+
+      const response = await fetch('/api/listings/service-submit', { method: 'POST', body })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(result.message || result.error || t('E’lonni moderatsiyaga yuborib bo‘lmadi.', 'Не удалось отправить объявление на модерацию.'))
       }
-      if (rows.length) {
-        const { error: imageError } = await db.from('listing_images').insert(rows)
-        if (imageError) throw imageError
-        persisted = true
-      }
-      const r = await fetch('/api/listings/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, step: 6, data: payload(), status: 'moderation' }) })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.message || d.error || t('Moderatsiyaga yuborilmadi', 'Не удалось отправить на модерацию'))
-      setSuccess(t(`Xizmat e’loni moderatsiyaga yuborildi: ${d.listing.listing_code}`, `Объявление об услуге отправлено на модерацию: ${d.listing.listing_code}`))
+      setSuccess(t(`Xizmat e’loni moderatsiyaga yuborildi: ${result.listing.listing_code}`, `Объявление об услуге отправлено на модерацию: ${result.listing.listing_code}`))
       setTimeout(() => router.push('/account/listings'), 700)
     } catch (e) {
-      if (!persisted && uploaded.length) await db.storage.from(LISTING_IMAGE_BUCKET).remove(uploaded)
       setError(e instanceof Error ? e.message : t('E’lonni yuborishda xatolik', 'Ошибка отправки объявления'))
-    } finally { setSaving(false) }
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-4xl rounded-3xl bg-white p-10 text-center">{t('Yuklanmoqda...', 'Загрузка...')}</div></main>
