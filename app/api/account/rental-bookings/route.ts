@@ -36,8 +36,8 @@ export async function GET() {
     ])
     if (detailError) throw detailError
     if (profileError) throw profileError
-    const listingMap = new Map((listingDetails || []).map((x: any) => [x.id, x]))
-    const profileMap = new Map((profiles || []).map((x: any) => [x.id, x]))
+    const listingMap = new Map<string, any>((listingDetails || []).map((x: any) => [x.id, x] as [string, any]))
+    const profileMap = new Map<string, any>((profiles || []).map((x: any) => [x.id, x] as [string, any]))
     const result = entries.map(({ booking, role }) => {
       const listing: any = listingMap.get(booking.listing_id)
       const guest: any = profileMap.get(booking.guest_id)
