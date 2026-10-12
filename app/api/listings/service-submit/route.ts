@@ -80,6 +80,7 @@ export async function POST(request: Request) {
   }
 
   const uploadedPaths: string[] = []
+  let imageRowsInserted = false
   try {
     const rows = []
     for (let index = 0; index < files.length; index++) {
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
 
     const { error: insertError } = await db.from('listing_images').insert(rows)
     if (insertError) throw new Error(`Rasm ma’lumotini saqlashda xatolik: ${insertError.message}`)
+    imageRowsInserted = true
 
     const { data: updated, error: updateError } = await db
       .from('listings')
@@ -116,6 +118,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, listing: updated, images_added: rows.length })
   } catch (error) {
+    if (imageRowsInserted && uploadedPaths.length) {
+      await db.from('listing_images').delete().eq('listing_id', listingId).in('storage_path', uploadedPaths)
+    }
     if (uploadedPaths.length) {
       await db.storage.from(BUCKET).remove(uploadedPaths)
     }
