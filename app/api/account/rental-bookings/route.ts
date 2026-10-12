@@ -11,7 +11,7 @@ export async function GET() {
     const db = serviceClient()
     const [{ data: customerRows, error: customerError }, { data: ownedListings, error: listingsError }] = await Promise.all([
       db.from('rental_bookings').select('id,listing_id,guest_id,check_in,check_out,guests,currency,total_amount,deposit_percent,deposit_amount,payment_provider,payment_status,status,created_at,paid_at,provider_payment_id,provider_payload').eq('guest_id', user.id).order('created_at', { ascending: false }),
-      db.from('listings').select('id,title,title_ru,owner_id,primary_image_url,city,district').eq('owner_id', user.id).eq('taxonomy_code', 'rent_dacha'),
+      db.from('listings').select('id,title,title_ru,owner_id,primary_image_url,city,district').eq('owner_id', user.id),
     ])
     if (customerError) throw customerError
     if (listingsError) throw listingsError
