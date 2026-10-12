@@ -89,15 +89,15 @@ export async function GET(request: Request) {
     allowedCodes = new Set((permissions || []).map((x) => x.category_code))
   }
 
-  // The property and service wizards need different taxonomy sets.
-  // Individual accounts may create property listings without partner permission rows.
-  // Service categories are only exposed in the dedicated service wizard.
+  // These are separate listing flows. The property wizard must always receive
+  // the active/listable property taxonomy; partner_category_permissions currently
+  // contains service-provider-only permissions for some accounts, which otherwise
+  // makes the property wizard's section picker completely empty. Service taxonomy
+  // is returned only to the dedicated service wizard.
   const filtered = (categories || []).filter((c) => {
     const isServiceCategory = c.entity_type === 'service' && c.section_code === 'services'
     if (flow === 'service') return isServiceCategory
-    if (isServiceCategory) return false
-    if (partnerType === 'owner' || !user) return true
-    return !allowedCodes || allowedCodes.has(c.code)
+    return c.entity_type === 'property' && c.section_code !== 'services'
   })
   const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
 
