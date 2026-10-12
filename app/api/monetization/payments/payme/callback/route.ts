@@ -628,6 +628,14 @@ export async function POST(request: NextRequest) {
 
     if (method === 'CheckTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,provider_payload,created_at').eq('provider_payment_id', transactionId).maybeSingle()
+      if (rentalError) throw rentalError
+      if (rentalBooking) {
+        const payload = (rentalBooking.provider_payload || {}) as Record<string, any>
+        const payme = (payload.payme || {}) as Record<string, any>
+        const state = rentalBooking.payment_status === 'paid' ? 2 : rentalBooking.payment_status === 'cancelled' ? Number(payme.state || -1) : 1
+        return rpcResult(body.id, { create_time: Number(payme.create_time || new Date(rentalBooking.created_at).getTime()), perform_time: Number(payme.perform_time || 0), cancel_time: Number(payme.cancel_time || 0), transaction: rentalBooking.id, state, reason: payme.cancel_reason ?? null })
+      }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,status,provider_payload,created_at').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
       if (error) throw error
       if (!attempt) return rpcError(body.id, -31003, 'Transaction not found')
