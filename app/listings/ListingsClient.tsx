@@ -84,7 +84,7 @@ const locationOf = (x: Listing, lang: Lang) => [locationPart(x.city, lang), loca
 
 function readState(params: URLSearchParams): SearchState {
   const tab = params.get('tab')
-  return { tab: tab === 'rent' || tab === 'daily' || tab === 'all' ? tab : 'sale', region: params.get('region') || '', district: params.get('district') || '', type: params.get('type') || '', min: params.get('min') || '', max: params.get('max') || '', currency: params.get('currency') || '', rooms: params.get('rooms') || '', owner: params.get('owner') === 'true', trusted: params.get('trusted') === 'true', mortgage: params.get('mortgage') === 'true', taxonomy: params.get('taxonomy') || '', sort: params.get('sort') || 'newest', q: params.get('q') || '' }
+  return { tab: tab === 'rent' || tab === 'daily' || tab === 'all' ? tab : 'sale', region: params.get('region') || '', district: params.get('district') || '', type: params.get('property_type') || params.get('type') || '', min: params.get('min') || '', max: params.get('max') || '', currency: params.get('currency') || '', rooms: params.get('rooms') || '', owner: params.get('owner') === 'true', trusted: params.get('trusted') === 'true', mortgage: params.get('mortgage') === 'true', taxonomy: params.get('taxonomy') || '', sort: params.get('sort') || 'newest', q: params.get('q') || '' }
 }
 
 function toQuery(s: SearchState, cursor?: string | null) {
