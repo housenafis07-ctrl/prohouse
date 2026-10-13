@@ -77,7 +77,7 @@ async function runTool(name: string, rawArgs: string, db: ReturnType<typeof serv
     const city = clean(a.city, 100)
     const listingType = ['sale', 'rent', 'daily'].includes(a.listing_type) ? a.listing_type : 'any'
     let request = db.from('listings')
-      .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,city,district,description,taxonomy_code')
+      .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,city,district,description,taxonomy_code,max_guests,draft_data')
       .eq('status', 'active')
       .order('published_at', { ascending: false })
       .limit(8)
@@ -100,7 +100,7 @@ async function runTool(name: string, rawArgs: string, db: ReturnType<typeof serv
   if (name === 'get_listing_details') {
     const id = clean((args as unknown as ListingDetailsArgs).listing_id, 80)
     const { data, error } = await db.from('listings')
-      .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,city,district,address,description,taxonomy_code,seller_name,is_verified,is_mortgage_available')
+      .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,city,district,address,description,taxonomy_code,seller_name,is_verified,is_mortgage_available,max_guests,draft_data')
       .eq('id', id).eq('status', 'active').maybeSingle()
     if (error) throw error
     return data ? { listing: data } : { error: 'Active listing not found. Do not infer its details.' }
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
       'You are RoyalHouse customer support assistant. Draft a helpful answer for an operator to review; never send messages.',
       'Use only facts returned by the RoyalHouse tools or explicitly present in the customer message. Never invent listings, prices, addresses, availability, discounts, policies, or booking/payment status.',
       'For a property search, call search_listings. For a specific property, call get_listing_details. For rental dates, call get_rental_availability when listing id and exact dates are known.',
-      'CRITICAL PRICING RULE: Read the full description and verified fields of matching listing results. If the description states weekday price, weekend/holiday price, extra-guest surcharge, guest limit, or other price conditions, include all relevant conditions in the reply. Do not mention only the base price and then claim the pricing period is unknown when the description specifies it. Preserve amounts and conditions exactly.',
+      'CRITICAL PRICING RULE: Read the full description, draft_data JSON, max_guests, and verified fields of matching listing results. Some listing details may be saved in draft_data rather than description. If any of these fields states weekday price, weekend/holiday price, extra-guest surcharge, guest limit, or other price conditions, include all relevant conditions in the reply. Do not mention only the base price and then claim the pricing period is unknown when the data specifies it. Preserve amounts and conditions exactly. Never treat an absent field as proof that a price condition does not exist.',
       'CRITICAL DATES RULE: If the customer gives exact check-in and check-out dates and a matching daily-rental/dacha listing is found, call get_rental_availability for that listing and those dates. If the result is no_conflict_found, say the calendar currently shows no overlapping booking for those dates, but clarify that this is not yet a confirmed reservation. If conflict_found, explain that the dates overlap with a booking and do not call them available.',
       'If a matching listing exists but no exact dates are supplied, give the verified pricing details and ask for dates to check the calendar. If no matching listing is found, do not claim that no dacha listings exist unless the search was broad enough; explain that the matching listing could not be found.',
       'Only ask the operator/customer to verify a fact when the tools and listing description truly do not contain it.',
