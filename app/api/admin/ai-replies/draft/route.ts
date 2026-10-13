@@ -61,7 +61,9 @@ function clean(value: unknown, max = 180) {
 }
 
 function isDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value + 'T00:00:00Z'))
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(value + 'T00:00:00Z')
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
 async function runTool(name: string, rawArgs: string, db: ReturnType<typeof serviceClient>) {
