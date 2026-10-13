@@ -283,7 +283,30 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ draft })
   } catch (error) {
-    console.error('RoyalHouse AI draft failed', error instanceof Error ? error.message : 'unknown error')
+    // Supabase/PostgREST errors are plain objects rather than Error instances.
+    // Log structured, non-sensitive diagnostics so Preview failures can be identified
+    // without logging customer text, credentials, or full database payloads.
+    const dbError = error && typeof error === 'object'
+      ? error as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown }
+      : null
+    const errorMessage = error instanceof Error
+      ? error.message
+      : typeof dbError?.message === 'string' ? dbError.message : 'unknown error'
+    console.error('RoyalHouse AI draft failed', {
+      message: errorMessage.slice(0, 300),
+      code: typeof dbError?.code === 'string' ? dbError.code.slice(0, 40) : undefined,
+      details: typeof dbError?.details === 'string' ? dbError.details.slice(0, 200) : undefined,
+      hint: typeof dbError?.hint === 'string' ? dbError.hint.slice(0, 200) : undefined,
+    })
+
+    const missingDraftTable = dbError?.code === '42P01'
+      || (typeof dbError?.message === 'string' && dbError.message.includes('ai_reply_drafts'))
+    if (missingDraftTable) {
+      return NextResponse.json({
+        error: 'AI javobini saqlash jadvali bu muhitda mavjud emas. Production bazasini o‘zgartirmasdan, avval izolyatsiyalangan test bazasini sozlash kerak.',
+        code: 'AI_DRAFT_STORAGE_NOT_CONFIGURED',
+      }, { status: 503 })
+    }
     return NextResponse.json({ error: 'AI javob loyihasini tayyorlashda xatolik yuz berdi.' }, { status: 500 })
   }
 }
