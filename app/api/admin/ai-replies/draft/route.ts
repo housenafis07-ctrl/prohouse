@@ -150,9 +150,9 @@ function extractText(response: any) {
 }
 
 export async function POST(request: NextRequest) {
-  const { admin, error: authError } = await getCurrentAdmin()
-  if (authError || !admin) {
-    return NextResponse.json({ error: authError || 'Unauthorized' }, { status: authError === 'Unauthorized' ? 401 : 403 })
+  const admin = await getCurrentAdmin()
+  if (!admin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const apiKey = process.env.OPENAI_API_KEY
