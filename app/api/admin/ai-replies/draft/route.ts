@@ -4,7 +4,7 @@ import { getCurrentAdmin, serviceClient } from '@/utils/admin/auth'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-type ListingSearchArgs = { query: string; city: string; listing_type: string }
+type ListingSearchArgs = { query: string; city: string; listing_type: string; sort_by: string }
 type ListingDetailsArgs = { listing_id: string }
 type AvailabilityArgs = { listing_id: string; from: string; to: string }
 
@@ -20,8 +20,9 @@ const tools = [
         query: { type: 'string', description: 'Short phrase from the property title, empty if unknown.' },
         city: { type: 'string', description: 'City or district, empty if unknown.' },
         listing_type: { type: 'string', enum: ['any', 'sale', 'rent', 'daily'], description: 'Requested listing category.' },
+        sort_by: { type: 'string', enum: ['newest', 'lowest_price'], description: 'Use lowest_price when the customer asks for the cheapest/lowest-priced property.' },
       },
-      required: ['query', 'city', 'listing_type'],
+      required: ['query', 'city', 'listing_type', 'sort_by'],
       additionalProperties: false,
     },
   },
@@ -76,10 +77,11 @@ async function runTool(name: string, rawArgs: string, db: ReturnType<typeof serv
     const query = clean(a.query, 100)
     const city = clean(a.city, 100)
     const listingType = ['sale', 'rent', 'daily'].includes(a.listing_type) ? a.listing_type : 'any'
+    const sortBy = a.sort_by === 'lowest_price' ? 'lowest_price' : 'newest'
     let request = db.from('listings')
       .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,city,district,description,taxonomy_code,max_guests,draft_data')
       .eq('status', 'active')
-      .order('published_at', { ascending: false })
+      .order(sortBy === 'lowest_price' ? 'price' : 'published_at', { ascending: true, nullsFirst: false })
       .limit(8)
     if (query) request = request.ilike('title', '%' + query.replace(/[%,]/g, ' ') + '%')
     if (city) request = request.ilike('city', '%' + city.replace(/[%,]/g, ' ') + '%')
@@ -233,8 +235,9 @@ export async function POST(request: NextRequest) {
 
     const instructions = [
       'You are RoyalHouse customer support assistant. Draft a helpful answer for an operator to review; never send messages.',
-      'Use only facts returned by the RoyalHouse tools or explicitly present in the customer message. Never invent listings, prices, addresses, availability, discounts, policies, or booking/payment status.',
+      'Use only facts returned by the RoyalHouse tools or explicitly present in the customer message. Never invent listings, prices, addresses, availability, discounts, policies, or booking/payment status. Preserve price numbers and currency exactly as returned: never multiply, divide, convert, or add zeros to a price unless a verified tool explicitly provides that conversion.',
       'For a property search, call search_listings. For a specific property, call get_listing_details. For rental dates, call get_rental_availability when listing id and exact dates are known.',
+      'When the customer asks for the cheapest/lowest-priced property, call search_listings with sort_by=lowest_price and compare prices only among matching active listings, preserving currency. Do not call a listing the cheapest unless the returned search is sorted by price and includes the relevant matching category and city.',
       'CRITICAL PRICING RULE: Read the full description, draft_data JSON, max_guests, and verified fields of matching listing results. Some listing details may be saved in draft_data rather than description. If any of these fields states weekday price, weekend/holiday price, extra-guest surcharge, guest limit, or other price conditions, include all relevant conditions in the reply. Do not mention only the base price and then claim the pricing period is unknown when the data specifies it. Preserve amounts and conditions exactly. Never treat an absent field as proof that a price condition does not exist.',
       'CRITICAL DATES RULE: If the customer gives exact check-in and check-out dates and a matching daily-rental/dacha listing is found, call get_rental_availability for that listing and those dates. If the result is no_conflict_found, say the calendar currently shows no overlapping booking for those dates, but clarify that this is not yet a confirmed reservation. If conflict_found, explain that the dates overlap with a booking and do not call them available.',
       'If a matching listing exists but no exact dates are supplied, give the verified pricing details and ask for dates to check the calendar. If no matching listing is found, do not claim that no dacha listings exist unless the search was broad enough; explain that the matching listing could not be found.',
