@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { serviceClient } from '@/utils/admin/auth'
-import { queueTelegramNotification } from '@/utils/telegram/notifications'
+import { deliverPendingTelegramNotifications, queueTelegramNotification } from '@/utils/telegram/notifications'
 
 type RpcRequest = {
   method?: string
@@ -414,6 +414,7 @@ export async function POST(request: NextRequest) {
             queueTelegramNotification(admin, rentalBooking.guest_id, 'booking_expired', expiredMessage),
             queueTelegramNotification(admin, expiredListing?.owner_id, 'booking_expired', `Royalhouse: ${expiredListing?.title || 'Dacha'} uchun ${rentalBooking.check_in} — ${rentalBooking.check_out} broniga to‘lov qilinmadi; bron bekor qilindi va sanalar bo‘shatildi.`)
           ])
+          await deliverPendingTelegramNotifications(admin)
           return rpcError(body.id, -31008, 'Operation is not allowed')
         }
         const performTime = now.getTime()
@@ -428,6 +429,7 @@ export async function POST(request: NextRequest) {
           queueTelegramNotification(admin, rentalBooking.guest_id, 'booking_paid', paidMessage),
           queueTelegramNotification(admin, paidListing?.owner_id, 'booking_paid', `✅ Royalhouse — ${paidListing?.title || 'Dacha'} uchun avans to‘landi\nSanalar: ${rentalBooking.check_in} — ${rentalBooking.check_out}\nAvans: ${Number(rentalBooking.deposit_amount).toLocaleString('uz-UZ')} so‘m\nBron tasdiqlandi.`)
         ])
+        await deliverPendingTelegramNotifications(admin)
         return rpcResult(body.id, { transaction: rentalBooking.id, perform_time: performTime, state: 2 })
       }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
