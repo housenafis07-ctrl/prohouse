@@ -57,15 +57,25 @@ export default function AccountPage() {
       if (!user) { router.replace('/register'); return }
       const { data, error: profileError } = await supabase.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').eq('id', user.id).maybeSingle()
       if (!mounted) return
-      if (profileError) setError(profileError.message)
-      const value: Profile = data ?? { phone: user.phone ?? null, full_name: null, account_type: 'individual', partner_type: null, company_name: null, inn: null, bank_name: null, bank_account: null, mfo: null, oked: null, director_full_name: null }
-      setProfile(value); setForm(value)
+      if (profileError) {
+        setError(lang === 'ru' ? 'Не удалось проверить профиль. Обновите страницу и попробуйте снова.' : 'Profilni tekshirib bo‘lmadi. Sahifani yangilab qayta urinib ko‘ring.')
+        setLoading(false)
+        return
+      }
+      // A Supabase Auth session alone is not a completed Royalhouse registration.
+      // Never render the personal cabinet until the matching public profile exists.
+      if (!data) {
+        router.replace('/register?next=%2Faccount')
+        return
+      }
+      setProfile(data)
+      setForm(data)
       const { data: completeness, error: completenessError } = await supabase.rpc('get_seller_profile_completeness')
       if (mounted) {
         if (completenessError) setError(prev => prev || completenessError.message)
         if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
+        setLoading(false)
       }
-      setLoading(false)
     }
     load(); return () => { mounted = false }
   }, [router])
@@ -95,7 +105,7 @@ export default function AccountPage() {
   async function signOut() { const supabase = createClient(); await supabase.auth.signOut(); router.replace('/'); router.refresh() }
 
   if (loading) return <main className="min-h-screen bg-slate-50 px-4 py-12"><div className="mx-auto max-w-5xl rounded-3xl bg-white p-8 text-center shadow-sm">{lang === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</div></main>
-  if (!profile || !form) return null
+  if (!profile || !form) return <main className="min-h-screen bg-slate-50 px-4 py-12"><div className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm"><h1 className="text-xl font-extrabold text-slate-900">{lang === 'ru' ? 'Профиль не загружен' : 'Profil yuklanmadi'}</h1><p className="mt-3 text-sm text-slate-600">{error || (lang === 'ru' ? 'Обновите страницу и попробуйте снова.' : 'Sahifani yangilab qayta urinib ko‘ring.')}</p><button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white">{lang === 'ru' ? 'Повторить' : 'Qayta urinish'}</button><Link href="/" className="mt-4 block text-sm font-bold text-emerald-700">{lang === 'ru' ? 'На главную' : 'Bosh sahifaga qaytish'}</Link></div></main>
 
   const ru = lang === 'ru'
   const isPartner = profile.account_type === 'partner'
