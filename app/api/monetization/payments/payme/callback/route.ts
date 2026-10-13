@@ -173,6 +173,19 @@ export async function POST(request: NextRequest) {
 
   const method = typeof body.method === 'string' ? body.method : ''
   const params = body.params || {}
+  // Safe diagnostic fields only: never log Authorization, card data, or the full RPC payload.
+  const diagnosticTransactionId = typeof params.id === 'string' ? params.id : undefined
+  const diagnosticAccount = params.account && typeof params.account === 'object'
+    ? params.account as Record<string, unknown>
+    : undefined
+  console.info('[payme-callback] request', {
+    method,
+    requestId: body.id ?? null,
+    transactionId: diagnosticTransactionId,
+    orderId: typeof diagnosticAccount?.order_id === 'string' ? diagnosticAccount.order_id : undefined,
+    amount: Number.isFinite(Number(params.amount)) ? Number(params.amount) : undefined,
+    reason: Number.isFinite(Number(params.reason)) ? Number(params.reason) : undefined,
+  })
   const admin = serviceClient()
 
   try {
@@ -495,7 +508,10 @@ export async function POST(request: NextRequest) {
         const state = alreadyPerformed ? -2 : -1
         const { data: cancelledBooking, error: updateError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).in('payment_status', ['pending','processing','paid']).select('id,listing_id,guest_id,check_in,check_out,deposit_amount,total_amount').maybeSingle()
         if (updateError) throw updateError
-        if (cancelledBooking) {
+        // Payme CancelTransaction reasons 1–4 describe technical/debit/timeout failures,
+        // not a customer explicitly cancelling the booking. Reason 5 is a refund.
+        // Do not send a false "customer cancelled" notification for failed payments.
+        if (cancelledBooking && reason === 5) {
           const [{ data: listing }, { data: guest }] = await Promise.all([
             admin.from('listings').select('owner_id,title').eq('id', cancelledBooking.listing_id).maybeSingle(),
             admin.from('profiles').select('full_name').eq('id', cancelledBooking.guest_id).maybeSingle(),
@@ -503,8 +519,8 @@ export async function POST(request: NextRequest) {
           const dates = `${cancelledBooking.check_in} — ${cancelledBooking.check_out}`
           const amount = Number(cancelledBooking.deposit_amount).toLocaleString('uz-UZ')
           await Promise.all([
-            queueTelegramNotification(admin, cancelledBooking.guest_id, 'booking_cancelled', `❌ Royalhouse — dacha broningiz bekor qilindi\nDacha: ${listing?.title || 'Dacha'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nHolat: bekor qilindi.`),
-            queueTelegramNotification(admin, listing?.owner_id, 'booking_cancelled', `❌ Royalhouse — mijoz dacha bronini bekor qildi\nDacha: ${listing?.title || 'Dacha'}\nMijoz: ${guest?.full_name || 'Mijoz'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nBron bekor qilindi.`),
+            queueTelegramNotification(admin, cancelledBooking.guest_id, 'booking_cancelled', `↩️ Royalhouse — Payme avansi qaytarildi yoki to‘lov bekor qilindi\nDacha: ${listing?.title || 'Dacha'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nHolat: Payme qaytarish/bekor qilish amali.`),
+            queueTelegramNotification(admin, listing?.owner_id, 'booking_cancelled', `↩️ Royalhouse — Payme bron to‘lovi qaytarildi yoki bekor qilindi\nDacha: ${listing?.title || 'Dacha'}\nMijoz: ${guest?.full_name || 'Mijoz'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nHolat: Payme qaytarish/bekor qilish amali.`),
           ])
           await deliverPendingTelegramNotifications(admin)
         }
@@ -680,6 +696,13 @@ export async function POST(request: NextRequest) {
     return rpcError(body.id, -32601, 'Method not found', method)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Payme merchant error'
+    // Keep the internal cause in server logs for diagnosis, but never expose it to Payme.
+    console.error('[payme-callback] handler error', {
+      method: typeof body.method === 'string' ? body.method : 'unknown',
+      requestId: body.id ?? null,
+      transactionId: body.params && typeof body.params.id === 'string' ? body.params.id : undefined,
+      error: message,
+    })
     return rpcError(body.id, errorCode(message), undefined)
   }
 }
