@@ -54,7 +54,7 @@ const tools = [
       additionalProperties: false,
     },
   },
-  ,{
+  {
     type: 'function',
     name: 'search_site_sections',
     description: 'Search public RoyalHouse website content across its main navigation categories and their public subpages: buying, renting, new buildings, house construction, mortgages, services, and realtors. Use for site information, mortgage programs, service explanations, realtor information, and any question not covered by listing tools.',
@@ -111,21 +111,21 @@ async function runTool(name: string, rawArgs: string) {
     const decodeHtml = (value: string) => value
       .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
       .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-      .replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
     const pages: Array<Record<string, string>> = [];
     for (const path of selectedRoutes) {
       try {
         const response = await request(path);
         const html = await response.text();
-        const title = decodeHtml(html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1] || path).replace(/<[^>]+>/g, ' ').trim();
+        const title = decodeHtml(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || path).replace(/<[^>]+>/g, ' ').trim();
         const textContent = decodeHtml(html
-          .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')
-          .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')
+          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
           .replace(/<[^>]+>/g, ' ')
-          .replace(/\\s+/g, ' ')).trim();
+          .replace(/\s+/g, ' ')).trim();
         let excerpt = textContent;
         if (query) {
-          const terms = query.split(/\\s+/).filter(term => term.length > 2);
+          const terms = query.split(/\s+/).filter(term => term.length > 2);
           const positions = terms.map(term => textContent.toLocaleLowerCase().indexOf(term)).filter(pos => pos >= 0);
           if (positions.length) {
             const first = Math.max(0, Math.min(...positions) - 250);
