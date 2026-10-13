@@ -3,6 +3,21 @@ import { randomBytes, createHash } from 'node:crypto'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
+export async function GET() {
+  try {
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+    const { data, error } = await serviceClient().from('telegram_user_links')
+      .select('telegram_username,linked_at').eq('profile_id', user.id).maybeSingle()
+    if (error) throw error
+    return NextResponse.json({ linked: Boolean(data), username: data?.telegram_username || null, linkedAt: data?.linked_at || null })
+  } catch (error) {
+    console.error('[Telegram link] Status check failed', error)
+    return NextResponse.json({ error: 'TELEGRAM_LINK_STATUS_FAILED' }, { status: 500 })
+  }
+}
+
 export async function POST() {
   try {
     const auth = await createClient()
