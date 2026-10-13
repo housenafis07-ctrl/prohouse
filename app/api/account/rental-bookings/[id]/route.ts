@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 import { expirePendingRentalBookings } from '@/utils/rentals/expire-pending-bookings'
+import { deliverPendingTelegramNotifications } from '@/utils/telegram/notifications'
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -11,6 +12,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params
     const db = serviceClient()
     await expirePendingRentalBookings(db)
+    await deliverPendingTelegramNotifications(db)
     const { data: booking, error: bookingError } = await db.from('rental_bookings')
       .select('id,listing_id,guest_id,check_in,check_out,guests,currency,total_amount,deposit_percent,deposit_amount,payment_provider,payment_status,status,created_at,updated_at,paid_at,provider_payment_id,provider_payload')
       .eq('id', id).maybeSingle()

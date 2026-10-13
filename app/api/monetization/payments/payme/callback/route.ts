@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { serviceClient } from '@/utils/admin/auth'
+import { deliverPendingTelegramNotifications, queueTelegramNotification } from '@/utils/telegram/notifications'
 
 type RpcRequest = {
   method?: string
@@ -394,7 +395,7 @@ export async function POST(request: NextRequest) {
     if (method === 'PerformTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
       if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found')
-      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,provider_payment_id,provider_payload,payment_expires_at').eq('provider_payment_id', transactionId).maybeSingle()
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,listing_id,guest_id,check_in,check_out,total_amount,deposit_amount,status,payment_status,provider_payment_id,provider_payload,payment_expires_at').eq('provider_payment_id', transactionId).maybeSingle()
       if (rentalError) throw rentalError
       if (rentalBooking) {
         const payload = (rentalBooking.provider_payload || {}) as Record<string, any>
@@ -415,6 +416,13 @@ export async function POST(request: NextRequest) {
         const { data: updated, error: updateError } = await update.select('id').maybeSingle()
         if (updateError) throw updateError
         if (!updated) return rpcError(body.id, -31008, 'Operation is not allowed')
+        const { data: paidListing } = await admin.from('listings').select('owner_id,title').eq('id', rentalBooking.listing_id).maybeSingle()
+        const paidMessage = `✅ Royalhouse — dacha avansi to‘landi\nSanalar: ${rentalBooking.check_in} — ${rentalBooking.check_out}\nTo‘langan avans: ${Number(rentalBooking.deposit_amount).toLocaleString('uz-UZ')} so‘m\nBron summasi: ${Number(rentalBooking.total_amount).toLocaleString('uz-UZ')} so‘m\nHolat: tasdiqlandi.`
+        await Promise.all([
+          queueTelegramNotification(admin, rentalBooking.guest_id, 'booking_paid', paidMessage),
+          queueTelegramNotification(admin, paidListing?.owner_id, 'booking_paid', `✅ Royalhouse — ${paidListing?.title || 'Dacha'} uchun avans to‘landi\nSanalar: ${rentalBooking.check_in} — ${rentalBooking.check_out}\nAvans: ${Number(rentalBooking.deposit_amount).toLocaleString('uz-UZ')} so‘m\nBron tasdiqlandi.`)
+        ])
+        await deliverPendingTelegramNotifications(admin)
         return rpcResult(body.id, { transaction: rentalBooking.id, perform_time: performTime, state: 2 })
       }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
@@ -485,8 +493,21 @@ export async function POST(request: NextRequest) {
         const alreadyPerformed = rentalBooking.payment_status === 'paid' || Number(payme.perform_time || 0) > 0
         const cancelTime = Date.now()
         const state = alreadyPerformed ? -2 : -1
-        const { error: updateError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).in('payment_status', ['pending','processing','paid'])
+        const { data: cancelledBooking, error: updateError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).in('payment_status', ['pending','processing','paid']).select('id,listing_id,guest_id,check_in,check_out,deposit_amount,total_amount').maybeSingle()
         if (updateError) throw updateError
+        if (cancelledBooking) {
+          const [{ data: listing }, { data: guest }] = await Promise.all([
+            admin.from('listings').select('owner_id,title').eq('id', cancelledBooking.listing_id).maybeSingle(),
+            admin.from('profiles').select('full_name').eq('id', cancelledBooking.guest_id).maybeSingle(),
+          ])
+          const dates = `${cancelledBooking.check_in} — ${cancelledBooking.check_out}`
+          const amount = Number(cancelledBooking.deposit_amount).toLocaleString('uz-UZ')
+          await Promise.all([
+            queueTelegramNotification(admin, cancelledBooking.guest_id, 'booking_cancelled', `❌ Royalhouse — dacha broningiz bekor qilindi\nDacha: ${listing?.title || 'Dacha'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nHolat: bekor qilindi.`),
+            queueTelegramNotification(admin, listing?.owner_id, 'booking_cancelled', `❌ Royalhouse — mijoz dacha bronini bekor qildi\nDacha: ${listing?.title || 'Dacha'}\nMijoz: ${guest?.full_name || 'Mijoz'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nBron bekor qilindi.`),
+          ])
+          await deliverPendingTelegramNotifications(admin)
+        }
         return rpcResult(body.id, { transaction: rentalBooking.id, cancel_time: cancelTime, state })
       }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload,paid_at').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
