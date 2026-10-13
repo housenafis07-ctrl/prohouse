@@ -270,6 +270,25 @@ export async function POST(request: NextRequest) {
     if (!reply) return NextResponse.json({ error: 'AI bo‘sh javob qaytardi. Qayta urinib ko‘ring.' }, { status: 502 })
 
     const language = /[А-Яа-яЁё]/.test(message.message) ? 'ru' : /[A-Za-z]/.test(message.message) && !/[ЎҚҒҲўқғҳ]/.test(message.message) ? 'other' : 'uz'
+
+    // Read-only verification of a real support message. Customer message and factual
+    // listing/availability lookups are read-only; generated output is not persisted.
+    if (body?.previewOnly === true) {
+      return NextResponse.json({
+        draft: {
+          id: 'preview-only',
+          support_message_id: message.id,
+          generated_reply: reply.slice(0, 6000),
+          status: 'preview_only',
+          language,
+          model,
+          evidence,
+        },
+        testMode: true,
+        persisted: false,
+      })
+    }
+
     const { data: draft, error: insertError } = await db.from('ai_reply_drafts').insert({
       support_message_id: message.id,
       generated_reply: reply.slice(0, 6000),
