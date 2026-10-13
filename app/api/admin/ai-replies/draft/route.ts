@@ -84,8 +84,13 @@ async function runTool(name: string, rawArgs: string, db: ReturnType<typeof serv
     if (query) request = request.ilike('title', '%' + query.replace(/[%,]/g, ' ') + '%')
     if (city) request = request.ilike('city', '%' + city.replace(/[%,]/g, ' ') + '%')
     if (listingType !== 'any') {
-      if (listingType === 'daily') request = request.eq('listing_type', 'daily')
-      else request = request.eq('listing_type', listingType)
+      // Dacha listings may be classified by taxonomy_code even when listing_type
+      // is not "daily". Include both representations to avoid false "no listings".
+      if (listingType === 'daily') {
+        request = request.or('listing_type.eq.daily,taxonomy_code.eq.rent_dacha')
+      } else {
+        request = request.eq('listing_type', listingType)
+      }
     }
     const { data, error } = await request
     if (error) throw error
