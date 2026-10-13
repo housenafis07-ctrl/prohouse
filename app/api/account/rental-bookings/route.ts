@@ -13,7 +13,7 @@ export async function GET() {
     await expirePendingRentalBookings(db)
     const [{ data: customerRows, error: customerError }, { data: ownedListings, error: listingsError }] = await Promise.all([
       db.from('rental_bookings').select('id,listing_id,guest_id,check_in,check_out,guests,currency,total_amount,deposit_percent,deposit_amount,payment_provider,payment_status,status,created_at,paid_at,provider_payment_id,provider_payload').eq('guest_id', user.id).order('created_at', { ascending: false }),
-      db.from('listings').select('id,title,title_ru,owner_id,primary_image_url,city,district').eq('owner_id', user.id),
+      db.from('listings').select('id,title,title_ru,owner_id,primary_image_url,city,district,listing_type,taxonomy_code').eq('owner_id', user.id),
     ])
     if (customerError) throw customerError
     if (listingsError) throw listingsError
@@ -57,7 +57,8 @@ export async function GET() {
       }
     })
     result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    return NextResponse.json({ bookings: result })
+    const partnerListings = (ownedListings || []).filter((listing: any) => listing.listing_type === 'daily' || listing.taxonomy_code === 'rent_dacha' || entries.some(({ booking }) => booking.listing_id === listing.id)).map((listing: any) => ({ id: listing.id, title: listing.title, titleRu: listing.title_ru, image: listing.primary_image_url, city: listing.city, district: listing.district }))
+    return NextResponse.json({ bookings: result, partnerListings })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'BOOKINGS_LOAD_FAILED' }, { status: 500 })
   }
