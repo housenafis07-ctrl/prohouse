@@ -51,6 +51,7 @@ declare
   expiry_ms bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   expired_booking record;
 begin
+  affected := 0;
   for expired_booking in
     update public.rental_bookings
     set
@@ -71,6 +72,7 @@ begin
       and coalesce(payment_expires_at, created_at + interval '15 minutes') <= expiry_time
     returning id, listing_id, guest_id, check_in, check_out, deposit_amount, total_amount
   loop
+    affected := affected + 1;
     insert into public.telegram_notification_queue(profile_id, event_type, message)
     select expired_booking.guest_id, 'booking_expired',
       format('Royalhouse: %s–%s sanalariga dacha broningiz 15 daqiqada to‘lov qilinmagani uchun bekor qilindi. Yangi bron yaratishingiz mumkin.',
@@ -86,7 +88,6 @@ begin
       and exists (select 1 from public.telegram_user_links t where t.profile_id = l.owner_id);
   end loop;
 
-  get diagnostics affected = row_count;
   return affected;
 end;
 $$;
