@@ -124,23 +124,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Dacha e'lonlari ayrim yozuvlarda listing_type='rent', ayrimlarida
-  // listing_type='daily' bo‘lishi mumkin. Dacha qidiruvi ularni ikkalasini ham ko‘rsatadi.
+  // Tab is the primary transaction filter. Legacy dacha rentals may be stored
+  // as listing_type='rent' with taxonomy_code='rent_dacha'; show them under
+  // "Kunlik", never under monthly "Ijara". Keep taxonomy and tab filters combined.
   if (!listingType) {
-    if (taxonomy === 'rent_dacha') {
-      // Dacha kategoriyasi: faqat dacha ijarasi.
-      query = query.eq('taxonomy_code', 'rent_dacha')
-    } else if (taxonomy === 'sale_dacha') {
-      // Sotuvdagi dacha kategoriyasi: faqat dacha sotuvlari.
-      query = query.eq('taxonomy_code', 'sale_dacha')
-    } else if (dachaSearch) {
-      query = query.or('listing_type.eq.daily,taxonomy_code.in.(sale_dacha,rent_dacha)')
-    } else if (tab === 'sale') {
+    if (tab === 'sale') {
       query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
     } else if (tab === 'rent') {
       query = query.eq('listing_type', 'rent')
+      // Preserve ordinary rent rows with NULL taxonomy while excluding daily dachas.
+      query = query.or('taxonomy_code.is.null,taxonomy_code.neq.rent_dacha')
     } else if (tab === 'daily') {
-      query = query.eq('listing_type', 'daily')
+      query = query.or('listing_type.eq.daily,taxonomy_code.eq.rent_dacha')
     }
   }
 
