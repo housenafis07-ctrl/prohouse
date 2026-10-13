@@ -408,13 +408,6 @@ export async function POST(request: NextRequest) {
           const expiredPayload = { ...payload, expired_at: nowIso, payme: { ...payme, cancel_time: payme.cancel_time || now.getTime(), state: Number(payme.perform_time || 0) > 0 ? -2 : -1 } }
           const { error: expireError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: expiredPayload, updated_at: nowIso }).eq('id', rentalBooking.id).eq('payment_status', 'processing').lte('payment_expires_at', nowIso)
           if (expireError) throw expireError
-          const { data: expiredListing } = await admin.from('listings').select('owner_id,title').eq('id', rentalBooking.listing_id).maybeSingle()
-          const expiredMessage = `Royalhouse: ${rentalBooking.check_in} — ${rentalBooking.check_out} sanalariga dacha broni 15 daqiqada to‘lov qilinmagani uchun bekor qilindi.`
-          await Promise.all([
-            queueTelegramNotification(admin, rentalBooking.guest_id, 'booking_expired', expiredMessage),
-            queueTelegramNotification(admin, expiredListing?.owner_id, 'booking_expired', `Royalhouse: ${expiredListing?.title || 'Dacha'} uchun ${rentalBooking.check_in} — ${rentalBooking.check_out} broniga to‘lov qilinmadi; bron bekor qilindi va sanalar bo‘shatildi.`)
-          ])
-          await deliverPendingTelegramNotifications(admin)
           return rpcError(body.id, -31008, 'Operation is not allowed')
         }
         const performTime = now.getTime()
@@ -500,8 +493,21 @@ export async function POST(request: NextRequest) {
         const alreadyPerformed = rentalBooking.payment_status === 'paid' || Number(payme.perform_time || 0) > 0
         const cancelTime = Date.now()
         const state = alreadyPerformed ? -2 : -1
-        const { error: updateError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).in('payment_status', ['pending','processing','paid'])
+        const { data: cancelledBooking, error: updateError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: { ...payload, payme: { ...payme, cancel_reason: reason, cancel_time: cancelTime, state } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).in('payment_status', ['pending','processing','paid']).select('id,listing_id,guest_id,check_in,check_out,deposit_amount,total_amount').maybeSingle()
         if (updateError) throw updateError
+        if (cancelledBooking) {
+          const [{ data: listing }, { data: guest }] = await Promise.all([
+            admin.from('listings').select('owner_id,title').eq('id', cancelledBooking.listing_id).maybeSingle(),
+            admin.from('profiles').select('full_name').eq('id', cancelledBooking.guest_id).maybeSingle(),
+          ])
+          const dates = `${cancelledBooking.check_in} — ${cancelledBooking.check_out}`
+          const amount = Number(cancelledBooking.deposit_amount).toLocaleString('uz-UZ')
+          await Promise.all([
+            queueTelegramNotification(admin, cancelledBooking.guest_id, 'booking_cancelled', `❌ Royalhouse — dacha broningiz bekor qilindi\\nDacha: ${listing?.title || 'Dacha'}\\nSanalar: ${dates}\\nAvans: ${amount} so‘m\\nHolat: bekor qilindi.`),
+            queueTelegramNotification(admin, listing?.owner_id, 'booking_cancelled', `❌ Royalhouse — mijoz dacha bronini bekor qildi\\nDacha: ${listing?.title || 'Dacha'}\\nMijoz: ${guest?.full_name || 'Mijoz'}\\nSanalar: ${dates}\\nAvans: ${amount} so‘m\\nBron bekor qilindi.`),
+          ])
+          await deliverPendingTelegramNotifications(admin)
+        }
         return rpcResult(body.id, { transaction: rentalBooking.id, cancel_time: cancelTime, state })
       }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payload,paid_at').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
