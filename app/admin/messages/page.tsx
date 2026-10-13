@@ -131,7 +131,7 @@ export default function SupportMessagesPage() {
       const response = await fetch('/api/admin/ai-replies/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: selected.id }),
+        body: JSON.stringify({ messageId: selected.id, previewOnly: true }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -313,7 +313,7 @@ export default function SupportMessagesPage() {
                         onClick={() => void generateAiDraft()}
                         className="rounded-xl bg-violet-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                       >
-                        {generatingAi ? t('Tayyorlanmoqda…','Готовим…') : t('Murojaatga javob','Ответить на обращение')}
+                        {generatingAi ? t('Tayyorlanmoqda…','Готовим…') : t('AI javobini saqlamasdan ko‘rish','Проверить ответ ИИ без сохранения')}
                       </button>
                     </div>
                   </div>
