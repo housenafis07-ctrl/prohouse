@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentAdmin, serviceClient } from '@/utils/admin/auth'
 
 export async function POST(request: NextRequest) {
-  const { admin, error: authError } = await getCurrentAdmin()
-  if (authError || !admin) {
-    return NextResponse.json({ error: authError || 'Unauthorized' }, { status: authError === 'Unauthorized' ? 401 : 403 })
+  const admin = await getCurrentAdmin()
+  if (!admin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
