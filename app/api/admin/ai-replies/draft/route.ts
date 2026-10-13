@@ -29,7 +29,7 @@ const tools = [
   {
     type: 'function',
     name: 'get_listing_details',
-    description: 'Fetch verified details for one active RoyalHouse listing by its exact id.',
+    description: 'Fetch verified public details for one RoyalHouse listing returned by the public listing catalogue, across any listing category, by its exact id.',
     strict: true,
     parameters: {
       type: 'object',
