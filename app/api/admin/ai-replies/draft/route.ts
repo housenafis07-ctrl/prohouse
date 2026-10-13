@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           model,
           instructions: testInstructions,
-          input: 'TEST MESSAGE (not a real customer record):\\n' + sampleMessage,
+          input: 'TEST MESSAGE (not a real customer record):\n' + sampleMessage,
           max_output_tokens: 500,
           store: false,
         }),
@@ -317,7 +317,7 @@ export async function POST(request: NextRequest) {
       'LANGUAGE AND STYLE: Reply in the customer’s language: Uzbek (Latin by default), Russian, or English. Keep the customer-facing reply short, direct, polite, and understandable, usually 1–3 sentences. Answer the question first. Do not mix languages, overexplain, use marketing claims, or expose internal tools, fields, tables, or implementation details.',
       'OUTPUT CONTRACT: Return only the customer-facing draft text. Do not include STATUS, CUSTOMER_REPLY labels, OPERATOR_NOTE, sources, internal reasoning, or tool names in the draft; tool evidence is recorded separately by the application.',
       'FINAL SELF-CHECK: Confirm every factual claim comes from retrieved public RoyalHouse site data; all amounts/dates are exact; no unsupported promise or booking confirmation is made; conflicts/tool failures are handed off; and the reply is concise and in the customer’s language. If any check fails, use a brief operator-verification reply instead.'
-    ].join('\\n')
+    ].join('\n')
 
     const input: any[] = [{
       role: 'user',
