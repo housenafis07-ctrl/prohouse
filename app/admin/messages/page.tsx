@@ -18,6 +18,16 @@ type Message = {
   created_at: string
 }
 
+type AiDraft = {
+  id: string
+  support_message_id: string
+  generated_reply: string
+  status: 'pending_review' | 'approved' | 'rejected' | 'sent' | 'send_failed'
+  language: 'uz' | 'ru' | 'other'
+  model: string | null
+  evidence: Array<{ tool?: string; result?: unknown }>
+}
+
 const statusLabels = {
   new: 'Yangi',
   in_progress: 'Jarayonda',
@@ -46,6 +56,10 @@ export default function SupportMessagesPage() {
   const [note, setNote] = useState('')
   const [reply, setReply] = useState('')
   const [replying, setReplying] = useState(false)
+  const [aiDraft, setAiDraft] = useState<AiDraft | null>(null)
+  const [generatingAi, setGeneratingAi] = useState(false)
+  const [reviewingAi, setReviewingAi] = useState(false)
+  const [aiError, setAiError] = useState('')
 
   async function load() {
     setLoading(true)
@@ -74,6 +88,8 @@ export default function SupportMessagesPage() {
   useEffect(() => {
     setNote(selected?.admin_note || '')
     setReply('')
+    setAiDraft(null)
+    setAiError('')
   }, [selected])
 
   const counts = useMemo(() => ({
@@ -103,6 +119,56 @@ export default function SupportMessagesPage() {
     setReply('')
     setSelected({ ...selected, status: 'replied', admin_note: 'Javob: ' + text })
     await load()
+  }
+
+  async function generateAiDraft() {
+    if (!selected || generatingAi) return
+    setGeneratingAi(true)
+    setAiError('')
+    setAiDraft(null)
+    try {
+      const response = await fetch('/api/admin/ai-replies/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: selected.id }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setAiError(data.error || t('AI javobini tayyorlab bo‘lmadi.', 'Не удалось подготовить ответ ИИ.'))
+        return
+      }
+      setAiDraft(data.draft)
+    } catch {
+      setAiError(t('Tarmoq xatosi. Qayta urinib ko‘ring.', 'Ошибка сети. Попробуйте ещё раз.'))
+    } finally {
+      setGeneratingAi(false)
+    }
+  }
+
+  async function reviewAiDraft(action: 'approve' | 'reject') {
+    if (!aiDraft || reviewingAi || aiDraft.status !== 'pending_review') return
+    setReviewingAi(true)
+    setAiError('')
+    try {
+      const response = await fetch('/api/admin/ai-replies/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftId: aiDraft.id, action }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setAiError(data.error || t('Qaror saqlanmadi.', 'Решение не сохранено.'))
+        return
+      }
+      setAiDraft(data.draft)
+      if (action === 'approve' && selected?.source === 'telegram') {
+        setReply(data.draft.generated_reply)
+      }
+    } catch {
+      setAiError(t('Tarmoq xatosi. Qayta urinib ko‘ring.', 'Ошибка сети. Попробуйте ещё раз.'))
+    } finally {
+      setReviewingAi(false)
+    }
   }
 
   async function saveStatus(status: Message['status']) {
@@ -198,6 +264,47 @@ export default function SupportMessagesPage() {
                 <div className="mt-4 rounded-2xl border p-4">
                   <p className="text-xs font-bold text-slate-500">{selected.subject}</p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selected.message}</p>
+                </div>
+                <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-violet-800">RoyalHouse AI</p>
+                      <p className="mt-1 text-xs text-violet-700">{t('AI javobni faqat loyiha sifatida tayyorlaydi. Operator tekshiradi.','ИИ готовит только черновик ответа. Оператор проверяет его.')}</p>
+                    </div>
+                    <button
+                      disabled={generatingAi}
+                      onClick={() => void generateAiDraft()}
+                      className="shrink-0 rounded-xl bg-violet-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      {generatingAi ? t('Tayyorlanmoqda…','Готовим…') : t('AI javob tayyorlasin','Создать ответ ИИ')}
+                    </button>
+                  </div>
+                  {aiError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{aiError}</p>}
+                  {aiDraft && (
+                    <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-500">{t('AI javob loyihasi','Черновик ответа ИИ')}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{aiDraft.status}</span>
+                      </div>
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">{aiDraft.generated_reply}</p>
+                      {aiDraft.status === 'pending_review' && (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button disabled={reviewingAi} onClick={() => void reviewAiDraft('approve')} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                            {t('Tasdiqlash','Подтвердить')}
+                          </button>
+                          <button disabled={reviewingAi} onClick={() => void reviewAiDraft('reject')} className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">
+                            {t('Rad etish','Отклонить')}
+                          </button>
+                        </div>
+                      )}
+                      {aiDraft.status === 'approved' && selected.source === 'telegram' && (
+                        <p className="mt-3 text-xs text-emerald-700">{t('Tasdiqlandi. Matn Telegram javob maydoniga ko‘chirildi; tahrirlab, alohida yuboring.','Подтверждено. Текст скопирован в поле ответа Telegram; отредактируйте и отправьте отдельно.')}</p>
+                      )}
+                      {aiDraft.status === 'approved' && selected.source === 'website' && (
+                        <p className="mt-3 text-xs text-amber-700">{t('Loyiha tasdiqlandi, ammo sayt orqali mijozga yetkazish uchun alohida chat/reply kanali kerak. Bu bosqichda avtomatik yuborilmaydi.','Черновик подтверждён, но для доставки ответа клиенту на сайте нужен отдельный канал чата/ответа. На этом этапе он не отправляется автоматически.')}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {selected.source === 'telegram' && (
                   <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
