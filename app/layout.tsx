@@ -6,7 +6,6 @@ import LegacySurfaceLanguageFix from "./components/LegacySurfaceLanguageFix";
 import LanguageRuntimeFix from "./components/LanguageRuntimeFix";
 import I18nProvider from "./components/I18nProvider";
 import RentalNavigationFix from "./components/RentalNavigationFix";
-import DailySearchNavigationFix from "./components/DailySearchNavigationFix";
 import PurchaseNavigationFix from "./components/PurchaseNavigationFix";
 import NewBuildingsNavigationFix from "./components/NewBuildingsNavigationFix";
 import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
@@ -41,7 +40,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <RoyalhousePartnersLinkFix />
           <GlobalNavigationGate />
           <RentalNavigationFix />
-          <DailySearchNavigationFix />
           <PurchaseNavigationFix />
           <NewBuildingsNavigationFix />
           <HomeBuildingNavigationFix />
