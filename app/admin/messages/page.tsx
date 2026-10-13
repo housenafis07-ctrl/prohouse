@@ -108,7 +108,7 @@ export default function SupportMessagesPage() {
     const response = await fetch('/api/admin/support-messages/reply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: selected.id, reply: text }),
+      body: JSON.stringify({ id: selected.id, reply: text, draftId: aiDraft?.status === 'approved' ? aiDraft.id : undefined }),
     })
     const data = await response.json().catch(() => ({}))
     setReplying(false)
@@ -117,6 +117,7 @@ export default function SupportMessagesPage() {
       return
     }
     setReply('')
+    if (aiDraft?.status === 'approved') setAiDraft({ ...aiDraft, status: 'sent' })
     setSelected({ ...selected, status: 'replied', admin_note: 'Javob: ' + text })
     await load()
   }
