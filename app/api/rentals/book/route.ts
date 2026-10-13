@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { queueTelegramNotification } from '@/utils/telegram/notifications'
 
 const parseRental=(draft:any)=>{const attrs=draft?.attributes||{};const raw=attrs?.rental_booking;try{const parsed=typeof raw==='string'?JSON.parse(raw||'{}'):(raw&&typeof raw==='object'?raw:{});return Object.keys(parsed).length?parsed:attrs}catch{return attrs}}
 const addDays=(d:string,n:number)=>{const x=new Date(`${d}T00:00:00Z`);x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)}
@@ -17,7 +18,7 @@ export async function POST(request:NextRequest){
   if(!listingId||!/^(?:\d{4})-\d{2}-\d{2}$/.test(checkIn)||!/^(?:\d{4})-\d{2}-\d{2}$/.test(checkOut)||checkOut<=checkIn)return NextResponse.json({error:'Sanalar noto‘g‘ri tanlangan'},{status:400})
   const merchantId=process.env.PAYME_MERCHANT_ID?.trim()
   if(!merchantId||!process.env.PAYME_MERCHANT_KEY?.trim())return NextResponse.json({error:'PAYMENT_NOT_CONFIGURED: Payme to‘lov sozlamalari to‘liq emas. Bron yaratilmadi.'},{status:503})
-  const db=serviceClient();const {data:listing,error}=await db.from('listings').select('id,owner_id,status,listing_type,taxonomy_code,price,currency,draft_data').eq('id',listingId).eq('status','active').maybeSingle();if(error)throw error;if(!listing)return NextResponse.json({error:'E’lon topilmadi'},{status:404})
+  const db=serviceClient();const {data:listing,error}=await db.from('listings').select('id,owner_id,title,status,listing_type,taxonomy_code,price,currency,draft_data').eq('id',listingId).eq('status','active').maybeSingle();if(error)throw error;if(!listing)return NextResponse.json({error:'E’lon topilmadi'},{status:404})
   if(listing.owner_id===user.id)return NextResponse.json({error:'O‘z e’loningizni bron qila olmaysiz'},{status:400})
   if(!(listing.listing_type==='daily'||listing.taxonomy_code==='rent_dacha'))return NextResponse.json({error:'Bu e’lon uchun bron mavjud emas'},{status:400})
   if((listing.currency||'UZS')!=='UZS')return NextResponse.json({error:'Payme orqali faqat UZS valyutasida to‘lash mumkin'},{status:400})
@@ -37,6 +38,11 @@ export async function POST(request:NextRequest){
   const siteUrl=(process.env.NEXT_PUBLIC_SITE_URL||process.env.APP_URL||new URL(request.url).origin).replace(/\/$/,'')
   const callback=`${siteUrl}/listings/${encodeURIComponent(listingId)}?booking=${encodeURIComponent(booking.id)}`
   const checkoutUrl=paymeUrl(merchantId,booking.id,depositAmount,callback)
+  const dateLabel = `${checkIn} — ${checkOut}`
+  await Promise.all([
+   queueTelegramNotification(db, listing.owner_id, 'booking_created', `🏡 Royalhouse — yangi dacha broni\nDacha: ${listing.title || 'Dacha'}\nSanalar: ${dateLabel}\nMehmonlar: ${guests}\nBron summasi: ${total.toLocaleString('uz-UZ')} so‘m\nAvans (10%): ${depositAmount.toLocaleString('uz-UZ')} so‘m\nHolat: to‘lov kutilmoqda. 15 daqiqa ichida to‘lanmasa, bron bekor qilinadi.`),
+   queueTelegramNotification(db, user.id, 'booking_created', `🏡 Royalhouse — dacha broningiz yaratildi\nSanalar: ${dateLabel}\nBron summasi: ${total.toLocaleString('uz-UZ')} so‘m\nAvans (10%): ${depositAmount.toLocaleString('uz-UZ')} so‘m\nTo‘lovni 15 daqiqa ichida amalga oshiring.`),
+  ])
   return NextResponse.json({booking,bookingId:booking.id,totalAmount:total,depositAmount,depositPercent,currency:'UZS',paymentStatus:'pending',checkoutUrl,paymentProvider:'payme',includedGuests,extraGuestFee,extraGuests})
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Bron qilishda xatolik'},{status:500})}
 }
