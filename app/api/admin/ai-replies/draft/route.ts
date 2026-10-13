@@ -81,7 +81,7 @@ async function runTool(name: string, rawArgs: string, db: ReturnType<typeof serv
     let request = db.from('listings')
       .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,city,district,description,taxonomy_code,max_guests,draft_data')
       .eq('status', 'active')
-      .order(sortBy === 'lowest_price' ? 'price' : 'published_at', { ascending: true, nullsFirst: false })
+      .order(sortBy === 'lowest_price' ? 'price' : 'published_at', { ascending: sortBy === 'lowest_price', nullsFirst: false })
       .limit(8)
     if (query) request = request.ilike('title', '%' + query.replace(/[%,]/g, ' ') + '%')
     if (city) request = request.ilike('city', '%' + city.replace(/[%,]/g, ' ') + '%')
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
 
     const instructions = [
       'You are RoyalHouse customer support assistant. Draft a helpful answer for an operator to review; never send messages.',
-      'Use only facts returned by the RoyalHouse tools or explicitly present in the customer message. Never invent listings, prices, addresses, availability, discounts, policies, or booking/payment status. Preserve price numbers and currency exactly as returned: never multiply, divide, convert, or add zeros to a price unless a verified tool explicitly provides that conversion.',
+      'Use only facts returned by the RoyalHouse tools or explicitly present in the customer message. Never invent listings, prices, addresses, availability, discounts, policies, or booking/payment status. Preserve price numbers and currency exactly as returned: never multiply, divide, convert, or add zeros to a price unless a verified tool explicitly provides that conversion. Before finalizing any answer containing a price, compare every stated amount with the exact listing fields returned by the tools. If a price cannot be verified exactly from those fields or the listing description/draft_data, omit that amount and say the operator will verify it. Do not infer monthly, daily, weekday, weekend, or per-person pricing from the base price alone.',
       'For a property search, call search_listings. For a specific property, call get_listing_details. For rental dates, call get_rental_availability when listing id and exact dates are known.',
       'When the customer asks for the cheapest/lowest-priced property, call search_listings with sort_by=lowest_price and compare prices only among matching active listings, preserving currency. Do not call a listing the cheapest unless the returned search is sorted by price and includes the relevant matching category and city.',
       'CRITICAL PRICING RULE: Read the full description, draft_data JSON, max_guests, and verified fields of matching listing results. Some listing details may be saved in draft_data rather than description. If any of these fields states weekday price, weekend/holiday price, extra-guest surcharge, guest limit, or other price conditions, include all relevant conditions in the reply. Do not mention only the base price and then claim the pricing period is unknown when the data specifies it. Preserve amounts and conditions exactly. Never treat an absent field as proof that a price condition does not exist.',
