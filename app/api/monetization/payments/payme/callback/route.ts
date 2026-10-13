@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { serviceClient } from '@/utils/admin/auth'
+import { queueTelegramNotification } from '@/utils/telegram/notifications'
 
 type RpcRequest = {
   method?: string
@@ -394,7 +395,7 @@ export async function POST(request: NextRequest) {
     if (method === 'PerformTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
       if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found')
-      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,provider_payment_id,provider_payload,payment_expires_at').eq('provider_payment_id', transactionId).maybeSingle()
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,listing_id,guest_id,check_in,check_out,total_amount,deposit_amount,status,payment_status,provider_payment_id,provider_payload,payment_expires_at').eq('provider_payment_id', transactionId).maybeSingle()
       if (rentalError) throw rentalError
       if (rentalBooking) {
         const payload = (rentalBooking.provider_payload || {}) as Record<string, any>
@@ -407,6 +408,12 @@ export async function POST(request: NextRequest) {
           const expiredPayload = { ...payload, expired_at: nowIso, payme: { ...payme, cancel_time: payme.cancel_time || now.getTime(), state: Number(payme.perform_time || 0) > 0 ? -2 : -1 } }
           const { error: expireError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: expiredPayload, updated_at: nowIso }).eq('id', rentalBooking.id).eq('payment_status', 'processing').lte('payment_expires_at', nowIso)
           if (expireError) throw expireError
+          const { data: expiredListing } = await admin.from('listings').select('owner_id,title').eq('id', rentalBooking.listing_id).maybeSingle()
+          const expiredMessage = `Royalhouse: ${rentalBooking.check_in} — ${rentalBooking.check_out} sanalariga dacha broni 15 daqiqada to‘lov qilinmagani uchun bekor qilindi.`
+          await Promise.all([
+            queueTelegramNotification(admin, rentalBooking.guest_id, 'booking_expired', expiredMessage),
+            queueTelegramNotification(admin, expiredListing?.owner_id, 'booking_expired', `Royalhouse: ${expiredListing?.title || 'Dacha'} uchun ${rentalBooking.check_in} — ${rentalBooking.check_out} broniga to‘lov qilinmadi; bron bekor qilindi va sanalar bo‘shatildi.`)
+          ])
           return rpcError(body.id, -31008, 'Operation is not allowed')
         }
         const performTime = now.getTime()
@@ -415,6 +422,12 @@ export async function POST(request: NextRequest) {
         const { data: updated, error: updateError } = await update.select('id').maybeSingle()
         if (updateError) throw updateError
         if (!updated) return rpcError(body.id, -31008, 'Operation is not allowed')
+        const { data: paidListing } = await admin.from('listings').select('owner_id,title').eq('id', rentalBooking.listing_id).maybeSingle()
+        const paidMessage = `✅ Royalhouse — dacha avansi to‘landi\nSanalar: ${rentalBooking.check_in} — ${rentalBooking.check_out}\nTo‘langan avans: ${Number(rentalBooking.deposit_amount).toLocaleString('uz-UZ')} so‘m\nBron summasi: ${Number(rentalBooking.total_amount).toLocaleString('uz-UZ')} so‘m\nHolat: tasdiqlandi.`
+        await Promise.all([
+          queueTelegramNotification(admin, rentalBooking.guest_id, 'booking_paid', paidMessage),
+          queueTelegramNotification(admin, paidListing?.owner_id, 'booking_paid', `✅ Royalhouse — ${paidListing?.title || 'Dacha'} uchun avans to‘landi\nSanalar: ${rentalBooking.check_in} — ${rentalBooking.check_out}\nAvans: ${Number(rentalBooking.deposit_amount).toLocaleString('uz-UZ')} so‘m\nBron tasdiqlandi.`)
+        ])
         return rpcResult(body.id, { transaction: rentalBooking.id, perform_time: performTime, state: 2 })
       }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
