@@ -38,7 +38,7 @@ alter table public.telegram_notification_queue enable row level security;
 revoke all on public.telegram_notification_queue from anon, authenticated;
 grant all on public.telegram_notification_queue to service_role;
 
--- Queue notifications atomically when an unpaid reservation expires.
+-- Expire unpaid reservations without sending Telegram notifications.
 create or replace function public.expire_pending_rental_bookings()
 returns integer
 language plpgsql
@@ -49,44 +49,27 @@ declare
   affected integer;
   expiry_time timestamptz := clock_timestamp();
   expiry_ms bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  expired_booking record;
 begin
   affected := 0;
-  for expired_booking in
-    update public.rental_bookings
-    set
-      status = 'cancelled',
-      payment_status = 'cancelled',
-      provider_payload = coalesce(provider_payload, '{}'::jsonb)
-        || jsonb_build_object(
-          'expired_at', expiry_time,
-          'payme', coalesce(provider_payload -> 'payme', '{}'::jsonb)
-            || jsonb_build_object(
-              'cancel_time', coalesce(provider_payload #> '{payme,cancel_time}', to_jsonb(expiry_ms)),
-              'state', -1
-            )
-        ),
-      updated_at = expiry_time
-    where status = 'pending_payment'
-      and payment_status in ('pending', 'processing')
-      and coalesce(payment_expires_at, created_at + interval '15 minutes') <= expiry_time
-    returning id, listing_id, guest_id, check_in, check_out, deposit_amount, total_amount
-  loop
-    affected := affected + 1;
-    insert into public.telegram_notification_queue(profile_id, event_type, message)
-    select expired_booking.guest_id, 'booking_expired',
-      format('Royalhouse: %s–%s sanalariga dacha broningiz 15 daqiqada to‘lov qilinmagani uchun bekor qilindi. Yangi bron yaratishingiz mumkin.',
-        expired_booking.check_in, expired_booking.check_out)
-    where exists (select 1 from public.telegram_user_links l where l.profile_id = expired_booking.guest_id);
+  update public.rental_bookings
+  set
+    status = 'cancelled',
+    payment_status = 'cancelled',
+    provider_payload = coalesce(provider_payload, '{}'::jsonb)
+      || jsonb_build_object(
+        'expired_at', expiry_time,
+        'payme', coalesce(provider_payload -> 'payme', '{}'::jsonb)
+          || jsonb_build_object(
+            'cancel_time', coalesce(provider_payload #> '{payme,cancel_time}', to_jsonb(expiry_ms)),
+            'state', -1
+          )
+      ),
+    updated_at = expiry_time
+  where status = 'pending_payment'
+    and payment_status in ('pending', 'processing')
+    and coalesce(payment_expires_at, created_at + interval '15 minutes') <= expiry_time;
 
-    insert into public.telegram_notification_queue(profile_id, event_type, message)
-    select l.owner_id, 'booking_expired',
-      format('Royalhouse: %s–%s sanalariga kelgan, to‘lov qilinmagan dacha broni 15 daqiqadan so‘ng bekor qilindi. Sanalar bo‘shatildi.',
-        expired_booking.check_in, expired_booking.check_out)
-    from public.listings l
-    where l.id = expired_booking.listing_id
-      and exists (select 1 from public.telegram_user_links t where t.profile_id = l.owner_id);
-  end loop;
+  get diagnostics affected = row_count;
 
   return affected;
 end;
