@@ -101,6 +101,7 @@ export default function MortgageCalculatorPage() {
   const [applicantPhone, setApplicantPhone] = useState('')
   const [leadStatus, setLeadStatus] = useState('')
   const [leadError, setLeadError] = useState('')
+  const [leadSubmitting, setLeadSubmitting] = useState(false)
   const [market, setMarket] = useState<'primary' | 'secondary'>('primary')
   const router = useRouter()
 
@@ -184,16 +185,33 @@ export default function MortgageCalculatorPage() {
   const availablePrograms = useMemo(() => getMortgagePrograms(market), [market])
   const selectedProgram = availablePrograms.find(p => p.id === programId) || null
   const submitMortgageLead = async () => {
-    setLeadStatus(''); setLeadError('')
+    if (leadSubmitting) return
+    setLeadStatus('')
+    setLeadError('')
     if (!selectedProgram) { setLeadError(lang === 'ru' ? 'Выберите банк.' : 'Bankni tanlang.'); return }
     if (applicantName.trim().length < 2 || applicantPhone.trim().length < 7) { setLeadError(lang === 'ru' ? 'Введите имя и телефон.' : 'Ism va telefonni kiriting.'); return }
-    const response = await fetch('/api/mortgage/lead', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ programId:selectedProgram.id, market, listingId, name:applicantName, phone:applicantPhone, propertyPrice:price, downPayment:down, termMonths:months, rate:annualRate, monthlyPayment:firstMonthly })
-    })
-    const result = await response.json().catch(()=>({}))
-    if (!response.ok) { setLeadError(result.error || (lang === 'ru' ? 'Заявка не отправлена.' : 'Ariza yuborilmadi.')); return }
-    setLeadStatus(lang === 'ru' ? 'Заявка отправлена. Менеджер свяжется с вами.' : 'Buyurtma yuborildi. Menejer siz bilan bog‘lanadi.')
+    if (price <= 0 || down < 0 || down > price || months < 1) {
+      setLeadError(lang === 'ru' ? 'Проверьте стоимость жилья, взнос и срок кредита.' : 'Uy narxi, boshlang‘ich badal va kredit muddatini tekshiring.')
+      return
+    }
+
+    setLeadSubmitting(true)
+    try {
+      const response = await fetch('/api/mortgage/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId: selectedProgram.id, market, listingId, name: applicantName.trim(), phone: applicantPhone.trim(), propertyPrice: price, downPayment: down, termMonths: months, rate: annualRate, monthlyPayment: firstMonthly }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Заявка не отправлена.' : 'Ariza yuborilmadi.'))
+      setLeadStatus(lang === 'ru' ? 'Заявка отправлена. Менеджер свяжется с вами.' : 'Buyurtma yuborildi. Menejer siz bilan bog‘lanadi.')
+    } catch (error) {
+      setLeadError(error instanceof Error
+        ? error.message
+        : (lang === 'ru' ? 'Не удалось отправить заявку. Проверьте соединение и повторите попытку.' : 'Ariza yuborilmadi. Internet aloqasini tekshirib, qayta urinib ko‘ring.'))
+    } finally {
+      setLeadSubmitting(false)
+    }
   }
 
   const syncDownFromPercent = (value: string) => {
@@ -306,7 +324,7 @@ export default function MortgageCalculatorPage() {
               {selectedProgram && <p className="mt-3 text-xs font-semibold text-slate-600">{lang==='ru'?'Программа':'Dastur'}: <b>{lang==='ru'?selectedProgram.programRu:selectedProgram.program}</b> · {selectedProgram.rateLabel} · {selectedProgram.downPaymentLabel}</p>}
               {leadError && <p className="mt-3 text-sm font-bold text-red-600">{leadError}</p>}
               {leadStatus && <p className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}</p>}
-              <button type="button" onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700">{lang==='ru'?'Подать заявку':'Buyurtma yuborish'}</button>
+              <button type="button" disabled={leadSubmitting} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
             </div>
           </div>
           <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
