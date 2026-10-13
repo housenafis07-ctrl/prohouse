@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const id = String(body?.id || '')
     const reply = String(body?.reply || '').trim().slice(0, 4000)
+    const draftId = String(body?.draftId || '').trim()
 
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
     if (!reply) return NextResponse.json({ error: 'reply required' }, { status: 400 })
@@ -24,6 +25,18 @@ export async function POST(request: NextRequest) {
 
     if (message.source !== 'telegram' || !message.telegram_user_id) {
       return NextResponse.json({ error: 'This message is not a Telegram conversation' }, { status: 400 })
+    }
+
+    if (draftId) {
+      const { data: draft, error: draftError } = await admin.from('ai_reply_drafts')
+        .select('id,status,support_message_id')
+        .eq('id', draftId)
+        .eq('support_message_id', id)
+        .maybeSingle()
+      if (draftError) return NextResponse.json({ error: 'AI loyiha holatini tekshirib bo‘lmadi.' }, { status: 500 })
+      if (!draft || draft.status !== 'approved') {
+        return NextResponse.json({ error: 'AI loyihasi operator tomonidan tasdiqlanmagan.' }, { status: 409 })
+      }
     }
 
     const token = process.env.TELEGRAM_BOT_TOKEN
@@ -48,6 +61,15 @@ export async function POST(request: NextRequest) {
       .from('support_messages')
       .update({ status: 'replied', admin_note: `Javob: ${reply}` })
       .eq('id', id)
+
+    if (draftId) {
+      const { error: draftUpdateError } = await admin.from('ai_reply_drafts')
+        .update({ status: 'sent', sent_at: new Date().toISOString(), send_error: null })
+        .eq('id', draftId)
+        .eq('support_message_id', id)
+        .eq('status', 'approved')
+      if (draftUpdateError) console.error('AI draft sent status update failed', draftUpdateError)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {
