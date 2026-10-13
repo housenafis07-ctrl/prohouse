@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingCardImageUrl } from '@/lib/listing-image'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { createClient } from '@/utils/supabase/server'
 
 const MAX_PAGE_SIZE = 48
@@ -220,5 +223,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     data: listings.map((listing) => ({ ...listing, primary_image: firstImageByListing.get(listing.id) || null })),
     pagination: { page: useCursor ? undefined : page, limit, total: count ?? null, has_next: hasNext, next_cursor: nextCursor, mode: useCursor ? 'cursor' : 'offset' },
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'CDN-Cache-Control': 'no-store',
+      'Vercel-CDN-Cache-Control': 'no-store',
+    },
   })
 }
