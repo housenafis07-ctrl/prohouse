@@ -173,6 +173,19 @@ export async function POST(request: NextRequest) {
 
   const method = typeof body.method === 'string' ? body.method : ''
   const params = body.params || {}
+  // Safe diagnostic fields only: never log Authorization, card data, or the full RPC payload.
+  const diagnosticTransactionId = typeof params.id === 'string' ? params.id : undefined
+  const diagnosticAccount = params.account && typeof params.account === 'object'
+    ? params.account as Record<string, unknown>
+    : undefined
+  console.info('[payme-callback] request', {
+    method,
+    requestId: body.id ?? null,
+    transactionId: diagnosticTransactionId,
+    orderId: typeof diagnosticAccount?.order_id === 'string' ? diagnosticAccount.order_id : undefined,
+    amount: Number.isFinite(Number(params.amount)) ? Number(params.amount) : undefined,
+    reason: Number.isFinite(Number(params.reason)) ? Number(params.reason) : undefined,
+  })
   const admin = serviceClient()
 
   try {
@@ -683,6 +696,13 @@ export async function POST(request: NextRequest) {
     return rpcError(body.id, -32601, 'Method not found', method)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Payme merchant error'
+    // Keep the internal cause in server logs for diagnosis, but never expose it to Payme.
+    console.error('[payme-callback] handler error', {
+      method: typeof body.method === 'string' ? body.method : 'unknown',
+      requestId: body.id ?? null,
+      transactionId: body.params && typeof body.params.id === 'string' ? body.params.id : undefined,
+      error: message,
+    })
     return rpcError(body.id, errorCode(message), undefined)
   }
 }
