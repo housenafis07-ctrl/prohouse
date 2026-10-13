@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { expirePendingRentalBookings } from '@/utils/rentals/expire-pending-bookings'
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -9,11 +10,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
     const { id } = await context.params
     const db = serviceClient()
+    await expirePendingRentalBookings(db)
     const { data: booking, error: bookingError } = await db.from('rental_bookings')
       .select('id,listing_id,guest_id,check_in,check_out,guests,currency,total_amount,deposit_percent,deposit_amount,payment_provider,payment_status,status,created_at,updated_at,paid_at,provider_payment_id,provider_payload')
       .eq('id', id).maybeSingle()
     if (bookingError) throw bookingError
-    if (!booking) return NextResponse.json({ error: 'BOOKING_NOT_FOUND' }, { status: 404 })
+    if (!booking || (booking.provider_payload as any)?.expired_at) return NextResponse.json({ error: 'BOOKING_NOT_FOUND' }, { status: 404 })
 
     const [{ data: listing, error: listingError }, { data: guest, error: guestError }] = await Promise.all([
       db.from('listings').select('id,title,title_ru,owner_id,primary_image_url,city,district,seller_phone').eq('id', booking.listing_id).maybeSingle(),

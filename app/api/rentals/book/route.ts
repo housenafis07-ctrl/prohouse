@@ -24,14 +24,14 @@ export async function POST(request:NextRequest){
   const settings=parseRental(listing.draft_data);const maxGuests=num(settings.max_guests);const {fee:extraGuestFee,included:includedGuests}=extraGuestSettings(settings)
   if(maxGuests>0&&extraGuestFee<=0&&guests>maxGuests)return NextResponse.json({error:`Mehmonlar soni ${maxGuests} tadan oshmasin`},{status:400})
   const requested=eachDay(checkIn,checkOut);const blocked=new Set<string>(settings.blocked_dates||[]);if(requested.some(d=>blocked.has(d)))return NextResponse.json({error:'Tanlangan sanalardan biri band yoki yopiq'},{status:409})
-  const now=new Date();const expiry=new Date(now.getTime()-20*60*1000).toISOString()
+  const now=new Date()
   const {data:overlap,error:overlapError}=await db.from('rental_bookings').select('id').eq('listing_id',listingId).or(`status.eq.confirmed,and(status.eq.pending_payment,payment_expires_at.gt.${now.toISOString()})`).lt('check_in',checkOut).gt('check_out',checkIn).limit(1);if(overlapError)throw overlapError
   if(overlap?.length)return NextResponse.json({error:'Tanlangan sanalar allaqachon band'},{status:409})
   const prices=settings.date_prices||{};const extraGuests=Math.max(0,guests-includedGuests)
   const total=requested.reduce((sum,d)=>{const rateDate=addDays(d,1);const override=num(prices[rateDate]);const weekday=!isWeekend(rateDate);const fallback=seasonalPrice(settings,weekday,new Date(`${rateDate}T00:00:00Z`).getUTCMonth());const base=override||fallback||num(listing.price);return sum+base+(extraGuestFee*extraGuests)},0)
   if(!Number.isFinite(total)||total<=0)return NextResponse.json({error:'Bron summasi noto‘g‘ri hisoblandi'},{status:400})
   const depositPercent=10;const depositAmount=Math.round(total*depositPercent/100);if(depositAmount<=0)return NextResponse.json({error:'Avans summasi noto‘g‘ri'},{status:400})
-  const paymentExpiresAt=new Date(Date.now()+20*60*1000).toISOString()
+  const paymentExpiresAt=new Date(Date.now()+15*60*1000).toISOString()
   const {data:booking,error:insertError}=await db.from('rental_bookings').insert({listing_id:listingId,guest_id:user.id,check_in:checkIn,check_out:checkOut,guests,currency:'UZS',total_amount:total,deposit_percent:depositPercent,deposit_amount:depositAmount,payment_provider:'payme',payment_status:'pending',status:'pending_payment',payment_expires_at:paymentExpiresAt}).select('id,check_in,check_out,total_amount,deposit_percent,deposit_amount,currency,status,payment_provider').single()
   if(insertError)throw insertError
   const siteUrl=(process.env.NEXT_PUBLIC_SITE_URL||process.env.APP_URL||new URL(request.url).origin).replace(/\/$/,'')
