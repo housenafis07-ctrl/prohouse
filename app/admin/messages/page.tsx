@@ -22,7 +22,7 @@ type AiDraft = {
   id: string
   support_message_id: string
   generated_reply: string
-  status: 'pending_review' | 'approved' | 'rejected' | 'sent' | 'send_failed'
+  status: 'pending_review' | 'approved' | 'rejected' | 'sent' | 'send_failed' | 'preview_only'
   language: 'uz' | 'ru' | 'other'
   model: string | null
   evidence: Array<{ tool?: string; result?: unknown }>
@@ -136,6 +136,33 @@ export default function SupportMessagesPage() {
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         setAiError(data.error || t('AI javobini tayyorlab bo‘lmadi.', 'Не удалось подготовить ответ ИИ.'))
+        return
+      }
+      setAiDraft(data.draft)
+    } catch {
+      setAiError(t('Tarmoq xatosi. Qayta urinib ko‘ring.', 'Ошибка сети. Попробуйте ещё раз.'))
+    } finally {
+      setGeneratingAi(false)
+    }
+  }
+
+  async function generateAiTestDraft() {
+    if (generatingAi) return
+    setGeneratingAi(true)
+    setAiError('')
+    setAiDraft(null)
+    try {
+      const response = await fetch('/api/admin/ai-replies/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          testMode: true,
+          sampleMessage: 'Assalomu alaykum. Dacha ijarasi narxi va bo‘sh sanalarini ayting.',
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setAiError(data.error || t('Xavfsiz AI testini bajarib bo‘lmadi.', 'Не удалось выполнить безопасный тест ИИ.'))
         return
       }
       setAiDraft(data.draft)
@@ -272,13 +299,23 @@ export default function SupportMessagesPage() {
                       <p className="text-sm font-black text-violet-800">RoyalHouse AI</p>
                       <p className="mt-1 text-xs text-violet-700">{t('AI javobni faqat loyiha sifatida tayyorlaydi. Operator tekshiradi.','ИИ готовит только черновик ответа. Оператор проверяет его.')}</p>
                     </div>
-                    <button
-                      disabled={generatingAi}
-                      onClick={() => void generateAiDraft()}
-                      className="shrink-0 rounded-xl bg-violet-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                    >
-                      {generatingAi ? t('Tayyorlanmoqda…','Готовим…') : t('AI javob tayyorlasin','Создать ответ ИИ')}
-                    </button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        disabled={generatingAi}
+                        onClick={() => void generateAiTestDraft()}
+                        className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800 disabled:opacity-50"
+                        title={t('Namuna xabari: mijozlar, e’lonlar va bronlar bazasiga murojaat qilmaydi.', 'Тестовое сообщение: без доступа к клиентам, объявлениям и бронированиям.')}
+                      >
+                        {t('Xavfsiz test','Безопасный тест')}
+                      </button>
+                      <button
+                        disabled={generatingAi || !selected}
+                        onClick={() => void generateAiDraft()}
+                        className="rounded-xl bg-violet-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                      >
+                        {generatingAi ? t('Tayyorlanmoqda…','Готовим…') : t('Murojaatga javob','Ответить на обращение')}
+                      </button>
+                    </div>
                   </div>
                   {aiError && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-xs text-red-700">{aiError}</p>}
                   {aiDraft && (
@@ -288,6 +325,9 @@ export default function SupportMessagesPage() {
                         <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold">{aiDraft.status}</span>
                       </div>
                       <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">{aiDraft.generated_reply}</p>
+                      {aiDraft.status === 'preview_only' && (
+                        <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{t('Xavfsiz test rejimi: bu matn bazaga saqlanmagan va mijozga yuborilmaydi. Real murojaatni tekshirish uchun alohida izolyatsiyalangan test bazasi kerak.', 'Безопасный тест: текст не сохранён в базе и не отправлен клиенту. Для проверки реальных обращений нужна отдельная изолированная тестовая база.')}</p>
+                      )}
                       {aiDraft.status === 'pending_review' && (
                         <div className="mt-3 grid grid-cols-2 gap-2">
                           <button disabled={reviewingAi} onClick={() => void reviewAiDraft('approve')} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
