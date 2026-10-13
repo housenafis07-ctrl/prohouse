@@ -124,16 +124,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Apply each transaction tab as a single PostgREST OR expression. This avoids
-  // chaining multiple OR filters, which can accidentally narrow/replace tab results.
-  // Legacy dacha rentals use taxonomy_code='rent_dacha' and belong in Kunlik only.
+  // Keep the tab filters simple and explicit. Legacy dacha records are saved as
+  // listing_type='rent' + taxonomy_code='rent_dacha', but must appear in "Kunlik".
   if (!listingType) {
     if (tab === 'sale') {
       query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
     } else if (tab === 'rent') {
-      query = query.or('and(listing_type.eq.rent,taxonomy_code.is.null),and(listing_type.eq.rent,taxonomy_code.neq.rent_dacha)')
+      query = query.eq('listing_type', 'rent')
+      query = query.or('taxonomy_code.is.null,taxonomy_code.neq.rent_dacha')
     } else if (tab === 'daily') {
-      query = query.or('listing_type.eq.daily,and(listing_type.eq.rent,taxonomy_code.eq.rent_dacha),taxonomy_code.eq.rent_dacha')
+      query = query.or('listing_type.eq.daily,taxonomy_code.eq.rent_dacha')
     }
   }
 
