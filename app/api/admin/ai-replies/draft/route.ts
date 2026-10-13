@@ -110,9 +110,9 @@ async function runTool(name: string, rawArgs: string) {
     if (!/^[0-9a-f-]{20,}$/i.test(id)) return { error: 'Invalid listing id.' }
     const response = await request('/listings/' + encodeURIComponent(id))
     const html = await response.text()
-    const title = html.match(/<title[^>]*>(.*?)<\\/title>/i)?.[1]?.replace(/&amp;/g, '&') || null
+    const title = html.match(/<title[^>]*>(.*?)<\/title>/i)?.[1]?.replace(/&amp;/g, '&') || null
     const description = html.match(/<meta[^>]+name="description"[^>]+content="([^"]*)"/i)?.[1]?.replace(/&amp;/g, '&') || null
-    const price = html.match(/"price"\\s*:\\s*([0-9.]+)/i)?.[1] || null
+    const price = html.match(/"price"\s*:\s*([0-9.]+)/i)?.[1] || null
     if (!title && !description) return { error: 'Public RoyalHouse listing page did not expose details.' }
     return { source: site + '/listings/' + encodeURIComponent(id), listing: { id, title, description, price } }
   }
