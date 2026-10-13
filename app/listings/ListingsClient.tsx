@@ -194,20 +194,28 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
     ? { title: 'Объявления', sub: 'Найдите подходящую недвижимость и услуги', filters: 'Фильтры', location: 'Расположение', district: 'Район / город', type: 'Тип недвижимости', currency: 'Валюта', rooms: 'Комнаты', from: 'от', to: 'до', owner: 'От владельца', trusted: 'Надёжный профиль', mortgage: 'Ипотека возможна', searchWord: 'Поиск по словам', searchPlaceholder: 'Например: дача, дом, Чиланзар', apply: 'Применить', clear: 'Сбросить', all: 'Все типы', allUz: 'Весь Узбекистан', allDistricts: 'Все районы и города', allCurrency: 'Все', empty: 'По вашему запросу объявлений нет.', newest: 'Новые', low: 'Дешевле', high: 'Дороже', save: 'Сохранить поиск', saveTitle: 'Название поиска', savePlaceholder: 'Например: 3-комнатная в Ташкенте', saveConfirm: 'Сохранить', cancel: 'Отмена', prev: 'Назад', next: 'Далее', loading: 'Загрузка...', saved: 'Поиск сохранён', table: 'Таблица', list: 'Список', grid: 'Карточки', map: 'На карте', mapHint: 'Показать выбранные объявления на карте', noPhoto: 'Нет фото', ownerShort: 'От владельца', seller: 'Продавец', listing: 'Объявление', price: 'Цена', locationCol: 'Расположение', typeCol: 'Тип', roomsArea: 'Комнаты / площадь', saveError: 'Не удалось сохранить поиск.', loadError: 'Не удалось загрузить объявления.', genericError: 'Произошла ошибка.', results: 'объявлений', room: 'комн.', floor: 'эт.' }
     : { title: 'E’lonlar', sub: 'Sizga mos ko‘chmas mulk va xizmatlarni toping', filters: 'Filtrlar', location: 'Joylashuv', district: 'Tuman / shahar', type: 'Ko‘chmas mulk turi', currency: 'Valyuta', rooms: 'Xonalar', from: 'dan', to: 'gacha', owner: 'Egadan', trusted: 'Ishonchli profil', mortgage: 'Ipotekaga mumkin', searchWord: 'So‘z bilan qidirish', searchPlaceholder: 'Masalan: dacha, hovli, Chilonzor', apply: 'Qo‘llash', clear: 'Tozalash', all: 'Barcha turlar', allUz: 'Butun O‘zbekiston', allDistricts: 'Barcha tuman va shaharlar', allCurrency: 'Barchasi', empty: 'Tanlangan shartlar bo‘yicha e’lon topilmadi.', newest: 'Eng yangi', low: 'Arzonidan', high: 'Qimmatidan', save: 'Qidiruvni saqlash', saveTitle: 'Qidiruv nomi', savePlaceholder: 'Masalan: Toshkentda 3 xonali', saveConfirm: 'Saqlash', cancel: 'Bekor qilish', prev: 'Orqaga', next: 'Keyingi', loading: 'Yuklanmoqda...', saved: 'Qidiruv saqlandi', table: 'Jadval', list: 'Ro‘yxat', grid: 'Kartochkalar', map: 'Xaritada', mapHint: 'Tanlangan e’lonlarni xaritada ko‘rsatish', noPhoto: 'Rasm yo‘q', ownerShort: 'Egadan', seller: 'Sotuvchi', listing: 'E’lon', price: 'Narx', locationCol: 'Joylashuv', typeCol: 'Turi', roomsArea: 'Xona / maydon', saveError: 'Qidiruvni saqlab bo‘lmadi.', loadError: 'E’lonlarni yuklab bo‘lmadi.', genericError: 'Xatolik yuz berdi.', results: 'ta e’lon', room: 'xona', floor: 'qavat' }
 
+  const requestSequence = useRef(0)
   const load = useCallback(async () => {
+    const requestId = ++requestSequence.current
     setLoading(true); setError('')
     try {
       const response = await fetch(`/api/listings/search?${queryString}`, { cache: 'no-store' })
       const result = await response.json().catch(() => ({}))
+      // Filter changes can trigger overlapping requests. Ignore stale responses so
+      // a slower response for the previous tab cannot overwrite the selected tab.
+      if (requestId !== requestSequence.current) return
       if (!response.ok) throw new Error(result.error || text.loadError)
       setItems((result.data || []) as Listing[])
       setTotal(result.pagination?.total ?? null)
       setHasNext(Boolean(result.pagination?.has_next))
       setNextCursor(result.pagination?.next_cursor ?? null)
     } catch (e) {
+      if (requestId !== requestSequence.current) return
       setItems([]); setTotal(null); setHasNext(false); setNextCursor(null)
       setError(e instanceof Error ? e.message : text.genericError)
-    } finally { setLoading(false) }
+    } finally {
+      if (requestId === requestSequence.current) setLoading(false)
+    }
   }, [queryString, text.loadError, text.genericError])
   useEffect(() => {
     if (skipInitialLoad.current) {
@@ -223,7 +231,7 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
 
   const update = (patch: Partial<SearchState>) => setState(s => ({ ...s, ...patch }))
   const buildUrl = (next: SearchState, nextView: ViewMode, nextCursor?: string | null, nextPage?: number) => { const q = toQuery(next, nextCursor); q.set('view', nextView); if (nextCursor && nextPage && nextPage > 1) q.set('page', String(nextPage)); return `/listings?${q.toString()}` }
-  const apply = (next = state) => { setCursor(null); setPage(1); setNextCursor(null); setCursorHistory([null]); router.push(buildUrl(next, view)) }
+  const apply = (next = state) => { setState(next); setCursor(null); setPage(1); setNextCursor(null); setCursorHistory([null]); router.push(buildUrl(next, view)) }
   const clear = () => { const next: SearchState = { tab: 'sale', region: '', district: '', type: '', min: '', max: '', currency: '', rooms: '', owner: false, trusted: false, mortgage: false, taxonomy: '', sort: 'newest', q: '' }; setState(next); setCursor(null); setPage(1); setNextCursor(null); setCursorHistory([null]); router.push(buildUrl(next, view)) }
   const changeView = (nextView: ViewMode) => { setView(nextView); setCursor(null); setPage(1); setNextCursor(null); setCursorHistory([null]); router.push(buildUrl(state, nextView)) }
   const goNext = () => { if (!nextCursor || loading || view === 'map') return; const targetPage = page + 1; setCursorHistory(history => [...history.slice(0, page), nextCursor]); router.push(buildUrl(state, view, nextCursor, targetPage)) }
