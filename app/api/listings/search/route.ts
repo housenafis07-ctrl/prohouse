@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
+import { createClient } from '@/utils/supabase/server'
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-import { createClient } from '@/utils/supabase/server'
 
 const MAX_PAGE_SIZE = 48
 
