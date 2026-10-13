@@ -24,7 +24,7 @@ export async function POST(request:NextRequest){
   const settings=parseRental(listing.draft_data);const maxGuests=num(settings.max_guests);const {fee:extraGuestFee,included:includedGuests}=extraGuestSettings(settings)
   if(maxGuests>0&&extraGuestFee<=0&&guests>maxGuests)return NextResponse.json({error:`Mehmonlar soni ${maxGuests} tadan oshmasin`},{status:400})
   const requested=eachDay(checkIn,checkOut);const blocked=new Set<string>(settings.blocked_dates||[]);if(requested.some(d=>blocked.has(d)))return NextResponse.json({error:'Tanlangan sanalardan biri band yoki yopiq'},{status:409})
-  const now=new Date();const expiry=new Date(now.getTime()-15*60*1000).toISOString()
+  const now=new Date()
   const {data:overlap,error:overlapError}=await db.from('rental_bookings').select('id').eq('listing_id',listingId).or(`status.eq.confirmed,and(status.eq.pending_payment,payment_expires_at.gt.${now.toISOString()})`).lt('check_in',checkOut).gt('check_out',checkIn).limit(1);if(overlapError)throw overlapError
   if(overlap?.length)return NextResponse.json({error:'Tanlangan sanalar allaqachon band'},{status:409})
   const prices=settings.date_prices||{};const extraGuests=Math.max(0,guests-includedGuests)
