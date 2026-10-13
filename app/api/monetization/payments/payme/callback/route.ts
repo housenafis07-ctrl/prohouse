@@ -394,16 +394,27 @@ export async function POST(request: NextRequest) {
     if (method === 'PerformTransaction') {
       const transactionId = typeof params.id === 'string' ? params.id : ''
       if (!transactionId) return rpcError(body.id, -31003, 'Transaction not found')
-      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,provider_payment_id,provider_payload').eq('provider_payment_id', transactionId).maybeSingle()
+      const { data: rentalBooking, error: rentalError } = await admin.from('rental_bookings').select('id,status,payment_status,provider_payment_id,provider_payload,payment_expires_at').eq('provider_payment_id', transactionId).maybeSingle()
       if (rentalError) throw rentalError
       if (rentalBooking) {
         const payload = (rentalBooking.provider_payload || {}) as Record<string, any>
         const payme = (payload.payme || {}) as Record<string, any>
         if (rentalBooking.payment_status === 'paid') return rpcResult(body.id, { transaction: rentalBooking.id, perform_time: Number(payme.perform_time || Date.now()), state: 2 })
         if (rentalBooking.payment_status !== 'processing' || rentalBooking.status !== 'pending_payment') return rpcError(body.id, -31008, 'Operation is not allowed')
-        const performTime = Date.now()
-        const { error: updateError } = await admin.from('rental_bookings').update({ payment_status: 'paid', status: 'confirmed', paid_at: new Date().toISOString(), provider_payload: { ...payload, payme: { ...payme, perform_time: performTime, state: 2 } }, updated_at: new Date().toISOString() }).eq('id', rentalBooking.id).eq('payment_status', 'processing')
+        const now = new Date()
+        const nowIso = now.toISOString()
+        if (rentalBooking.payment_expires_at && new Date(rentalBooking.payment_expires_at).getTime() <= now.getTime()) {
+          const expiredPayload = { ...payload, expired_at: nowIso, payme: { ...payme, cancel_time: payme.cancel_time || now.getTime(), state: Number(payme.perform_time || 0) > 0 ? -2 : -1 } }
+          const { error: expireError } = await admin.from('rental_bookings').update({ status: 'cancelled', payment_status: 'cancelled', provider_payload: expiredPayload, updated_at: nowIso }).eq('id', rentalBooking.id).eq('payment_status', 'processing').lte('payment_expires_at', nowIso)
+          if (expireError) throw expireError
+          return rpcError(body.id, -31008, 'Operation is not allowed')
+        }
+        const performTime = now.getTime()
+        let update = admin.from('rental_bookings').update({ payment_status: 'paid', status: 'confirmed', paid_at: nowIso, provider_payload: { ...payload, payme: { ...payme, perform_time: performTime, state: 2 } }, updated_at: nowIso }).eq('id', rentalBooking.id).eq('payment_status', 'processing')
+        if (rentalBooking.payment_expires_at) update = update.gt('payment_expires_at', nowIso)
+        const { data: updated, error: updateError } = await update.select('id').maybeSingle()
         if (updateError) throw updateError
+        if (!updated) return rpcError(body.id, -31008, 'Operation is not allowed')
         return rpcResult(body.id, { transaction: rentalBooking.id, perform_time: performTime, state: 2 })
       }
       const { data: attempt, error } = await admin.from('monetization_payment_attempts').select('id,order_id,status,provider_payment_id,provider_payload').eq('provider', 'payme').eq('provider_payment_id', transactionId).maybeSingle()
