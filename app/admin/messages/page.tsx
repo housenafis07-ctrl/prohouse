@@ -326,7 +326,7 @@ export default function SupportMessagesPage() {
                       </div>
                       <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">{aiDraft.generated_reply}</p>
                       {aiDraft.status === 'preview_only' && (
-                        <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{t('Xavfsiz test rejimi: bu matn bazaga saqlanmagan va mijozga yuborilmaydi. Real murojaatni tekshirish uchun alohida izolyatsiyalangan test bazasi kerak.', 'Безопасный тест: текст не сохранён в базе и не отправлен клиенту. Для проверки реальных обращений нужна отдельная изолированная тестовая база.')}</p>
+                        <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{t('Tekshiruv rejimi: AI javobi saqlanmadi va mijozga yuborilmadi. Murojaat hamda kerak bo‘lsa e’lon/bron ma’lumotlari faqat o‘qildi; hech narsa o‘zgartirilmadi.', 'Режим проверки: ответ ИИ не сохранён и не отправлен клиенту. Обращение и при необходимости данные объявлений/бронирований только прочитаны; изменения не вносились.')}</p>
                       )}
                       {aiDraft.status === 'pending_review' && (
                         <div className="mt-3 grid grid-cols-2 gap-2">
