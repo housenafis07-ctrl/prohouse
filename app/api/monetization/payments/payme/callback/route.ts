@@ -503,8 +503,8 @@ export async function POST(request: NextRequest) {
           const dates = `${cancelledBooking.check_in} — ${cancelledBooking.check_out}`
           const amount = Number(cancelledBooking.deposit_amount).toLocaleString('uz-UZ')
           await Promise.all([
-            queueTelegramNotification(admin, cancelledBooking.guest_id, 'booking_cancelled', `❌ Royalhouse — dacha broningiz bekor qilindi\\nDacha: ${listing?.title || 'Dacha'}\\nSanalar: ${dates}\\nAvans: ${amount} so‘m\\nHolat: bekor qilindi.`),
-            queueTelegramNotification(admin, listing?.owner_id, 'booking_cancelled', `❌ Royalhouse — mijoz dacha bronini bekor qildi\\nDacha: ${listing?.title || 'Dacha'}\\nMijoz: ${guest?.full_name || 'Mijoz'}\\nSanalar: ${dates}\\nAvans: ${amount} so‘m\\nBron bekor qilindi.`),
+            queueTelegramNotification(admin, cancelledBooking.guest_id, 'booking_cancelled', `❌ Royalhouse — dacha broningiz bekor qilindi\nDacha: ${listing?.title || 'Dacha'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nHolat: bekor qilindi.`),
+            queueTelegramNotification(admin, listing?.owner_id, 'booking_cancelled', `❌ Royalhouse — mijoz dacha bronini bekor qildi\nDacha: ${listing?.title || 'Dacha'}\nMijoz: ${guest?.full_name || 'Mijoz'}\nSanalar: ${dates}\nAvans: ${amount} so‘m\nBron bekor qilindi.`),
           ])
           await deliverPendingTelegramNotifications(admin)
         }
