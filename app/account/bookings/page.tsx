@@ -79,8 +79,6 @@ export default function RentalBookingsPage() {
   const actualPaid = paid.reduce((sum, x) => sum + x.depositAmount, 0)
   const totalBookingValue = confirmed.reduce((sum, x) => sum + x.totalAmount, 0)
   const pendingAdvance = pending.reduce((sum, x) => sum + x.depositAmount, 0)
-  const allTimeDachaItems = listingId === 'all' ? partnerItems : partnerItems.filter(x => x.listing?.id === listingId)
-  const dachaPaid = allTimeDachaItems.filter(x => x.paymentStatus === 'paid').reduce((sum, x) => sum + x.depositAmount, 0)
 
   const statusLabel = (item: Booking) => {
     if (item.status === 'cancelled') return ru ? 'Отменено' : 'Bekor qilingan'
