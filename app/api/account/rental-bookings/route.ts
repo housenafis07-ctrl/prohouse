@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { expirePendingRentalBookings } from '@/utils/rentals/expire-pending-bookings'
 
 export async function GET() {
   try {
@@ -9,6 +10,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
     const db = serviceClient()
+    await expirePendingRentalBookings(db)
     const [{ data: customerRows, error: customerError }, { data: ownedListings, error: listingsError }] = await Promise.all([
       db.from('rental_bookings').select('id,listing_id,guest_id,check_in,check_out,guests,currency,total_amount,deposit_percent,deposit_amount,payment_provider,payment_status,status,created_at,paid_at,provider_payment_id,provider_payload').eq('guest_id', user.id).order('created_at', { ascending: false }),
       db.from('listings').select('id,title,title_ru,owner_id,primary_image_url,city,district').eq('owner_id', user.id),
@@ -27,7 +29,7 @@ export async function GET() {
     const merged = new Map<string, { booking: any; role: 'customer' | 'partner' }>()
     for (const booking of partnerRows) merged.set(booking.id, { booking, role: 'partner' })
     for (const booking of customerRows || []) merged.set(booking.id, { booking, role: merged.has(booking.id) ? 'customer' : 'customer' })
-    const entries = Array.from(merged.values())
+    const entries = Array.from(merged.values()).filter(({ booking }) => !(booking.provider_payload as any)?.expired_at)
     const listingIds = Array.from(new Set(entries.map(x => x.booking.listing_id)))
     const guestIds = Array.from(new Set(entries.map(x => x.booking.guest_id)))
     const [{ data: listingDetails, error: detailError }, { data: profiles, error: profileError }] = await Promise.all([
