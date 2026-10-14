@@ -18,7 +18,7 @@ type Listing = {
 }
 
 const money=(value:number,currency:string,lang:Lang)=>`${new Intl.NumberFormat(lang==='ru'?'ru-RU':'uz-UZ').format(Number(value))} ${currency==='USD'?'$':lang==='ru'?'сум':'so‘m'}`
-const LOCATION_RU:Record<string,string>={Toshkent:'Ташкент','Toshkent viloyati':'Ташкентская область',Yunusobod:'Юнусабад',Chilonzor:'Чиланзар',Sergeli:'Сергелийский район',Mirobod:'Мирабадский район',Yakkasaroy:'Яккасарайский район',Shayxontahur:'Шайхантахурский район',Olmazor:'Алмазарский район',Uchtepa:'Учтепинский район',Bektemir:'Бектемирский район',Yangihayot:'Янгиҳаётский район',Yangiyo‘l:'Янгиюльский район',"Yangiyo'l":'Янгиюльский район'}
+const LOCATION_RU:Record<string,string>={Toshkent:'Ташкент','Toshkent viloyati':'Ташкентская область',Yunusobod:'Юнусабад',Chilonzor:'Чиланзар',Sergeli:'Сергелийский район',Mirobod:'Мирабадский район',Yakkasaroy:'Яккасарайский район',Shayxontahur:'Шайхантахурский район',Olmazor:'Алмазарский район',Uchtepa:'Учтепинский район',Bektemir:'Бектемирский район',Yangihayot:'Янгиҳаётский район','Yangiyo‘l':'Янгиюльский район',"Yangiyo'l":'Янгиюльский район'}
 const localizeLocation=(value:string|null|undefined,lang:Lang)=>!value?'':lang==='ru'?(LOCATION_RU[value]||value):value
 
 export default function MyListingsPage(){
