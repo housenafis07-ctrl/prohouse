@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
 const MAX_DURATION_SECONDS = 60
+const MAX_SOURCE_DURATION_SECONDS = 3600
 const TUS_THRESHOLD_BYTES = 200 * 1024 * 1024
 const CLOUDFLARE_TUS_CHUNK_SIZE = 50 * 1024 * 1024
 
@@ -90,12 +91,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           method: 'POST',
           headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            maxDurationSeconds: MAX_DURATION_SECONDS,
+            maxDurationSeconds: MAX_SOURCE_DURATION_SECONDS,
             expiry: getUploadExpiry(),
             creator: user.id,
             thumbnailTimestampPct: 0.1,
             requireSignedURLs: false,
-            meta: { name: fileName },
+            meta: { name: fileName, royalhouseMaxDurationSeconds: String(MAX_DURATION_SECONDS) },
           }),
           cache: 'no-store',
         })
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const uploadMetadata = [
           `name ${base64(fileName)}`,
           `thumbnailtimestamppct ${base64('0.1')}`,
-          `maxdurationseconds ${base64(String(MAX_DURATION_SECONDS))}`,
+          `maxdurationseconds ${base64(String(MAX_SOURCE_DURATION_SECONDS))}`,
           `expiry ${base64(getUploadExpiry())}`,
         ].join(',')
 
@@ -160,11 +161,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         media_type: 'video',
         provider: 'cloudflare',
         status: 'uploading',
+        original_storage_path: providerId,
         processed_storage_path: providerId,
         original_mime_type: mimeType,
         original_size_bytes: sizeBytes,
         sort_order: 0,
-      }).select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes').single()
+      }).select('id,listing_id,status,provider,processed_storage_path,original_storage_path,original_mime_type,original_size_bytes').single()
 
       if (mediaError) throw mediaError
 
@@ -175,6 +177,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           url: uploadUrl,
           providerId,
           chunkSize: protocol === 'tus' ? CLOUDFLARE_TUS_CHUNK_SIZE : null,
+          maxDurationSeconds: MAX_DURATION_SECONDS,
+          autoTrim: true,
         },
       })
     }
@@ -233,7 +237,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       original_mime_type: mimeType,
       original_size_bytes: sizeBytes,
       sort_order: 0,
-    }).select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes').single()
+    }).select('id,listing_id,status,provider,processed_storage_path,original_storage_path,original_mime_type,original_size_bytes').single()
 
     if (mediaError) throw mediaError
 
