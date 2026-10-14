@@ -17,11 +17,38 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { data: media, error } = await db
       .from('listing_media')
-      .select('id,listing_id,status,provider,processed_storage_path,playback_url,thumbnail_storage_path')
+      .select('id,listing_id,status,provider,processed_storage_path,playback_url,thumbnail_storage_path,original_mime_type,original_size_bytes')
       .eq('id', mediaId)
       .eq('listing_id', listingId)
       .single()
     if (error) throw error
+
+    if (media.provider === 'supabase' && media.processed_storage_path) {
+      if (media.status === 'uploading') return NextResponse.json({ media, provider: { status: 'uploading' } })
+
+      const { data: signed, error: signError } = await db.storage
+        .from('listing-videos')
+        .createSignedUrl(media.processed_storage_path, 24 * 60 * 60)
+      if (signError || !signed?.signedUrl) {
+        console.error('[listing-video/status] supabase signed playback failed', signError)
+        return NextResponse.json({ error: 'VIDEO_STATUS_FAILED' }, { status: 500 })
+      }
+
+      const { data: updated, error: updateError } = await db
+        .from('listing_media')
+        .update({
+          status: 'ready',
+          playback_url: signed.signedUrl,
+          mime_type: media.original_mime_type || 'application/octet-stream',
+          size_bytes: media.original_size_bytes,
+        })
+        .eq('id', mediaId)
+        .eq('listing_id', listingId)
+        .select('id,listing_id,status,provider,playback_url,thumbnail_storage_path,processed_storage_path,duration_seconds,width,height')
+        .single()
+      if (updateError) throw updateError
+      return NextResponse.json({ media: updated, provider: { status: 'ready' } })
+    }
 
     if (media.provider !== 'cloudflare' || !media.processed_storage_path) return NextResponse.json({ media })
 
