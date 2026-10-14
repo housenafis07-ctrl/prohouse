@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
-const MAX_DURATION_SECONDS = 600
+const MAX_DURATION_SECONDS = 60
 
 function base64(value: string) {
   return Buffer.from(value, 'utf8').toString('base64')
@@ -32,11 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const mimeType = typeof body?.mimeType === 'string' ? body.mimeType.toLowerCase() : ''
     const sizeBytes = Number(body?.sizeBytes)
     if (!fileName || !mimeType.startsWith('video/') || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({
-        error: 'UNSUPPORTED_VIDEO',
-        message: 'Video formati qo‘llab-quvvatlanmaydi yoki Cloudflare Stream maksimal fayl hajmidan oshgan.',
-        maxBytes: MAX_UPLOAD_BYTES,
-      }, { status: 400 })
+      return NextResponse.json({ error: 'UNSUPPORTED_VIDEO', message: 'Video formati qo‘llab-quvvatlanmaydi yoki Cloudflare Stream maksimal fayl hajmidan oshgan.', maxBytes: MAX_UPLOAD_BYTES }, { status: 400 })
     }
 
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
@@ -54,8 +50,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `maxdurationseconds ${base64(String(MAX_DURATION_SECONDS))}`,
     ].join(',')
 
-    // TUS is used for every upload so large phone videos are resumable. Cloudflare
-    // requires TUS for files over 200 MB and supports direct end-user uploads.
     const uploadResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream?direct_user=true`, {
       method: 'POST',
       headers: {
@@ -76,17 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { data: media, error: mediaError } = await db
       .from('listing_media')
-      .insert({
-        id: mediaId,
-        listing_id: listingId,
-        media_type: 'video',
-        provider: 'cloudflare',
-        status: 'uploading',
-        processed_storage_path: providerId,
-        original_mime_type: mimeType,
-        original_size_bytes: sizeBytes,
-        sort_order: 0,
-      })
+      .insert({ id: mediaId, listing_id: listingId, media_type: 'video', provider: 'cloudflare', status: 'uploading', processed_storage_path: providerId, original_mime_type: mimeType, original_size_bytes: sizeBytes, sort_order: 0 })
       .select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes')
       .single()
 
@@ -95,15 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'VIDEO_MEDIA_RECORD_FAILED' }, { status: 500 })
     }
 
-    return NextResponse.json({
-      media,
-      upload: {
-        protocol: 'tus',
-        url: uploadUrl,
-        providerId,
-        chunkSize: 50 * 1024 * 1024,
-      },
-    })
+    return NextResponse.json({ media, upload: { protocol: 'tus', url: uploadUrl, providerId, chunkSize: 50 * 1024 * 1024 } })
   } catch (error) {
     console.error('[listing-video/upload]', error)
     return NextResponse.json({ error: 'VIDEO_UPLOAD_INIT_FAILED' }, { status: 500 })
