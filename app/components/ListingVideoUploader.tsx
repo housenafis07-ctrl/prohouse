@@ -204,7 +204,10 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
 
         if (data.media?.status === 'failed' || providerStatus === 'failed' || providerStatus === 'error') {
           updateStatus('failed', data.media)
-          setError(text(ru, 'Video qayta ishlanmadi. Boshqa video tanlang.', 'Видео не удалось обработать. Выберите другой файл.'))
+          const providerMessage = typeof data.provider?.errorMessage === 'string' ? data.provider.errorMessage.trim() : ''
+          setError(providerMessage
+            ? text(ru, `Video qayta ishlanmadi: ${providerMessage}`, `Видео не удалось обработать: ${providerMessage}`)
+            : text(ru, 'Video qayta ishlanmadi. Boshqa video tanlang.', 'Видео не удалось обработать. Выберите другой файл.'))
           stop()
           return
         }
@@ -244,7 +247,9 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     setFileName(file.name)
     mediaIdRef.current = null
 
-    if (!file.type.startsWith('video/') && !/\.(mp4|mkv|mov|avi|flv|ts|mts|m2ts|mpeg|mpg|mxf|lxf|gxf|3gp|webm|m4v|qt|hevc|h265)$/i.test(file.name)) {
+    const knownVideoExtension = /\.(mp4|mkv|mov|avi|flv|ts|mts|m2ts|mpeg|mpg|mxf|lxf|gxf|3gp|webm|m4v|qt|hevc|h265)$/i.test(file.name)
+    const clearlyNonVideoMime = Boolean(file.type) && !file.type.startsWith('video/') && file.type !== 'application/octet-stream'
+    if (clearlyNonVideoMime && !knownVideoExtension) {
       setStatus('failed')
       setError(text(ru, 'Video faylini tanlang.', 'Выберите видеофайл.'))
       return
@@ -264,6 +269,8 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       } catch (durationError) {
         const code = durationError instanceof Error ? durationError.message : ''
         if (code === 'VIDEO_TOO_LONG' || code === 'VIDEO_TOO_SHORT') throw durationError
+        // Some supported containers cannot expose metadata to the browser.
+        // Do not reject them here; Cloudflare Stream will validate the actual media.
       }
 
       updateStatus('uploading', null)
@@ -356,7 +363,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       <div className="flex items-start justify-between gap-3">
         <div>
           <b className="text-sm font-bold">🎥 {text(ru, 'Video', 'Видео')}</b>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{text(ru, '1 ta video · 1–60 soniya · telefon, MP4, MOV, MKV, AVI, WebM va boshqa video formatlari qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · поддерживаются телефонные форматы, MP4, MOV, MKV, AVI, WebM и другие форматы. Сервер автоматически оптимизирует видео.')}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{text(ru, '1 ta video · 1–60 soniya · telefon, MP4, MOV, MKV, AVI, WebM va Cloudflare Stream qo‘llab-quvvatlaydigan boshqa video formatlari qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · поддерживаются телефонные форматы, MP4, MOV, MKV, AVI, WebM и другие форматы, поддерживаемые Cloudflare Stream. Сервер автоматически оптимизирует видео.')}</p>
         </div>
         {status === 'ready' && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ {text(ru, 'Tayyor', 'Готово')}</span>}
       </div>
