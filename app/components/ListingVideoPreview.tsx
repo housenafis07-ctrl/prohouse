@@ -9,6 +9,7 @@ type Props = {
 }
 
 type VideoMedia = {
+  provider?: 'supabase' | 'cloudflare' | string | null
   playback_url?: string | null
   thumbnail_storage_path?: string | null
 }
@@ -64,15 +65,29 @@ export default function ListingVideoPreview({ listingId, title }: Props) {
   return createPortal(
     <div className="pointer-events-auto absolute bottom-4 right-4 z-20 w-[150px] overflow-hidden rounded-2xl border-2 border-white bg-black shadow-2xl sm:w-[190px]" aria-label={`${title} video`}>
       {visible ? (
-        <iframe
-          src={src}
-          title={`${title} video`}
-          loading="lazy"
-          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-          allowFullScreen
-          onError={() => setFailed(true)}
-          className="aspect-[9/16] block w-full border-0 bg-black"
-        />
+        media.provider === 'supabase' ? (
+          <video
+            src={playbackUrl}
+            title={`${title} video`}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onError={() => setFailed(true)}
+            className="aspect-[9/16] block w-full border-0 bg-black object-cover"
+          />
+        ) : (
+          <iframe
+            src={src}
+            title={`${title} video`}
+            loading="lazy"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+            allowFullScreen
+            onError={() => setFailed(true)}
+            className="aspect-[9/16] block w-full border-0 bg-black"
+          />
+        )
       ) : (
         <div className="relative aspect-[9/16] w-full bg-black">
           {media.thumbnail_storage_path && <img src={media.thumbnail_storage_path} alt="" className="h-full w-full object-cover" loading="lazy" />}
