@@ -19,8 +19,15 @@ type Props = {
 }
 
 const MAX_DURATION_SECONDS = 60
-const CHUNK_SIZE = 50 * 1024 * 1024
-const ACCEPT = 'video/*,.mp4,.mov,.webm,.mkv,.avi,.3gp,.m4v,.hevc,.h265'
+const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
+const ACCEPT = [
+  'video/*',
+  '.mp4', '.mkv', '.mov', '.avi', '.flv', '.ts', '.mts', '.m2ts',
+  '.mpeg', '.mpg', '.mxf', '.lxf', '.gxf', '.3gp', '.webm', '.m4v',
+  '.qt', '.hevc', '.h265',
+].join(',')
+const MAX_PROCESSING_WAIT_MS = 10 * 60 * 1000
+
 const text = (ru: boolean, uz: string, ruText: string) => (ru ? ruText : uz)
 
 function getVideoDuration(file: File): Promise<number> {
@@ -43,11 +50,14 @@ function getVideoDuration(file: File): Promise<number> {
 }
 
 async function uploadTus(url: string, file: File, onProgress: (value: number) => void) {
+  const chunkSize = 50 * 1024 * 1024
   let offset = 0
   let retries = 0
+
   while (offset < file.size) {
-    const end = Math.min(offset + CHUNK_SIZE, file.size)
+    const end = Math.min(offset + chunkSize, file.size)
     const chunk = file.slice(offset, end)
+
     try {
       const response = await fetch(url, {
         method: 'PATCH',
@@ -58,13 +68,16 @@ async function uploadTus(url: string, file: File, onProgress: (value: number) =>
         },
         body: chunk,
       })
+
       if (!response.ok) {
         let detail = ''
         try { detail = (await response.text()).slice(0, 240) } catch {}
         throw new Error(`TUS_${response.status}${detail ? `:${detail}` : ''}`)
       }
+
       const nextOffset = Number(response.headers.get('Upload-Offset'))
       if (!Number.isFinite(nextOffset) || nextOffset <= offset) throw new Error('TUS_INVALID_OFFSET')
+
       offset = nextOffset
       retries = 0
       onProgress(Math.min(100, Math.round((offset / file.size) * 100)))
@@ -84,6 +97,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   const [media, setMedia] = useState<Media | null>(null)
   const mediaIdRef = useRef<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const processingStartedRef = useRef<number | null>(null)
 
   useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current)
@@ -98,37 +112,72 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   const pollStatus = async (mediaId: string) => {
     if (!listingId) return
     if (pollRef.current) clearInterval(pollRef.current)
+    processingStartedRef.current = Date.now()
+
+    let stopped = false
+
+    const stop = () => {
+      stopped = true
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+
     const check = async () => {
       try {
         const response = await fetch(`/api/listings/${listingId}/video/status?mediaId=${encodeURIComponent(mediaId)}`, { cache: 'no-store' })
         const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'VIDEO_STATUS_FAILED')
+
+        if (!response.ok) {
+          if (data.error === 'VIDEO_PROCESSING_ENV_MISSING') {
+            throw new Error('VIDEO_PROCESSING_ENV_MISSING')
+          }
+          throw new Error(data.error || 'VIDEO_STATUS_FAILED')
+        }
+
         const providerStatus = data.provider?.status
+
         if (data.media?.status === 'ready' || providerStatus === 'ready') {
           mediaIdRef.current = mediaId
           updateStatus('ready', data.media)
-          if (pollRef.current) clearInterval(pollRef.current)
-        } else if (data.media?.status === 'failed' || providerStatus === 'failed') {
+          stop()
+          return
+        }
+
+        if (data.media?.status === 'failed' || providerStatus === 'failed' || providerStatus === 'error') {
           updateStatus('failed', data.media)
           setError(text(ru, 'Video qayta ishlanmadi. Boshqa video tanlang.', 'Видео не удалось обработать. Выберите другой файл.'))
-          if (pollRef.current) clearInterval(pollRef.current)
+          stop()
+          return
         }
-      } catch {
-        // Temporary status errors are retried by the next poll.
+
+        if (processingStartedRef.current && Date.now() - processingStartedRef.current > MAX_PROCESSING_WAIT_MS) {
+          updateStatus('failed', data.media)
+          setError(text(ru, 'Video serverda juda uzoq qayta ishlanmoqda. Qayta urinib ko‘ring.', 'Видео слишком долго обрабатывается на сервере. Попробуйте ещё раз.'))
+          stop()
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message === 'VIDEO_PROCESSING_ENV_MISSING') {
+          updateStatus('failed', null)
+          setError(text(ru, 'Video serveri sozlanmagan. Administrator Cloudflare Stream konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию Cloudflare Stream.'))
+          stop()
+        }
+        // Other temporary status/network errors are retried by the next poll.
       }
     }
+
     await check()
-    pollRef.current = setInterval(check, 3000)
+    if (!stopped) pollRef.current = setInterval(check, 3000)
   }
 
   const chooseVideo = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+
     if (!listingId) {
       setError(text(ru, 'Avval oldingi bosqichni saqlang.', 'Сначала сохраните предыдущий шаг.'))
       return
     }
+
     setError('')
     if (pollRef.current) clearInterval(pollRef.current)
     setMedia(null)
@@ -136,11 +185,22 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     setFileName(file.name)
     mediaIdRef.current = null
 
+    if (!file.type.startsWith('video/') && !/\.(mp4|mkv|mov|avi|flv|ts|mts|m2ts|mpeg|mpg|mxf|lxf|gxf|3gp|webm|m4v|qt|hevc|h265)$/i.test(file.name)) {
+      setStatus('failed')
+      setError(text(ru, 'Video faylini tanlang.', 'Выберите видеофайл.'))
+      return
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setStatus('failed')
+      setError(text(ru, 'Video hajmi 30 GB dan oshmasligi kerak.', 'Размер видео не должен превышать 30 ГБ.'))
+      return
+    }
+
     try {
-      // Some phones (especially HEVC/H.265 recordings) can be selected by the
-      // browser but cannot be decoded by the embedded video element. Do not
-      // reject those files locally: Cloudflare Stream performs the authoritative
-      // format/duration validation and transcoding after upload.
+      // Browser decoding is only an optional fast duration check. Some valid
+      // phone formats/codecs (notably HEVC/H.265) may not decode in this browser.
+      // Cloudflare Stream remains the authoritative format/duration validator.
       try {
         const duration = await getVideoDuration(file)
         if (duration > MAX_DURATION_SECONDS) throw new Error('VIDEO_TOO_LONG')
@@ -151,15 +211,22 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       }
 
       updateStatus('uploading', null)
+
       const initResponse = await fetch(`/api/listings/${listingId}/video/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, mimeType: file.type || 'video/mp4', sizeBytes: file.size }),
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+        }),
       })
-      const init = await initResponse.json()
-      if (!initResponse.ok) throw new Error(init.message || init.error || 'VIDEO_UPLOAD_INIT_FAILED')
-      mediaIdRef.current = init.media.id
 
+      const init = await initResponse.json().catch(() => ({}))
+      if (!initResponse.ok) throw new Error(init.message || init.error || 'VIDEO_UPLOAD_INIT_FAILED')
+      if (!init.media?.id || !init.upload?.url) throw new Error('VIDEO_UPLOAD_INIT_INVALID_RESPONSE')
+
+      mediaIdRef.current = init.media.id
       await uploadTus(init.upload.url, file, setProgress)
 
       const completeResponse = await fetch(`/api/listings/${listingId}/video/upload/complete`, {
@@ -167,7 +234,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mediaId: init.media.id }),
       })
-      const complete = await completeResponse.json()
+      const complete = await completeResponse.json().catch(() => ({}))
       if (!completeResponse.ok) throw new Error(complete.error || 'VIDEO_UPLOAD_COMPLETE_FAILED')
 
       updateStatus('processing', complete.media)
@@ -176,8 +243,10 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       if (mediaIdRef.current && listingId) {
         await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' }).catch(() => undefined)
       }
+
       mediaIdRef.current = null
       updateStatus('failed', null)
+
       const code = err instanceof Error ? err.message : ''
       const message = code === 'VIDEO_TOO_LONG'
         ? text(ru, 'Video maksimal 60 soniya bo‘lishi kerak.', 'Видео должно быть не длиннее 60 секунд.')
@@ -185,11 +254,12 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
           ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
           : code.startsWith('TUS_')
             ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
-            : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
-              ? text(ru, 'Video serverini ishga tushirishda xatolik. Keyinroq qayta urinib ko‘ring.', 'Не удалось запустить загрузку видео на сервер. Попробуйте позже.')
-              : code === 'VIDEO_PROCESSING_ENV_MISSING'
-                ? text(ru, 'Video serveri sozlanmagan. Administrator konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию.')
+            : code === 'VIDEO_PROCESSING_ENV_MISSING'
+              ? text(ru, 'Video serveri sozlanmagan. Administrator Cloudflare Stream konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию Cloudflare Stream.')
+              : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
+                ? text(ru, 'Video serverga ulanishda xatolik. Cloudflare Stream konfiguratsiyasini tekshiring.', 'Ошибка подключения к видеосерверу. Проверьте конфигурацию Cloudflare Stream.')
                 : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
+
       setError(message)
     }
   }
@@ -197,11 +267,13 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   const removeVideo = async () => {
     if (!listingId || !mediaIdRef.current) return
     if (pollRef.current) clearInterval(pollRef.current)
+
     const response = await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' })
     if (!response.ok) {
       setError(text(ru, 'Videoni o‘chirishda xatolik yuz berdi.', 'Не удалось удалить видео.'))
       return
     }
+
     mediaIdRef.current = null
     setMedia(null)
     setFileName('')
@@ -215,7 +287,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       <div className="flex items-start justify-between gap-3">
         <div>
           <b className="text-sm font-bold">🎥 {text(ru, 'Video', 'Видео')}</b>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{text(ru, '1 ta video · 1–60 soniya · telefon formati qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · формат телефона поддерживается. Сервер автоматически оптимизирует видео.')}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{text(ru, '1 ta video · 1–60 soniya · telefon, MP4, MOV, MKV, AVI, WebM va boshqa video formatlari qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · поддерживаются телефонные форматы, MP4, MOV, MKV, AVI, WebM и другие форматы. Сервер автоматически оптимизирует видео.')}</p>
         </div>
         {status === 'ready' && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ {text(ru, 'Tayyor', 'Готово')}</span>}
       </div>
