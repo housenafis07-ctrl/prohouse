@@ -68,6 +68,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const ready = state === 'ready'
     const failed = state === 'error'
     const uid = media.processed_storage_path
+    const errorCode = String(video?.status?.errorReasonCode || '').trim()
+    const errorMessage = String(video?.status?.errorReasonText || '').trim()
 
     if (ready) {
       const playbackUrl = `https://iframe.videodelivery.net/${uid}`
@@ -93,7 +95,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (failed) {
       await db.from('listing_media').update({ status: 'failed' }).eq('id', mediaId).eq('listing_id', listingId)
-      return NextResponse.json({ media: { ...media, status: 'failed' }, provider: { status: 'failed' } })
+      return NextResponse.json({
+        media: { ...media, status: 'failed' },
+        provider: {
+          status: 'failed',
+          errorCode: errorCode || null,
+          errorMessage: errorMessage || null,
+        },
+      })
     }
 
     return NextResponse.json({ media, provider: { status: state || 'processing' } })
