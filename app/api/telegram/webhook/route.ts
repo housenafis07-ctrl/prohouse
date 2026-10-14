@@ -39,12 +39,52 @@ export async function POST(request: NextRequest) {
     const from = message.from
     const admin = serviceClient()
 
-    if (text.startsWith('/start')) {
+    if (/^\/start(?:\s|$)/.test(text)) {
       const payload = text.split(/\s+/, 2)[1] || ''
+
+      // A plain /start must also recognize an already-linked Telegram account.
+      // Previously only /start link_<token> performed a link, so returning users
+      // were incorrectly told to connect their account again the next day.
       if (!payload.startsWith('link_')) {
-        await sendTelegramMessage(chatId, 'Assalomu alaykum! Royalhouse bronlari haqida xabar olish uchun saytdagi Shaxsiy kabinet → Telegram bildirishnomalari bo‘limidan akkauntingizni ulang.')
+        let existingLink: { telegram_username: string | null } | null = null
+
+        if (from?.id) {
+          const { data, error } = await admin
+            .from('telegram_user_links')
+            .select('telegram_username')
+            .eq('telegram_user_id', String(from.id))
+            .maybeSingle()
+          if (error) throw error
+          existingLink = data
+        }
+
+        if (!existingLink) {
+          const { data, error } = await admin
+            .from('telegram_user_links')
+            .select('telegram_username')
+            .eq('chat_id', String(chatId))
+            .maybeSingle()
+          if (error) throw error
+          existingLink = data
+        }
+
+        if (existingLink) {
+          const username = existingLink.telegram_username
+            ? ` @${existingLink.telegram_username.replace(/^@/, '')}`
+            : ''
+          await sendTelegramMessage(
+            chatId,
+            `✅ Telegram akkauntingiz Royalhouse profiliga ulangan${username}.\n\nEndi dacha bronlari, avans to‘lovlari va bekor qilishlar haqida shu botdan xabar olasiz.`,
+          )
+        } else {
+          await sendTelegramMessage(
+            chatId,
+            'Assalomu alaykum! Royalhouse bronlari haqida xabar olish uchun saytdagi Shaxsiy kabinet → Telegram bildirishnomalari bo‘limidan akkauntingizni ulang.',
+          )
+        }
         return NextResponse.json({ ok: true })
       }
+
       if (!from?.id) {
         await sendTelegramMessage(chatId, 'Telegram foydalanuvchisi aniqlanmadi. Saytdan yangi ulash havolasini oling.')
         return NextResponse.json({ ok: true })
