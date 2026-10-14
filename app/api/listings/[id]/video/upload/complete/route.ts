@@ -26,16 +26,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!media?.processed_storage_path) return NextResponse.json({ error: 'VIDEO_PROVIDER_ID_MISSING' }, { status: 409 })
     if (!['uploading', 'processing'].includes(media.status)) return NextResponse.json({ media })
 
-    const { data: updated, error: updateError } = await db
-      .from('listing_media')
-      .update({ status: 'processing' })
-      .eq('id', mediaId)
-      .eq('listing_id', listingId)
-      .select('id,listing_id,status,provider,processed_storage_path')
-      .single()
-    if (updateError) throw updateError
+    // Upload to the provider has already completed before this endpoint is called.
+    // The provider status endpoint can reconcile the record later, so do not make
+    // successful browser uploads depend on a second RLS UPDATE succeeding.
+    if (media.status === 'uploading') {
+      const { data: updated, error: updateError } = await db
+        .from('listing_media')
+        .update({ status: 'processing' })
+        .eq('id', mediaId)
+        .eq('listing_id', listingId)
+        .select('id,listing_id,status,provider,processed_storage_path')
+        .single()
 
-    return NextResponse.json({ media: updated })
+      if (!updateError && updated) return NextResponse.json({ media: updated })
+
+      console.error('[listing-video/complete] status update deferred; provider upload is already complete', updateError)
+      return NextResponse.json({
+        media: { ...media, status: 'processing' },
+        deferredStatusUpdate: true,
+      })
+    }
+
+    return NextResponse.json({ media })
   } catch (error) {
     console.error('[listing-video/complete]', error)
     return NextResponse.json({ error: 'VIDEO_UPLOAD_COMPLETE_FAILED' }, { status: 500 })
