@@ -26,7 +26,7 @@ const ACCEPT = [
   '.mpeg', '.mpg', '.mxf', '.lxf', '.gxf', '.3gp', '.webm', '.m4v',
   '.qt', '.hevc', '.h265',
 ].join(',')
-const MAX_PROCESSING_WAIT_MS = 10 * 60 * 1000
+const MAX_PROCESSING_WAIT_MS = 15 * 60 * 1000
 const DEFAULT_TUS_CHUNK_SIZE = 6 * 1024 * 1024
 
 const text = (ru: boolean, uz: string, ruText: string) => (ru ? ruText : uz)
@@ -55,7 +55,6 @@ function uploadDirectPost(url: string, file: File, onProgress: (value: number) =
     const xhr = new XMLHttpRequest()
     const form = new FormData()
     form.append('file', file, file.name)
-
     xhr.open('POST', url)
     xhr.responseType = 'text'
     xhr.upload.onprogress = event => {
@@ -97,8 +96,6 @@ async function uploadTus(
   onProgress: (value: number) => void,
   configuredChunkSize?: number | null,
 ) {
-  // Supabase currently requires 6 MB TUS chunks. Cloudflare can return its
-  // own provider-specific chunk size, so always honor the value from init.
   const chunkSize = Number.isFinite(configuredChunkSize) && Number(configuredChunkSize) > 0
     ? Number(configuredChunkSize)
     : DEFAULT_TUS_CHUNK_SIZE
@@ -165,6 +162,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   const mediaIdRef = useRef<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const processingStartedRef = useRef<number | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => () => {
     if (pollRef.current) clearInterval(pollRef.current)
@@ -191,7 +189,6 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       try {
         const response = await fetch(`/api/listings/${listingId}/video/status?mediaId=${encodeURIComponent(mediaId)}`, { cache: 'no-store' })
         const data = await response.json()
-
         if (!response.ok) throw new Error(data.error || 'VIDEO_STATUS_FAILED')
 
         const providerStatus = data.provider?.status
@@ -259,11 +256,10 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     try {
       try {
         const duration = await getVideoDuration(file)
-        if (duration > MAX_DURATION_SECONDS) throw new Error('VIDEO_TOO_LONG')
         if (duration < 1) throw new Error('VIDEO_TOO_SHORT')
       } catch (durationError) {
         const code = durationError instanceof Error ? durationError.message : ''
-        if (code === 'VIDEO_TOO_LONG' || code === 'VIDEO_TOO_SHORT') throw durationError
+        if (code === 'VIDEO_TOO_SHORT') throw durationError
       }
 
       updateStatus('uploading', null)
@@ -311,23 +307,19 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       updateStatus('failed', null)
 
       const code = err instanceof Error ? err.message : ''
-      const message = code === 'VIDEO_TOO_LONG'
-        ? text(ru, 'Video maksimal 60 soniya bo‘lishi kerak.', 'Видео должно быть не длиннее 60 секунд.')
-        : code === 'VIDEO_TOO_SHORT'
-          ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
-          : code.startsWith('DIRECT_UPLOAD_')
-            ? text(ru, 'Video Cloudflare Streamga yuklanmadi. Server javobini tekshirish kerak.', 'Видео не загрузилось в Cloudflare Stream. Нужно проверить ответ сервера.')
-            : code.startsWith('SUPABASE_UPLOAD_')
-              ? text(ru, 'Video saqlash serveriga yuklanmadi. Internetni tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось в хранилище. Проверьте интернет и попробуйте ещё раз.')
-              : code.startsWith('TUS_') || code === 'TUS_INVALID_OFFSET'
-                ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
-                : code === 'VIDEO_PROCESSING_ENV_MISSING'
-                  ? text(ru, 'Video serveri sozlanmagan. Administrator Cloudflare Stream konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию Cloudflare Stream.')
-                  : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
-                    ? text(ru, 'Video serverga ulanishda xatolik. Qayta urinib ko‘ring.', 'Ошибка подключения к видеосерверу. Попробуйте ещё раз.')
-                    : code === 'VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED'
-                      ? text(ru, 'Video yuklash protokoli qo‘llab-quvvatlanmaydi.', 'Протокол загрузки видео не поддерживается.')
-                      : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
+      const message = code === 'VIDEO_TOO_SHORT'
+        ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
+        : code.startsWith('DIRECT_UPLOAD_')
+          ? text(ru, 'Video Cloudflare Streamga yuklanmadi. Server javobini tekshirish kerak.', 'Видео не загрузилось в Cloudflare Stream. Нужно проверить ответ сервера.')
+          : code.startsWith('TUS_') || code === 'TUS_INVALID_OFFSET'
+            ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
+            : code === 'VIDEO_PROCESSING_ENV_MISSING'
+              ? text(ru, 'Video serveri sozlanmagan. Administrator Cloudflare Stream konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию Cloudflare Stream.')
+              : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
+                ? text(ru, 'Video serverga ulanishda xatolik. Qayta urinib ko‘ring.', 'Ошибка подключения к видеосерверу. Попробуйте ещё раз.')
+                : code === 'VIDEO_CLIP_FAILED'
+                  ? text(ru, 'Videoni 60 soniyagacha qisqartirishda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось автоматически обрезать видео до 60 секунд. Попробуйте ещё раз.')
+                  : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
 
       setError(message)
     }
@@ -339,7 +331,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
 
     const response = await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' })
     if (!response.ok) {
-      setError(text(ru, 'Videoni o‘chirishda xatolik yuz berdi.', 'Не удалось удалить видео.'))
+      setError(text(ru, 'Videoni o‘chirishda xatolik yuz berdi.', 'Ошибка удаления видео.'))
       return
     }
 
@@ -351,39 +343,72 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     updateStatus('idle', null)
   }
 
+  const openPicker = () => inputRef.current?.click()
+
   return (
-    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <b className="text-sm font-bold">🎥 {text(ru, 'Video', 'Видео')}</b>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{text(ru, '1 ta video · 1–60 soniya · telefon, MP4, MOV, MKV, AVI, WebM va boshqa video formatlari qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · поддерживаются телефонные форматы, MP4, MOV, MKV, AVI, WebM и другие форматы. Сервер автоматически оптимизирует видео.')}</p>
-        </div>
-        {status === 'ready' && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ {text(ru, 'Tayyor', 'Готово')}</span>}
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+      <div>
+        <h3 className="font-bold">🎥 {text(ru, 'Video', 'Видео')}</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          {text(ru, '1 ta video · 1–60 soniya · telefon, MP4, MOV, MKV, AVI, WebM va boshqa video formatlari qabul qilinadi. 60 soniyadan uzun video avtomatik dastlabki 60 soniyaga qisqartiriladi.', '1 видео · 1–60 секунд · принимаются телефонные форматы, MP4, MOV, MKV, AVI, WebM и другие. Видео длиннее 60 секунд автоматически обрежется до первых 60 секунд.')}
+        </p>
       </div>
 
-      {!media && status !== 'uploading' && status !== 'processing' && (
-        <label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white p-7 text-sm font-semibold hover:border-slate-950">
-          <input type="file" accept={ACCEPT} onChange={chooseVideo} className="hidden" />
-          {text(ru, '🎥 Video tanlash', '🎥 Выбрать видео')}
-        </label>
-      )}
+      <input ref={inputRef} type="file" accept={ACCEPT} className="hidden" onChange={chooseVideo} />
 
-      {(status === 'uploading' || status === 'processing') && (
-        <div className="mt-4 rounded-2xl bg-white p-4">
-          <div className="flex items-center justify-between gap-3 text-sm font-semibold"><span className="truncate">{fileName}</span><span>{status === 'uploading' ? `${progress}%` : text(ru, 'Qayta ishlanmoqda…', 'Обработка…')}</span></div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: status === 'processing' ? '100%' : `${progress}%` }} /></div>
+      <button
+        type="button"
+        onClick={openPicker}
+        disabled={status === 'uploading' || status === 'processing'}
+        className="mt-4 flex min-h-[78px] w-full items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 px-4 text-sm font-semibold hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        🎥 {status === 'uploading'
+          ? text(ru, `Yuklanmoqda ${progress}%`, `Загрузка ${progress}%`)
+          : status === 'processing'
+            ? text(ru, 'Video qayta ishlanmoqda…', 'Видео обрабатывается…')
+            : media?.playback_url
+              ? text(ru, 'Videoni almashtirish', 'Заменить видео')
+              : text(ru, 'Video tanlash', 'Выбрать видео')}
+      </button>
+
+      {fileName && (
+        <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          {fileName}{progress > 0 && status === 'uploading' ? ` · ${progress}%` : ''}
         </div>
       )}
 
-      {status === 'ready' && media && (
-        <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950">
-          {media.thumbnail_storage_path ? <img src={media.thumbnail_storage_path} alt="" className="aspect-video w-full object-cover" /> : <div className="flex aspect-video items-center justify-center text-4xl text-white">▶</div>}
-          <div className="flex items-center justify-between gap-3 p-3 text-xs text-white"><span className="truncate">{fileName}</span><button type="button" onClick={() => void removeVideo()} className="rounded-lg bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25">{text(ru, 'O‘chirish', 'Удалить')}</button></div>
+      {status === 'ready' && media?.playback_url && (
+        <div className="mt-3 overflow-hidden rounded-xl bg-black">
+          <video
+            src={media.playback_url}
+            poster={media.thumbnail_storage_path || undefined}
+            controls
+            playsInline
+            className="max-h-72 w-full object-contain"
+          />
+          <div className="px-3 py-2 text-xs text-white/80">
+            {media.duration_seconds ? `${Math.round(media.duration_seconds)} s` : ''}
+          </div>
         </div>
       )}
 
-      {error && <p className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-medium text-red-700">{error}</p>}
-      {!listingId && <p className="mt-3 text-xs text-slate-400">{text(ru, 'Video yuklash uchun oldingi bosqichni saqlang.', 'Сохраните предыдущий шаг, чтобы загрузить видео.')}</p>}
+      {error && (
+        <div className="mt-3 rounded-xl bg-red-50 px-3 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      {status === 'processing' && (
+        <div className="mt-3 rounded-xl bg-blue-50 px-3 py-3 text-sm text-blue-700">
+          {text(ru, 'Video yuklandi. Server uni tekshirmoqda va kerak bo‘lsa 60 soniyagacha avtomatik qisqartirmoqda.', 'Видео загружено. Сервер проверяет его и при необходимости автоматически обрезает до 60 секунд.')}
+        </div>
+      )}
+
+      {media && status !== 'uploading' && (
+        <button type="button" onClick={removeVideo} className="mt-3 text-sm font-semibold text-red-600">
+          {text(ru, 'Videoni o‘chirish', 'Удалить видео')}
+        </button>
+      )}
     </div>
   )
 }

@@ -77,20 +77,23 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { data: media, error: mediaError } = await db
       .from('listing_media')
-      .select('id,provider,processed_storage_path')
+      .select('id,provider,processed_storage_path,original_storage_path')
       .eq('id', mediaId)
       .eq('listing_id', listingId)
       .single()
     if (mediaError) throw mediaError
 
-    if (media.provider === 'cloudflare' && media.processed_storage_path) {
+    if (media.provider === 'cloudflare') {
       const accountId = process.env.CLOUDFLARE_ACCOUNT_ID
       const apiToken = process.env.CLOUDFLARE_STREAM_API_TOKEN
       if (accountId && apiToken) {
-        await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${media.processed_storage_path}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${apiToken}` },
-        }).catch(error => console.error('[listing-video/delete] provider delete failed', error))
+        const ids = Array.from(new Set([media.processed_storage_path, media.original_storage_path].filter(Boolean)))
+        for (const providerId of ids) {
+          await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${providerId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${apiToken}` },
+          }).catch(error => console.error('[listing-video/delete] provider delete failed', error))
+        }
       }
     }
 
