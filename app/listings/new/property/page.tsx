@@ -1,5 +1,5 @@
-import ListingWizard from '../wizard'
+import ListingWizardVideo from '../wizard-video'
 
 export default function PropertyListingPage() {
-  return <ListingWizard />
+  return <ListingWizardVideo />
 }
