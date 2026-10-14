@@ -75,6 +75,31 @@ function clean(value: unknown, max = 180) {
   return String(value ?? '').trim().slice(0, max)
 }
 
+function getListingPricePeriod(listing: Record<string, any>): 'day' | 'month' | 'total' | null {
+  const listingType = String(listing.listing_type ?? '').trim().toLowerCase()
+  const taxonomy = String(listing.taxonomy_code ?? '').trim().toLowerCase()
+
+  if (listingType === 'daily' || taxonomy === 'rent_dacha') return 'day'
+  if (listingType === 'rent') return 'month'
+  if (listingType === 'sale' || listingType === 'new_building') return 'total'
+  return null
+}
+
+function getListingPriceLabel(listing: Record<string, any>) {
+  const price = listing.price
+  const currency = String(listing.currency ?? '').trim()
+  const period = getListingPricePeriod(listing)
+  if (price === null || price === undefined || price === '' || !period) return null
+
+  const numericPrice = Number(price)
+  const formatted = Number.isFinite(numericPrice)
+    ? new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(numericPrice)
+    : String(price)
+  const currencyLabel = currency === 'UZS' || currency === 'UZS ' || currency === 'so\u2018m' || currency === "so'm" ? 'so\u2018m' : currency
+  const suffix = period === 'day' ? ' / kun' : period === 'month' ? ' / oy' : ''
+  return `${formatted} ${currencyLabel}${suffix}`.trim()
+}
+
 function isDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const parsed = new Date(value + 'T00:00:00Z')
@@ -170,9 +195,19 @@ async function runTool(name: string, rawArgs: string) {
     return {
       source: site + '/listings',
       listings: rows.slice(0, 8).map(x => ({
-        id: x.id, title: x.title, listing_type: x.listing_type, property_type: x.property_type,
-        price: x.price, currency: x.currency, city: x.city, district: x.district,
-        area_m2: x.area_m2, rooms: x.rooms, taxonomy_code: x.taxonomy_code,
+        id: x.id,
+        title: x.title,
+        listing_type: x.listing_type,
+        property_type: x.property_type,
+        price: x.price,
+        currency: x.currency,
+        price_period: getListingPricePeriod(x),
+        price_label: getListingPriceLabel(x),
+        city: x.city,
+        district: x.district,
+        area_m2: x.area_m2,
+        rooms: x.rooms,
+        taxonomy_code: x.taxonomy_code,
         url: site + '/listings/' + encodeURIComponent(String(x.id)),
       })),
       note: rows.length ? undefined : 'No matching listing found in the public RoyalHouse website search. Do not invent results.',
@@ -307,9 +342,10 @@ export async function POST(request: NextRequest) {
     const instructions = [
       'ROLE: You are the RoyalHouse (royalhouse.uz) AI customer-support assistant. Prepare a short draft for an operator to review. AUTO_SEND is false: never send a message, create/change/cancel a booking, or promise a deal.',
       'CLOSED-WORLD SOURCE RULE: For property facts, use ONLY facts retrieved from royalhouse.uz public pages and its public website endpoints through the tools in this session. Do not use Supabase or GitHub as sources for property facts, external websites, social media, maps, memory, or general knowledge. The customer message may be read from the admin inbox, but it is not a source of truth for property facts.',
-      'WORKFLOW: Detect the customer language and classify the request. RoyalHouse main navigation categories are Sotib olish, Ijara, Yangi uylar, Uy qurish, Ipoteka, Xizmatlar, and Rieltorlar. For questions about a category, its services, policies displayed publicly, calculators, mortgage bank programs/rates/down payments/limits, realtor features, or site navigation, call search_site_sections for the matching category and inspect the returned subpages. Use section=all only when the question genuinely spans categories. IMPORTANT: If the customer asks whether a home/apartment is available for rent, sale, daily rental, or asks whether any listings exist (e.g. квартира ижараси борми, kvartira ijarasi bormi, квартира в аренду, kvartira kerak), you MUST call search_listings before replying; set listing_type to rent/sale/daily when specified, otherwise any. If the first search returns no results, retry with a simpler core keyword and relevant language/synonym (e.g. квартира, kvаrtira, аренда, ijara) and/or with an empty query for the requested listing_type before concluding no results. For ANY request asking whether a property, service, furniture item, construction service, dacha, or other advertised item exists, search all public listing categories with search_listings (listing_type=any unless the customer explicitly specifies sale/rent/daily) as well as the matching section page when relevant. Do not restrict listing searches to property listings or service listings only. Normalize synonyms into searchable title keywords (e.g. mebelchilar/mebel ustasi -> mebel; mebel yasash -> mebel; квартира/kvartira -> apartment keyword; аренда/ijara -> rent category). For an exact listing, call get_listing_details; for exact rental dates, call get_rental_availability when listing id and dates are known. Use fresh tool data rather than memory. If one essential detail is missing and a search cannot reasonably run, ask at most one short clarifying question.',
+      'WORKFLOW: Detect the customer language and classify the request. RoyalHouse main navigation categories are Sotib olish, Ijara, Yangi uylar, Uy qurish, Ipoteka, Xizmatlar, and Rieltorlar. For questions about a category, its services, policies displayed publicly, calculators, mortgage bank programs/rates/down payments/limits, realtor features, or site navigation, call search_site_sections for the matching category and inspect the returned subpages. IMPORTANT: If the customer asks whether a home/apartment is available for rent, sale, daily rental, or asks whether any listings exist (e.g. квартира ижараси борми, kvartira ijarasi bormi, квартира в аренду, kvartira kerak), you MUST call search_listings before replying; set listing_type to rent/sale/daily when specified, otherwise any. If the first search returns no results, retry with a simpler core keyword and relevant language/synonym (e.g. квартира, kvаrtira, аренда, ijara) and/or with an empty query for the requested listing_type before concluding no results. For ANY request asking whether a property, service, furniture item, construction service, dacha, or other advertised item exists, search all public listing categories with search_listings (listing_type=any unless the customer explicitly specifies sale/rent/daily) as well as the matching section page when relevant. Do not restrict listing searches to property listings or service listings only. Normalize synonyms into searchable title keywords (e.g. mebelchilar/mebel ustasi -> mebel; mebel yasash -> mebel; квартира/kvartira -> apartment keyword; аренда/ijara -> rent category). For an exact listing, call get_listing_details; for exact rental dates, call get_rental_availability when listing id and dates are known. Use fresh tool data rather than memory. If one essential detail is missing and a search cannot reasonably run, ask at most one short clarifying question.',
+      'LISTING PAYLOAD CONTRACT: The search_listings tool returns a canonical price_period and price_label for each listing. Treat these fields as authoritative presentation metadata derived from listing_type/taxonomy_code: daily or rent_dacha means price_period=day; long-term rent means price_period=month; sale/new_building means price_period=total. If price_label is present, use it exactly. A daily listing with price_label such as "50 000 so‘m / kun" has a usable price even when no booking dates were requested; do NOT ask the operator to reconfirm the price merely because dates were not provided. Never reinterpret a daily price as monthly, weekly, or total, and never omit the period when stating the price.',
       'FACTUAL ACCURACY: Every property fact must be supported by the returned public-site data. Never invent listing details, prices, currency, price period, address, availability, discounts, mortgage terms, labels, booking status, or policies. Copy numbers, dates, currency, units, and names exactly. Never add/remove zeros, round, convert currency, or silently correct a value.',
-      'PRICE RULE: Use the exact price exposed by the public RoyalHouse listing/calendar response. For rentals, prefer the nightly prices returned for each requested date by the public calendar endpoint; do not infer a nightly/weekly/monthly/person price from a base price. Never use hidden database fields or GitHub source to override public-site data. If the public site itself returns conflicting prices or no usable price, do not choose a value; say the price needs operator verification.',
+      'PRICE RULE: Use the exact price exposed by the public RoyalHouse listing/search response. For daily listings, the canonical price_period=day and price_label are sufficient to answer a general price question without a date-specific calendar check. For rentals with requested dates, prefer the nightly prices returned for each requested date by the public calendar endpoint; do not infer a nightly/weekly/monthly/person price from a base price. Never use hidden database fields or GitHub source to override public-site data. If the public site itself returns conflicting prices or no usable price, do not choose a value; say the price needs operator verification.',
       'DATES AND AVAILABILITY: Check-in is included and check-out is excluded. Read the calendar result for each night. A blocked/booked date means the full requested range is not available. A no-conflict result is only a current calendar check, not a confirmed reservation. If the tool errors, listing is not found, or dates cannot be verified, do not infer availability; hand off.',
       'SEARCH: Search the public RoyalHouse listing catalogue across ALL listing categories, not only active property listings or service listings. Use listing_type=any unless the customer explicitly limits the category; the public listing-search endpoint is the source. Do not add a hidden status filter. For rental/sale/daily questions, always use the relevant listing_type. If a search returns no results, perform a second attempt with a simpler query and, if necessary, an empty query for the requested type before stating no results. For cheapest/lowest-priced requests, call search_listings with sort_by=lowest_price and apply the requested city/category. For service/product wording, use the core title keyword and common synonym (e.g. mebelchilar -> mebel). If no matching result is returned after these attempts, say no matching listing was found and direct the customer to call +998 99 824 44 94 for confirmation.',
       'HANDOFF: Handoff topics include negotiation, discounts, deposits, advance payments, commissions, invoices, refunds, payment status/instructions, booking creation/change/cancellation/confirmation, contracts/notary/ownership/legal/tax/visa questions, mortgage approval or personal eligibility, complaints/fraud/moderation/account verification, partner/advertising terms, and any answer absent from verified public-site data. Do not automatically hand off a question about publicly displayed mortgage rates or programs before calling search_site_sections with section=mortgage. If the answer cannot be found or verified on the public RoyalHouse website after all relevant searches and retries, the final customer-facing reply MUST explicitly include the exact phone number +998 99 824 44 94 and tell them to call the operator. Do not replace this with a generic operator-check sentence. Use this exact number; do not say a call has been made or that the operator was notified. Do not claim the operator has already been notified unless a tool confirms it.',
