@@ -11,10 +11,10 @@ const extraGuestSettings=(settings:any)=>{
  const included=num(settings.included_guests??settings.included_guest_count??settings.guests_included??settings.base_guests) || (fee>0?num(settings.max_guests):0)
  return { fee, included }
 }
-const seasonalPrice=(settings:any,weekday:boolean,month:number)=>{
- const monthName=month===8?'september':month===9?'october':''
- const seasonal=monthName?(weekday?settings[`${monthName}_weekday_price`]:settings[`${monthName}_weekend_price`]):undefined
- return num(seasonal)||num(weekday?settings.weekday_price:settings.weekend_price)
+const calendarPrice=(settings:any,weekday:boolean)=>{
+ // Match the price shown in the public listing calendar: date override first,
+ // then weekday/weekend calendar settings, then the listing's displayed base price.
+ return num(weekday?settings.weekday_price:settings.weekend_price)
 }
 export async function GET(request:NextRequest){
  try{
@@ -25,7 +25,7 @@ export async function GET(request:NextRequest){
   const settings=parseRental(listing.draft_data);const {data:bookings,error:bookingError}=await db.from('rental_bookings').select('check_in,check_out,status,payment_status').eq('listing_id',listingId).or(`status.eq.confirmed,and(status.eq.pending_payment,payment_expires_at.gt.${new Date().toISOString()})`).lt('check_in',addDays(to,1)).gt('check_out',from);if(bookingError)throw bookingError
   const booked=new Set<string>();for(const b of bookings||[]){for(const d of eachDay(b.check_in,addDays(b.check_out,-1)))booked.add(d)}
   const blocked=new Set<string>(settings.blocked_dates||[]);const prices=settings.date_prices||{};const {fee:extraGuestFee,included:includedGuests}=extraGuestSettings(settings);const extraGuests=Math.max(0,guests-includedGuests)
-  const days=eachDay(from,to).map(date=>{const weekend=isWeekend(date);const override=prices[date]?num(prices[date]):null;const fallback=seasonalPrice(settings,!weekend,new Date(`${date}T00:00:00Z`).getUTCMonth());const base=override||fallback||num(listing.price);const price=base+(extraGuestFee*extraGuests);return {date,status:booked.has(date)?'booked':blocked.has(date)?'blocked':'free',price,basePrice:base,extraGuestFee,extraGuests,priceType:override?'date':fallback?(weekend?'weekend':'weekday'):'base'}})
+  const days=eachDay(from,to).map(date=>{const weekend=isWeekend(date);const override=prices[date]?num(prices[date]):null;const fallback=calendarPrice(settings,!weekend);const base=override||fallback||num(listing.price);const price=base+(extraGuestFee*extraGuests);return {date,status:booked.has(date)?'booked':blocked.has(date)?'blocked':'free',price,basePrice:base,extraGuestFee,extraGuests,priceType:override?'date':fallback?(weekend?'weekend':'weekday'):'base'}})
   return NextResponse.json({listingId,currency:listing.currency,depositPercent:10,extraGuestFee,includedGuests,guests,days})
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Availability error'},{status:500})}
 }

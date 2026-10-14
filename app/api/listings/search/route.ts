@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingCardImageUrl } from '@/lib/listing-image'
+
 import { createClient } from '@/utils/supabase/server'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 const MAX_PAGE_SIZE = 48
 
@@ -120,23 +124,16 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Dacha e'lonlari ayrim yozuvlarda listing_type='rent', ayrimlarida
-  // listing_type='daily' bo‘lishi mumkin. Dacha qidiruvi ularni ikkalasini ham ko‘rsatadi.
+  // Keep the tab filters simple and explicit. Legacy dacha records are saved as
+  // listing_type='rent' + taxonomy_code='rent_dacha', but must appear in "Kunlik".
   if (!listingType) {
-    if (taxonomy === 'rent_dacha') {
-      // Dacha kategoriyasi: faqat dacha ijarasi.
-      query = query.eq('taxonomy_code', 'rent_dacha')
-    } else if (taxonomy === 'sale_dacha') {
-      // Sotuvdagi dacha kategoriyasi: faqat dacha sotuvlari.
-      query = query.eq('taxonomy_code', 'sale_dacha')
-    } else if (dachaSearch) {
-      query = query.or('listing_type.eq.daily,taxonomy_code.in.(sale_dacha,rent_dacha)')
-    } else if (tab === 'sale') {
+    if (tab === 'sale') {
       query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
     } else if (tab === 'rent') {
       query = query.eq('listing_type', 'rent')
+      query = query.or('taxonomy_code.is.null,taxonomy_code.neq.rent_dacha')
     } else if (tab === 'daily') {
-      query = query.eq('listing_type', 'daily')
+      query = query.or('listing_type.eq.daily,taxonomy_code.eq.rent_dacha')
     }
   }
 
@@ -220,5 +217,11 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     data: listings.map((listing) => ({ ...listing, primary_image: firstImageByListing.get(listing.id) || null })),
     pagination: { page: useCursor ? undefined : page, limit, total: count ?? null, has_next: hasNext, next_cursor: nextCursor, mode: useCursor ? 'cursor' : 'offset' },
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'CDN-Cache-Control': 'no-store',
+      'Vercel-CDN-Cache-Control': 'no-store',
+    },
   })
 }
