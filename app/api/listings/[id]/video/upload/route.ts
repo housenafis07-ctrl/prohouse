@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
 const MAX_DURATION_SECONDS = 60
+const TUS_THRESHOLD_BYTES = 200 * 1024 * 1024
 
 const VIDEO_MIME_BY_EXTENSION: Record<string, string> = {
   mp4: 'video/mp4',
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const mimeType = inferMimeType(fileName, rawMimeType)
     const sizeBytes = Number(body?.sizeBytes)
 
-    if (!fileName || !mimeType || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_UPLOAD_BYTES) {
+    if (!fileName || !mimeType || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes >= MAX_UPLOAD_BYTES) {
       return NextResponse.json({
         error: 'UNSUPPORTED_VIDEO',
         message: 'Video formati qo‘llab-quvvatlanmaydi yoki fayl hajmi 30 GB dan oshgan.',
@@ -87,44 +88,85 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const mediaId = crypto.randomUUID()
+    const cloudflareBase = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream`
+    let uploadUrl = ''
+    let providerId = ''
+    let protocol: 'post' | 'tus'
 
-    // Cloudflare Stream's TUS endpoint creates a one-time resumable upload URL.
-    // The browser never receives the API token. We intentionally do not require
-    // NEXT_PUBLIC_SITE_URL here because Preview deployments have dynamic domains.
-    // Playback is public because active listing videos are public marketplace media.
-    const uploadMetadata = [
-      `name ${base64(fileName)}`,
-      `thumbnailTimestampPct ${base64('0.1')}`,
-      `maxDurationSeconds ${base64(String(MAX_DURATION_SECONDS))}`,
-    ].join(',')
-
-    const uploadResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream?direct_user=true`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        'Tus-Resumable': '1.0.0',
-        'Upload-Length': String(sizeBytes),
-        'Upload-Creator': user.id,
-        'Upload-Metadata': uploadMetadata,
-      },
-      cache: 'no-store',
-    })
-
-    const uploadUrl = uploadResponse.headers.get('Location')
-    const providerId = uploadResponse.headers.get('stream-media-id')
-
-    if (!uploadResponse.ok || !uploadUrl || !providerId) {
-      const providerBody = await uploadResponse.text().catch(() => '')
-      console.error('[listing-video/upload] cloudflare tus init failed', {
-        status: uploadResponse.status,
-        body: providerBody.slice(0, 500),
+    // Cloudflare recommends ordinary direct POST for reliable uploads below 200 MB.
+    // This avoids unnecessary TUS/CORS/offset handling for the common phone-video case.
+    if (sizeBytes < TUS_THRESHOLD_BYTES) {
+      protocol = 'post'
+      const uploadResponse = await fetch(`${cloudflareBase}/direct_upload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          maxDurationSeconds: MAX_DURATION_SECONDS,
+          creator: user.id,
+          thumbnailTimestampPct: 0.1,
+          requireSignedURLs: false,
+          meta: { name: fileName },
+        }),
+        cache: 'no-store',
       })
 
-      return NextResponse.json({
-        error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
-        message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.',
-        providerStatus: uploadResponse.status,
-      }, { status: 502 })
+      const providerBody = await uploadResponse.json().catch(() => null)
+      uploadUrl = providerBody?.result?.uploadURL || ''
+      providerId = providerBody?.result?.uid || ''
+
+      if (!uploadResponse.ok || !providerBody?.success || !uploadUrl || !providerId) {
+        console.error('[listing-video/upload] cloudflare direct upload init failed', {
+          status: uploadResponse.status,
+          body: JSON.stringify(providerBody).slice(0, 800),
+        })
+        return NextResponse.json({
+          error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
+          message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.',
+          providerStatus: uploadResponse.status,
+        }, { status: 502 })
+      }
+    } else {
+      protocol = 'tus'
+
+      // TUS metadata keys are case-sensitive in practice. Use the API's
+      // documented lowercase names for the TUS upload endpoint.
+      const uploadMetadata = [
+        `name ${base64(fileName)}`,
+        `thumbnailtimestamppct ${base64('0.1')}`,
+        `maxdurationseconds ${base64(String(MAX_DURATION_SECONDS))}`,
+      ].join(',')
+
+      const uploadResponse = await fetch(`${cloudflareBase}?direct_user=true`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Tus-Resumable': '1.0.0',
+          'Upload-Length': String(sizeBytes),
+          'Upload-Creator': user.id,
+          'Upload-Metadata': uploadMetadata,
+        },
+        cache: 'no-store',
+      })
+
+      uploadUrl = uploadResponse.headers.get('Location') || ''
+      providerId = uploadResponse.headers.get('stream-media-id') || ''
+
+      if (!uploadResponse.ok || !uploadUrl || !providerId) {
+        const providerBody = await uploadResponse.text().catch(() => '')
+        console.error('[listing-video/upload] cloudflare tus init failed', {
+          status: uploadResponse.status,
+          body: providerBody.slice(0, 800),
+        })
+
+        return NextResponse.json({
+          error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
+          message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.',
+          providerStatus: uploadResponse.status,
+        }, { status: 502 })
+      }
     }
 
     const { data: media, error: mediaError } = await db
@@ -151,10 +193,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({
       media,
       upload: {
-        protocol: 'tus',
+        protocol,
         url: uploadUrl,
         providerId,
-        chunkSize: 50 * 1024 * 1024,
+        chunkSize: protocol === 'tus' ? 50 * 1024 * 1024 : null,
       },
     })
   } catch (error) {
