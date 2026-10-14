@@ -3,6 +3,46 @@ import { createClient } from '@/utils/supabase/server'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: listingId } = await params
+    if (!UUID_RE.test(listingId)) return NextResponse.json({ error: 'INVALID_LISTING_ID' }, { status: 400 })
+
+    const db = await createClient()
+    const { data: listing, error: listingError } = await db
+      .from('listings')
+      .select('id')
+      .eq('id', listingId)
+      .eq('status', 'active')
+      .maybeSingle()
+    if (listingError) throw listingError
+    if (!listing) return NextResponse.json({ media: null })
+
+    const { data: media, error: mediaError } = await db
+      .from('listing_media')
+      .select('id,status,provider,processed_storage_path,playback_url,thumbnail_storage_path,duration_seconds,width,height')
+      .eq('listing_id', listingId)
+      .eq('media_type', 'video')
+      .eq('status', 'ready')
+      .order('sort_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (mediaError) throw mediaError
+    if (!media) return NextResponse.json({ media: null }, { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } })
+
+    const uid = media.processed_storage_path
+    const playbackUrl = media.playback_url || (uid ? `https://iframe.videodelivery.net/${uid}` : null)
+    const thumbnailUrl = media.thumbnail_storage_path || (uid ? `https://videodelivery.net/${uid}/thumbnails/thumbnail.jpg` : null)
+
+    return NextResponse.json({
+      media: playbackUrl ? { ...media, playback_url: playbackUrl, thumbnail_storage_path: thumbnailUrl } : null,
+    }, { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } })
+  } catch (error) {
+    console.error('[listing-video/public]', error)
+    return NextResponse.json({ error: 'VIDEO_PUBLIC_LOOKUP_FAILED' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: listingId } = await params
