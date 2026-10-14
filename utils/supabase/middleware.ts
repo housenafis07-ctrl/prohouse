@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-export function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
     cookies: {
@@ -16,5 +16,11 @@ export function updateSession(request: NextRequest) {
       },
     },
   });
+
+  // Next.js 16 uses proxy.ts. Refresh the Supabase SSR session on every
+  // matched request so an expiring access token does not make the user appear
+  // logged out when moving between the wizard, video upload and cabinet.
+  await supabase.auth.getClaims();
+
   return supabaseResponse;
 }
