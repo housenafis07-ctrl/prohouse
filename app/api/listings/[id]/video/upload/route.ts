@@ -18,8 +18,16 @@ const VIDEO_MIME_BY_EXTENSION: Record<string, string> = {
 function inferMimeType(fileName: string, mimeType: string) {
   const normalized = mimeType.trim().toLowerCase()
   if (normalized.startsWith('video/')) return normalized
+
   const extension = fileName.split('.').pop()?.toLowerCase() || ''
-  return VIDEO_MIME_BY_EXTENSION[extension] || ''
+  const mapped = VIDEO_MIME_BY_EXTENSION[extension]
+  if (mapped) return mapped
+
+  // Some browsers report video containers as application/octet-stream or leave
+  // the MIME type empty. Let Cloudflare validate the actual media instead of
+  // rejecting an otherwise valid container only because its MIME is unknown.
+  if (!normalized || normalized === 'application/octet-stream') return 'application/octet-stream'
+  return ''
 }
 
 function base64(value: string) {
