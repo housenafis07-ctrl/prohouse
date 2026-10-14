@@ -27,6 +27,7 @@ const ACCEPT = [
   '.qt', '.hevc', '.h265',
 ].join(',')
 const MAX_PROCESSING_WAIT_MS = 10 * 60 * 1000
+const DEFAULT_TUS_CHUNK_SIZE = 6 * 1024 * 1024
 
 const text = (ru: boolean, uz: string, ruText: string) => (ru ? ruText : uz)
 
@@ -75,29 +76,6 @@ function uploadDirectPost(url: string, file: File, onProgress: (value: number) =
   })
 }
 
-function uploadSupabaseSigned(url: string, file: File, onProgress: (value: number) => void): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('PUT', url)
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
-    xhr.setRequestHeader('Cache-Control', '31536000')
-    xhr.upload.onprogress = event => {
-      if (event.lengthComputable) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        onProgress(100)
-        resolve()
-        return
-      }
-      reject(new Error(`SUPABASE_UPLOAD_${xhr.status}${xhr.responseText ? `:${xhr.responseText.slice(0, 300)}` : ''}`))
-    }
-    xhr.onerror = () => reject(new Error('SUPABASE_UPLOAD_NETWORK'))
-    xhr.onabort = () => reject(new Error('SUPABASE_UPLOAD_ABORTED'))
-    xhr.send(file)
-  })
-}
-
 async function getTusOffset(url: string): Promise<number | null> {
   try {
     const response = await fetch(url, {
@@ -113,8 +91,18 @@ async function getTusOffset(url: string): Promise<number | null> {
   }
 }
 
-async function uploadTus(url: string, file: File, onProgress: (value: number) => void) {
-  const chunkSize = 50 * 1024 * 1024
+async function uploadTus(
+  url: string,
+  file: File,
+  onProgress: (value: number) => void,
+  configuredChunkSize?: number | null,
+) {
+  // Supabase currently requires 6 MB TUS chunks. Cloudflare can return its
+  // own provider-specific chunk size, so always honor the value from init.
+  const chunkSize = Number.isFinite(configuredChunkSize) && Number(configuredChunkSize) > 0
+    ? Number(configuredChunkSize)
+    : DEFAULT_TUS_CHUNK_SIZE
+
   let offset = 0
   let retries = 0
 
@@ -204,9 +192,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         const response = await fetch(`/api/listings/${listingId}/video/status?mediaId=${encodeURIComponent(mediaId)}`, { cache: 'no-store' })
         const data = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data.error || 'VIDEO_STATUS_FAILED')
-        }
+        if (!response.ok) throw new Error(data.error || 'VIDEO_STATUS_FAILED')
 
         const providerStatus = data.provider?.status
         if (data.media?.status === 'ready' || providerStatus === 'ready') {
@@ -278,8 +264,6 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       } catch (durationError) {
         const code = durationError instanceof Error ? durationError.message : ''
         if (code === 'VIDEO_TOO_LONG' || code === 'VIDEO_TOO_SHORT') throw durationError
-        // Some codecs/containers cannot expose metadata to the browser. Do not
-        // reject those files here; Cloudflare/Supabase must receive the bytes.
       }
 
       updateStatus('uploading', null)
@@ -303,9 +287,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       if (init.upload.protocol === 'post') {
         await uploadDirectPost(init.upload.url, file, setProgress)
       } else if (init.upload.protocol === 'tus') {
-        await uploadTus(init.upload.url, file, setProgress)
-      } else if (init.upload.protocol === 'supabase') {
-        await uploadSupabaseSigned(init.upload.url, file, setProgress)
+        await uploadTus(init.upload.url, file, setProgress, init.upload.chunkSize)
       } else {
         throw new Error('VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED')
       }
