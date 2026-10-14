@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
 const MAX_DURATION_SECONDS = 60
+const CLOUDFLARE_TUS_CHUNK_SIZE = 50 * 1024 * 1024
 
 const VIDEO_MIME_BY_EXTENSION: Record<string, string> = {
   mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', qt: 'video/quicktime',
@@ -34,6 +35,11 @@ function getSupabaseProjectRef() {
   } catch {
     return ''
   }
+}
+
+function getUploadExpiry() {
+  const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  return expiry.toISOString()
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -70,13 +76,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const apiToken = process.env.CLOUDFLARE_STREAM_API_TOKEN?.trim()
 
     if (accountId && apiToken) {
-      // Use one resumable Cloudflare TUS path for every video, including small
-      // phone videos. This removes the fragile browser multipart POST path.
+      // Use one upload protocol for every Cloudflare video. The browser can be
+      // on a mobile/Telegram connection, so even a 20 MB file benefits from
+      // resumable TUS instead of a single POST request. Cloudflare explicitly
+      // recommends TUS for unreliable connections and requires it over 200 MB.
       const cloudflareBase = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream`
       const uploadMetadata = [
         `name ${base64(fileName)}`,
         `thumbnailtimestamppct ${base64('0.1')}`,
         `maxdurationseconds ${base64(String(MAX_DURATION_SECONDS))}`,
+        `expiry ${base64(getUploadExpiry())}`,
       ].join(',')
 
       const uploadResponse = await fetch(`${cloudflareBase}?direct_user=true`, {
@@ -127,7 +136,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           protocol: 'tus',
           url: uploadUrl,
           providerId,
-          chunkSize: 50 * 1024 * 1024,
+          chunkSize: CLOUDFLARE_TUS_CHUNK_SIZE,
         },
       })
     }
