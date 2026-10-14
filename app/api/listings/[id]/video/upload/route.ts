@@ -169,9 +169,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
     }
 
-    // Cloudflare credentials are currently absent from Vercel. The project
-    // already has a dedicated listing-videos bucket, so fall back to a signed
-    // direct upload instead of failing before the user can upload anything.
+    // Cloudflare credentials are currently absent from Vercel. Use a signed
+    // Supabase Storage TUS session instead of a single PUT request. This is
+    // resumable, exposes progress and supports large files reliably.
     const extension = fileName.split('.').pop()?.toLowerCase() || 'bin'
     const storagePath = `${user.id}/${listingId}/${mediaId}.${extension}`
     const { data: signedUpload, error: signedUploadError } = await db.storage
@@ -183,6 +183,41 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({
         error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
         message: 'Video saqlash sessiyasini yaratib bo‘lmadi.',
+      }, { status: 502 })
+    }
+
+    const signedUrl = new URL(signedUpload.signedUrl)
+    const storageOrigin = signedUrl.origin
+    const tusEndpoint = `${storageOrigin}/storage/v1/upload/resumable`
+    const uploadMetadata = [
+      `bucketName ${base64('listing-videos')}`,
+      `objectName ${base64(storagePath)}`,
+      `contentType ${base64(mimeType)}`,
+      `cacheControl ${base64('31536000')}`,
+    ].join(',')
+
+    const tusResponse = await fetch(tusEndpoint, {
+      method: 'POST',
+      headers: {
+        'Tus-Resumable': '1.0.0',
+        'Upload-Length': String(sizeBytes),
+        'Upload-Metadata': uploadMetadata,
+        'x-signature': signedUpload.token,
+      },
+      cache: 'no-store',
+    })
+
+    const tusUploadUrl = tusResponse.headers.get('Location') || ''
+    if (!tusResponse.ok || !tusUploadUrl) {
+      const detail = await tusResponse.text().catch(() => '')
+      console.error('[listing-video/upload] supabase tus init failed', {
+        status: tusResponse.status,
+        body: detail.slice(0, 800),
+      })
+      return NextResponse.json({
+        error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
+        message: 'Video uchun resumable saqlash sessiyasini yaratib bo‘lmadi.',
+        providerStatus: tusResponse.status,
       }, { status: 502 })
     }
 
@@ -208,10 +243,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({
       media,
       upload: {
-        protocol: 'supabase',
-        url: signedUpload.signedUrl,
+        protocol: 'tus',
+        url: tusUploadUrl,
         providerId: storagePath,
-        chunkSize: null,
+        chunkSize: 50 * 1024 * 1024,
       },
     })
   } catch (error) {
