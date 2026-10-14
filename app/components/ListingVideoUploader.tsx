@@ -66,13 +66,35 @@ function uploadDirectPost(url: string, file: File, onProgress: (value: number) =
         resolve()
         return
       }
-
       const detail = (xhr.responseText || '').slice(0, 300)
       reject(new Error(`DIRECT_UPLOAD_${xhr.status}${detail ? `:${detail}` : ''}`))
     }
     xhr.onerror = () => reject(new Error('DIRECT_UPLOAD_NETWORK'))
     xhr.onabort = () => reject(new Error('DIRECT_UPLOAD_ABORTED'))
     xhr.send(form)
+  })
+}
+
+function uploadSupabaseSigned(url: string, file: File, onProgress: (value: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    xhr.setRequestHeader('Cache-Control', '31536000')
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100)
+        resolve()
+        return
+      }
+      reject(new Error(`SUPABASE_UPLOAD_${xhr.status}${xhr.responseText ? `:${xhr.responseText.slice(0, 300)}` : ''}`))
+    }
+    xhr.onerror = () => reject(new Error('SUPABASE_UPLOAD_NETWORK'))
+    xhr.onabort = () => reject(new Error('SUPABASE_UPLOAD_ABORTED'))
+    xhr.send(file)
   })
 }
 
@@ -114,7 +136,6 @@ async function uploadTus(url: string, file: File, onProgress: (value: number) =>
       if (!response.ok) {
         let detail = ''
         try { detail = (await response.text()).slice(0, 300) } catch {}
-
         const serverOffset = await getTusOffset(url)
         if (serverOffset !== null && serverOffset > offset) {
           offset = Math.min(serverOffset, file.size)
@@ -122,13 +143,11 @@ async function uploadTus(url: string, file: File, onProgress: (value: number) =>
           onProgress(Math.min(100, Math.round((offset / file.size) * 100)))
           continue
         }
-
         throw new Error(`TUS_${response.status}${detail ? `:${detail}` : ''}`)
       }
 
       const headerOffset = Number(response.headers.get('Upload-Offset'))
       const nextOffset = Number.isFinite(headerOffset) && headerOffset > offset ? headerOffset : end
-
       offset = Math.min(nextOffset, file.size)
       retries = 0
       onProgress(Math.min(100, Math.round((offset / file.size) * 100)))
@@ -140,7 +159,6 @@ async function uploadTus(url: string, file: File, onProgress: (value: number) =>
         onProgress(Math.min(100, Math.round((offset / file.size) * 100)))
         continue
       }
-
       retries += 1
       if (retries > 4) throw error
       await new Promise(resolve => setTimeout(resolve, 700 * retries))
@@ -187,7 +205,6 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         const data = await response.json()
 
         if (!response.ok) {
-          if (data.error === 'VIDEO_PROCESSING_ENV_MISSING') throw new Error('VIDEO_PROCESSING_ENV_MISSING')
           throw new Error(data.error || 'VIDEO_STATUS_FAILED')
         }
 
@@ -247,7 +264,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       return
     }
 
-    if (file.size >= MAX_UPLOAD_BYTES) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       setStatus('failed')
       setError(text(ru, 'Video hajmi 30 GB dan oshmasligi kerak.', 'Размер видео должен быть меньше 30 ГБ.'))
       return
@@ -261,6 +278,8 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       } catch (durationError) {
         const code = durationError instanceof Error ? durationError.message : ''
         if (code === 'VIDEO_TOO_LONG' || code === 'VIDEO_TOO_SHORT') throw durationError
+        // Some codecs/containers cannot expose metadata to the browser. Do not
+        // reject those files here; Cloudflare/Supabase must receive the bytes.
       }
 
       updateStatus('uploading', null)
@@ -285,6 +304,8 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         await uploadDirectPost(init.upload.url, file, setProgress)
       } else if (init.upload.protocol === 'tus') {
         await uploadTus(init.upload.url, file, setProgress)
+      } else if (init.upload.protocol === 'supabase') {
+        await uploadSupabaseSigned(init.upload.url, file, setProgress)
       } else {
         throw new Error('VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED')
       }
@@ -297,8 +318,8 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       const complete = await completeResponse.json().catch(() => ({}))
       if (!completeResponse.ok) throw new Error(complete.error || 'VIDEO_UPLOAD_COMPLETE_FAILED')
 
-      updateStatus('processing', complete.media)
-      await pollStatus(init.media.id)
+      updateStatus(complete.media?.status === 'ready' ? 'ready' : 'processing', complete.media)
+      if (complete.media?.status !== 'ready') await pollStatus(init.media.id)
     } catch (err) {
       if (mediaIdRef.current && listingId) {
         await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' }).catch(() => undefined)
@@ -314,14 +335,14 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
           ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
           : code.startsWith('DIRECT_UPLOAD_')
             ? text(ru, 'Video Cloudflare Streamga yuklanmadi. Server javobini tekshirish kerak.', 'Видео не загрузилось в Cloudflare Stream. Нужно проверить ответ сервера.')
-            : code === 'DIRECT_UPLOAD_NETWORK'
-              ? text(ru, 'Video yuklashda tarmoq xatosi. Internetni tekshiring va qayta urinib ko‘ring.', 'Ошибка сети при загрузке видео. Проверьте интернет и попробуйте снова.')
+            : code.startsWith('SUPABASE_UPLOAD_')
+              ? text(ru, 'Video saqlash serveriga yuklanmadi. Internetni tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось в хранилище. Проверьте интернет и попробуйте ещё раз.')
               : code.startsWith('TUS_') || code === 'TUS_INVALID_OFFSET'
                 ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
                 : code === 'VIDEO_PROCESSING_ENV_MISSING'
                   ? text(ru, 'Video serveri sozlanmagan. Administrator Cloudflare Stream konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию Cloudflare Stream.')
                   : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
-                    ? text(ru, 'Video serverga ulanishda xatolik. Cloudflare Stream konfiguratsiyasini tekshiring.', 'Ошибка подключения к видеосерверу. Проверьте конфигурацию Cloudflare Stream.')
+                    ? text(ru, 'Video serverga ulanishda xatolik. Qayta urinib ko‘ring.', 'Ошибка подключения к видеосерверу. Попробуйте ещё раз.')
                     : code === 'VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED'
                       ? text(ru, 'Video yuklash protokoli qo‘llab-quvvatlanmaydi.', 'Протокол загрузки видео не поддерживается.')
                       : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
