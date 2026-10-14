@@ -78,6 +78,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   const [error, setError] = useState('')
   const [fileName, setFileName] = useState('')
   const [media, setMedia] = useState<Media | null>(null)
+  const mediaIdRef = useRef<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => () => {
@@ -100,6 +101,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         if (!response.ok) throw new Error(data.error || 'VIDEO_STATUS_FAILED')
         const providerStatus = data.provider?.status
         if (data.media?.status === 'ready' || providerStatus === 'ready') {
+          mediaIdRef.current = mediaId
           updateStatus('ready', data.media)
           if (pollRef.current) clearInterval(pollRef.current)
         } else if (data.media?.status === 'failed' || providerStatus === 'failed') {
@@ -128,6 +130,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     setMedia(null)
     setProgress(0)
     setFileName(file.name)
+    mediaIdRef.current = null
 
     try {
       const duration = await getVideoDuration(file)
@@ -142,6 +145,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       })
       const init = await initResponse.json()
       if (!initResponse.ok) throw new Error(init.message || init.error || 'VIDEO_UPLOAD_INIT_FAILED')
+      mediaIdRef.current = init.media.id
 
       await uploadTus(init.upload.url, file, setProgress)
 
@@ -156,6 +160,10 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       updateStatus('processing', complete.media)
       await pollStatus(init.media.id)
     } catch (err) {
+      if (mediaIdRef.current && listingId) {
+        await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' }).catch(() => undefined)
+      }
+      mediaIdRef.current = null
       updateStatus('failed', null)
       const code = err instanceof Error ? err.message : ''
       const message = code === 'VIDEO_TOO_LONG'
@@ -168,13 +176,14 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   }
 
   const removeVideo = async () => {
-    if (!listingId || !media?.id) return
+    if (!listingId || !mediaIdRef.current) return
     if (pollRef.current) clearInterval(pollRef.current)
-    const response = await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(media.id)}`, { method: 'DELETE' })
+    const response = await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' })
     if (!response.ok) {
       setError(text(ru, 'Videoni o‘chirishda xatolik yuz berdi.', 'Не удалось удалить видео.'))
       return
     }
+    mediaIdRef.current = null
     setMedia(null)
     setFileName('')
     setProgress(0)
