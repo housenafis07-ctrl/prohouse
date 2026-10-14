@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
 const MAX_DURATION_SECONDS = 60
+const STANDARD_UPLOAD_THRESHOLD_BYTES = 50 * 1024 * 1024
 const TUS_THRESHOLD_BYTES = 200 * 1024 * 1024
 const CLOUDFLARE_TUS_CHUNK_SIZE = 50 * 1024 * 1024
 
@@ -23,9 +24,6 @@ function inferMimeType(fileName: string, mimeType: string) {
   const mapped = VIDEO_MIME_BY_EXTENSION[extension]
   if (mapped) return mapped
 
-  // Some browsers report video containers as application/octet-stream or leave
-  // the MIME type empty. Let Cloudflare validate the actual media instead of
-  // rejecting an otherwise valid container only because its MIME is unknown.
   if (!normalized || normalized === 'application/octet-stream') return 'application/octet-stream'
   return ''
 }
@@ -189,6 +187,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const extension = fileName.split('.').pop()?.toLowerCase() || 'bin'
     const storagePath = `${user.id}/${listingId}/${mediaId}.${extension}`
+
+    // Production currently has no Cloudflare Stream credentials. For medium
+    // files use the normal authenticated Storage upload; keep TUS for larger files.
+    if (preferredProtocol !== 'tus' && sizeBytes <= STANDARD_UPLOAD_THRESHOLD_BYTES) {
+      const { data: media, error: mediaError } = await db.from('listing_media').insert({
+        id: mediaId,
+        listing_id: listingId,
+        media_type: 'video',
+        provider: 'supabase',
+        status: 'uploading',
+        original_storage_path: storagePath,
+        processed_storage_path: storagePath,
+        original_mime_type: mimeType,
+        original_size_bytes: sizeBytes,
+        sort_order: 0,
+      }).select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes').single()
+
+      if (mediaError) throw mediaError
+
+      return NextResponse.json({
+        media,
+        upload: {
+          protocol: 'supabase-standard',
+          url: '',
+          providerId: storagePath,
+          path: storagePath,
+          chunkSize: null,
+        },
+      })
+    }
+
     const { data: signedUpload, error: signedUploadError } = await db.storage
       .from('listing-videos')
       .createSignedUploadUrl(storagePath, { upsert: false })
@@ -223,7 +252,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       cache: 'no-store',
     })
 
-    const tusUploadUrl = tusResponse.headers.get('Location') || ''
+    let tusUploadUrl = tusResponse.headers.get('Location') || ''
+    if (tusUploadUrl.startsWith('/')) {
+      tusUploadUrl = `https://${projectRef}.storage.supabase.co${tusUploadUrl}`
+    }
+
     if (!tusResponse.ok || !tusUploadUrl) {
       const detail = await tusResponse.text().catch(() => '')
       console.error('[listing-video/upload] supabase tus init failed', { status: tusResponse.status, body: detail.slice(0, 800) })
