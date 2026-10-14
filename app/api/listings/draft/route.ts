@@ -41,11 +41,6 @@ async function persistAttributeValues(supabase: SupabaseClient, listingId: strin
   if (definitionsError) throw definitionsError
   if (!definitions?.length) return
 
-  // Draftning dastlabki bosqichlarida barcha atributlar hali to‘ldirilmagan bo‘ladi.
-  // listing_attribute_values.value_jsonb NOT NULL bo‘lgani uchun bo‘sh qiymatlarni
-  // INSERT/UPSERT qilmaymiz. Foydalanuvchi keyingi bosqichlarda qiymat kiritganda
-  // aynan o‘sha atribut saqlanadi. Required atributlar moderation bosqichida
-  // alohida DB-validatsiya orqali tekshiriladi.
   const rows = definitions
     .map(definition => ({
       listing_id: listingId,
@@ -69,10 +64,6 @@ export async function POST(request: Request) {
   const { data: { user } } = await authSupabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
-  // RLS foydalanuvchi sessiyasida listings INSERT/UPDATE uchun juda tor bo‘lishi mumkin.
-  // Auth allaqachon tekshirilganidan keyin server-side service client ishlatiladi.
-  // owner_id har doim tasdiqlangan user.id bilan bog‘lanadi, shuning uchun boshqa
-  // foydalanuvchining e’lonini yozish imkoniyati berilmaydi.
   const supabase = serviceClient()
 
   const body = await request.json().catch(() => null)
@@ -99,12 +90,18 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
+  if (!profile) {
+    return NextResponse.json({
+      error: 'PROFILE_REQUIRED',
+      message: 'Profil ma’lumotlari topilmadi. Avval shaxsiy profilingizni to‘ldiring, so‘ng e’lonni joylashtiring.',
+    }, { status: 409 })
+  }
 
-  const accountType = profile?.account_type || 'individual'
+  const accountType = profile.account_type || 'individual'
   const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
   const isServiceListing = data.listing_type === 'service' || data.property_type === 'service'
   if (isServiceListing) {
-    if (profile?.account_type !== 'partner') {
+    if (profile.account_type !== 'partner') {
       return NextResponse.json({ error: 'SERVICE_PARTNER_REQUIRED', message: 'Xizmat e’loni joylashtirish uchun professional hamkor sifatida ro‘yxatdan o‘ting.' }, { status: 403 })
     }
     const { data: partnerProfile, error: partnerProfileError } = await supabase
@@ -118,17 +115,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'SERVICE_PARTNER_REQUIRED', message: 'Xizmat e’loni uchun “Xizmat ko‘rsatuvchi hamkor” maqomi kerak.' }, { status: 403 })
     }
   }
-  const sellerRole = isServiceListing ? 'service_provider' : (accountType === 'individual' ? 'owner' : null)
   const isIndividualOwner = accountType === 'individual' && ownershipType === 'owner' && !isServiceListing
-  // listings.seller_type is NOT NULL: every property draft must have a legacy seller type.
-  // Only an explicitly declared individual owner is tagged owner; all other property drafts use seller.
-  const sellerType = isServiceListing ? 'service_provider' : (isIndividualOwner ? 'owner' : 'seller')
+  const sellerRole = isServiceListing
+    ? 'service_provider'
+    : isIndividualOwner
+      ? 'owner'
+      : null
+  const sellerType = isServiceListing
+    ? 'service_provider'
+    : isIndividualOwner
+      ? 'owner'
+      : 'seller'
   const sellerName = isServiceListing
-    ? text(profile?.company_name) || text(profile?.full_name) || null
-    : (isIndividualOwner ? text(profile?.full_name) || null : null)
-  const sellerPhone = isServiceListing
-    ? text(profile?.phone) || user.phone || null
-    : (isIndividualOwner ? text(profile?.phone) || user.phone || null : null)
+    ? text(profile.company_name) || text(profile.full_name) || null
+    : text(profile.company_name) || text(profile.full_name) || null
+  const sellerPhone = text(profile.phone) || user.phone || null
 
   if (status === 'moderation' && !listingId) {
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
