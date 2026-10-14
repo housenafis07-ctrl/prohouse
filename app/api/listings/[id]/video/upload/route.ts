@@ -25,6 +25,18 @@ function base64(value: string) {
   return Buffer.from(value, 'utf8').toString('base64')
 }
 
+function getSupabaseProjectRef() {
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!configuredUrl) return ''
+  try {
+    const hostname = new URL(configuredUrl).hostname
+    const match = hostname.match(/^([a-z0-9-]+)\.supabase\.co$/i)
+    return match?.[1] || ''
+  } catch {
+    return ''
+  }
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: listingId } = await params
@@ -51,19 +63,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const sizeBytes = Number(body?.sizeBytes)
 
     if (!fileName || !mimeType || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({
-        error: 'UNSUPPORTED_VIDEO',
-        message: 'Video formati qo‘llab-quvvatlanmaydi yoki fayl hajmi 30 GB dan oshgan.',
-        maxBytes: MAX_UPLOAD_BYTES,
-      }, { status: 400 })
+      return NextResponse.json({ error: 'UNSUPPORTED_VIDEO', message: 'Video formati qo‘llab-quvvatlanmaydi yoki fayl hajmi 30 GB dan oshgan.', maxBytes: MAX_UPLOAD_BYTES }, { status: 400 })
     }
 
     const mediaId = crypto.randomUUID()
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim()
     const apiToken = process.env.CLOUDFLARE_STREAM_API_TOKEN?.trim()
 
-    // Cloudflare Stream is the preferred provider: it handles transcoding,
-    // thumbnails and scalable playback for the future large listing catalog.
     if (accountId && apiToken) {
       const cloudflareBase = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream`
       let uploadUrl = ''
@@ -74,181 +80,77 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         protocol = 'post'
         const uploadResponse = await fetch(`${cloudflareBase}/direct_upload`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            maxDurationSeconds: MAX_DURATION_SECONDS,
-            creator: user.id,
-            thumbnailTimestampPct: 0.1,
-            requireSignedURLs: false,
-            meta: { name: fileName },
-          }),
+          headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ maxDurationSeconds: MAX_DURATION_SECONDS, creator: user.id, thumbnailTimestampPct: 0.1, requireSignedURLs: false, meta: { name: fileName } }),
           cache: 'no-store',
         })
-
         const providerBody = await uploadResponse.json().catch(() => null)
         uploadUrl = providerBody?.result?.uploadURL || ''
         providerId = providerBody?.result?.uid || ''
-
         if (!uploadResponse.ok || !providerBody?.success || !uploadUrl || !providerId) {
-          console.error('[listing-video/upload] cloudflare direct upload init failed', {
-            status: uploadResponse.status,
-            body: JSON.stringify(providerBody).slice(0, 800),
-          })
-          return NextResponse.json({
-            error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
-            message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.',
-            providerStatus: uploadResponse.status,
-          }, { status: 502 })
+          console.error('[listing-video/upload] cloudflare direct upload init failed', { status: uploadResponse.status, body: JSON.stringify(providerBody).slice(0, 800) })
+          return NextResponse.json({ error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED', message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.', providerStatus: uploadResponse.status }, { status: 502 })
         }
       } else {
         protocol = 'tus'
-        const uploadMetadata = [
-          `name ${base64(fileName)}`,
-          `thumbnailtimestamppct ${base64('0.1')}`,
-          `maxdurationseconds ${base64(String(MAX_DURATION_SECONDS))}`,
-        ].join(',')
-
+        const uploadMetadata = [`name ${base64(fileName)}`, `thumbnailtimestamppct ${base64('0.1')}`, `maxdurationseconds ${base64(String(MAX_DURATION_SECONDS))}`].join(',')
         const uploadResponse = await fetch(`${cloudflareBase}?direct_user=true`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            'Tus-Resumable': '1.0.0',
-            'Upload-Length': String(sizeBytes),
-            'Upload-Creator': user.id,
-            'Upload-Metadata': uploadMetadata,
-          },
+          headers: { Authorization: `Bearer ${apiToken}`, 'Tus-Resumable': '1.0.0', 'Upload-Length': String(sizeBytes), 'Upload-Creator': user.id, 'Upload-Metadata': uploadMetadata },
           cache: 'no-store',
         })
-
         uploadUrl = uploadResponse.headers.get('Location') || ''
         providerId = uploadResponse.headers.get('stream-media-id') || ''
-
         if (!uploadResponse.ok || !uploadUrl || !providerId) {
           const providerBody = await uploadResponse.text().catch(() => '')
-          console.error('[listing-video/upload] cloudflare tus init failed', {
-            status: uploadResponse.status,
-            body: providerBody.slice(0, 800),
-          })
-          return NextResponse.json({
-            error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
-            message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.',
-            providerStatus: uploadResponse.status,
-          }, { status: 502 })
+          console.error('[listing-video/upload] cloudflare tus init failed', { status: uploadResponse.status, body: providerBody.slice(0, 800) })
+          return NextResponse.json({ error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED', message: 'Cloudflare Stream yuklash sessiyasini yaratib bo‘lmadi.', providerStatus: uploadResponse.status }, { status: 502 })
         }
       }
 
-      const { data: media, error: mediaError } = await db
-        .from('listing_media')
-        .insert({
-          id: mediaId,
-          listing_id: listingId,
-          media_type: 'video',
-          provider: 'cloudflare',
-          status: 'uploading',
-          processed_storage_path: providerId,
-          original_mime_type: mimeType,
-          original_size_bytes: sizeBytes,
-          sort_order: 0,
-        })
-        .select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes')
-        .single()
-
+      const { data: media, error: mediaError } = await db.from('listing_media').insert({ id: mediaId, listing_id: listingId, media_type: 'video', provider: 'cloudflare', status: 'uploading', processed_storage_path: providerId, original_mime_type: mimeType, original_size_bytes: sizeBytes, sort_order: 0 }).select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes').single()
       if (mediaError) throw mediaError
 
-      return NextResponse.json({
-        media,
-        upload: {
-          protocol,
-          url: uploadUrl,
-          providerId,
-          chunkSize: protocol === 'tus' ? 50 * 1024 * 1024 : null,
-        },
-      })
+      return NextResponse.json({ media, upload: { protocol, url: uploadUrl, providerId, chunkSize: protocol === 'tus' ? 50 * 1024 * 1024 : null } })
     }
 
-    // Cloudflare credentials are currently absent from Vercel. Use a signed
-    // Supabase Storage TUS session instead of a single PUT request. This is
-    // resumable, exposes progress and supports large files reliably.
+    // Supabase fallback: use the Storage-specific hostname for TUS.
+    // Supabase recommends the direct storage hostname for large resumable uploads.
     const extension = fileName.split('.').pop()?.toLowerCase() || 'bin'
     const storagePath = `${user.id}/${listingId}/${mediaId}.${extension}`
-    const { data: signedUpload, error: signedUploadError } = await db.storage
-      .from('listing-videos')
-      .createSignedUploadUrl(storagePath, { upsert: false })
+    const { data: signedUpload, error: signedUploadError } = await db.storage.from('listing-videos').createSignedUploadUrl(storagePath, { upsert: false })
 
-    if (signedUploadError || !signedUpload?.signedUrl) {
+    if (signedUploadError || !signedUpload?.signedUrl || !signedUpload?.token) {
       console.error('[listing-video/upload] supabase signed upload init failed', signedUploadError)
-      return NextResponse.json({
-        error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
-        message: 'Video saqlash sessiyasini yaratib bo‘lmadi.',
-      }, { status: 502 })
+      return NextResponse.json({ error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED', message: 'Video saqlash sessiyasini yaratib bo‘lmadi.' }, { status: 502 })
     }
 
-    const signedUrl = new URL(signedUpload.signedUrl)
-    const storageOrigin = signedUrl.origin
-    const tusEndpoint = `${storageOrigin}/storage/v1/upload/resumable`
-    const uploadMetadata = [
-      `bucketName ${base64('listing-videos')}`,
-      `objectName ${base64(storagePath)}`,
-      `contentType ${base64(mimeType)}`,
-      `cacheControl ${base64('31536000')}`,
-    ].join(',')
+    const projectRef = getSupabaseProjectRef()
+    if (!projectRef) {
+      console.error('[listing-video/upload] invalid NEXT_PUBLIC_SUPABASE_URL')
+      return NextResponse.json({ error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED', message: 'Video storage konfiguratsiyasi noto‘g‘ri.' }, { status: 500 })
+    }
+
+    const tusEndpoint = `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`
+    const uploadMetadata = [`bucketName ${base64('listing-videos')}`, `objectName ${base64(storagePath)}`, `contentType ${base64(mimeType)}`, `cacheControl ${base64('31536000')}`].join(',')
 
     const tusResponse = await fetch(tusEndpoint, {
       method: 'POST',
-      headers: {
-        'Tus-Resumable': '1.0.0',
-        'Upload-Length': String(sizeBytes),
-        'Upload-Metadata': uploadMetadata,
-        'x-signature': signedUpload.token,
-      },
+      headers: { 'Tus-Resumable': '1.0.0', 'Upload-Length': String(sizeBytes), 'Upload-Metadata': uploadMetadata, 'x-signature': signedUpload.token },
       cache: 'no-store',
     })
 
     const tusUploadUrl = tusResponse.headers.get('Location') || ''
     if (!tusResponse.ok || !tusUploadUrl) {
       const detail = await tusResponse.text().catch(() => '')
-      console.error('[listing-video/upload] supabase tus init failed', {
-        status: tusResponse.status,
-        body: detail.slice(0, 800),
-      })
-      return NextResponse.json({
-        error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED',
-        message: 'Video uchun resumable saqlash sessiyasini yaratib bo‘lmadi.',
-        providerStatus: tusResponse.status,
-      }, { status: 502 })
+      console.error('[listing-video/upload] supabase tus init failed', { status: tusResponse.status, body: detail.slice(0, 800) })
+      return NextResponse.json({ error: 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED', message: 'Video uchun resumable saqlash sessiyasini yaratib bo‘lmadi.', providerStatus: tusResponse.status }, { status: 502 })
     }
 
-    const { data: media, error: mediaError } = await db
-      .from('listing_media')
-      .insert({
-        id: mediaId,
-        listing_id: listingId,
-        media_type: 'video',
-        provider: 'supabase',
-        status: 'uploading',
-        original_storage_path: storagePath,
-        processed_storage_path: storagePath,
-        original_mime_type: mimeType,
-        original_size_bytes: sizeBytes,
-        sort_order: 0,
-      })
-      .select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes')
-      .single()
-
+    const { data: media, error: mediaError } = await db.from('listing_media').insert({ id: mediaId, listing_id: listingId, media_type: 'video', provider: 'supabase', status: 'uploading', original_storage_path: storagePath, processed_storage_path: storagePath, original_mime_type: mimeType, original_size_bytes: sizeBytes, sort_order: 0 }).select('id,listing_id,status,provider,processed_storage_path,original_mime_type,original_size_bytes').single()
     if (mediaError) throw mediaError
 
-    return NextResponse.json({
-      media,
-      upload: {
-        protocol: 'tus',
-        url: tusUploadUrl,
-        providerId: storagePath,
-        chunkSize: 50 * 1024 * 1024,
-      },
-    })
+    return NextResponse.json({ media, upload: { protocol: 'tus', url: tusUploadUrl, providerId: storagePath, chunkSize: 6 * 1024 * 1024 } })
   } catch (error) {
     console.error('[listing-video/upload]', error)
     return NextResponse.json({ error: 'VIDEO_UPLOAD_INIT_FAILED' }, { status: 500 })
