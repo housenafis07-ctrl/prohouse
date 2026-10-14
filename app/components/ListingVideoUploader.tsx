@@ -21,7 +21,6 @@ type Props = {
 const MAX_DURATION_SECONDS = 60
 const CHUNK_SIZE = 50 * 1024 * 1024
 const ACCEPT = 'video/*,.mp4,.mov,.webm,.mkv,.avi,.3gp,.m4v,.hevc,.h265'
-
 const text = (ru: boolean, uz: string, ruText: string) => (ru ? ruText : uz)
 
 function getVideoDuration(file: File): Promise<number> {
@@ -49,9 +48,8 @@ async function uploadTus(url: string, file: File, onProgress: (value: number) =>
   while (offset < file.size) {
     const end = Math.min(offset + CHUNK_SIZE, file.size)
     const chunk = file.slice(offset, end)
-    let response: Response | null = null
     try {
-      response = await fetch(url, {
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Tus-Resumable': '1.0.0',
@@ -80,7 +78,6 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
   const [error, setError] = useState('')
   const [fileName, setFileName] = useState('')
   const [media, setMedia] = useState<Media | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => () => {
@@ -115,7 +112,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       }
     }
     await check()
-    if (status !== 'ready') pollRef.current = setInterval(check, 3000)
+    pollRef.current = setInterval(check, 3000)
   }
 
   const chooseVideo = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -134,9 +131,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
 
     try {
       const duration = await getVideoDuration(file)
-      if (duration > MAX_DURATION_SECONDS) {
-        throw new Error('VIDEO_TOO_LONG')
-      }
+      if (duration > MAX_DURATION_SECONDS) throw new Error('VIDEO_TOO_LONG')
       if (duration < 1) throw new Error('VIDEO_TOO_SHORT')
 
       updateStatus('uploading', null)
@@ -172,8 +167,14 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     }
   }
 
-  const removeVideo = () => {
+  const removeVideo = async () => {
+    if (!listingId || !media?.id) return
     if (pollRef.current) clearInterval(pollRef.current)
+    const response = await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(media.id)}`, { method: 'DELETE' })
+    if (!response.ok) {
+      setError(text(ru, 'Videoni o‘chirishda xatolik yuz berdi.', 'Не удалось удалить видео.'))
+      return
+    }
     setMedia(null)
     setFileName('')
     setProgress(0)
@@ -185,44 +186,30 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <b className="text-sm font-bold">{text(ru, '🎥 Video', '🎥 Видео')}</b>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            {text(ru, '1 ta video · 1–60 soniya · telefon formati qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · формат телефона поддерживается. Сервер автоматически оптимизирует видео.')}
-          </p>
+          <b className="text-sm font-bold">🎥 {text(ru, 'Video', 'Видео')}</b>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{text(ru, '1 ta video · 1–60 soniya · telefon formati qabul qilinadi. Server avtomatik optimallashtiradi.', '1 видео · 1–60 секунд · формат телефона поддерживается. Сервер автоматически оптимизирует видео.')}</p>
         </div>
         {status === 'ready' && <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ {text(ru, 'Tayyor', 'Готово')}</span>}
       </div>
 
       {!media && status !== 'uploading' && status !== 'processing' && (
         <label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white p-7 text-sm font-semibold hover:border-slate-950">
-          <input ref={inputRef} type="file" accept={ACCEPT} onChange={chooseVideo} className="hidden" />
+          <input type="file" accept={ACCEPT} onChange={chooseVideo} className="hidden" />
           {text(ru, '🎥 Video tanlash', '🎥 Выбрать видео')}
         </label>
       )}
 
       {(status === 'uploading' || status === 'processing') && (
         <div className="mt-4 rounded-2xl bg-white p-4">
-          <div className="flex items-center justify-between gap-3 text-sm font-semibold">
-            <span className="truncate">{fileName}</span>
-            <span>{status === 'uploading' ? `${progress}%` : text(ru, 'Qayta ishlanmoqda…', 'Обработка…')}</span>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: status === 'processing' ? '100%' : `${progress}%` }} />
-          </div>
+          <div className="flex items-center justify-between gap-3 text-sm font-semibold"><span className="truncate">{fileName}</span><span>{status === 'uploading' ? `${progress}%` : text(ru, 'Qayta ishlanmoqda…', 'Обработка…')}</span></div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: status === 'processing' ? '100%' : `${progress}%` }} /></div>
         </div>
       )}
 
       {status === 'ready' && media && (
         <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950">
-          {media.thumbnail_storage_path ? (
-            <img src={media.thumbnail_storage_path} alt="" className="aspect-video w-full object-cover" />
-          ) : (
-            <div className="flex aspect-video items-center justify-center text-4xl text-white">▶</div>
-          )}
-          <div className="flex items-center justify-between gap-3 p-3 text-xs text-white">
-            <span className="truncate">{fileName}</span>
-            <button type="button" onClick={removeVideo} className="rounded-lg bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25">{text(ru, 'O‘chirish', 'Удалить')}</button>
-          </div>
+          {media.thumbnail_storage_path ? <img src={media.thumbnail_storage_path} alt="" className="aspect-video w-full object-cover" /> : <div className="flex aspect-video items-center justify-center text-4xl text-white">▶</div>}
+          <div className="flex items-center justify-between gap-3 p-3 text-xs text-white"><span className="truncate">{fileName}</span><button type="button" onClick={() => void removeVideo()} className="rounded-lg bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25">{text(ru, 'O‘chirish', 'Удалить')}</button></div>
         </div>
       )}
 
