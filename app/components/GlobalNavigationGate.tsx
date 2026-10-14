@@ -47,6 +47,35 @@ export default function GlobalNavigationGate() {
     return () => document.removeEventListener('click', handleServicesCapture, true)
   }, [])
 
+  useEffect(() => {
+    // Kategoriya modal kartalarida takrorlanadigan texnik label'larni
+    // ("E’lonlar" / "Объявления" / "Xizmat" / "Услуга") olib tashlaymiz.
+    // Buni aynan label classlari va aniq matn bo'yicha qilamiz, shuning uchun
+    // boshqa sahifalardagi shu so'zlar tasodifan o'chirilmaydi.
+    const removeRedundantLabels = () => {
+      const selectors = [
+        '.prohouse-purchase-label',
+        '.prohouse-rental-label',
+        '.prohouse-new-building-sub',
+        '.prohouse-service-sub',
+      ]
+
+      document.querySelectorAll<HTMLElement>(selectors.join(',')).forEach((element) => {
+        const text = element.textContent?.trim() || ''
+        if (text === 'E’lonlar' || text === 'Объявления' || text === 'Xizmat' || text === 'Услуга') {
+          element.remove()
+        }
+      })
+    }
+
+    removeRedundantLabels()
+
+    const observer = new MutationObserver(() => removeRedundantLabels())
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
+  }, [])
+
   // Account sahifasining "Keyingi qadamlar" blokini GlobalNavigationFix
   // DOM orqali o'zgartirmasligi kerak. Account sahifasi o'z navigatsiyasini
   // o'zi boshqaradi; shu sababli global DOM-fix bu route'da ishlamaydi.
