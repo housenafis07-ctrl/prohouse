@@ -58,7 +58,11 @@ async function uploadTus(url: string, file: File, onProgress: (value: number) =>
         },
         body: chunk,
       })
-      if (!response.ok) throw new Error(`TUS_${response.status}`)
+      if (!response.ok) {
+        let detail = ''
+        try { detail = (await response.text()).slice(0, 240) } catch {}
+        throw new Error(`TUS_${response.status}${detail ? `:${detail}` : ''}`)
+      }
       const nextOffset = Number(response.headers.get('Upload-Offset'))
       if (!Number.isFinite(nextOffset) || nextOffset <= offset) throw new Error('TUS_INVALID_OFFSET')
       offset = nextOffset
@@ -133,9 +137,18 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
     mediaIdRef.current = null
 
     try {
-      const duration = await getVideoDuration(file)
-      if (duration > MAX_DURATION_SECONDS) throw new Error('VIDEO_TOO_LONG')
-      if (duration < 1) throw new Error('VIDEO_TOO_SHORT')
+      // Some phones (especially HEVC/H.265 recordings) can be selected by the
+      // browser but cannot be decoded by the embedded video element. Do not
+      // reject those files locally: Cloudflare Stream performs the authoritative
+      // format/duration validation and transcoding after upload.
+      try {
+        const duration = await getVideoDuration(file)
+        if (duration > MAX_DURATION_SECONDS) throw new Error('VIDEO_TOO_LONG')
+        if (duration < 1) throw new Error('VIDEO_TOO_SHORT')
+      } catch (durationError) {
+        const code = durationError instanceof Error ? durationError.message : ''
+        if (code === 'VIDEO_TOO_LONG' || code === 'VIDEO_TOO_SHORT') throw durationError
+      }
 
       updateStatus('uploading', null)
       const initResponse = await fetch(`/api/listings/${listingId}/video/upload`, {
@@ -170,7 +183,13 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         ? text(ru, 'Video maksimal 60 soniya bo‘lishi kerak.', 'Видео должно быть не длиннее 60 секунд.')
         : code === 'VIDEO_TOO_SHORT'
           ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
-          : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
+          : code.startsWith('TUS_')
+            ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
+            : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
+              ? text(ru, 'Video serverini ishga tushirishda xatolik. Keyinroq qayta urinib ko‘ring.', 'Не удалось запустить загрузку видео на сервер. Попробуйте позже.')
+              : code === 'VIDEO_PROCESSING_ENV_MISSING'
+                ? text(ru, 'Video serveri sozlanmagan. Administrator konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию.')
+                : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
       setError(message)
     }
   }
