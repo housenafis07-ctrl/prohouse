@@ -30,6 +30,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (mediaError) throw mediaError
     if (!media) return NextResponse.json({ media: null }, { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } })
 
+    if (media.provider === 'supabase' && media.processed_storage_path) {
+      const { data: signed, error: signError } = await db.storage
+        .from('listing-videos')
+        .createSignedUrl(media.processed_storage_path, 24 * 60 * 60)
+      if (signError || !signed?.signedUrl) throw signError || new Error('VIDEO_SIGNED_URL_FAILED')
+
+      return NextResponse.json({
+        media: { ...media, playback_url: signed.signedUrl },
+      }, { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } })
+    }
+
     const uid = media.processed_storage_path
     const playbackUrl = media.playback_url || (uid ? `https://iframe.videodelivery.net/${uid}` : null)
     const thumbnailUrl = media.thumbnail_storage_path || (uid ? `https://videodelivery.net/${uid}/thumbnails/thumbnail.jpg` : null)
@@ -81,6 +92,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
           headers: { Authorization: `Bearer ${apiToken}` },
         }).catch(error => console.error('[listing-video/delete] provider delete failed', error))
       }
+    }
+
+    if (media.provider === 'supabase' && media.processed_storage_path) {
+      const { error: storageDeleteError } = await db.storage
+        .from('listing-videos')
+        .remove([media.processed_storage_path])
+      if (storageDeleteError) throw storageDeleteError
     }
 
     const { error: deleteError } = await db
