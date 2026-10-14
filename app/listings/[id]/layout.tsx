@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import ListingDetailLanguageFix from './ListingDetailLanguageFix'
+import ListingVideoPreview from '@/app/components/ListingVideoPreview'
 import { createClient } from '@/utils/supabase/server'
 
 const SITE_URL = 'https://royalhouse.uz'
@@ -16,9 +17,6 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .maybeSingle()
 
   if (!data) {
-    // The page itself returns a 404 via notFound(). Do not emit a noindex
-    // robots directive here, because a transient metadata lookup miss can
-    // otherwise make a valid listing temporarily non-indexable.
     return {
       title: 'RoyalHouse — Ko‘chmas mulk e’loni',
       description: 'RoyalHouse platformasidagi ko‘chmas mulk e’loni.',
@@ -60,10 +58,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
 }
 
-export default function ListingDetailLayout({ children }: { children: ReactNode }) {
+export default async function ListingDetailLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
+  const { id } = await params
   return (
     <>
       {children}
+      <ListingVideoPreview listingId={id} title="RoyalHouse e’loni" />
       <ListingDetailLanguageFix />
     </>
   )
