@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
+import { isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
 
 type ListingImage = {
   id: string
@@ -18,14 +18,6 @@ export type ListingImageManagerHandle = {
   saveChanges: () => Promise<void>
   hasPendingChanges: () => boolean
 }
-
-const getImageDimensions = (file: File): Promise<{ width: number | null; height: number | null }> => new Promise(resolve => {
-  const url = URL.createObjectURL(file)
-  const image = new Image()
-  image.onload = () => { URL.revokeObjectURL(url); resolve({ width: image.naturalWidth, height: image.naturalHeight }) }
-  image.onerror = () => { URL.revokeObjectURL(url); resolve({ width: null, height: null }) }
-  image.src = url
-})
 
 const renumber = (items: ListingImage[]) => items.map((item, index) => ({ ...item, sort_order: index }))
 
@@ -60,27 +52,32 @@ const ListingImageManager = forwardRef<ListingImageManagerHandle, { listingId: s
       const { data: { user } } = await db.auth.getUser()
       if (!user) throw new Error('Sessiya tugagan. Qayta kiring.')
       setBusy(true); setError('')
-      const uploadedPaths: string[] = []
       try {
         const current = images.filter(item => !pendingDeletes.some(deleted => deleted.id === item.id))
-        const saved: ListingImage[] = []
-        for (let index = 0; index < current.length; index++) {
-          const item = current[index]
-          if (!item.isNew || !item.file) { saved.push({ ...item, sort_order: index }); continue }
-          const path = getListingImageStoragePath(user.id, listingId, item.file.name)
-          const { error: uploadError } = await db.storage.from(LISTING_IMAGE_BUCKET).upload(path, item.file, { contentType: item.file.type, cacheControl: '31536000', upsert: false })
-          if (uploadError) throw uploadError
-          uploadedPaths.push(path)
-          const { width, height } = await getImageDimensions(item.file)
-          const { data: publicData } = db.storage.from(LISTING_IMAGE_BUCKET).getPublicUrl(path)
-          const { data, error: insertError } = await db.from('listing_images').insert({ listing_id: listingId, image_url: publicData.publicUrl, storage_path: path, sort_order: index, width, height, size_bytes: item.file.size, mime_type: item.file.type }).select('id,listing_id,image_url,sort_order,storage_path').single()
-          if (insertError) throw insertError
-          saved.push(data as ListingImage)
+        const newItems = current.filter(item => item.isNew && item.file)
+        const uploadedRows: ListingImage[] = []
+
+        if (newItems.length) {
+          const form = new FormData()
+          newItems.forEach(item => form.append('images', item.file as File))
+          const response = await fetch(`/api/account/listings/${encodeURIComponent(listingId)}/images`, { method: 'POST', body: form })
+          const payload = await response.json().catch(() => ({}))
+          if (!response.ok) throw new Error(payload.message || 'Yangi rasmni saqlashda xatolik yuz berdi.')
+          uploadedRows.push(...((payload.images || []).slice(-newItems.length) as ListingImage[]))
+          if (uploadedRows.length !== newItems.length) throw new Error('Yangi rasmlar bazaga to‘liq saqlanmadi.')
         }
+
+        let newIndex = 0
+        const saved: ListingImage[] = current.map(item => {
+          if (item.isNew) return uploadedRows[newIndex++]
+          return { ...item, sort_order: item.sort_order }
+        })
+
         for (const deleted of pendingDeletes) {
           const { error: deleteError } = await db.from('listing_images').delete().eq('id', deleted.id).eq('listing_id', listingId)
           if (deleteError) throw deleteError
         }
+
         for (let index = 0; index < saved.length; index++) {
           const item = saved[index]
           const { error: updateError } = await db.from('listing_images').update({ sort_order: -(index + 1) }).eq('id', item.id).eq('listing_id', listingId)
@@ -91,16 +88,17 @@ const ListingImageManager = forwardRef<ListingImageManagerHandle, { listingId: s
           const { error: updateError } = await db.from('listing_images').update({ sort_order: index }).eq('id', item.id).eq('listing_id', listingId)
           if (updateError) throw updateError
         }
+
         for (const deleted of pendingDeletes) {
           if (deleted.storage_path) await db.storage.from(LISTING_IMAGE_BUCKET).remove([deleted.storage_path])
         }
-        setImages(saved)
+
+        setImages(saved.map((item, index) => ({ ...item, sort_order: index, isNew: false, file: undefined })))
         setOriginalIds(saved.map(item => item.id))
         setPendingDeletes([])
-      } catch (e) {
-        if (uploadedPaths.length) await db.storage.from(LISTING_IMAGE_BUCKET).remove(uploadedPaths)
-        throw e
-      } finally { setBusy(false) }
+      } finally {
+        setBusy(false)
+      }
     }
   }), [busy, images, originalIds, pendingDeletes, listingId])
 

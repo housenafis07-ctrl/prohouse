@@ -11,12 +11,19 @@ export default async function OwnerListingViewPage({ params }: { params: Promise
 
   const { data, error } = await supabase
     .from('listings')
-    .select('id,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_badge,promoted_until,published_at,draft_data,listing_images(image_url,sort_order)')
+    .select('id,owner_id,status,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_badge,promoted_until,published_at,draft_data,listing_images(image_url,sort_order)')
     .eq('id', id)
-    .eq('owner_id', user.id)
     .maybeSingle()
 
   if (error || !data) notFound()
+
+  // The owner route must never expose another user's draft/rejected listing.
+  // For an active listing, however, fall back to the canonical public page
+  // instead of producing a false 404 when the public listing is already valid.
+  if (data.owner_id !== user.id) {
+    if (data.status === 'active') redirect(`/listings/${encodeURIComponent(id)}`)
+    notFound()
+  }
 
   const images = (data.listing_images || [])
     .slice()
