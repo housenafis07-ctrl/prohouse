@@ -15,17 +15,6 @@ const userIcon = `
     <path d="M5 20c.8-3.2 3.1-5 7-5s6.2 1.8 7 5"/>
   </svg>`
 
-function decorateAccountButton() {
-  const button = document.querySelector('.account-btn') as HTMLButtonElement | null
-  if (!button) return
-  if (button.dataset.rhAccountDecorated === '1') return
-
-  const label = button.textContent?.trim() || 'Kirish / Ro‘yxatdan o‘tish'
-  button.dataset.rhAccountDecorated = '1'
-  button.setAttribute('aria-label', label)
-  button.innerHTML = `${userIcon}<span class="rh-account-label">${label}</span>`
-}
-
 export default function HeaderQuickContact({ lang }: { lang: Lang }) {
   useEffect(() => {
     const decorate = () => {
@@ -34,7 +23,6 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
       const currentLabel = button.querySelector('.rh-account-label')?.textContent?.trim()
       const rawText = button.textContent?.trim()
       const label = currentLabel || rawText || (lang === 'ru' ? 'Войти / Регистрация' : 'Kirish / Ro‘yxatdan o‘tish')
-      button.dataset.rhAccountDecorated = '1'
       button.setAttribute('aria-label', label)
       if (!button.querySelector('.rh-account-label')) {
         button.innerHTML = `${userIcon}<span class="rh-account-label">${label}</span>`
@@ -45,10 +33,7 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
     const observer = new MutationObserver(() => {
       const button = document.querySelector('.account-btn') as HTMLButtonElement | null
       if (!button) return
-      if (!button.querySelector('.rh-account-label')) {
-        button.dataset.rhAccountDecorated = ''
-        decorate()
-      }
+      if (!button.querySelector('.rh-account-label')) decorate()
     })
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     const timer = window.setTimeout(decorate, 100)
