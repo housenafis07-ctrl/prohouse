@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { useI18n } from './I18nProvider'
@@ -138,9 +139,9 @@ export default function RoyalhouseMobileInlineSearch() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [total, setTotal] = useState<number | null>(null)
+  const [mountNode, setMountNode] = useState<HTMLElement | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
 
   const text = useMemo(() => lang === 'ru'
     ? {
@@ -168,18 +169,23 @@ export default function RoyalhouseMobileInlineSearch() {
 
   useEffect(() => {
     let cancelled = false
+    let cleanup: (() => void) | undefined
 
     const mount = () => {
       const host = document.querySelector<HTMLElement>('[data-royalhouse-mobile-search]')
       if (!host) return false
 
+      if (!mountNode) {
+        const node = document.createElement('div')
+        node.setAttribute('data-royalhouse-inline-results-mount', 'true')
+        host.parentElement?.insertBefore(node, host.nextSibling)
+        setMountNode(node)
+      }
+
       const input = host.querySelector<HTMLInputElement>('input[aria-label]')
-      inputRef.current = input
       if (!input) return false
 
-      const handleInput = () => {
-        setQuery(input.value)
-      }
+      const handleInput = () => setQuery(input.value)
 
       const handleClick = (event: Event) => {
         const target = event.target as HTMLElement | null
@@ -212,26 +218,26 @@ export default function RoyalhouseMobileInlineSearch() {
       host.addEventListener('click', handleClick, true)
       input.addEventListener('keydown', handleKeyDown, true)
 
-      return () => {
+      cleanup = () => {
         input.removeEventListener('input', handleInput)
         host.removeEventListener('click', handleClick, true)
         input.removeEventListener('keydown', handleKeyDown, true)
       }
+      return true
     }
 
-    let cleanup = mount()
     const observer = new MutationObserver(() => {
-      if (cleanup || cancelled) return
-      cleanup = mount()
+      if (!cancelled && !cleanup) mount()
     })
     observer.observe(document.body, { childList: true, subtree: true })
+    mount()
 
     return () => {
       cancelled = true
       observer.disconnect()
       cleanup?.()
     }
-  }, [])
+  }, [mountNode])
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current)
@@ -277,9 +283,9 @@ export default function RoyalhouseMobileInlineSearch() {
     }
   }, [query, tab])
 
-  if (!searched) return null
+  if (!searched || !mountNode) return null
 
-  return (
+  const resultView = (
     <div className="mx-auto w-full max-w-[1400px] px-3 pb-2 sm:px-5" data-royalhouse-inline-results>
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2">
@@ -326,7 +332,7 @@ export default function RoyalhouseMobileInlineSearch() {
                 )
               })}
             </div>
-            <Link href={`/listings?${toParams(parseQuery(valueForLink(query), tab)).toString()}`} className="mt-3 block text-center text-xs font-black text-emerald-700">
+            <Link href={`/listings?${toParams(parseQuery(query, tab)).toString()}`} className="mt-3 block text-center text-xs font-black text-emerald-700">
               {text.all} →
             </Link>
           </>
@@ -336,8 +342,6 @@ export default function RoyalhouseMobileInlineSearch() {
       </div>
     </div>
   )
-}
 
-function valueForLink(value: string) {
-  return value
+  return createPortal(resultView, mountNode)
 }
