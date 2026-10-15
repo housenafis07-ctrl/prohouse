@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 
 type Tab = 'sale' | 'rent' | 'daily'
 
@@ -27,7 +28,81 @@ const complexHints = [
 ]
 
 function normalize(value: string) {
-  return value.toLocaleLowerCase('uz-UZ').replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()
+  return value.toLocaleLowerCase('uz-UZ').replace(/[’‘`ʻʼ]/g, "'").replace(/\s+/g, ' ').trim()
+}
+
+function transliterateCyrillic(value: string) {
+  const map: Record<string, string> = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'ғ': "g'", 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'қ': 'q', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ў': "o'",
+    'ф': 'f', 'х': 'x', 'ҳ': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+    'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+  }
+  return value.toLocaleLowerCase('uz-UZ').split('').map((char) => map[char] ?? char).join('')
+}
+
+function levenshtein(a: string, b: string) {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const previous = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+    for (let j = 0; j <= b.length; j += 1) previous[j] = current[j]
+  }
+  return previous[b.length]
+}
+
+function locationKey(value: string) {
+  return transliterateCyrillic(value)
+    .replace(/[^a-z0-9'\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const searchableLocations = [
+  'Toshkent',
+  ...UZBEKISTAN_LOCATIONS.flatMap((item) => item.districts),
+]
+
+function correctLocationWord(word: string) {
+  const normalized = locationKey(word)
+  if (normalized.length < 4) return word
+
+  const stripped = normalized.replace(/(da|dan|ga|ni|ning|lik)$/i, '').trim()
+  let best: { value: string; distance: number } | null = null
+
+  for (const location of searchableLocations) {
+    const key = locationKey(location)
+    const base = key.replace(/\s+(tumani|shahri)$/i, '')
+    const maxDistance = base.length >= 7 ? 2 : 1
+    const candidates = [key, base]
+    const distance = Math.min(
+      levenshtein(normalized, key),
+      levenshtein(normalized, base),
+      levenshtein(stripped, base),
+    )
+
+    if (distance <= maxDistance && (!best || distance < best.distance)) {
+      best = { value: location, distance }
+    }
+
+    if (candidates.includes(normalized) || candidates.includes(stripped)) return location.replace(/\s+(tumani|shahri)$/i, '')
+  }
+
+  return best ? best.value.replace(/\s+(tumani|shahri)$/i, '') : word
+}
+
+function correctSearchQuery(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map(correctLocationWord)
+    .join(' ')
 }
 
 function needsAi(query: string) {
@@ -118,7 +193,8 @@ export default function RoyalhouseMobileAISearch() {
       return
     }
 
-    const ai = needsAi(trimmed)
+    const correctedQuery = correctSearchQuery(trimmed)
+    const ai = needsAi(correctedQuery)
     const tab = detectTab(mount.closest('[data-royalhouse-mobile-search]') as HTMLElement | null)
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
@@ -127,11 +203,11 @@ export default function RoyalhouseMobileAISearch() {
       setAiMode(ai)
 
       try {
-        const params = new URLSearchParams({ q: trimmed, limit: '8', sort: 'newest', tab })
+        const params = new URLSearchParams({ q: correctedQuery, limit: '8', sort: 'newest', tab })
         const response = await fetch(ai ? '/api/ai/property-search' : `/api/listings/search?${params.toString()}`, {
           method: ai ? 'POST' : 'GET',
           headers: ai ? { 'Content-Type': 'application/json' } : undefined,
-          body: ai ? JSON.stringify({ query: trimmed, tab }) : undefined,
+          body: ai ? JSON.stringify({ query: correctedQuery, tab }) : undefined,
           cache: 'no-store',
           signal: controller.signal,
         })
