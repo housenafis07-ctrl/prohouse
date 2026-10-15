@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 type Tab = 'sale' | 'rent' | 'daily'
@@ -9,8 +9,6 @@ type Listing = {
   id: string
   title: string
   title_ru?: string | null
-  listing_type?: string | null
-  property_type?: string | null
   price?: number | null
   currency?: string | null
   area_m2?: number | null
@@ -38,7 +36,8 @@ function needsAi(query: string) {
   return words.length >= 3 || complexHints.some((hint) => q.includes(hint))
 }
 
-function detectTab(root: HTMLElement): Tab {
+function detectTab(root: HTMLElement | null): Tab {
+  if (!root) return 'sale'
   const active = Array.from(root.querySelectorAll('button')).find((button) => button.className.includes('bg-emerald-600'))
   const label = normalize(active?.textContent || '')
   if (label.includes('ijara') || label.includes('аренд')) return 'rent'
@@ -49,102 +48,87 @@ function detectTab(root: HTMLElement): Tab {
 function formatPrice(price: number | null | undefined, currency: string | null | undefined) {
   if (price === null || price === undefined) return ''
   const value = new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(price)
-  const unit = currency === 'UZS' ? 'so‘m' : currency || ''
-  return `${value} ${unit}`.trim()
-}
-
-function listingHref(id: string) {
-  return `/listings/${encodeURIComponent(id)}`
+  return `${value} ${currency === 'UZS' ? 'so‘m' : currency || ''}`.trim()
 }
 
 export default function RoyalhouseMobileAISearch() {
   const [mount, setMount] = useState<HTMLElement | null>(null)
+  const [input, setInput] = useState<HTMLInputElement | null>(null)
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<Listing[]>([])
   const [loading, setLoading] = useState(false)
   const [aiMode, setAiMode] = useState(false)
   const [error, setError] = useState('')
 
-  const locale = useMemo(() => {
-    if (typeof document === 'undefined') return 'uz'
-    return document.documentElement.lang === 'ru' ? 'ru' : 'uz'
+  useEffect(() => {
+    let cancelled = false
+    let timer: number | undefined
+
+    const findInput = () => {
+      if (cancelled) return
+      const direct = document.querySelector('input[aria-label="Aqlli qidiruv"], input[aria-label="Умный поиск"]') as HTMLInputElement | null
+      const fallback = direct || Array.from(document.querySelectorAll('input')).find((node) => /Toshkentda 3 xonali|3-комнатная квартира|Aqlli qidiruv|Умный поиск/i.test(node.getAttribute('placeholder') || '')) as HTMLInputElement | undefined
+      if (!fallback) {
+        timer = window.setTimeout(findInput, 300)
+        return
+      }
+
+      const row = fallback.parentElement?.parentElement as HTMLElement | null
+      const box = row?.parentElement as HTMLElement | null
+      if (!box) {
+        timer = window.setTimeout(findInput, 300)
+        return
+      }
+
+      const resultNode = document.createElement('div')
+      resultNode.setAttribute('data-royalhouse-ai-results', 'true')
+      box.appendChild(resultNode)
+      setInput(fallback)
+      setMount(resultNode)
+      setQuery(fallback.value || '')
+
+      const onInput = () => setQuery(fallback.value || '')
+      const onFocus = () => setQuery(fallback.value || '')
+      fallback.addEventListener('input', onInput)
+      fallback.addEventListener('focus', onFocus)
+
+      return () => {
+        fallback.removeEventListener('input', onInput)
+        fallback.removeEventListener('focus', onFocus)
+        resultNode.remove()
+      }
+    }
+
+    const cleanup = findInput()
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+      if (typeof cleanup === 'function') cleanup()
+    }
   }, [])
 
   useEffect(() => {
-    let disposed = false
-    let timer: ReturnType<typeof setTimeout> | null = null
-    let currentController: AbortController | null = null
-    let input: HTMLInputElement | null = null
-    let root: HTMLElement | null = null
-    let resultNode: HTMLDivElement | null = null
-
-    const cleanup = () => {
-      if (timer) clearTimeout(timer)
-      currentController?.abort()
-      input?.removeEventListener('input', onInput)
-      input?.removeEventListener('focus', onFocus)
-      resultNode?.remove()
+    if (!input || !mount) return
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      setItems([])
+      setError('')
+      setLoading(false)
+      setAiMode(false)
+      return
     }
 
-    const find = () => {
-      if (disposed) return
-      input = document.querySelector('input[aria-label="Aqlli qidiruv"], input[aria-label="Умный поиск"]') as HTMLInputElement | null
-      if (!input) {
-        const candidate = Array.from(document.querySelectorAll('input')).find((node) => /Toshkentda 3 xonali|3-комнатная квартира|Aqlli qidiruv|Умный поиск/i.test(node.getAttribute('placeholder') || ''))
-        input = candidate as HTMLInputElement | null
-      }
-      if (!input) {
-        window.setTimeout(find, 300)
-        return
-      }
-
-      root = input.closest('[data-royalhouse-mobile-search]') as HTMLElement | null
-      const row = input.parentElement?.parentElement as HTMLElement | null
-      const box = row?.parentElement as HTMLElement | null
-      if (!box) return
-
-      resultNode = document.createElement('div')
-      resultNode.setAttribute('data-royalhouse-ai-results', 'true')
-      resultNode.style.display = 'block'
-      box.appendChild(resultNode)
-      setMount(resultNode)
-
-      onInput = () => {
-        setQuery(input?.value || '')
-      }
-      onFocus = () => setQuery(input?.value || '')
-      input.addEventListener('input', onInput)
-      input.addEventListener('focus', onFocus)
-      setQuery(input.value || '')
-    }
-
-    const requestSearch = async (value: string) => {
-      const trimmed = value.trim()
-      if (trimmed.length < 2) {
-        setItems([])
-        setAiMode(false)
-        setError('')
-        setLoading(false)
-        return
-      }
-
-      currentController?.abort()
-      const controller = new AbortController()
-      currentController = controller
+    const ai = needsAi(trimmed)
+    const tab = detectTab(mount.closest('[data-royalhouse-mobile-search]') as HTMLElement | null)
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
       setLoading(true)
       setError('')
-
-      const tab = root ? detectTab(root) : 'sale'
-      const ai = needsAi(trimmed)
       setAiMode(ai)
 
       try {
-        const url = ai ? '/api/ai/property-search' : (() => {
-          const params = new URLSearchParams({ q: trimmed, limit: '8', sort: 'newest', tab })
-          return `/api/listings/search?${params.toString()}`
-        })()
-
-        const response = await fetch(url, {
+        const params = new URLSearchParams({ q: trimmed, limit: '8', sort: 'newest', tab })
+        const response = await fetch(ai ? '/api/ai/property-search' : `/api/listings/search?${params.toString()}`, {
           method: ai ? 'POST' : 'GET',
           headers: ai ? { 'Content-Type': 'application/json' } : undefined,
           body: ai ? JSON.stringify({ query: trimmed, tab }) : undefined,
@@ -153,90 +137,29 @@ export default function RoyalhouseMobileAISearch() {
         })
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload?.error || 'Qidiruvda xatolik.')
-        if (controller.signal.aborted || disposed) return
         setItems(Array.isArray(payload?.data) ? payload.data.slice(0, 6) : [])
       } catch (searchError) {
-        if (controller.signal.aborted || disposed) return
+        if (controller.signal.aborted) return
         setItems([])
         setError(searchError instanceof Error ? searchError.message : 'Qidiruvda xatolik.')
       } finally {
-        if (!controller.signal.aborted && !disposed) setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
-    }
-
-    let onInput = () => {}
-    let onFocus = () => {}
-    find()
-
-    const observer = new MutationObserver(() => {
-      if (!input?.isConnected) find()
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-
-    const run = () => {
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(() => requestSearch(query), needsAi(query) ? 500 : 280)
-    }
-
-    // Keep the search state in sync without replacing the existing input or its handlers.
-    const sync = window.setInterval(() => {
-      const current = input?.value || ''
-      if (current !== query) setQuery(current)
-    }, 150)
+    }, ai ? 500 : 280)
 
     return () => {
-      disposed = true
-      observer.disconnect()
-      window.clearInterval(sync)
-      cleanup()
+      window.clearTimeout(timer)
+      controller.abort()
     }
-    // The component intentionally reacts to the DOM-mounted existing search input.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query])
-
-  useEffect(() => {
-    if (!mount || query.trim().length < 2) return
-    const timer = setTimeout(() => {
-      const controller = new AbortController()
-      const tab = detectTab(mount.closest('[data-royalhouse-mobile-search]') as HTMLElement || document.body)
-      const ai = needsAi(query)
-      setLoading(true)
-      setAiMode(ai)
-      setError('')
-
-      const run = async () => {
-        try {
-          const response = await fetch(ai ? '/api/ai/property-search' : `/api/listings/search?${new URLSearchParams({ q: query.trim(), limit: '8', sort: 'newest', tab }).toString()}`, {
-            method: ai ? 'POST' : 'GET',
-            headers: ai ? { 'Content-Type': 'application/json' } : undefined,
-            body: ai ? JSON.stringify({ query: query.trim(), tab }) : undefined,
-            cache: 'no-store',
-            signal: controller.signal,
-          })
-          const payload = await response.json().catch(() => ({}))
-          if (!response.ok) throw new Error(payload?.error || 'Qidiruvda xatolik.')
-          setItems(Array.isArray(payload?.data) ? payload.data.slice(0, 6) : [])
-        } catch (error) {
-          if (controller.signal.aborted) return
-          setItems([])
-          setError(error instanceof Error ? error.message : 'Qidiruvda xatolik.')
-        } finally {
-          if (!controller.signal.aborted) setLoading(false)
-        }
-      }
-      void run()
-      return () => controller.abort()
-    }, needsAi(query) ? 500 : 280)
-    return () => clearTimeout(timer)
-  }, [query, mount])
+  }, [input, mount, query])
 
   if (!mount) return null
 
+  const locale = typeof document !== 'undefined' && document.documentElement.lang === 'ru' ? 'ru' : 'uz'
+
   return createPortal(
     <div className="mt-2 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm" data-royalhouse-ai-inline-results>
-      {loading && (
-        <div className="px-3 py-2 text-[11px] font-semibold text-slate-400">{aiMode ? '✦ AI e’lonlarni izlamoqda…' : 'E’lonlar qidirilmoqda…'}</div>
-      )}
+      {loading && <div className="px-3 py-2 text-[11px] font-semibold text-slate-400">{aiMode ? '✦ AI e’lonlarni izlamoqda…' : 'E’lonlar qidirilmoqda…'}</div>}
       {!loading && error && <div className="px-3 py-2 text-[11px] font-semibold text-rose-500">{error}</div>}
       {!loading && !error && items.length > 0 && (
         <div className="divide-y divide-slate-100">
@@ -249,7 +172,7 @@ export default function RoyalhouseMobileAISearch() {
               key={item.id}
               type="button"
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => { window.location.assign(listingHref(item.id)) }}
+              onClick={() => { window.location.assign(`/listings/${encodeURIComponent(item.id)}`) }}
               className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition hover:bg-slate-50"
             >
               <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100">
@@ -265,10 +188,14 @@ export default function RoyalhouseMobileAISearch() {
           ))}
         </div>
       )}
-      {!loading && !error && query.trim().length >= 2 && items.length === 0 && (
+      {!loading && !error && trimmedQuery(query).length >= 2 && items.length === 0 && (
         <div className="px-3 py-3 text-[11px] font-semibold text-slate-400">Mos e’lon topilmadi. Boshqa so‘zlar bilan urinib ko‘ring.</div>
       )}
     </div>,
     mount,
   )
+}
+
+function trimmedQuery(value: string) {
+  return value.trim()
 }
