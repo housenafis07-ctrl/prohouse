@@ -4,11 +4,6 @@ import { useEffect } from 'react'
 
 type Lang = 'uz' | 'ru'
 
-const phoneIcon = `
-  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z"/>
-  </svg>`
-
 const userIcon = `
   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="19" height="19">
     <circle cx="12" cy="8" r="3.5"/>
@@ -19,13 +14,25 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
   useEffect(() => {
     const decorate = () => {
       const button = document.querySelector('.account-btn') as HTMLButtonElement | null
-      if (!button) return
-      const currentLabel = button.querySelector('.rh-account-label')?.textContent?.trim()
-      const rawText = button.textContent?.trim()
-      const label = currentLabel || rawText || (lang === 'ru' ? 'Войти / Регистрация' : 'Kirish / Ro‘yxatdan o‘tish')
-      button.setAttribute('aria-label', label)
-      if (!button.querySelector('.rh-account-label')) {
-        button.innerHTML = `${userIcon}<span class="rh-account-label">${label}</span>`
+      if (button) {
+        const currentLabel = button.querySelector('.rh-account-label')?.textContent?.trim()
+        const rawText = button.textContent?.trim()
+        const label = currentLabel || rawText || (lang === 'ru' ? 'Войти / Регистрация' : 'Kirish / Ro‘yxatdan o‘tish')
+        button.setAttribute('aria-label', label)
+        if (!button.querySelector('.rh-account-label')) {
+          button.innerHTML = `${userIcon}<span class="rh-account-label">${label}</span>`
+        }
+      }
+
+      // Keep the real Royalhouse brand mark and wordmark intact on mobile.
+      const logo = document.querySelector('header > div:nth-child(2) > a:first-child') as HTMLAnchorElement | null
+      if (logo && logo.dataset.royalhouseBrand !== 'true') {
+        logo.dataset.royalhouseBrand = 'true'
+        logo.setAttribute('aria-label', 'Royalhouse — bosh sahifa')
+        logo.innerHTML = `
+          <img src="/royalhouse-icon.svg" alt="Royalhouse" class="rh-brand-icon" />
+          <span class="rh-brand-word">Royal<span>house</span></span>
+        `
       }
     }
 
@@ -44,7 +51,6 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
     <>
       <style>{`
         @media (max-width: 767px) {
-          /* Keep the whole mobile header in one compact row. */
           header > div.border-t.border-slate-100.bg-white.px-3.py-2 {
             display: none !important;
           }
@@ -56,7 +62,6 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
             padding-right: 8px !important;
           }
 
-          /* Logo must stay fully visible; actions get fixed compact widths. */
           header > div:nth-child(2) > a:first-child {
             min-width: 0 !important;
             flex: 1 1 auto !important;
@@ -66,12 +71,27 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
             letter-spacing: -0.25px !important;
           }
 
-          header > div:nth-child(2) > a:first-child > span {
-            width: 32px !important;
-            height: 32px !important;
-            min-width: 32px !important;
-            margin-right: 4px !important;
-            border-radius: 9px !important;
+          header > div:nth-child(2) > a:first-child .rh-brand-icon {
+            width: 38px !important;
+            height: 38px !important;
+            min-width: 38px !important;
+            flex: 0 0 38px !important;
+            margin-right: 5px !important;
+            border-radius: 10px !important;
+            object-fit: cover !important;
+          }
+
+          header > div:nth-child(2) > a:first-child .rh-brand-word {
+            display: inline-block !important;
+            font-size: 19px !important;
+            font-weight: 900 !important;
+            letter-spacing: -0.7px !important;
+            line-height: 1 !important;
+            color: #0f172a !important;
+          }
+
+          header > div:nth-child(2) > a:first-child .rh-brand-word > span {
+            color: #10b981 !important;
           }
 
           header .ml-auto {
@@ -127,7 +147,6 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
             height: 19px !important;
           }
 
-          /* Keep phone and Telegram as icon-only controls on mobile. */
           header a[href^="tel:"],
           header a[href*="t.me"] {
             width: 40px !important;
@@ -138,7 +157,22 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
             flex: 0 0 40px !important;
           }
 
-          header a[href^="tel:"] > span:not(:first-child),
+          header a[href^="tel:"] > span,
+          header a[href*="t.me"] > span:not(:first-child) {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+
+          header a[href^="tel:"] > span > svg {
+            display: block !important;
+            width: 20px !important;
+            height: 20px !important;
+            color: #059669 !important;
+            stroke: currentColor !important;
+          }
+
+          header a[href^="tel:"] > span:last-child,
           header a[href*="t.me"] > span:not(:first-child) {
             display: none !important;
           }
@@ -151,7 +185,11 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-emerald-600 transition hover:border-emerald-300 hover:text-emerald-700 sm:h-10 sm:w-10 xl:h-auto xl:w-auto xl:gap-2 xl:px-3 xl:py-2 xl:text-xs xl:font-bold xl:text-slate-700"
           aria-label={lang === 'ru' ? 'Позвонить в Royalhouse' : 'Royalhouse’ga qo‘ng‘iroq qilish'}
         >
-          <span dangerouslySetInnerHTML={{ __html: phoneIcon }} />
+          <span className="rh-phone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92Z" />
+            </svg>
+          </span>
           <span className="hidden xl:inline">+998 99 824 44 94</span>
         </a>
 
