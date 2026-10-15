@@ -19,6 +19,7 @@ import AuthLanguageFix from "./components/AuthLanguageFix";
 import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
 import TaxCalculatorServiceFix from "./components/TaxCalculatorServiceFix";
 import RoyalhouseMobileHomeRedesign from "./components/RoyalhouseMobileHomeRedesign";
+import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish";
 
 export const metadata: Metadata = {
   title: "Royalhouse — Ko‘chmas mulk platformasi",
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ListingCardIconStyle />
           <TaxCalculatorServiceFix />
           <RoyalhouseMobileHomeRedesign />
+          <RoyalhouseMobileHomePolish />
           {children}
         </I18nProvider>
       </body>
