@@ -21,7 +21,7 @@ type Listing = {
 
 const complexHints = [
   ' xon', ' xona', ' kvartira', ' uy ', ' hovli', ' yer ', ' uchast', ' tijorat',
-  ' ijara', ' ijaraga', ' kunlik', ' sutkalik', ' dacha', ' yangi uy', ' novost',
+  ' ijara', ' ijaraga', ' kunlik', ' sutkalik', ' dacha', ' daча', ' дача', ' yangi uy', ' novost',
   ' mlrd', ' milliard', ' mln', ' million', ' ming $', ' ming y', ' doll', '$',
   ' gacha', ' dan ', ' metro', ' yaqin', ' oil', ' arzon', ' qimmat', ' maydon',
   ' m2', ' m²', 'комнат', 'квартир', 'аренд', 'сутк', 'новост', 'до ', 'млрд', 'млн',
@@ -203,11 +203,11 @@ export default function RoyalhouseMobileAISearch() {
       setAiMode(ai)
 
       try {
-        const params = new URLSearchParams({ q: correctedQuery, limit: '8', sort: 'newest', tab })
+        const params = new URLSearchParams({ q: correctedQuery, limit: '8', sort: 'newest', tab, all: 'true' })
         const response = await fetch(ai ? '/api/ai/property-search' : `/api/listings/search?${params.toString()}`, {
           method: ai ? 'POST' : 'GET',
           headers: ai ? { 'Content-Type': 'application/json' } : undefined,
-          body: ai ? JSON.stringify({ query: correctedQuery, tab }) : undefined,
+          body: ai ? JSON.stringify({ query: correctedQuery, tab, all: true }) : undefined,
           cache: 'no-store',
           signal: controller.signal,
         })
