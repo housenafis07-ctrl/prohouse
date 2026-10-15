@@ -164,6 +164,12 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
             justify-content: center !important;
           }
 
+          header a[href^="tel:"] > span.rh-phone-icon {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+
           header a[href^="tel:"] > span > svg {
             display: block !important;
             width: 20px !important;
@@ -172,7 +178,7 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
             stroke: currentColor !important;
           }
 
-          header a[href^="tel:"] > span:last-child,
+          header a[href^="tel:"] > span:not(.rh-phone-icon),
           header a[href*="t.me"] > span:not(:first-child) {
             display: none !important;
           }
