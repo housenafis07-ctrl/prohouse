@@ -18,7 +18,7 @@ import RoyalhouseContactFooter from "./components/RoyalhouseContactFooter";
 import AuthLanguageFix from "./components/AuthLanguageFix";
 import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
 import TaxCalculatorServiceFix from "./components/TaxCalculatorServiceFix";
-import RoyalhouseMobileHomeRedesign from "./components/RoyalhouseMobileHomeRedesign";
+import RoyalhouseMobileSmartSearch from "./components/RoyalhouseMobileSmartSearch";
 import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish";
 
 export const metadata: Metadata = {
@@ -49,7 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <PushRegistration />
           <ListingCardIconStyle />
           <TaxCalculatorServiceFix />
-          <RoyalhouseMobileHomeRedesign />
+          <RoyalhouseMobileSmartSearch />
           <RoyalhouseMobileHomePolish />
           {children}
         </I18nProvider>
