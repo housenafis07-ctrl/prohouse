@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 20
@@ -40,6 +41,55 @@ function clean(value: unknown, max = 120) {
   return String(value ?? '').trim().slice(0, max)
 }
 
+function transliterateCyrillic(value: string) {
+  const map: Record<string, string> = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'ғ': "g'", 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'қ': 'q', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ў': "o'",
+    'ф': 'f', 'х': 'x', 'ҳ': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+    'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+  }
+  return value
+    .toLocaleLowerCase('uz-UZ')
+    .split('')
+    .map((char) => map[char] ?? char)
+    .join('')
+}
+
+function locationKey(value: string) {
+  return transliterateCyrillic(value)
+    .toLocaleLowerCase('uz-UZ')
+    .replace(/[’‘`ʻʼ]/g, "'")
+    .replace(/[^a-z0-9'\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function locationBase(value: string) {
+  return locationKey(value).replace(/\s+(tumani|shahri|viloyati|respublikasi)$/i, '').trim()
+}
+
+const districtNames = UZBEKISTAN_LOCATIONS.flatMap((item) => item.districts)
+const cityNames = Array.from(new Set([
+  'Toshkent',
+  ...districtNames.filter((name) => /\s+shahri$/i.test(name)).map((name) => name.replace(/\s+shahri$/i, '')),
+]))
+
+function canonicalLocation(value: string, kind: 'city' | 'district') {
+  const input = clean(value, 100)
+  if (!input) return ''
+
+  const candidates = kind === 'city' ? cityNames : districtNames
+  const exact = candidates.find((candidate) => locationKey(candidate) === locationKey(input))
+  if (exact) return kind === 'city' && exact === 'Toshkent shahri' ? 'Toshkent' : exact
+
+  const base = locationBase(input)
+  const baseMatch = candidates.find((candidate) => locationBase(candidate) === base)
+  if (baseMatch) return kind === 'city' && baseMatch === 'Toshkent shahri' ? 'Toshkent' : baseMatch
+
+  return input
+}
+
 function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab']): SearchFilters {
   const tab = raw.tab === 'rent' || raw.tab === 'daily' ? raw.tab : fallbackTab
   const finite = (value: unknown) => {
@@ -51,8 +101,8 @@ function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilter
   return {
     tab,
     q: clean(raw.q, 100),
-    city: clean(raw.city, 100),
-    district: clean(raw.district, 100),
+    city: canonicalLocation(clean(raw.city, 100), 'city'),
+    district: canonicalLocation(clean(raw.district, 100), 'district'),
     property_type: clean(raw.property_type, 60),
     rooms: finite(raw.rooms),
     min: finite(raw.min),
@@ -80,6 +130,7 @@ export async function POST(request: NextRequest) {
     'Convert the user request into search filters for the existing RoyalHouse public listing search.',
     'Never invent a city, district, price, room count, or property type that is not supported by the request.',
     'Uzbek and Russian language input must both be understood.',
+    'Preserve the user\'s location intent even when it is written in Cyrillic. For example, Тошкент means Toshkent and Сергели means Sergeli.',
     'For sale, use tab=sale. For monthly rent, use tab=rent. For daily/dacha rent, use tab=daily.',
     'Use property_type only for clear categories: apartment, house, land, commercial. Otherwise use an empty string.',
     'Normalize money into the numeric amount in the requested currency. Examples: 1 mlrd -> 1000000000 UZS, 800 mln -> 800000000 UZS, 50 ming $ -> 50000 USD.',
