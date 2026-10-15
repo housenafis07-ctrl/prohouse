@@ -26,6 +26,7 @@ const faqRu = [
 export default function RoyalhouseMobileHomePolish() {
   const { lang } = useI18n()
   const [open, setOpen] = useState<number | null>(null)
+  const [faqOpen, setFaqOpen] = useState(false)
 
   useEffect(() => {
     const style = document.createElement('style')
@@ -170,33 +171,47 @@ export default function RoyalhouseMobileHomePolish() {
         }
       })
 
-      if (footer.querySelector('[data-royalhouse-footer-seo]')) return true
-
-      const contact = footer.querySelector('[data-royalhouse-contact]')
-      const section = document.createElement('section')
-      section.setAttribute('data-royalhouse-footer-seo', 'true')
-      section.style.borderBottom = '1px solid rgba(255,255,255,.08)'
-      section.style.padding = '28px 20px'
-      section.innerHTML = `
-        <div style="max-width:1280px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:28px">
-          <div>
-            <h2 style="margin:0;font-size:22px;line-height:1.2;font-weight:900;color:#fff">${lang === 'ru' ? 'О нас' : 'Biz haqimizda'}</h2>
-            <p style="margin:10px 0 0;max-width:520px;font-size:14px;line-height:1.65;color:#9bb0ba">${lang === 'ru' ? 'RoyalHouse — современная платформа недвижимости Узбекистана. Мы помогаем находить жильё, размещать объявления, сравнивать варианты и получать полезную информацию о покупке, аренде и ипотеке в одном месте.' : 'RoyalHouse — O‘zbekiston ko‘chmas mulk bozori uchun zamonaviy platforma. Biz uy topish, e’lon joylashtirish, variantlarni taqqoslash va sotib olish, ijara hamda ipoteka bo‘yicha foydali ma’lumotlarni bir joyda olishga yordam beramiz.'}</p>
+      let section = footer.querySelector<HTMLElement>('[data-royalhouse-footer-seo]')
+      if (!section) {
+        const contact = footer.querySelector('[data-royalhouse-contact]')
+        section = document.createElement('section')
+        section.setAttribute('data-royalhouse-footer-seo', 'true')
+        section.style.borderBottom = '1px solid rgba(255,255,255,.08)'
+        section.style.padding = '28px 20px'
+        section.innerHTML = `
+          <div style="max-width:1280px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:28px">
+            <div>
+              <h2 data-rh-about-title style="margin:0;font-size:22px;line-height:1.2;font-weight:900;color:#fff"></h2>
+              <p data-rh-about-text style="margin:10px 0 0;max-width:520px;font-size:14px;line-height:1.65;color:#9bb0ba"></p>
+            </div>
+            <div>
+              <button data-rh-faq-toggle type="button" style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;border:0;background:transparent;padding:0;text-align:left;color:#fff;font-size:22px;line-height:1.2;font-weight:900;cursor:pointer">
+                <span data-rh-faq-title></span><span data-rh-faq-chevron style="color:#08d878;font-size:24px;line-height:1">+</span>
+              </button>
+              <div data-rh-faq-list style="display:none;margin-top:12px"></div>
+            </div>
           </div>
-          <div>
-            <h2 style="margin:0;font-size:22px;line-height:1.2;font-weight:900;color:#fff">${lang === 'ru' ? 'Часто задаваемые вопросы' : 'Tez-tez beriladigan savollar'}</h2>
-            <div data-rh-faq-list style="margin-top:12px"></div>
-          </div>
-        </div>
-        <style>
-          @media(max-width:767px){
-            [data-royalhouse-footer-seo]>div{grid-template-columns:1fr!important;gap:22px!important}
-          }
-        </style>
-      `
+          <style>
+            @media(max-width:767px){
+              [data-royalhouse-footer-seo]>div{grid-template-columns:1fr!important;gap:22px!important}
+              [data-rh-faq-toggle]{font-size:20px!important}
+            }
+          </style>
+        `
+        if (contact) contact.insertAdjacentElement('afterend', section)
+        else footer.insertBefore(section, footer.firstElementChild)
 
-      if (contact) contact.insertAdjacentElement('afterend', section)
-      else footer.insertBefore(section, footer.firstElementChild)
+        section.querySelector('[data-rh-faq-toggle]')?.addEventListener('click', () => setFaqOpen(current => !current))
+      }
+
+      const aboutTitle = section.querySelector<HTMLElement>('[data-rh-about-title]')
+      const aboutText = section.querySelector<HTMLElement>('[data-rh-about-text]')
+      const faqTitle = section.querySelector<HTMLElement>('[data-rh-faq-title]')
+      if (aboutTitle) aboutTitle.textContent = lang === 'ru' ? 'О нас' : 'Biz haqimizda'
+      if (aboutText) aboutText.textContent = lang === 'ru'
+        ? 'RoyalHouse — современная платформа недвижимости Узбекистана. Мы помогаем находить жильё, размещать объявления, сравнивать варианты и получать полезную информацию о покупке, аренде и ипотеке в одном месте.'
+        : 'RoyalHouse — O‘zbekiston ko‘chmas mulk bozori uchun zamonaviy platforma. Biz uy topish, e’lon joylashtirish, variantlarni taqqoslash va sotib olish, ijara hamda ipoteka bo‘yicha foydali ma’lumotlarni bir joyda olishga yordam beramiz.'
+      if (faqTitle) faqTitle.textContent = lang === 'ru' ? 'Часто задаваемые вопросы' : 'Tez-tez beriladigan savollar'
       return true
     }
 
@@ -211,7 +226,12 @@ export default function RoyalhouseMobileHomePolish() {
 
   useEffect(() => {
     const root = document.querySelector<HTMLElement>('[data-rh-faq-list]')
+    const toggle = document.querySelector<HTMLElement>('[data-rh-faq-toggle]')
+    const chevron = document.querySelector<HTMLElement>('[data-rh-faq-chevron]')
     if (!root) return
+    root.style.display = faqOpen ? 'block' : 'none'
+    if (chevron) chevron.textContent = faqOpen ? '−' : '+'
+
     const items = lang === 'ru' ? faqRu : faqUz
     root.innerHTML = ''
     items.forEach(([question, answer], index) => {
@@ -246,7 +266,8 @@ export default function RoyalhouseMobileHomePolish() {
       }
       root.appendChild(row)
     })
-  }, [lang, open])
+    if (toggle) toggle.setAttribute('aria-expanded', String(faqOpen))
+  }, [lang, open, faqOpen])
 
   return null
 }
