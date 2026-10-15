@@ -90,19 +90,35 @@ function canonicalLocation(value: string, kind: 'city' | 'district') {
   return input
 }
 
-function hasGenericHousingTerm(value: string) {
-  const normalized = transliterateCyrillic(value)
+function normalizedWords(value: string) {
+  return transliterateCyrillic(value)
     .toLocaleLowerCase('uz-UZ')
     .replace(/[’‘`ʻʼ]/g, "'")
     .replace(/[^a-z0-9'\s-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+}
 
-  const words = normalized.split(/\s+/).filter(Boolean)
+function hasGenericHousingTerm(value: string) {
+  const words = normalizedWords(value)
   return words.some((word) => [
     'uy', 'uyda', 'uyga', 'uydan', 'uyni', 'uyning',
-    'dom', 'дома', 'дом', 'квартира', 'kvartira',
+    'dom', 'doma', 'квартира', 'kvartira',
   ].includes(word))
+}
+
+function stripGenericHousingTerms(value: string) {
+  const housingTerms = new Set([
+    'uy', 'uyda', 'uyga', 'uydan', 'uyni', 'uyning',
+    'dom', 'doma', 'квартира', 'kvartira',
+  ])
+
+  return normalizedWords(value)
+    .filter((word) => !housingTerms.has(word))
+    .join(' ')
+    .trim()
 }
 
 function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab'], originalQuery: string): SearchFilters {
@@ -113,17 +129,18 @@ function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilter
     return Number.isFinite(number) ? number : null
   }
 
-  // "Uy" is commonly used as a generic housing term in Uzbek. In particular,
-  // "Sergelida uy", "Sergeli uy kvartira" and "Sergeli kvartira uy" should
-  // not be restricted to property_type=apartment: house/hovli listings must
-  // remain eligible. Explicit "hovli" / "xususiy uy" requests can still be
-  // handled by the AI/property taxonomy when the user is specific.
+  // Generic housing words must never become a restrictive property_type filter.
+  // They must also be removed from q: the existing catalogue search treats q as
+  // a title/city/district text filter, so leaving "uy" or "kvartira" in q can
+  // hide valid house listings whose title does not contain that word.
   const genericHousing = hasGenericHousingTerm(originalQuery)
   const propertyType = genericHousing ? '' : clean(raw.property_type, 60)
+  const normalizedQ = clean(raw.q, 100)
+  const q = genericHousing ? stripGenericHousingTerms(normalizedQ) : normalizedQ
 
   return {
     tab,
-    q: clean(raw.q, 100),
+    q,
     city: canonicalLocation(clean(raw.city, 100), 'city'),
     district: canonicalLocation(clean(raw.district, 100), 'district'),
     property_type: propertyType,
@@ -158,6 +175,7 @@ export async function POST(request: NextRequest) {
     'Use property_type only for clear categories: apartment, house, land, commercial. Otherwise use an empty string.',
     'When the user uses generic housing words such as uy, дом, or combines uy with kvartira, do not force property_type=apartment or property_type=house; leave property_type empty so both apartment and house/hovli listings can match.',
     'Only use house for clearly specific requests such as xususiy uy or hovli, when that distinction is explicit.',
+    'Do not put generic housing words such as uy, dom, kvartira, or квартира into q when they are only describing the requested property category; q should contain only additional searchable terms.',
     'Normalize money into the numeric amount in the requested currency. Examples: 1 mlrd -> 1000000000 UZS, 800 mln -> 800000000 UZS, 50 ming $ -> 50000 USD.',
     'If the user asks for the cheapest/lowest-priced options, use sort=priceLow. Otherwise use newest.',
     'Keep q short: only the useful free-text search terms that should remain for the existing catalogue search.',
