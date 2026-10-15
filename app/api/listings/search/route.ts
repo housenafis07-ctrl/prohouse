@@ -110,6 +110,7 @@ export async function GET(request: NextRequest) {
   const currency = params.get('currency')?.trim() || ''
   const q = params.get('q')?.trim() || ''
   const tab = params.get('tab') || ''
+  const searchAll = params.get('all') === 'true'
   const dachaSearch = isDachaSearch(q)
 
   if (!['newest', 'priceLow', 'priceHigh'].includes(sort)) {
@@ -139,7 +140,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (!listingType) {
+  // Mobile AI/free-text search can explicitly request the whole active catalogue.
+  // This is important for terms such as "дача" and "мебел": the selected home
+  // tab must not silently hide matching rent/daily/other listing types.
+  if (!listingType && !searchAll) {
     if (tab === 'sale') {
       query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
     } else if (tab === 'rent') {
@@ -170,6 +174,9 @@ export async function GET(request: NextRequest) {
         `title_ru.ilike.%${word}%`,
         `city.ilike.%${word}%`,
         `district.ilike.%${word}%`,
+        `property_type.ilike.%${word}%`,
+        `listing_type.ilike.%${word}%`,
+        `taxonomy_code.ilike.%${word}%`,
       ]).join(',')
 
       if (dachaSearch) {
