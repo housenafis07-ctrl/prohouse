@@ -85,6 +85,8 @@ export async function GET(request: NextRequest) {
   const min = numberParam(params.get('min'))
   const max = numberParam(params.get('max'))
   const rooms = numberParam(params.get('rooms'))
+  const roomsExact = numberParam(params.get('rooms_exact'))
+  const minArea = numberParam(params.get('min_area'))
   const taxonomy = params.get('taxonomy')?.trim() || ''
   const listingType = params.get('listing_type')?.trim() || ''
   const propertyType = params.get('property_type')?.trim() || ''
@@ -139,7 +141,9 @@ export async function GET(request: NextRequest) {
 
   if (min !== null) query = query.gte('price', min)
   if (max !== null) query = query.lte('price', max)
-  if (rooms !== null) query = query.gte('rooms', rooms)
+  if (roomsExact !== null) query = query.eq('rooms', roomsExact)
+  else if (rooms !== null) query = query.gte('rooms', rooms)
+  if (minArea !== null) query = query.gte('area_m2', minArea)
   if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner')
   if (params.get('trusted') === 'true') query = query.eq('is_trusted_seller', true)
   if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true)
