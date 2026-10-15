@@ -49,6 +49,21 @@ function escapeSearchTerm(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/%/g, '\\%').replace(/_/g, '\\_').trim()
 }
 
+function transliterateCyrillic(value: string) {
+  const map: Record<string, string> = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'ғ': "g'", 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'қ': 'q', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ў': "o'",
+    'ф': 'f', 'х': 'x', 'ҳ': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+    'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+  }
+  return value
+    .toLocaleLowerCase('uz-UZ')
+    .split('')
+    .map((char) => map[char] ?? char)
+    .join('')
+}
+
 function districtVariants(districts: string[]) {
   const variants = new Set<string>()
   for (const district of districts) {
@@ -95,6 +110,7 @@ export async function GET(request: NextRequest) {
   const currency = params.get('currency')?.trim() || ''
   const q = params.get('q')?.trim() || ''
   const tab = params.get('tab') || ''
+  const searchAll = params.get('all') === 'true'
   const dachaSearch = isDachaSearch(q)
 
   if (!['newest', 'priceLow', 'priceHigh'].includes(sort)) {
@@ -124,9 +140,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Keep the tab filters simple and explicit. Legacy dacha records are saved as
-  // listing_type='rent' + taxonomy_code='rent_dacha', but must appear in "Kunlik".
-  if (!listingType) {
+  // Mobile AI/free-text search can explicitly request the whole active catalogue.
+  // This is important for terms such as "дача" and "мебел": the selected home
+  // tab must not silently hide matching rent/daily/other listing types.
+  if (!listingType && !searchAll) {
     if (tab === 'sale') {
       query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
     } else if (tab === 'rent') {
@@ -146,12 +163,26 @@ export async function GET(request: NextRequest) {
   if (params.get('verified') === 'true') query = query.eq('is_verified', true)
 
   if (q) {
-    const words = q.split(/\s+/).map(escapeSearchTerm).filter(Boolean).slice(0, 8)
-    for (const word of words) {
+    const words = q.split(/\s+/).filter(Boolean).slice(0, 8)
+    for (const rawWord of words) {
+      const variants = Array.from(new Set([
+        rawWord,
+        transliterateCyrillic(rawWord),
+      ])).map(escapeSearchTerm).filter(Boolean)
+      const locationOrSearch = variants.flatMap((word) => [
+        `title.ilike.%${word}%`,
+        `title_ru.ilike.%${word}%`,
+        `city.ilike.%${word}%`,
+        `district.ilike.%${word}%`,
+        `property_type.ilike.%${word}%`,
+        `listing_type.ilike.%${word}%`,
+        `taxonomy_code.ilike.%${word}%`,
+      ]).join(',')
+
       if (dachaSearch) {
-        query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%,taxonomy_code.in.(sale_dacha,rent_dacha)`)
+        query = query.or(`${locationOrSearch},taxonomy_code.in.(sale_dacha,rent_dacha)`)
       } else {
-        query = query.or(`title.ilike.%${word}%,title_ru.ilike.%${word}%,city.ilike.%${word}%,district.ilike.%${word}%`)
+        query = query.or(locationOrSearch)
       }
     }
   }
