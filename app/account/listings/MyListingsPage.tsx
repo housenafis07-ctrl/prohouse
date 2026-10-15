@@ -1,0 +1,217 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
+import { getListingImageUrl } from '@/lib/listing-image'
+import { useI18n } from '@/app/components/I18nProvider'
+import type { Lang } from '@/lib/i18n'
+
+type Status = 'all' | 'draft' | 'moderation' | 'active' | 'rejected' | 'sold' | 'rented' | 'archived'
+
+type Listing = {
+  id: string
+  listing_code: string
+  title: string
+  title_ru?: string | null
+  listing_type: string
+  property_type: string
+  status: string
+  price: number
+  currency: string
+  city: string
+  district: string | null
+  area_m2: number | null
+  rooms: number | null
+  floor: number | null
+  floors_total: number | null
+  is_trusted_seller: boolean
+  updated_at: string
+  moderation_note: string | null
+  seller_type: string | null
+  is_mortgage_available: boolean
+  primary_image_url?: string | null
+  promoted_until?: string | null
+  promotion_badge?: string | null
+  bumped_at?: string | null
+  partner_listing_taxonomy?: { name_uz: string; name_ru: string | null }[] | null
+}
+
+const money = (value: number, currency: string, lang: Lang) =>
+  `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(value))} ${currency === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
+
+const LOCATION_RU: Record<string, string> = {
+  Toshkent: 'Ташкент',
+  'Toshkent viloyati': 'Ташкентская область',
+  Yunusobod: 'Юнусабад',
+  Chilonzor: 'Чиланзар',
+  Sergeli: 'Сергелийский район',
+  Mirobod: 'Мирабадский район',
+  Yakkasaroy: 'Яккасарайский район',
+  Shayxontahur: 'Шайхантахурский район',
+  Olmazor: 'Алмазарский район',
+  Uchtepa: 'Учтепинский район',
+  Bektemir: 'Бектемирский район',
+  Yangihayot: 'Янгиҳаётский район',
+  'Yangiyo‘l': 'Янгиюльский район',
+  "Yangiyo'l": 'Янгиюльский район',
+}
+
+const localizeLocation = (value: string | null | undefined, lang: Lang) =>
+  !value ? '' : lang === 'ru' ? (LOCATION_RU[value] || value) : value
+
+export default function MyListingsPage() {
+  const router = useRouter()
+  const { lang } = useI18n()
+  const [items, setItems] = useState<Listing[]>([])
+  const [status, setStatus] = useState<Status>('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [actionId, setActionId] = useState('')
+  const [usage, setUsage] = useState<{ isIndividual: boolean; used: number; freeLimit: number; remaining: number | null } | null>(null)
+
+  const text = lang === 'ru'
+    ? {
+        back: '← Личный кабинет', messages: '💬 Сообщения', add: '+ Разместить объявление', title: 'Мои объявления',
+        sub: 'Следите за статусом объявлений. После решения администратора страница обновится автоматически.',
+        loading: 'Загрузка объявлений...', emptyAll: 'У вас пока нет объявлений', empty: 'Объявлений в этом разделе нет',
+        place: 'Разместить объявление', noImage: 'Нет изображения', owner: 'От владельца', mortgage: 'Доступна ипотека',
+        trusted: '✓ Надёжный профиль', view: 'Открыть', edit: 'Редактировать', fix: 'Исправить и отправить повторно',
+        cancel: 'Отменить', cancelBusy: 'Отмена...', saveBusy: 'Сохранение...', rented: 'Сдано', sold: 'Продано', close: 'Закрыть',
+        resubmit: 'Отправить на модерацию', updated: 'Обновлено', room: 'комн.', floor: 'эт.',
+        moderationReason: 'Причина отклонения:', moderationNote: 'Комментарий модерации:', errorLoad: 'Не удалось загрузить объявления.',
+        tabs: { all: 'Все', draft: 'Черновики', moderation: 'На модерации', active: 'Активные', rejected: 'Отклонённые', sold: 'Проданные', rented: 'Сданные', archived: 'Архив' },
+        property: { apartment: 'Квартира', house: 'Частный дом', land: 'Земельный участок', commercial: 'Коммерческая недвижимость', new_building: 'Новостройка' } as Record<string, string>,
+      }
+    : {
+        back: '← Shaxsiy kabinet', messages: '💬 Xabarlar', add: '+ E’lon joylashtirish', title: 'Mening e’lonlarim',
+        sub: 'E’lonlaringiz holatini kuzating. Admin qarori berilganda sahifa avtomatik yangilanadi.',
+        loading: 'E’lonlar yuklanmoqda...', emptyAll: 'Hali e’lonlaringiz yo‘q', empty: 'Bu bo‘limda e’lonlar yo‘q',
+        place: 'E’lon joylashtirish', noImage: 'Rasm yo‘q', owner: 'Egadan', mortgage: 'Ipotekaga mumkin',
+        trusted: '✓ Ishonchli profil', view: 'Ko‘rish', edit: 'Tahrirlash', fix: 'Tuzatish va qayta yuborish',
+        cancel: 'Bekor qilish', cancelBusy: 'Bekor qilinmoqda...', saveBusy: 'Saqlanmoqda...', rented: 'Ijaraga berildi', sold: 'Sotildi', close: 'Yopish',
+        resubmit: 'Qayta moderatsiyaga yuborish', updated: 'Yangilangan', room: 'xona', floor: 'qavat',
+        moderationReason: 'Rad etish sababi:', moderationNote: 'Moderatsiya izohi:', errorLoad: 'E’lonlarni yuklab bo‘lmadi.',
+        tabs: { all: 'Barchasi', draft: 'Qoralama', moderation: 'Moderatsiyada', active: 'Faol', rejected: 'Rad etilgan', sold: 'Sotilgan', rented: 'Ijaraga berilgan', archived: 'Arxiv' },
+        property: { apartment: 'Kvartira', house: 'Xususiy uy', land: 'Yer uchastkasi', commercial: 'Tijorat mulki', new_building: 'Yangi bino' } as Record<string, string>,
+      }
+
+  const statusMeta: Record<Exclude<Status, 'all'>, { label: string }> = {
+    draft: { label: text.tabs.draft }, moderation: { label: text.tabs.moderation }, active: { label: text.tabs.active },
+    rejected: { label: text.tabs.rejected }, sold: { label: text.tabs.sold }, rented: { label: text.tabs.rented }, archived: { label: text.tabs.archived },
+  }
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const db = createClient()
+    const { data: { user } } = await db.auth.getUser()
+    if (!user) {
+      router.replace('/register')
+      return
+    }
+
+    const [{ data: profile }, { data, error: qError }] = await Promise.all([
+      db.from('profiles').select('account_type').eq('id', user.id).maybeSingle(),
+      db.from('listings').select('id,listing_code,title,title_ru,listing_type,property_type,status,price,currency,city,district,area_m2,rooms,floor,floors_total,is_trusted_seller,updated_at,moderation_note,seller_type,is_mortgage_available,primary_image_url,promoted_until,promotion_badge,bumped_at,partner_listing_taxonomy(name_uz,name_ru)').eq('owner_id', user.id).order('updated_at', { ascending: false }),
+    ])
+
+    if (qError) setError(qError.message || text.errorLoad)
+    setItems((data || []) as Listing[])
+
+    if (profile?.account_type === 'individual') {
+      const r = await fetch('/api/monetization/usage')
+      if (r.ok) setUsage(await r.json())
+    } else {
+      setUsage(null)
+    }
+    setLoading(false)
+  }, [router, text.errorLoad])
+
+  useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    let channel: ReturnType<ReturnType<typeof createClient>['channel']> | null = null
+    let cancelled = false
+    ;(async () => {
+      const db = createClient()
+      const { data: { user } } = await db.auth.getUser()
+      if (!user || cancelled) return
+      channel = db.channel('owner-listings-' + user.id).on('postgres_changes', { event: '*', schema: 'public', table: 'listings', filter: 'owner_id=eq.' + user.id }, () => { void load() }).subscribe()
+    })()
+    return () => {
+      cancelled = true
+      if (channel) void createClient().removeChannel(channel)
+    }
+  }, [load])
+
+  const counts = useMemo(() => {
+    const r: Record<Status, number> = { all: 0, draft: 0, moderation: 0, active: 0, rejected: 0, sold: 0, rented: 0, archived: 0 }
+    items.forEach(i => {
+      if (i.status === 'archived') r.archived++
+      else if (i.status in r) r[i.status as Status]++
+    })
+    r.all = r.draft + r.moderation + r.active + r.rejected + r.sold + r.rented
+    return r
+  }, [items])
+
+  const visible = useMemo(() => status === 'all' ? items.filter(i => i.status !== 'archived') : items.filter(i => i.status === status), [items, status])
+
+  const changeStatus = async (id: string, next: 'sold' | 'rented' | 'archived') => {
+    setActionId(id); setError('')
+    const db = createClient()
+    const { data, error: e } = await db.rpc('transition_owner_listing_status', { p_listing_id: id, p_next_status: next })
+    if (e) setError(e.message)
+    else if (data) await load()
+    setActionId('')
+  }
+
+  const cancelListing = async (id: string) => {
+    setActionId(id); setError('')
+    try {
+      const r = await fetch('/api/listings/draft?listingId=' + encodeURIComponent(id), { method: 'DELETE' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || text.cancel)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : text.cancel)
+    } finally { setActionId('') }
+  }
+
+  const reopen = async (id: string) => {
+    setActionId(id); setError('')
+    const db = createClient()
+    const { data, error: e } = await db.rpc('transition_owner_listing_status', { p_listing_id: id, p_next_status: 'moderation' })
+    if (e) setError(e.message)
+    else if (data) await load()
+    setActionId('')
+  }
+
+  const viewHref = (id: string) => '/account/listings/' + id + '/view'
+  const editHref = (id: string) => '/account/listings/' + id + '/edit'
+
+  return <main className="min-h-screen bg-slate-50 text-slate-900">
+    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4"><div className="flex items-center gap-2"><Link href="/account" className="text-sm font-extrabold text-emerald-700">{text.back}</Link><Link href="/chat" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold">{text.messages}</Link></div><Link href="/listings/new" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">{text.add}</Link></div></header>
+    <div className="mx-auto max-w-6xl px-4 py-7 sm:py-10"><h1 className="text-3xl font-black">{text.title}</h1><p className="mt-2 text-sm text-slate-500">{text.sub}</p>
+      {usage?.isIndividual && <div className="mt-5 rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm"><p className="text-sm font-bold">{usage.used}/{usage.freeLimit}</p></div>}
+      {error && <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div>}
+      <div className="mt-7 grid gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 sm:grid-cols-4 lg:grid-cols-8">{(['all','draft','moderation','active','rejected','sold','rented','archived'] as Status[]).map(key => <button type="button" key={key} onClick={() => setStatus(key)} className={'min-w-[110px] rounded-xl px-3 py-3 text-left ' + (status === key ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50')}><span className="block text-sm font-extrabold">{key === 'all' ? text.tabs.all : statusMeta[key].label}</span><span className="text-xs text-slate-400">{counts[key]}</span></button>)}</div>
+      {loading ? <div className="mt-5 rounded-3xl bg-white p-10 text-center text-slate-500">{text.loading}</div> : visible.length === 0 ? <div className="mt-5 rounded-3xl bg-white p-10 text-center"><div className="text-4xl">⌂</div><h2 className="mt-3 text-xl font-black">{status === 'all' ? text.emptyAll : statusMeta[status].label + ' — ' + text.empty}</h2><Link href="/listings/new" className="mt-5 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{text.place}</Link></div> : <div className="mt-5 space-y-4">{visible.map(item => {
+        const image = item.primary_image_url ? getListingImageUrl(item.primary_image_url, 'thumbnail') : undefined
+        const taxonomyName = lang === 'ru' ? (item.partner_listing_taxonomy?.[0]?.name_ru || item.partner_listing_taxonomy?.[0]?.name_uz) : item.partner_listing_taxonomy?.[0]?.name_uz
+        const promotionUntil = item.promoted_until ? new Date(item.promoted_until) : null
+        const promotionActive = !!promotionUntil && promotionUntil.getTime() > Date.now()
+        const bumpActive = !!item.bumped_at && new Date(item.bumped_at).getTime() > Date.now() - 86400000
+        const badge = promotionActive ? (item.promotion_badge || 'TOP') : bumpActive ? 'UP' : null
+        return <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="grid md:grid-cols-[220px_1fr]"><div className="h-52 bg-slate-100 md:h-full">{image ? <img src={image} alt={item.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-slate-400">{text.noImage}</div>}</div><div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{statusMeta[item.status as Exclude<Status,'all'>]?.label || item.status}</span>{item.seller_type === 'owner' && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{text.owner}</span>}{item.is_mortgage_available && <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{text.mortgage}</span>}{item.is_trusted_seller && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{text.trusted}</span>}{badge && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{badge}</span>}</div><h2 className="mt-3 text-xl font-black">{lang === 'ru' ? (item.title_ru || item.title) : item.title}</h2><p className="mt-1 text-xs text-slate-400">{item.listing_code}{taxonomyName ? ' · ' + taxonomyName : ''}</p></div><p className="text-xl font-black text-emerald-600">{money(item.price, item.currency, lang)}</p></div>
+          <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-500"><span>{text.property[item.property_type] || item.property_type}</span>{item.area_m2 != null && <span>{item.area_m2} m²</span>}{item.rooms != null && <span>{item.rooms} {text.room}</span>}{item.property_type === 'apartment' && item.floor != null && <span>{item.floor}{item.floors_total != null ? '/' + item.floors_total : ''} {text.floor}</span>}<span>{localizeLocation(item.city, lang)}{item.district ? ', ' + localizeLocation(item.district, lang) : ''}</span></div>
+          {item.moderation_note && <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm"><b>{item.status === 'rejected' ? text.moderationReason : text.moderationNote}</b> {item.moderation_note}</div>}
+          <div className="mt-5 flex flex-wrap gap-2"><Link href={viewHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.view}</Link>{(item.status === 'draft' || item.status === 'moderation' || item.status === 'active' || item.status === 'rejected') && <Link href={editHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{item.status === 'rejected' ? text.fix : text.edit}</Link>}{(item.status === 'draft' || item.status === 'rejected') && <button type="button" disabled={actionId === item.id} onClick={() => void cancelListing(item.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700">{actionId === item.id ? text.cancelBusy : text.cancel}</button>}{item.status === 'active' && <><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, item.listing_type === 'rent' || item.listing_type === 'daily' ? 'rented' : 'sold')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white">{actionId === item.id ? text.saveBusy : item.listing_type === 'rent' || item.listing_type === 'daily' ? text.rented : text.sold}</button><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, 'archived')} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.close}</button></>}{(item.status === 'sold' || item.status === 'rented' || item.status === 'archived') && <button type="button" onClick={() => void reopen(item.id)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold">{text.resubmit}</button>}</div>
+          <p className="mt-4 text-xs text-slate-400">{text.updated}: {new Intl.DateTimeFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.updated_at))}</p>
+        </div></div></article>
+      })}</div>}
+    </div>
+  </main>
+}
