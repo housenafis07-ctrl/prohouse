@@ -90,7 +90,22 @@ function canonicalLocation(value: string, kind: 'city' | 'district') {
   return input
 }
 
-function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab']): SearchFilters {
+function hasGenericHousingTerm(value: string) {
+  const normalized = transliterateCyrillic(value)
+    .toLocaleLowerCase('uz-UZ')
+    .replace(/[’‘`ʻʼ]/g, "'")
+    .replace(/[^a-z0-9'\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const words = normalized.split(/\s+/).filter(Boolean)
+  return words.some((word) => [
+    'uy', 'uyda', 'uyga', 'uydan', 'uyni', 'uyning',
+    'dom', 'дома', 'дом', 'квартира', 'kvartira',
+  ].includes(word))
+}
+
+function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab'], originalQuery: string): SearchFilters {
   const tab = raw.tab === 'rent' || raw.tab === 'daily' ? raw.tab : fallbackTab
   const finite = (value: unknown) => {
     if (value === null || value === undefined || value === '') return null
@@ -98,12 +113,20 @@ function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilter
     return Number.isFinite(number) ? number : null
   }
 
+  // "Uy" is commonly used as a generic housing term in Uzbek. In particular,
+  // "Sergelida uy", "Sergeli uy kvartira" and "Sergeli kvartira uy" should
+  // not be restricted to property_type=apartment: house/hovli listings must
+  // remain eligible. Explicit "hovli" / "xususiy uy" requests can still be
+  // handled by the AI/property taxonomy when the user is specific.
+  const genericHousing = hasGenericHousingTerm(originalQuery)
+  const propertyType = genericHousing ? '' : clean(raw.property_type, 60)
+
   return {
     tab,
     q: clean(raw.q, 100),
     city: canonicalLocation(clean(raw.city, 100), 'city'),
     district: canonicalLocation(clean(raw.district, 100), 'district'),
-    property_type: clean(raw.property_type, 60),
+    property_type: propertyType,
     rooms: finite(raw.rooms),
     min: finite(raw.min),
     max: finite(raw.max),
@@ -133,6 +156,8 @@ export async function POST(request: NextRequest) {
     'Preserve the user\'s location intent even when it is written in Cyrillic. For example, Тошкент means Toshkent and Сергели means Sergeli.',
     'For sale, use tab=sale. For monthly rent, use tab=rent. For daily/dacha rent, use tab=daily.',
     'Use property_type only for clear categories: apartment, house, land, commercial. Otherwise use an empty string.',
+    'When the user uses generic housing words such as uy, дом, or combines uy with kvartira, do not force property_type=apartment or property_type=house; leave property_type empty so both apartment and house/hovli listings can match.',
+    'Only use house for clearly specific requests such as xususiy uy or hovli, when that distinction is explicit.',
     'Normalize money into the numeric amount in the requested currency. Examples: 1 mlrd -> 1000000000 UZS, 800 mln -> 800000000 UZS, 50 ming $ -> 50000 USD.',
     'If the user asks for the cheapest/lowest-priced options, use sort=priceLow. Otherwise use newest.',
     'Keep q short: only the useful free-text search terms that should remain for the existing catalogue search.',
@@ -181,7 +206,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'AI qidiruv javobi o‘qilmadi.' }, { status: 502 })
   }
 
-  const filters = normalizeFilters(rawFilters, fallbackTab)
+  const filters = normalizeFilters(rawFilters, fallbackTab, query)
   const params = new URLSearchParams({
     limit: '8',
     sort: filters.sort,
