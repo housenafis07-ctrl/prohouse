@@ -24,7 +24,7 @@ export default function PushRegistration() {
 
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user || Notification.permission === 'denied') return
+      if (!user || Notification.permission !== 'granted') return
 
       const keyResponse = await fetch('/api/push/vapid-public-key', { cache: 'no-store' })
       if (!keyResponse.ok) return
@@ -32,11 +32,7 @@ export default function PushRegistration() {
       if (!publicKey || cancelled) return
 
       let subscription = await registration.pushManager.getSubscription()
-      if (!subscription) {
-        // Do not trigger a permission prompt just by opening the site.
-        // Permission is requested only after the user explicitly enables notifications.
-        return
-      }
+      if (!subscription) return
 
       await fetch('/api/push/subscribe', {
         method: 'POST',
