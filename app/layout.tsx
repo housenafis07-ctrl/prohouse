@@ -11,6 +11,7 @@ import NewBuildingsNavigationFix from "./components/NewBuildingsNavigationFix";
 import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
 import MobileMainNavigation from "./components/MobileMainNavigation";
 import PushRegistration from "./components/PushRegistration";
+import PwaInstallPrompt from "./components/PwaInstallPrompt";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
 import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <HomeBuildingNavigationFix />
           <MobileMainNavigation />
           <PushRegistration />
+          <PwaInstallPrompt />
           <ListingCardIconStyle />
           <TaxCalculatorServiceFix />
           <RoyalhouseMobileHomeRedesign />
