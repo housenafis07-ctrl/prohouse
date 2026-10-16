@@ -24,9 +24,10 @@ export default function HeaderQuickContact({ lang }: { lang: Lang }) {
         }
       }
 
-      // Keep the real Royalhouse brand mark and wordmark intact on mobile.
+      // Keep the real Royalhouse brand mark and wordmark intact on desktop.
+      // The compact replacement is only needed for the mobile header layout.
       const logo = document.querySelector('header > div:nth-child(2) > a:first-child') as HTMLAnchorElement | null
-      if (logo && logo.dataset.royalhouseBrand !== 'true') {
+      if (logo && window.innerWidth <= 767 && logo.dataset.royalhouseBrand !== 'true') {
         logo.dataset.royalhouseBrand = 'true'
         logo.setAttribute('aria-label', 'Royalhouse — bosh sahifa')
         logo.innerHTML = `
