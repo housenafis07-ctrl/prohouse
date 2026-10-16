@@ -17,7 +17,11 @@ export default function PushRegistration() {
     let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null
 
     const setup = async () => {
-      if (cancelled || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return
+      if (cancelled || !('serviceWorker' in navigator)) return
+
+      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      if (cancelled || !('PushManager' in window) || !('Notification' in window)) return
+
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || Notification.permission === 'denied') return
@@ -27,12 +31,14 @@ export default function PushRegistration() {
       const { publicKey } = await keyResponse.json()
       if (!publicKey || cancelled) return
 
-      const registration = await navigator.serviceWorker.register('/sw.js')
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) {
         const permission = await Notification.requestPermission()
         if (permission !== 'granted' || cancelled) return
-        subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) })
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        })
       }
 
       await fetch('/api/push/subscribe', {
