@@ -33,12 +33,9 @@ export default function PushRegistration() {
 
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) {
-        const permission = await Notification.requestPermission()
-        if (permission !== 'granted' || cancelled) return
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
-        })
+        // Do not trigger a permission prompt just by opening the site.
+        // Permission is requested only after the user explicitly enables notifications.
+        return
       }
 
       await fetch('/api/push/subscribe', {
