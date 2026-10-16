@@ -121,6 +121,30 @@ function stripGenericHousingTerms(value: string) {
     .trim()
 }
 
+function extractRoomCount(value: string) {
+  const normalized = transliterateCyrillic(value)
+    .toLocaleLowerCase('uz-UZ')
+    .replace(/[’‘`ʻʼ]/g, "'")
+
+  const match = normalized.match(/(?:^|\s)(\d{1,2})\s*(?:xona(?:li)?|xonali|xonali|komnata|komnat|komnatn(?:aya|yi|oy|iy)?)(?=\s|$)/i)
+    || normalized.match(/(?:^|\s)(\d{1,2})\s*[- ]?komnat(?:n(?:aya|y)?|li)?(?=\s|$)/i)
+
+  if (!match) return null
+  const rooms = Number(match[1])
+  return Number.isInteger(rooms) && rooms >= 1 && rooms <= 20 ? rooms : null
+}
+
+function stripRoomTerms(value: string) {
+  const normalized = transliterateCyrillic(value)
+    .toLocaleLowerCase('uz-UZ')
+    .replace(/[’‘`ʻʼ]/g, "'")
+
+  return normalized
+    .replace(/\b\d{1,2}\s*(?:xona(?:li)?|xonali|komnata|komnat|komnatn(?:aya|yi|oy|iy)?|komnatli)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab'], originalQuery: string): SearchFilters {
   const tab = raw.tab === 'rent' || raw.tab === 'daily' ? raw.tab : fallbackTab
   const finite = (value: unknown) => {
@@ -129,9 +153,10 @@ function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilter
     return Number.isFinite(number) ? number : null
   }
 
+  const explicitRooms = extractRoomCount(originalQuery)
   const genericHousing = hasGenericHousingTerm(originalQuery)
   const propertyType = genericHousing ? '' : clean(raw.property_type, 60)
-  const normalizedQ = clean(raw.q, 100)
+  const normalizedQ = stripRoomTerms(clean(raw.q, 100))
   const q = genericHousing ? stripGenericHousingTerms(normalizedQ) : normalizedQ
 
   return {
@@ -140,7 +165,7 @@ function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilter
     city: canonicalLocation(clean(raw.city, 100), 'city'),
     district: canonicalLocation(clean(raw.district, 100), 'district'),
     property_type: propertyType,
-    rooms: finite(raw.rooms),
+    rooms: explicitRooms ?? finite(raw.rooms),
     min: finite(raw.min),
     max: finite(raw.max),
     currency: clean(raw.currency, 12),
@@ -173,6 +198,7 @@ export async function POST(request: NextRequest) {
     'When the user uses generic housing words such as uy, дом, or combines uy with kvartira, do not force property_type=apartment or property_type=house; leave property_type empty so both apartment and house/hovli listings can match.',
     'Only use house for clearly specific requests such as xususiy uy or hovli, when that distinction is explicit.',
     'Do not put generic housing words such as uy, dom, kvartira, or квартира into q when they are only describing the requested property category; q should contain only additional searchable terms.',
+    'Do not put a room-count phrase such as "5 xonali", "5 xona", or "5 комнат" into q. Put the number into rooms instead.',
     'For a short keyword such as дача/dacha or мебел/mebel, preserve the keyword in q when it is a useful catalogue search term.',
     'Normalize money into the numeric amount in the requested currency. Examples: 1 mlrd -> 1000000000 UZS, 800 mln -> 800000000 UZS, 50 ming $ -> 50000 USD.',
     'If the user asks for the cheapest/lowest-priced options, use sort=priceLow. Otherwise use newest.',
