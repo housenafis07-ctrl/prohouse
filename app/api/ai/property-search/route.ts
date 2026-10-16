@@ -10,6 +10,7 @@ type SearchFilters = {
   city: string
   district: string
   property_type: string
+  property_scope: '' | 'residential'
   rooms: number | null
   min: number | null
   max: number | null
@@ -19,224 +20,38 @@ type SearchFilters = {
 }
 
 const schema = {
-  type: 'object',
-  additionalProperties: false,
+  type: 'object', additionalProperties: false,
   properties: {
-    tab: { type: 'string', enum: ['sale', 'rent', 'daily'] },
-    q: { type: 'string' },
-    city: { type: 'string' },
-    district: { type: 'string' },
-    property_type: { type: 'string' },
-    rooms: { type: ['number', 'null'] },
-    min: { type: ['number', 'null'] },
-    max: { type: ['number', 'null'] },
-    currency: { type: 'string' },
-    min_area: { type: ['number', 'null'] },
-    sort: { type: 'string', enum: ['newest', 'priceLow', 'priceHigh'] },
+    tab: { type: 'string', enum: ['sale', 'rent', 'daily'] }, q: { type: 'string' }, city: { type: 'string' }, district: { type: 'string' }, property_type: { type: 'string' }, property_scope: { type: 'string', enum: ['', 'residential'] }, rooms: { type: ['number', 'null'] }, min: { type: ['number', 'null'] }, max: { type: ['number', 'null'] }, currency: { type: 'string' }, min_area: { type: ['number', 'null'] }, sort: { type: 'string', enum: ['newest', 'priceLow', 'priceHigh'] },
   },
-  required: ['tab', 'q', 'city', 'district', 'property_type', 'rooms', 'min', 'max', 'currency', 'min_area', 'sort'],
+  required: ['tab','q','city','district','property_type','property_scope','rooms','min','max','currency','min_area','sort'],
 } as const
 
-function clean(value: unknown, max = 120) {
-  return String(value ?? '').trim().slice(0, max)
-}
-
-function transliterateCyrillic(value: string) {
-  const map: Record<string, string> = {
-    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'ғ': "g'", 'д': 'd', 'е': 'e', 'ё': 'yo',
-    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'қ': 'q', 'л': 'l', 'м': 'm',
-    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ў': "o'",
-    'ф': 'f', 'х': 'x', 'ҳ': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
-    'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-  }
-  return value.toLocaleLowerCase('uz-UZ').split('').map((char) => map[char] ?? char).join('')
-}
-
-function locationKey(value: string) {
-  return transliterateCyrillic(value).toLocaleLowerCase('uz-UZ').replace(/[’‘`ʻʼ]/g, "'").replace(/[^a-z0-9'\s-]/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-function locationBase(value: string) {
-  return locationKey(value).replace(/\s+(tumani|shahri|viloyati|respublikasi)$/i, '').trim()
-}
-
-const districtNames = UZBEKISTAN_LOCATIONS.flatMap((item) => item.districts)
-const cityNames = Array.from(new Set(['Toshkent', ...districtNames.filter((name) => /\s+shahri$/i.test(name)).map((name) => name.replace(/\s+shahri$/i, ''))]))
-
-function canonicalLocation(value: string, kind: 'city' | 'district') {
-  const input = clean(value, 100)
-  if (!input) return ''
-  const candidates = kind === 'city' ? cityNames : districtNames
-  const exact = candidates.find((candidate) => locationKey(candidate) === locationKey(input))
-  if (exact) return kind === 'city' && exact === 'Toshkent shahri' ? 'Toshkent' : exact
-  const base = locationBase(input)
-  const baseMatch = candidates.find((candidate) => locationBase(candidate) === base)
-  if (baseMatch) return kind === 'city' && baseMatch === 'Toshkent shahri' ? 'Toshkent' : baseMatch
-  return input
-}
-
-function normalizedText(value: string) {
-  return transliterateCyrillic(value).toLocaleLowerCase('uz-UZ').replace(/[’‘`ʻʼ]/g, "'").replace(/\s+/g, ' ').trim()
-}
-
-function normalizedWords(value: string) {
-  return normalizedText(value).replace(/[^a-z0-9'\s-]/g, ' ').replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean)
-}
-
-function hasGenericHousingTerm(value: string) {
-  return normalizedWords(value).some((word) => ['uy', 'uyda', 'uyga', 'uydan', 'uyni', 'uyning', 'dom', 'doma', 'kvartira', 'квартира'].includes(word))
-}
-
-function stripGenericHousingTerms(value: string) {
-  const housingTerms = new Set(['uy', 'uyda', 'uyga', 'uydan', 'uyni', 'uyning', 'dom', 'doma', 'kvartira', 'квартира'])
-  return normalizedWords(value).filter((word) => !housingTerms.has(word)).join(' ').trim()
-}
-
-function extractRoomCount(value: string) {
-  const normalized = normalizedText(value)
-  const patterns = [
-    /(?:^|\s)(\d{1,2})\s*(?:xona|xonali|xonalik|xona-li|komnata|komnat|komnatli|komnatn(?:aya|yi|oy|iy)?)(?=\s|$)/i,
-    /(?:^|\s)(\d{1,2})\s*[- ]?(?:komnatnaya|komnatny|komnatli)(?=\s|$)/i,
-  ]
-  for (const pattern of patterns) {
-    const match = normalized.match(pattern)
-    if (!match) continue
-    const rooms = Number(match[1])
-    if (Number.isInteger(rooms) && rooms >= 1 && rooms <= 20) return rooms
-  }
-  return null
-}
-
-function stripRoomTerms(value: string) {
-  return normalizedText(value)
-    .replace(/\b\d{1,2}\s*(?:xona|xonali|xonalik|xona-li|komnata|komnat|komnatli|komnatn(?:aya|yi|oy|iy)?|komnatnaya|komnatny)\b/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function extractSortIntent(value: string): 'newest' | 'priceLow' | 'priceHigh' | null {
-  const normalized = normalizedText(value)
-  if (/(^|\s)(eng\s+arzon|arzon(lar|lari)?|eng\s+past\s+narx|past\s+narx|сам(ая|ый|ые)\s+деш(евая|ёвый|евые)|дешев(ый|ая|ые)?)(?=\s|$)/i.test(normalized)) return 'priceLow'
-  if (/(^|\s)(eng\s+qimmat|qimmat(lar|lari)?|eng\s+yuqori\s+narx|yuqori\s+narx|сам(ая|ый|ые)\s+дорог(ая|ой|ие)|дорог(ой|ая|ие)?)(?=\s|$)/i.test(normalized)) return 'priceHigh'
-  return null
-}
-
-function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab'], originalQuery: string): SearchFilters {
-  const tab = raw.tab === 'rent' || raw.tab === 'daily' ? raw.tab : fallbackTab
-  const finite = (value: unknown) => {
-    if (value === null || value === undefined || value === '') return null
-    const number = Number(value)
-    return Number.isFinite(number) ? number : null
-  }
-
-  const explicitRooms = extractRoomCount(originalQuery)
-  const genericHousing = hasGenericHousingTerm(originalQuery)
-  const propertyType = genericHousing ? '' : clean(raw.property_type, 60)
-  const normalizedQ = stripRoomTerms(clean(raw.q, 100))
-  const q = genericHousing ? stripGenericHousingTerms(normalizedQ) : normalizedQ
-  const explicitSort = extractSortIntent(originalQuery)
-
-  return {
-    tab,
-    q,
-    city: canonicalLocation(clean(raw.city, 100), 'city'),
-    district: canonicalLocation(clean(raw.district, 100), 'district'),
-    property_type: propertyType,
-    rooms: explicitRooms ?? finite(raw.rooms),
-    min: finite(raw.min),
-    max: finite(raw.max),
-    currency: clean(raw.currency, 12),
-    min_area: finite(raw.min_area),
-    sort: explicitSort ?? (raw.sort === 'priceLow' || raw.sort === 'priceHigh' ? raw.sort : 'newest'),
-  }
-}
+function clean(value: unknown, max = 120) { return String(value ?? '').trim().slice(0, max) }
+function transliterateCyrillic(value: string) { const map: Record<string,string> = {'а':'a','б':'b','в':'v','г':'g','ғ':"g'",'д':'d','е':'e','ё':'yo','ж':'j','з':'z','и':'i','й':'y','к':'k','қ':'q','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ў':"o'",'ф':'f','х':'x','ҳ':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'i','ь':'','э':'e','ю':'yu','я':'ya'}; return value.toLocaleLowerCase('uz-UZ').split('').map((char)=>map[char]??char).join('') }
+function locationKey(value: string) { return transliterateCyrillic(value).toLocaleLowerCase('uz-UZ').replace(/[’‘`ʻʼ]/g,"'").replace(/[^a-z0-9'\s-]/g,' ').replace(/\s+/g,' ').trim() }
+function locationBase(value: string) { return locationKey(value).replace(/\s+(tumani|shahri|viloyati|respublikasi)$/i,'').trim() }
+const districtNames = UZBEKISTAN_LOCATIONS.flatMap((item)=>item.districts)
+const cityNames = Array.from(new Set(['Toshkent',...districtNames.filter((name)=>/\s+shahri$/i.test(name)).map((name)=>name.replace(/\s+shahri$/i,''))]))
+function canonicalLocation(value: string, kind: 'city'|'district') { const input=clean(value,100); if(!input)return ''; const candidates=kind==='city'?cityNames:districtNames; const exact=candidates.find((candidate)=>locationKey(candidate)===locationKey(input)); if(exact)return kind==='city'&&exact==='Toshkent shahri'?'Toshkent':exact; const base=locationBase(input); const baseMatch=candidates.find((candidate)=>locationBase(candidate)===base); if(baseMatch)return kind==='city'&&baseMatch==='Toshkent shahri'?'Toshkent':baseMatch; return input }
+function normalizedText(value: string) { return transliterateCyrillic(value).toLocaleLowerCase('uz-UZ').replace(/[’‘`ʻʼ]/g,"'").replace(/\s+/g,' ').trim() }
+function normalizedWords(value: string) { return normalizedText(value).replace(/[^a-z0-9'\s-]/g,' ').replace(/\s+/g,' ').trim().split(/\s+/).filter(Boolean) }
+function hasGenericHousingTerm(value: string) { return normalizedWords(value).some((word)=>['uy','uyda','uyga','uydan','uyni','uyning','dom','doma','kvartira','house','housing','apartment','квартира','дом','жилье'].includes(word)) }
+function stripGenericHousingTerms(value: string) { const housingTerms=new Set(['uy','uyda','uyga','uydan','uyni','uyning','dom','doma','kvartira','house','housing','apartment','квартира','дом','жилье']); return normalizedWords(value).filter((word)=>!housingTerms.has(word)).join(' ').trim() }
+function extractRoomCount(value: string) { const normalized=normalizedText(value); const patterns=[/(?:^|\s)(\d{1,2})\s*(?:xona|xonali|xonalik|xona-li|komnata|komnat|komnatli|komnatn(?:aya|yi|oy|iy)?)(?=\s|$)/i,/(?:^|\s)(\d{1,2})\s*[- ]?(?:komnatnaya|komnatny|komnatli)(?=\s|$)/i]; for(const pattern of patterns){const match=normalized.match(pattern); if(!match)continue; const rooms=Number(match[1]); if(Number.isInteger(rooms)&&rooms>=1&&rooms<=20)return rooms} return null }
+function stripRoomTerms(value: string) { return normalizedText(value).replace(/\b\d{1,2}\s*(?:xona|xonali|xonalik|xona-li|komnata|komnat|komnatli|komnatn(?:aya|yi|oy|iy)?|komnatnaya|komnatny)\b/gi,' ').replace(/\s+/g,' ').trim() }
+function extractSortIntent(value: string): 'newest'|'priceLow'|'priceHigh'|null { const normalized=normalizedText(value); if(/(^|\s)(eng\s+arzon|arzon(lar|lari)?|eng\s+past\s+narx|past\s+narx|sam(aya|yy|ye)\s+desh(yevaya|yovyy|yevyye)|deshev(yy|aya|yye)?)(?=\s|$)/i.test(normalized))return 'priceLow'; if(/(^|\s)(eng\s+qimmat|qimmat(lar|lari)?|eng\s+yuqori\s+narx|yuqori\s+narx|sam(aya|yy|ye)\s+dorog(aya|oy|iye)|dorog(oy|aya|iye)?)(?=\s|$)/i.test(normalized))return 'priceHigh'; return null }
+function normalizeFilters(raw: Partial<SearchFilters>, fallbackTab: SearchFilters['tab'], originalQuery: string): SearchFilters { const tab=raw.tab==='rent'||raw.tab==='daily'?raw.tab:fallbackTab; const finite=(value:unknown)=>{if(value===null||value===undefined||value==='')return null;const number=Number(value);return Number.isFinite(number)?number:null}; const explicitRooms=extractRoomCount(originalQuery); const genericHousing=hasGenericHousingTerm(originalQuery); const propertyType=genericHousing?'':clean(raw.property_type,60); const normalizedQ=stripRoomTerms(clean(raw.q,100)); const q=genericHousing?stripGenericHousingTerms(normalizedQ):normalizedQ; const explicitSort=extractSortIntent(originalQuery); const propertyScope: ''|'residential'=genericHousing||raw.property_scope==='residential'?'residential':''; return {tab,q,city:canonicalLocation(clean(raw.city,100),'city'),district:canonicalLocation(clean(raw.district,100),'district'),property_type:propertyType,property_scope:propertyScope,rooms:explicitRooms??finite(raw.rooms),min:finite(raw.min),max:finite(raw.max),currency:clean(raw.currency,12),min_area:finite(raw.min_area),sort:explicitSort??(raw.sort==='priceLow'||raw.sort==='priceHigh'?raw.sort:'newest')} }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null) as { query?: unknown; tab?: unknown; all?: unknown } | null
-  const query = clean(body?.query, 500)
-  const fallbackTab = body?.tab === 'rent' || body?.tab === 'daily' ? body.tab : 'sale'
-  const searchAll = body?.all === true
-
-  if (!query) return NextResponse.json({ error: 'Qidiruv so‘rovi bo‘sh.' }, { status: 400 })
-  if (query.length > 500) return NextResponse.json({ error: 'Qidiruv so‘rovi juda uzun.' }, { status: 400 })
-
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return NextResponse.json({ error: 'AI qidiruv hozircha sozlanmagan.' }, { status: 503 })
-
-  const model = process.env.OPENAI_MODEL || 'gpt-6-luna'
-  const instructions = [
-    'You are the RoyalHouse real-estate search parser.',
-    'Parse the entire user request semantically regardless of word order. The request does NOT need to start with a city or district.',
-    'Extract every supported intent wherever it appears: location, room count, property category, price range, currency, area, rental mode, free-text keyword, and requested sort order.',
-    'Uzbek and Russian language input must both be understood, including Cyrillic and Latin spellings.',
-    'Never require a location to be present. A query such as "5 xonali", "eng arzon", "dacha", "мебел" or "3 комнатная" is valid by itself.',
-    'Never invent a city, district, price, room count, or property type that is not supported by the request.',
-    'For sale, use tab=sale. For monthly rent, use tab=rent. For daily/dacha rent, use tab=daily when the request explicitly indicates daily or dacha use.',
-    'Use property_type only for clear categories: apartment, house, land, commercial. Otherwise use an empty string.',
-    'When the user uses generic housing words such as uy, дом, kvartira, or квартира, do not force a single property_type unless the request is explicitly specific; generic housing requests must allow both apartment and house/hovli listings.',
-    'Do not put generic housing words into q when they only describe the requested category.',
-    'For room count, understand all supported variants including 1, 2, 3, 4, 5 and higher: "1 xona", "2 xonali", "3 xona", "4 xonali", "5 xonali", "5 комнат", "3 комнатная". Room count can appear anywhere in the sentence.',
-    'Put room count into rooms and do not put the room-count phrase into q.',
-    'If the user asks for the cheapest, lowest-priced, eng arzon, eng past narx, самый дешевый, or similar intent, use sort=priceLow regardless of where that phrase appears. If they ask for the most expensive/highest-priced equivalent, use sort=priceHigh.',
-    'For a short keyword such as дача/dacha or мебел/mebel, preserve the keyword in q when it is a useful catalogue search term.',
-    'Normalize money into the numeric amount in the requested currency. Examples: 1 mlrd -> 1000000000 UZS, 800 mln -> 800000000 UZS, 50 ming $ -> 50000 USD.',
-    'Keep q short: only useful free-text terms that should remain for catalogue search after structured intents have been extracted.',
-    'Return JSON only according to the supplied schema.',
-  ].join(' ')
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      instructions,
-      input: query,
-      text: { format: { type: 'json_schema', name: 'royalhouse_property_search', strict: true, schema } },
-      max_output_tokens: 400,
-    }),
-    signal: AbortSignal.timeout(15000),
-  }).catch((error) => new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'AI request failed' }), { status: 502 }))
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}))
-    return NextResponse.json({ error: errorBody?.error?.message || 'AI qidiruv xatosi.' }, { status: 502 })
-  }
-
-  const payload = await response.json() as { output_text?: string; output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }> }
-  const outputText = typeof payload.output_text === 'string'
-    ? payload.output_text
-    : payload.output?.flatMap((item) => item.content || []).find((content) => content.type === 'output_text')?.text || ''
-
-  let rawFilters: Partial<SearchFilters>
-  try {
-    rawFilters = JSON.parse(outputText) as Partial<SearchFilters>
-  } catch {
-    return NextResponse.json({ error: 'AI qidiruv javobi o‘qilmadi.' }, { status: 502 })
-  }
-
-  const filters = normalizeFilters(rawFilters, fallbackTab, query)
-  const params = new URLSearchParams({ limit: '8', sort: filters.sort, tab: filters.tab })
-  if (searchAll) params.set('all', 'true')
-  if (filters.q) params.set('q', filters.q)
-  if (filters.city) params.set('city', filters.city)
-  if (filters.district) params.set('district', filters.district)
-  if (filters.property_type) params.set('property_type', filters.property_type)
-  if (filters.rooms !== null) {
-    params.set('rooms', String(filters.rooms))
-    params.set('rooms_exact', 'true')
-  }
-  if (filters.min !== null) params.set('min', String(filters.min))
-  if (filters.max !== null) params.set('max', String(filters.max))
-  if (filters.currency) params.set('currency', filters.currency)
-  if (filters.min_area !== null) params.set('min_area', String(filters.min_area))
-  if (filters.sort === 'priceLow' || filters.sort === 'priceHigh') params.set('strict_price', 'true')
-
-  const searchUrl = new URL('/api/listings/search', request.url)
-  searchUrl.search = params.toString()
-  const listingsResponse = await fetch(searchUrl, { cache: 'no-store', signal: AbortSignal.timeout(10000) })
-  const listingsPayload = await listingsResponse.json().catch(() => ({}))
-
-  if (!listingsResponse.ok) return NextResponse.json({ error: listingsPayload?.error || 'E‘lonlarni qidirishda xatolik.' }, { status: 502 })
-
-  return NextResponse.json({ mode: 'ai', filters, data: Array.isArray(listingsPayload?.data) ? listingsPayload.data : [] }, { headers: { 'Cache-Control': 'no-store' } })
+  const body=await request.json().catch(()=>null) as {query?:unknown;tab?:unknown;all?:unknown}|null; const query=clean(body?.query,500); const fallbackTab=body?.tab==='rent'||body?.tab==='daily'?body.tab:'sale'; const searchAll=body?.all===true
+  if(!query)return NextResponse.json({error:'Qidiruv so‘rovi bo‘sh.'},{status:400}); if(query.length>500)return NextResponse.json({error:'Qidiruv so‘rovi juda uzun.'},{status:400})
+  const apiKey=process.env.OPENAI_API_KEY; if(!apiKey)return NextResponse.json({error:'AI qidiruv hozircha sozlanmagan.'},{status:503}); const model=process.env.OPENAI_MODEL||'gpt-6-luna'
+  const instructions=['You are the RoyalHouse real-estate search parser.','Parse the entire user request semantically regardless of word order. The request does NOT need to start with a city or district.','Extract every supported intent wherever it appears: location, room count, property category, price range, currency, area, rental mode, free-text keyword, and requested sort order.','Uzbek and Russian language input must both be understood, including Cyrillic and Latin spellings.','Never require a location to be present. A query such as "5 xonali", "eng arzon", "dacha", "мебел" or "3 комнатная" is valid by itself.','Never invent a city, district, price, room count, or property type that is not supported by the request.','For sale, use tab=sale. For monthly rent, use tab=rent. For daily/dacha rent, use tab=daily when the request explicitly indicates daily or dacha use.','Use property_type only for clear specific categories: apartment, house, land, commercial, new_building. Otherwise use an empty string.','When the user uses a generic residential word such as uy, dom, kvartira, квартира, house, apartment, or housing without specifying a single property type, set property_scope=residential and leave property_type empty. This allows apartment, house and new_building listings to match.','Do not put generic residential words into q when they only describe the requested category.','A request such as "eng arzon toshken uy" means the cheapest residential property in Toshkent, not a free-text search for the words in the title. Unrelated furniture, service, land, or commercial listings must not match merely because they are cheaper.','For room count, understand all supported variants including 1, 2, 3, 4, 5 and higher: "1 xona", "2 xonali", "3 xona", "4 xonali", "5 xonali", "5 комнат", "3 комнатная". Room count can appear anywhere in the sentence.','Put room count into rooms and do not put the room-count phrase into q.','If the user asks for the cheapest, lowest-priced, eng arzon, eng past narx, самый дешевый, or similar intent, use sort=priceLow regardless of where that phrase appears. If they ask for the most expensive/highest-priced equivalent, use sort=priceHigh.','For a short keyword such as дача/dacha or мебел/mebel, preserve the keyword in q when it is a useful catalogue search term, and do not classify it as residential unless the request also asks for a home/residential property.','Normalize money into the numeric amount in the requested currency. Examples: 1 mlrd -> 1000000000 UZS, 800 mln -> 800000000 UZS, 50 ming $ -> 50000 USD.','Keep q short: only useful free-text terms that should remain for catalogue search after structured intents have been extracted.','Return JSON only according to the supplied schema.'].join(' ')
+  const response=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model,instructions,input:query,text:{format:{type:'json_schema',name:'royalhouse_property_search',strict:true,schema}},max_output_tokens:400}),signal:AbortSignal.timeout(15000)}).catch((error)=>new Response(JSON.stringify({error:error instanceof Error?error.message:'AI request failed'}),{status:502}))
+  if(!response.ok){const errorBody=await response.json().catch(()=>({}));return NextResponse.json({error:errorBody?.error?.message||'AI qidiruv xatosi.'},{status:502})}
+  const payload=await response.json() as {output_text?:string;output?:Array<{type?:string;content?:Array<{type?:string;text?:string}>}>}; const outputText=typeof payload.output_text==='string'?payload.output_text:payload.output?.flatMap((item)=>item.content||[]).find((content)=>content.type==='output_text')?.text||''
+  let rawFilters:Partial<SearchFilters>; try{rawFilters=JSON.parse(outputText) as Partial<SearchFilters>}catch{return NextResponse.json({error:'AI qidiruv javobi o‘qilmadi.'},{status:502})}
+  const filters=normalizeFilters(rawFilters,fallbackTab,query); const params=new URLSearchParams({limit:'8',sort:filters.sort,tab:filters.tab}); if(searchAll)params.set('all','true'); if(filters.q)params.set('q',filters.q); if(filters.city)params.set('city',filters.city); if(filters.district)params.set('district',filters.district); if(filters.property_type)params.set('property_type',filters.property_type); if(filters.property_scope)params.set('property_scope',filters.property_scope); if(filters.rooms!==null){params.set('rooms',String(filters.rooms));params.set('rooms_exact','true')} if(filters.min!==null)params.set('min',String(filters.min)); if(filters.max!==null)params.set('max',String(filters.max)); if(filters.currency)params.set('currency',filters.currency); if(filters.min_area!==null)params.set('min_area',String(filters.min_area)); if(filters.sort==='priceLow'||filters.sort==='priceHigh')params.set('strict_price','true')
+  const searchUrl=new URL('/api/listings/search',request.url); searchUrl.search=params.toString(); const listingsResponse=await fetch(searchUrl,{cache:'no-store',signal:AbortSignal.timeout(10000)}); const listingsPayload=await listingsResponse.json().catch(()=>({})); if(!listingsResponse.ok)return NextResponse.json({error:listingsPayload?.error||'E‘lonlarni qidirishda xatolik.'},{status:502}); return NextResponse.json({mode:'ai',filters,data:Array.isArray(listingsPayload?.data)?listingsPayload.data:[]},{headers:{'Cache-Control':'no-store'}})
 }
