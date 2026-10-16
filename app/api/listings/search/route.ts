@@ -1,258 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { getListingCardImageUrl } from '@/lib/listing-image'
-
 import { createClient } from '@/utils/supabase/server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_PAGE_SIZE = 48
-
 type Sort = 'newest' | 'priceLow' | 'priceHigh'
-type Cursor = {
-  sort: Sort
-  id: string
-  effective_promotion_rank: number
-  published_at?: string | null
-  price?: number | null
-}
+type Cursor = { sort: Sort; id: string; effective_promotion_rank: number; published_at?: string | null; price?: number | null }
 
-function numberParam(value: string | null) {
-  if (value === null || value === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function decodeCursor(value: string | null, sort: Sort): Cursor | null {
-  if (!value) return null
-  try {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
-    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
-    const parsed = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as Cursor
-    if (!parsed || parsed.sort !== sort || typeof parsed.id !== 'string') return null
-    if (!Number.isFinite(parsed.effective_promotion_rank)) return null
-    if (sort === 'newest') {
-      if (parsed.published_at !== null && typeof parsed.published_at !== 'string') return null
-    } else if (typeof parsed.price !== 'number') return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-function encodeCursor(cursor: Cursor) {
-  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
-}
-
-function escapeSearchTerm(value: string) {
-  return value.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/%/g, '\\%').replace(/_/g, '\\_').trim()
-}
-
-function transliterateCyrillic(value: string) {
-  const map: Record<string, string> = {
-    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'ғ': "g'", 'д': 'd', 'е': 'e', 'ё': 'yo',
-    'ж': 'j', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'қ': 'q', 'л': 'l', 'м': 'm',
-    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ў': "o'",
-    'ф': 'f', 'х': 'x', 'ҳ': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
-    'ъ': '', 'ы': 'i', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-  }
-  return value
-    .toLocaleLowerCase('uz-UZ')
-    .split('')
-    .map((char) => map[char] ?? char)
-    .join('')
-}
-
-function districtVariants(districts: string[]) {
-  const variants = new Set<string>()
-  for (const district of districts) {
-    variants.add(district)
-    const withoutSuffix = district.replace(/\s+(tumani|shahri)$/i, '').trim()
-    if (withoutSuffix) {
-      variants.add(withoutSuffix)
-      variants.add(`${withoutSuffix} tumani`)
-      variants.add(`${withoutSuffix} shahri`)
-    }
-    variants.add(district.replace(/'/g, '‘'))
-    variants.add(district.replace(/‘/g, "'"))
-  }
-  return Array.from(variants)
-}
-
-const DACHA_SEARCH_TERMS = new Set(['dacha', 'dachalar', 'дача', 'дачи', 'дачалар'])
-
-function isDachaSearch(q: string) {
-  return q
-    .toLocaleLowerCase()
-    .split(/\s+/)
-    .some((word) => DACHA_SEARCH_TERMS.has(word.replace(/[.,!?;:]+$/g, '')))
-}
+function numberParam(value: string | null) { if (value === null || value === '') return null; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null }
+function decodeCursor(value: string | null, sort: Sort): Cursor | null { if (!value) return null; try { const normalized = value.replace(/-/g, '+').replace(/_/g, '/'); const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4); const parsed = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as Cursor; if (!parsed || parsed.sort !== sort || typeof parsed.id !== 'string') return null; if (!Number.isFinite(parsed.effective_promotion_rank)) return null; if (sort === 'newest') { if (parsed.published_at !== null && typeof parsed.published_at !== 'string') return null } else if (typeof parsed.price !== 'number') return null; return parsed } catch { return null } }
+function encodeCursor(cursor: Cursor) { return Buffer.from(JSON.stringify(cursor)).toString('base64url') }
+function escapeSearchTerm(value: string) { return value.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/%/g, '\\%').replace(/_/g, '\\_').trim() }
+function transliterateCyrillic(value: string) { const map: Record<string, string> = { 'а':'a','б':'b','в':'v','г':'g','ғ':"g'",'д':'d','е':'e','ё':'yo','ж':'j','з':'z','и':'i','й':'y','к':'k','қ':'q','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ў':"o'",'ф':'f','х':'x','ҳ':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'i','ь':'','э':'e','ю':'yu','я':'ya' }; return value.toLocaleLowerCase('uz-UZ').split('').map((char) => map[char] ?? char).join('') }
+function districtVariants(districts: string[]) { const variants = new Set<string>(); for (const district of districts) { variants.add(district); const withoutSuffix = district.replace(/\s+(tumani|shahri)$/i, '').trim(); if (withoutSuffix) { variants.add(withoutSuffix); variants.add(`${withoutSuffix} tumani`); variants.add(`${withoutSuffix} shahri`) } variants.add(district.replace(/'/g, '‘')); variants.add(district.replace(/‘/g, "'")) } return Array.from(variants) }
+const DACHA_SEARCH_TERMS = new Set(['dacha','dachalar','дача','дачи','дачалар'])
+function isDachaSearch(q: string) { return q.toLocaleLowerCase().split(/\s+/).some((word) => DACHA_SEARCH_TERMS.has(word.replace(/[.,!?;:]+$/g, ''))) }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const params = request.nextUrl.searchParams
-  const page = Math.max(1, Number(params.get('page') || '1') || 1)
-  const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get('limit') || '24') || 24))
-  const sort = (params.get('sort') || 'newest') as Sort
-  const cursor = decodeCursor(params.get('cursor'), sort)
+  const supabase = await createClient(); const params = request.nextUrl.searchParams
+  const page = Math.max(1, Number(params.get('page') || '1') || 1); const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get('limit') || '24') || 24)); const sort = (params.get('sort') || 'newest') as Sort; const cursor = decodeCursor(params.get('cursor'), sort)
+  const min = numberParam(params.get('min')); const max = numberParam(params.get('max')); const rooms = numberParam(params.get('rooms')); const roomsExact = params.get('rooms_exact') === 'true'; const strictPrice = params.get('strict_price') === 'true'
+  const taxonomy = params.get('taxonomy')?.trim() || ''; const listingType = params.get('listing_type')?.trim() || ''; const propertyType = params.get('property_type')?.trim() || ''; const propertyTypes = params.get('property_types')?.split(',').map((value) => value.trim()).filter(Boolean) || []
+  const propertyScope = params.get('property_scope')?.trim() || ''; const city = params.get('city')?.trim() || ''; const district = params.get('district')?.trim() || ''; const region = params.get('region')?.trim() || ''; const neighborhood = params.get('neighborhood')?.trim() || ''; const currency = params.get('currency')?.trim() || ''; const q = params.get('q')?.trim() || ''; const tab = params.get('tab') || ''; const searchAll = params.get('all') === 'true'; const dachaSearch = isDachaSearch(q)
 
-  const min = numberParam(params.get('min'))
-  const max = numberParam(params.get('max'))
-  const rooms = numberParam(params.get('rooms'))
-  const taxonomy = params.get('taxonomy')?.trim() || ''
-  const listingType = params.get('listing_type')?.trim() || ''
-  const propertyType = params.get('property_type')?.trim() || ''
-  const city = params.get('city')?.trim() || ''
-  const district = params.get('district')?.trim() || ''
-  const region = params.get('region')?.trim() || ''
-  const neighborhood = params.get('neighborhood')?.trim() || ''
-  const currency = params.get('currency')?.trim() || ''
-  const q = params.get('q')?.trim() || ''
-  const tab = params.get('tab') || ''
-  const searchAll = params.get('all') === 'true'
-  const dachaSearch = isDachaSearch(q)
+  if (!['newest','priceLow','priceHigh'].includes(sort)) return NextResponse.json({ error: 'Noto‘g‘ri saralash parametri.' }, { status: 400 })
+  if (params.get('cursor') && !cursor) return NextResponse.json({ error: 'Noto‘g‘ri yoki eskirgan pagination cursor.' }, { status: 400 })
 
-  if (!['newest', 'priceLow', 'priceHigh'].includes(sort)) {
-    return NextResponse.json({ error: 'Noto‘g‘ri saralash parametri.' }, { status: 400 })
-  }
-  if (params.get('cursor') && !cursor) {
-    return NextResponse.json({ error: 'Noto‘g‘ri yoki eskirgan pagination cursor.' }, { status: 400 })
-  }
-
-  let query = supabase
-    .from('listing_search')
-    .select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
+  let query = supabase.from('listing_search').select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
 
   if (taxonomy) query = query.eq('taxonomy_code', taxonomy)
   if (listingType) query = query.eq('listing_type', listingType)
   if (propertyType) query = query.eq('property_type', propertyType)
+  if (propertyTypes.length) query = query.in('property_type', propertyTypes)
+  if (propertyScope === 'residential') query = query.in('property_type', ['apartment','house','new_building'])
   if (city) query = query.eq('city', city)
   if (district) query = query.eq('district', district)
   if (neighborhood) query = query.eq('neighborhood', neighborhood)
   if (currency) query = query.eq('currency', currency)
-  if (region) {
-    const regionData = UZBEKISTAN_LOCATIONS.find((item) => item.name === region)
-    if (region === 'Toshkent shahri') {
-      query = query.eq('city', 'Toshkent')
-    } else if (regionData?.districts.length) {
-      query = query.in('district', districtVariants(regionData.districts))
-    }
-  }
+  if (region) { const regionData = UZBEKISTAN_LOCATIONS.find((item) => item.name === region); if (region === 'Toshkent shahri') query = query.eq('city', 'Toshkent'); else if (regionData?.districts.length) query = query.in('district', districtVariants(regionData.districts)) }
 
-  // Mobile AI/free-text search can explicitly request the whole active catalogue.
-  // This is important for terms such as "дача" and "мебел": the selected home
-  // tab must not silently hide matching rent/daily/other listing types.
   if (!listingType && !searchAll) {
-    if (tab === 'sale') {
-      query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
-    } else if (tab === 'rent') {
-      query = query.eq('listing_type', 'rent')
-      query = query.or('taxonomy_code.is.null,taxonomy_code.neq.rent_dacha')
-    } else if (tab === 'daily') {
-      query = query.or('listing_type.eq.daily,taxonomy_code.eq.rent_dacha')
-    }
+    if (tab === 'sale') query = query.or('listing_type.eq.sale,listing_type.eq.new_building')
+    else if (tab === 'rent') { query = query.eq('listing_type', 'rent'); query = query.or('taxonomy_code.is.null,taxonomy_code.neq.rent_dacha') }
+    else if (tab === 'daily') query = query.or('listing_type.eq.daily,taxonomy_code.eq.rent_dacha')
   }
 
-  if (min !== null) query = query.gte('price', min)
-  if (max !== null) query = query.lte('price', max)
-  if (rooms !== null) query = query.gte('rooms', rooms)
-  if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner')
-  if (params.get('trusted') === 'true') query = query.eq('is_trusted_seller', true)
-  if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true)
-  if (params.get('verified') === 'true') query = query.eq('is_verified', true)
+  if (min !== null) query = query.gte('price', min); if (max !== null) query = query.lte('price', max); if (rooms !== null) query = roomsExact ? query.eq('rooms', rooms) : query.gte('rooms', rooms)
+  if (params.get('owner') === 'true') query = query.eq('seller_type', 'owner'); if (params.get('trusted') === 'true') query = query.eq('is_trusted_seller', true); if (params.get('mortgage') === 'true') query = query.eq('is_mortgage_available', true); if (params.get('verified') === 'true') query = query.eq('is_verified', true)
 
   if (q) {
     const words = q.split(/\s+/).filter(Boolean).slice(0, 8)
-    for (const rawWord of words) {
-      const variants = Array.from(new Set([
-        rawWord,
-        transliterateCyrillic(rawWord),
-      ])).map(escapeSearchTerm).filter(Boolean)
-      const locationOrSearch = variants.flatMap((word) => [
-        `title.ilike.%${word}%`,
-        `title_ru.ilike.%${word}%`,
-        `city.ilike.%${word}%`,
-        `district.ilike.%${word}%`,
-        `property_type.ilike.%${word}%`,
-        `listing_type.ilike.%${word}%`,
-        `taxonomy_code.ilike.%${word}%`,
-      ]).join(',')
-
-      if (dachaSearch) {
-        query = query.or(`${locationOrSearch},taxonomy_code.in.(sale_dacha,rent_dacha)`)
-      } else {
-        query = query.or(locationOrSearch)
-      }
-    }
+    for (const rawWord of words) { const variants = Array.from(new Set([rawWord, transliterateCyrillic(rawWord)])).map(escapeSearchTerm).filter(Boolean); const locationOrSearch = variants.flatMap((word) => [`title.ilike.%${word}%`,`title_ru.ilike.%${word}%`,`city.ilike.%${word}%`,`district.ilike.%${word}%`,`property_type.ilike.%${word}%`,`listing_type.ilike.%${word}%`,`taxonomy_code.ilike.%${word}%`]).join(','); if (dachaSearch) query = query.or(`${locationOrSearch},taxonomy_code.in.(sale_dacha,rent_dacha)`); else query = query.or(locationOrSearch) }
   }
 
-  if (cursor) {
-    if (sort === 'newest') {
-      const rank = cursor.effective_promotion_rank
-      const published = cursor.published_at
-      if (published === null) {
-        query = query.or(`effective_promotion_rank.lt.${rank},and(effective_promotion_rank.eq.${rank},published_at.is.null,id.lt.${cursor.id})`)
-      } else {
-        query = query.or(`effective_promotion_rank.lt.${rank},and(effective_promotion_rank.eq.${rank},published_at.lt.${published}),and(effective_promotion_rank.eq.${rank},published_at.eq.${published},id.lt.${cursor.id}),and(effective_promotion_rank.eq.${rank},published_at.is.null)`)
-      }
-    } else if (sort === 'priceLow') {
-      query = query.or(`effective_promotion_rank.lt.${cursor.effective_promotion_rank},and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.gt.${cursor.price}),and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.eq.${cursor.price},id.gt.${cursor.id})`)
-    } else {
-      query = query.or(`effective_promotion_rank.lt.${cursor.effective_promotion_rank},and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.lt.${cursor.price}),and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.eq.${cursor.price},id.lt.${cursor.id})`)
-    }
+  if (cursor && !strictPrice) {
+    if (sort === 'newest') { const rank = cursor.effective_promotion_rank; const published = cursor.published_at; if (published === null) query = query.or(`effective_promotion_rank.lt.${rank},and(effective_promotion_rank.eq.${rank},published_at.is.null,id.lt.${cursor.id})`); else query = query.or(`effective_promotion_rank.lt.${rank},and(effective_promotion_rank.eq.${rank},published_at.lt.${published}),and(effective_promotion_rank.eq.${rank},published_at.eq.${published},id.lt.${cursor.id}),and(effective_promotion_rank.eq.${rank},published_at.is.null)`) }
+    else if (sort === 'priceLow') query = query.or(`effective_promotion_rank.lt.${cursor.effective_promotion_rank},and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.gt.${cursor.price}),and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.eq.${cursor.price},id.gt.${cursor.id})`)
+    else query = query.or(`effective_promotion_rank.lt.${cursor.effective_promotion_rank},and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.lt.${cursor.price}),and(effective_promotion_rank.eq.${cursor.effective_promotion_rank},price.eq.${cursor.price},id.lt.${cursor.id})`)
   }
 
-  query = query.order('effective_promotion_rank', { ascending: false })
-  if (sort === 'priceLow') query = query.order('price', { ascending: true }).order('id', { ascending: true })
-  else if (sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false })
-  else query = query.order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
+  if (strictPrice && sort === 'priceLow') query = query.order('price', { ascending: true }).order('id', { ascending: true })
+  else if (strictPrice && sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false })
+  else { query = query.order('effective_promotion_rank', { ascending: false }); if (sort === 'priceLow') query = query.order('price', { ascending: true }).order('id', { ascending: true }); else if (sort === 'priceHigh') query = query.order('price', { ascending: false }).order('id', { ascending: false }); else query = query.order('published_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }) }
 
-  const useCursor = Boolean(params.get('cursor')) || !params.has('page')
-  const { data, count, error } = useCursor
-    ? await query.range(0, limit)
-    : await query.range((page - 1) * limit, (page - 1) * limit + limit)
+  const useCursor = Boolean(params.get('cursor')) || !params.has('page'); const { data, count, error } = useCursor ? await query.range(0, limit) : await query.range((page - 1) * limit, (page - 1) * limit + limit)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  const pageRows = data || []
-  const hasNext = pageRows.length > limit
-  const listings = hasNext ? pageRows.slice(0, limit) : pageRows
-  const ids = listings.map((listing) => listing.id)
-
+  const pageRows = data || []; const hasNext = pageRows.length > limit; const listings = hasNext ? pageRows.slice(0, limit) : pageRows; const ids = listings.map((listing) => listing.id)
   let images: { listing_id: string; image_url: string; sort_order: number | null }[] = []
-  if (ids.length) {
-    const { data: imageRows, error: imageError } = await supabase
-      .from('listing_images')
-      .select('listing_id,image_url,sort_order')
-      .in('listing_id', ids)
-      .eq('sort_order', 0)
-      .order('sort_order', { ascending: true })
-    if (imageError) return NextResponse.json({ error: imageError.message }, { status: 500 })
-    images = imageRows || []
-  }
-
-  const firstImageByListing = new Map<string, { image_url: string; sort_order: number | null }>()
-  for (const image of images) {
-    if (!firstImageByListing.has(image.listing_id)) {
-      firstImageByListing.set(image.listing_id, { image_url: getListingCardImageUrl(image.image_url), sort_order: image.sort_order })
-    }
-  }
-
-  const last = listings[listings.length - 1]
-  const nextCursor = hasNext && last
-    ? encodeCursor(sort === 'newest'
-      ? { sort, id: last.id, effective_promotion_rank: last.effective_promotion_rank, published_at: last.published_at }
-      : { sort, id: last.id, effective_promotion_rank: last.effective_promotion_rank, price: last.price })
-    : null
-
-  return NextResponse.json({
-    data: listings.map((listing) => ({ ...listing, primary_image: firstImageByListing.get(listing.id) || null })),
-    pagination: { page: useCursor ? undefined : page, limit, total: count ?? null, has_next: hasNext, next_cursor: nextCursor, mode: useCursor ? 'cursor' : 'offset' },
-  }, {
-    headers: {
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-      'CDN-Cache-Control': 'no-store',
-      'Vercel-CDN-Cache-Control': 'no-store',
-    },
-  })
+  if (ids.length) { const { data: imageRows, error: imageError } = await supabase.from('listing_images').select('listing_id,image_url,sort_order').in('listing_id', ids).eq('sort_order', 0).order('sort_order', { ascending: true }); if (imageError) return NextResponse.json({ error: imageError.message }, { status: 500 }); images = imageRows || [] }
+  const firstImageByListing = new Map<string, { image_url: string; sort_order: number | null }>(); for (const image of images) if (!firstImageByListing.has(image.listing_id)) firstImageByListing.set(image.listing_id, { image_url: getListingCardImageUrl(image.image_url), sort_order: image.sort_order })
+  const last = listings[listings.length - 1]; const nextCursor = hasNext && last && !strictPrice ? encodeCursor(sort === 'newest' ? { sort, id: last.id, effective_promotion_rank: last.effective_promotion_rank, published_at: last.published_at } : { sort, id: last.id, effective_promotion_rank: last.effective_promotion_rank, price: last.price }) : null
+  return NextResponse.json({ data: listings.map((listing) => ({ ...listing, primary_image: firstImageByListing.get(listing.id) || null })), pagination: { page: useCursor ? undefined : page, limit, total: count ?? null, has_next: hasNext, next_cursor: nextCursor, mode: useCursor ? 'cursor' : 'offset' } }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', 'CDN-Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'no-store' } })
 }
