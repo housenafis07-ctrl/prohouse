@@ -1,7 +1,7 @@
-const CACHE_NAME = 'royalhouse-shell-v3'
+const CACHE_NAME = 'royalhouse-shell-v4'
 const OFFLINE_URL = '/offline.html'
-const START_URL = '/uz'
-const SHELL_ASSETS = [OFFLINE_URL, START_URL, '/', '/royalhouse-icon.svg']
+const START_URL = '/'
+const SHELL_ASSETS = [OFFLINE_URL, START_URL, '/royalhouse-icon.svg']
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -49,7 +49,6 @@ self.addEventListener('fetch', event => {
         .catch(() =>
           caches.match(request, { ignoreSearch: true })
             .then(cached => cached || caches.match(START_URL, { ignoreSearch: true }))
-            .then(cached => cached || caches.match('/', { ignoreSearch: true }))
             .then(cached => cached || caches.match(OFFLINE_URL))
         )
     )
