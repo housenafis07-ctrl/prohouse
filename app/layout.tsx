@@ -11,6 +11,7 @@ import NewBuildingsNavigationFix from "./components/NewBuildingsNavigationFix";
 import HomeBuildingNavigationFix from "./components/HomeBuildingNavigationFix";
 import MobileMainNavigation from "./components/MobileMainNavigation";
 import PushRegistration from "./components/PushRegistration";
+import PwaServiceWorkerRegistration from "./components/PwaServiceWorkerRegistration";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
 import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
@@ -22,6 +23,7 @@ import RoyalhouseMobileHomeRedesign from "./components/RoyalhouseMobileHomeRedes
 import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish";
 import RoyalhouseMobileAISearch from "./components/RoyalhouseMobileAISearch";
 import RoyalhousePwaHomeSearchFix from "./components/RoyalhousePwaHomeSearchFix";
+import RoyalhousePwaAiSearchStyle from "./components/RoyalhousePwaAiSearchStyle";
 
 export const metadata: Metadata = {
   title: "Royalhouse — Ko‘chmas mulk platformasi",
@@ -48,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <NewBuildingsNavigationFix />
           <HomeBuildingNavigationFix />
           <MobileMainNavigation />
+          <PwaServiceWorkerRegistration />
           <PushRegistration />
           <ListingCardIconStyle />
           <TaxCalculatorServiceFix />
@@ -55,6 +58,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <RoyalhouseMobileHomePolish />
           <RoyalhouseMobileAISearch />
           <RoyalhousePwaHomeSearchFix />
+          <RoyalhousePwaAiSearchStyle />
           {children}
         </I18nProvider>
       </body>
