@@ -24,34 +24,37 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     orientation: 'portrait',
     lang: 'uz',
+    dir: 'ltr',
     theme_color: '#ffffff',
     background_color: '#ffffff',
+    categories: ['real-estate', 'lifestyle', 'business'],
+    prefer_related_applications: false,
     icons,
     shortcuts: [
-  {
-    name: 'Uy qidirish',
-    short_name: 'Qidirish',
-    url: '/listings',
-    icons,
-  },
-  {
-    name: "E'lon joylashtirish",
-    short_name: "E'lon",
-    url: '/listings/new',
-    icons,
-  },
-  {
-    name: "Mening e'lonlarim",
-    short_name: "E'lonlarim",
-    url: '/account/listings',
-    icons,
-  },
-  {
-    name: 'Xabarlar',
-    short_name: 'Chat',
-    url: '/chat',
-    icons,
-  },
-],
+      {
+        name: 'Uy qidirish',
+        short_name: 'Qidirish',
+        url: '/listings',
+        icons,
+      },
+      {
+        name: "E'lon joylashtirish",
+        short_name: "E'lon",
+        url: '/listings/new',
+        icons,
+      },
+      {
+        name: "Mening e'lonlarim",
+        short_name: "E'lonlarim",
+        url: '/account/listings',
+        icons,
+      },
+      {
+        name: 'Xabarlar',
+        short_name: 'Chat',
+        url: '/chat',
+        icons,
+      },
+    ],
   }
 }
