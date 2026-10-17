@@ -1,6 +1,7 @@
-const CACHE_NAME = 'royalhouse-shell-v2'
+const CACHE_NAME = 'royalhouse-shell-v3'
 const OFFLINE_URL = '/offline.html'
-const SHELL_ASSETS = [OFFLINE_URL, '/royalhouse-icon.svg']
+const START_URL = '/uz'
+const SHELL_ASSETS = [OFFLINE_URL, START_URL, '/', '/royalhouse-icon.svg']
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -39,11 +40,18 @@ self.addEventListener('fetch', event => {
         .then(response => {
           if (response.ok) {
             const copy = response.clone()
-            caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
+            event.waitUntil(
+              caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
+            )
           }
           return response
         })
-        .catch(() => caches.match(request).then(cached => cached || caches.match(OFFLINE_URL)))
+        .catch(() =>
+          caches.match(request, { ignoreSearch: true })
+            .then(cached => cached || caches.match(START_URL, { ignoreSearch: true }))
+            .then(cached => cached || caches.match('/', { ignoreSearch: true }))
+            .then(cached => cached || caches.match(OFFLINE_URL))
+        )
     )
     return
   }
@@ -53,7 +61,9 @@ self.addEventListener('fetch', event => {
       caches.match(request).then(cached => cached || fetch(request).then(response => {
         if (response.ok) {
           const copy = response.clone()
-          caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
+          )
         }
         return response
       }))
