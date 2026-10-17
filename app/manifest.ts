@@ -8,7 +8,9 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'Royalhouse',
     description:
       'O‘zbekistonda uy topish, sotish, ijaraga olish va ko‘chmas mulk xizmatlaridan foydalanish platformasi.',
-    start_url: '/uz',
+    // The installed PWA must open the real Royalhouse home page, not the
+    // lightweight language landing page. The home page itself is cached by sw.js.
+    start_url: '/',
     scope: '/',
     id: '/',
     display: 'standalone',
