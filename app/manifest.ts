@@ -1,6 +1,17 @@
 import type { MetadataRoute } from 'next'
 
-const icon = { src: '/royalhouse-icon.svg', sizes: 'any', type: 'image/svg+xml' }
+const icons = [
+  {
+    src: '/icons/royalhouse-logo-192x192.png',
+    sizes: '192x192',
+    type: 'image/png',
+  },
+  {
+    src: '/icons/royalhouse-logo-512x512.png',
+    sizes: '512x512',
+    type: 'image/png',
+  },
+]
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -15,12 +26,32 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'uz',
     theme_color: '#ffffff',
     background_color: '#ffffff',
-    icons: [icon],
+    icons,
     shortcuts: [
-      { name: 'Uy qidirish', short_name: 'Qidirish', url: '/listings', icons: [icon] },
-      { name: 'E’lon joylashtirish', short_name: 'E’lon', url: '/listings/new', icons: [icon] },
-      { name: 'Mening e’lonlarim', short_name: 'E’lonlarim', url: '/account/listings', icons: [icon] },
-      { name: 'Xabarlar', short_name: 'Chat', url: '/chat', icons: [icon] },
-    ],
+  {
+    name: 'Uy qidirish',
+    short_name: 'Qidirish',
+    url: '/listings',
+    icons,
+  },
+  {
+    name: "E'lon joylashtirish",
+    short_name: "E'lon",
+    url: '/listings/new',
+    icons,
+  },
+  {
+    name: "Mening e'lonlarim",
+    short_name: "E'lonlarim",
+    url: '/account/listings',
+    icons,
+  },
+  {
+    name: 'Xabarlar',
+    short_name: 'Chat',
+    url: '/chat',
+    icons,
+  },
+],
   }
 }
