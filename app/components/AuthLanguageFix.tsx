@@ -13,7 +13,7 @@ const PAIRS: Pair[] = [
   ['Telefon raqamingiz tasdiqlandi.', 'Номер телефона подтверждён.'], ['Telefon raqami', 'Номер телефона'],
   ['SMS yuborish', 'Отправить SMS'], ['Qayta yuborish', 'Отправить повторно'], ['SMS kodi', 'SMS-код'], ['Kirish', 'Войти'],
   ['Davom etish orqali siz ', 'Продолжая, вы '], ['Ommaviy Oferta Shartlariga', 'с публичной офертой'], [' rozilik bildirasiz.', ' соглашаетесь.'],
-  ['Telefon raqamini to‘liq kiriting.', 'Введите номер телефона полностью.'], ['SMS kodi yuborildi.', 'SMS-код отправлен.'],
+  ['Telefon raqamini to‘liq kiriting.', 'Введите полный номер телефона.'], ['SMS kodi yuborildi.', 'SMS-код отправлен.'],
   ['SMS yuborilmadi', 'Не удалось отправить SMS'], ['SMS yuborishda xatolik', 'Ошибка при отправке SMS'], ['SMS kodini kiriting.', 'Введите SMS-код.'],
   ['Kod noto‘g‘ri', 'Неверный код'], ['Tasdiqlashda xatolik', 'Ошибка подтверждения'],
   ['Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.', 'Номер телефона подтверждён. Теперь заполните данные профиля.'],
@@ -59,12 +59,26 @@ export default function AuthLanguageFix() {
       }) || null
     }
 
+    const makeOtpAutofillEligible = (input: HTMLInputElement) => {
+      input.setAttribute('autocomplete', 'one-time-code')
+      input.setAttribute('name', 'one-time-code')
+      input.setAttribute('aria-label', 'SMS kodi')
+      // Keep the six-cell UI visible, but make the real input an eligible native autofill target.
+      // opacity:0 can cause Android Chrome to skip the field for native OTP insertion.
+      input.style.opacity = '0.01'
+      input.style.color = 'transparent'
+      input.style.caretColor = 'transparent'
+      input.style.background = 'transparent'
+      input.style.borderColor = 'transparent'
+      input.style.outline = 'none'
+      input.style.webkitTextFillColor = 'transparent'
+    }
+
     const startWebOtp = async () => {
       if (!('OTPCredential' in window) || !navigator.credentials?.get) return
       const input = findOtpInput()
       if (!input) return
-      input.setAttribute('autocomplete', 'one-time-code')
-      input.setAttribute('aria-label', 'SMS kodi')
+      makeOtpAutofillEligible(input)
       otpAbort?.abort()
       otpAbort = new AbortController()
       try {
@@ -76,6 +90,7 @@ export default function AuthLanguageFix() {
         if (!code) return
         const currentInput = findOtpInput()
         if (!currentInput) return
+        makeOtpAutofillEligible(currentInput)
         currentInput.value = code
         currentInput.dispatchEvent(new Event('input', { bubbles: true }))
         currentInput.dispatchEvent(new Event('change', { bubbles: true }))
@@ -100,8 +115,7 @@ export default function AuthLanguageFix() {
       })
       const otpInput = findOtpInput()
       if (otpInput) {
-        otpInput.setAttribute('autocomplete', 'one-time-code')
-        otpInput.setAttribute('name', 'one-time-code')
+        makeOtpAutofillEligible(otpInput)
         void startWebOtp()
       }
     }
