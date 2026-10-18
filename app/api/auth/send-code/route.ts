@@ -146,8 +146,9 @@ export async function POST(request: Request) {
     })
     if (insertError) throw new Error(insertError.message)
 
-    // Keep the readable SMS and add an origin-bound line for Android WebOTP autofill.
-    const message = `royalhouse.uz saytiga kirish uchun tasdiqlash kodi: ${code}\n\n@royalhouse.uz #${code}`
+    // Keep the exact approved Eskiz SMS template unchanged.
+    // OTP autofill is handled on the client without modifying the SMS template.
+    const message = `royalhouse.uz saytiga kirish uchun tasdiqlash kodi: ${code}`
     await sendEskizSms(normalizedPhone, message)
 
     return NextResponse.json({ ok: true, testMode: false, message: 'SMS kodi yuborildi.' })
