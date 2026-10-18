@@ -5,6 +5,12 @@ import { useI18n } from './I18nProvider'
 
 type Pair = [string, string]
 
+type OTPCredential = Credential & { code?: string }
+type OTPGetOptions = CredentialRequestOptions & {
+  otp: { transport: ['sms'] }
+  signal?: AbortSignal
+}
+
 const PAIRS: Pair[] = [
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
@@ -31,8 +37,8 @@ const PAIRS: Pair[] = [
   ['Hamkor', 'Партнёр'],
   ['Hamkor turi', 'Тип партнёра'],
   ['O‘zini o‘zi band qilgan — O‘BQ', 'Самозанятый — O‘BQ'],
-  ['Yakka tartibdagi tadbirkor — YaTT', 'Индивидуальный предприниматель — YaTT'],
-  ['Mas’uliyati cheklangan jamiyat — MChJ', 'Общество с ограниченной ответственностью — MChJ'],
+  ['Yakka tartibdagi tadbirkor — YaTT', 'Индивидуальный предприниматель — ИП'],
+  ['Mas’uliyati cheklangan jamiyat — MChJ', 'Общество с ограниченной ответственностью — ООО'],
   ['Tashkilot nomi', 'Название организации'],
   ['Rahbar F.I.O.', 'Ф.И.О. руководителя'],
   ['Bank rekvizitlari', 'Банковские реквизиты'],
@@ -69,6 +75,48 @@ export default function AuthLanguageFix() {
     if (window.location.pathname !== '/register') return
 
     let frame = 0
+    let otpAbort: AbortController | null = null
+
+    const findOtpInput = () => {
+      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+      return inputs.find((input) => {
+        if (input.type !== 'text' && input.type !== 'tel' && input.inputMode !== 'numeric') return false
+        const label = input.parentElement?.querySelector('label')?.textContent?.trim().toLowerCase() || ''
+        return input.inputMode === 'numeric' || label.includes('sms') || label.includes('код')
+      }) || null
+    }
+
+    const startWebOtp = async () => {
+      if (!('OTPCredential' in window) || !navigator.credentials?.get) return
+      const input = findOtpInput()
+      if (!input) return
+
+      input.setAttribute('autocomplete', 'one-time-code')
+      input.setAttribute('aria-label', 'SMS kodi')
+
+      otpAbort?.abort()
+      otpAbort = new AbortController()
+
+      try {
+        const credential = await navigator.credentials.get({
+          otp: { transport: ['sms'] },
+          signal: otpAbort.signal,
+        } as OTPGetOptions) as OTPCredential | null
+
+        const code = credential?.code?.replace(/\D/g, '').slice(0, 6)
+        if (!code) return
+
+        const currentInput = findOtpInput()
+        if (!currentInput) return
+        currentInput.value = code
+        currentInput.dispatchEvent(new Event('input', { bubbles: true }))
+        currentInput.dispatchEvent(new Event('change', { bubbles: true }))
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        // Autofill is an enhancement; manual OTP entry remains available.
+      }
+    }
+
     const apply = () => {
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
       const nodes: Text[] = []
@@ -83,6 +131,13 @@ export default function AuthLanguageFix() {
         const next = translateText(current, lang)
         if (next !== current) text.nodeValue = next
       })
+
+      const otpInput = findOtpInput()
+      if (otpInput) {
+        otpInput.setAttribute('autocomplete', 'one-time-code')
+        otpInput.setAttribute('name', 'one-time-code')
+        void startWebOtp()
+      }
     }
 
     const schedule = () => {
@@ -98,6 +153,7 @@ export default function AuthLanguageFix() {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     return () => {
       observer.disconnect()
+      otpAbort?.abort()
       if (frame) window.cancelAnimationFrame(frame)
     }
   }, [lang])
