@@ -146,7 +146,8 @@ export async function POST(request: Request) {
     })
     if (insertError) throw new Error(insertError.message)
 
-    const message = `royalhouse.uz saytiga kirish uchun tasdiqlash kodi: ${code}`
+    // Keep the readable SMS and add an origin-bound line for Android WebOTP autofill.
+    const message = `royalhouse.uz saytiga kirish uchun tasdiqlash kodi: ${code}\n\n@royalhouse.uz #${code}`
     await sendEskizSms(normalizedPhone, message)
 
     return NextResponse.json({ ok: true, testMode: false, message: 'SMS kodi yuborildi.' })
