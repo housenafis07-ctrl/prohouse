@@ -102,7 +102,7 @@ export default function RegisterPage() {
         const credential = await navigator.credentials.get({
           otp: { transport: ['sms'] },
           signal: controller.signal,
-        } as CredentialRequestOptions & { otp: { transport: string[] } }) as (OTPCredential & { code?: string }) | null
+        } as CredentialRequestOptions & { otp: { transport: string[] } }) as (Credential & { code?: string }) | null
         const otp = credential?.code?.replace(/\D/g,'').slice(0,6)
         if(!otp) return
         setCode(otp)
