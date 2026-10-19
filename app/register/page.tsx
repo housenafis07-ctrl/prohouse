@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 import { listenForSmsOtp, normalizeCode } from '@/app/lib/web-otp'
+import { applyBackspace, applyInput, createSubmitGuard, isComplete, joinDigits } from '@/app/lib/otp-state.mjs'
 
 type AccountType = 'individual' | 'partner'
 type PartnerType = 'self_employed' | 'sole_proprietor' | 'llc'
@@ -15,7 +16,8 @@ const emptyForm = { fullName:'', companyName:'', inn:'', bankName:'', bankAccoun
 export default function RegisterPage() {
   const router = useRouter()
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([])
-  const otpVerifyStartedRef = useRef(false)
+  const stopOtpRef = useRef<(() => void) | null>(null)
+  const submitGuardRef = useRef(createSubmitGuard())
   const [accountType,setAccountType] = useState<AccountType>('individual')
   const [partnerType,setPartnerType] = useState<PartnerType>('self_employed')
   const [phone,setPhone] = useState('+998 ')
@@ -53,26 +55,12 @@ export default function RegisterPage() {
     return()=>{mounted=false}
   },[router])
 
-  async function sendCode(){
-    const normalizedPhone=phone.replace(/\s/g,'')
-    if(normalizedPhone.length<13) return setMessage(t('Telefon raqamini to‘liq kiriting.','Введите полный номер телефона.'))
-    setLoading(true);setMessage('')
-    try{
-      const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone})})
-      const data=await response.json()
-      if(!response.ok) throw new Error(data.error||t('SMS yuborilmadi','SMS не отправлено'))
-      otpVerifyStartedRef.current=false
-      setSent(true);setCode('');setMessage(data.testMode?t('Test rejimi: 321321 kodidan foydalaning.','Тестовый режим: используйте код 321321.') : t('SMS kodi yuborildi.','SMS-код отправлен.'))
-      window.setTimeout(()=>otpInputRefs.current[0]?.focus(),50)
-    }catch(e){setMessage(e instanceof Error?e.message:t('SMS yuborishda xatolik','Ошибка при отправке SMS'))}
-    finally{setLoading(false)}
-  }
+  useEffect(()=>()=>stopOtpRef.current?.(),[])
 
   async function verifyCode(overrideCode?:string){
     const normalizedPhone=phone.replace(/\s/g,'')
     const otpCode=normalizeCode(overrideCode ?? code)
     if(!sent||otpCode.length<4) return setMessage(t('SMS kodini kiriting.','Введите SMS-код.'))
-    if(otpCode.length===6) otpVerifyStartedRef.current=true
     setLoading(true);setMessage('')
     try{
       const response=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone,code:otpCode})})
@@ -90,45 +78,57 @@ export default function RegisterPage() {
       if(profile){ router.replace(getRedirectTo()); return }
       setCode(otpCode)
       setVerified(true)
+      stopOtpRef.current?.(); stopOtpRef.current=null
       setMessage(t('Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.','Номер телефона подтверждён. Теперь заполните данные профиля.'))
     }catch(e){
-      otpVerifyStartedRef.current=false
+      submitGuardRef.current.finish()
       setMessage(e instanceof Error?e.message:t('Tasdiqlashda xatolik','Ошибка подтверждения'))
     }finally{setLoading(false)}
   }
 
-  function handleOtpInput(index:number,value:string){
-    const raw=value
-    const current=code.split('')
-    while(current.length<6) current.push('')
+  async function sendCode(){
+    const normalizedPhone=phone.replace(/\s/g,'')
+    if(normalizedPhone.length<13) return setMessage(t('Telefon raqamini to‘liq kiriting.','Введите полный номер телефона.'))
+    setLoading(true);setMessage('')
+    stopOtpRef.current?.(); stopOtpRef.current=null
+    submitGuardRef.current.reset()
+    setCode('')
 
-    if(!raw){
-      current[index]=''
-      setCode(current.join('').slice(0,6))
-      return
-    }
-
-    const digits=normalizeCode(raw)
-    if(!digits) return
-
-    digits.split('').forEach((digit,offset)=>{
-      if(index+offset<6) current[index+offset]=digit
+    stopOtpRef.current=listenForSmsOtp({
+      onCode:(otp)=>{
+        const normalized=normalizeCode(otp)
+        if(normalized.length===6) setCode(normalized)
+      },
+      onError:(error)=>console.debug('[otp-autofill] WebOTP unavailable',error),
     })
-    const nextCode=current.join('').slice(0,6)
+
+    try{
+      const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone})})
+      const data=await response.json()
+      if(!response.ok) throw new Error(data.error||t('SMS yuborilmadi','SMS не отправлено'))
+      setSent(true);setMessage(data.testMode?t('Test rejimi: 321321 kodidan foydalaning.','Тестовый режим: используйте код 321321.') : t('SMS kodi yuborildi.','SMS-код отправлен.'))
+      window.setTimeout(()=>otpInputRefs.current[0]?.focus(),50)
+    }catch(e){
+      stopOtpRef.current?.(); stopOtpRef.current=null
+      setMessage(e instanceof Error?e.message:t('SMS yuborishda xatolik','Ошибка при отправке SMS'))
+    }finally{setLoading(false)}
+  }
+
+  function handleOtpInput(index:number,value:string){
+    const current=Array.from({length:6},(_,i)=>code[i]||'')
+    const result=applyInput(current,index,value,6)
+    const nextCode=joinDigits(result.digits).slice(0,6)
     setCode(nextCode)
-
-    const nextIndex=Math.min(index+digits.length,5)
-    window.setTimeout(()=>otpInputRefs.current[nextIndex]?.focus(),0)
-
-    if(nextCode.length===6 && !otpVerifyStartedRef.current){
-      otpVerifyStartedRef.current=true
-      void verifyCode(nextCode)
-    }
+    window.setTimeout(()=>otpInputRefs.current[result.focus]?.focus(),0)
   }
 
   function handleOtpKeyDown(index:number,event:React.KeyboardEvent<HTMLInputElement>){
-    if(event.key==='Backspace' && !code[index] && index>0){
-      otpInputRefs.current[index-1]?.focus()
+    if(event.key==='Backspace'){
+      const current=Array.from({length:6},(_,i)=>code[i]||'')
+      const result=applyBackspace(current,index,6)
+      setCode(joinDigits(result.digits))
+      event.preventDefault()
+      window.setTimeout(()=>otpInputRefs.current[result.focus]?.focus(),0)
     }
   }
 
@@ -138,28 +138,12 @@ export default function RegisterPage() {
   }
 
   useEffect(()=>{
-    if(!sent || verified) return
-
-    const stopListening=listenForSmsOtp({
-      onCode:(otp)=>{
-        const normalized=normalizeCode(otp)
-        if(normalized.length!==6) return
-        setCode(normalized)
-        for(let index=0;index<6;index++){
-          otpInputRefs.current[index]?.dispatchEvent(new Event('input',{bubbles:true}))
-        }
-        if(!otpVerifyStartedRef.current){
-          otpVerifyStartedRef.current=true
-          void verifyCode(normalized)
-        }
-      },
-      onError:(error)=>{
-        console.debug('[otp-autofill] WebOTP unavailable',error)
-      },
-    })
-
-    return stopListening
-  },[sent,verified])
+    if(!sent || verified || !isComplete(Array.from({length:6},(_,i)=>code[i]||''))) return
+    const normalized=normalizeCode(code)
+    if(normalized.length!==6) return
+    if(!submitGuardRef.current.tryStart(normalized)) return
+    void verifyCode(normalized)
+  },[code,sent,verified])
 
   async function finishRegistration(e:FormEvent){
     e.preventDefault()
@@ -217,7 +201,7 @@ export default function RegisterPage() {
 
   return <main className="min-h-screen bg-slate-50 px-4 py-10"><div className="mx-auto max-w-2xl"><Link href="/" className="text-sm font-semibold text-emerald-700">← Royalhouse</Link><div className="mt-5 rounded-3xl bg-white p-6 shadow-sm sm:p-8"><h1 className="text-3xl font-extrabold text-slate-900">{verified?t('Profilni to‘ldirish','Заполнить профиль'):t('Royalhouse’ga kirish','Вход в Royalhouse')}</h1><p className="mt-2 text-slate-500">{verified?t('Telefon raqamingiz tasdiqlandi.','Номер телефона подтверждён.'):t('Telefon raqamingiz orqali davom eting.','Продолжите с помощью номера телефона.')}</p>
 
-    {!verified && <form onSubmit={e=>{e.preventDefault();void (sent ? verifyCode() : sendCode())}} className="mt-6 space-y-5"><div><label className="mb-2 block text-sm font-semibold">{t('Telefon raqami','Номер телефона')}</label><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3"/><button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent?t('Qayta yuborish','Отправить повторно'):t('SMS yuborish','Отправить SMS')}</button></div><div className="mt-3 rounded-lg border border-slate-800 bg-white px-3 py-2 text-center text-xs leading-4 text-slate-700 sm:text-sm"><span>{t('Davom etish orqali siz ','Продолжая, вы принимаете ')}</span><button type="button" onClick={()=>setOfferOpen(true)} className="font-semibold underline underline-offset-2 hover:text-emerald-700">{t('Ommaviy Oferta Shartlariga','условия Публичной оферты')}</button><span>{t(' rozilik bildirasiz.','.')}</span></div></div>{sent&&<div><label className="mb-2 block text-sm font-semibold">{t('SMS kodi','SMS-код')}</label><div className="grid grid-cols-6 gap-2" role="group" aria-label={t('SMS kodi','SMS-код')} onPaste={handleOtpPaste}>{Array.from({length:6},(_,index)=><input key={index} ref={element=>{otpInputRefs.current[index]=element}} value={code[index]||''} onChange={e=>handleOtpInput(index,e.target.value)} onKeyDown={e=>handleOtpKeyDown(index,e)} inputMode="numeric" autoComplete={index===0?'one-time-code':'off'} autoFocus={index===0} maxLength={6} pattern="[0-9]" aria-label={`${t('SMS kodi','SMS-код')} ${index+1}`} className="h-14 w-full min-w-0 rounded-xl border border-slate-200 bg-white text-center text-xl font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />)}</div></div>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}{sent&&<button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Tekshirilmoqda...','Проверка...'):t('Kirish','Войти')}</button>}</form>}
+    {!verified && <form onSubmit={e=>{e.preventDefault();void (sent ? verifyCode() : sendCode())}} className="mt-6 space-y-5"><div><label className="mb-2 block text-sm font-semibold">{t('Telefon raqami','Номер телефона')}</label><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3"/><button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent?t('Qayta yuborish','Отправить повторно'):t('SMS yuborish','Отправить SMS')}</button></div><div className="mt-3 rounded-lg border border-slate-800 bg-white px-3 py-2 text-center text-xs leading-4 text-slate-700 sm:text-sm"><span>{t('Davom etish orqali siz ','Продолжая, вы принимаете ')}</span><button type="button" onClick={()=>setOfferOpen(true)} className="font-semibold underline underline-offset-2 hover:text-emerald-700">{t('Ommaviy Oferta Shartlariga','условия Публичной оферты')}</button><span>{t(' rozilik bildirasiz.','.')}</span></div></div>{sent&&<div><label className="mb-2 block text-sm font-semibold">{t('SMS kodi','SMS-код')}</label><div className="grid grid-cols-6 gap-2" role="group" aria-label={t('SMS kodi','SMS-код')} onPaste={handleOtpPaste}>{Array.from({length:6},(_,index)=><input key={index} ref={element=>{otpInputRefs.current[index]=element}} value={code[index]||''} onChange={e=>handleOtpInput(index,e.target.value)} onKeyDown={e=>handleOtpKeyDown(index,e)} inputMode="numeric" autoComplete={index===0?'one-time-code':'off'} autoFocus={index===0} pattern="[0-9]" aria-label={`${t('SMS kodi','SMS-код')} ${index+1}`} className="h-14 w-full min-w-0 rounded-xl border border-slate-200 bg-white text-center text-xl font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />)}</div></div>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}{sent&&<button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Tekshirilmoqda...','Проверка...'):t('Kirish','Войти')}</button>}</form>}
 
     {verified && <><div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={()=>setAccountType('individual')} className={`rounded-lg px-4 py-3 text-sm font-bold ${accountType==='individual'?'bg-white text-slate-900 shadow-sm':'text-slate-500'}`}>{t('Jismoniy shaxs','Физическое лицо')}</button><button type="button" onClick={()=>setAccountType('partner')} className={`rounded-lg px-4 py-3 text-sm font-bold ${accountType==='partner'?'bg-white text-emerald-700 shadow-sm':'text-slate-500'}`}>{t('Hamkor','Партнёр')}</button></div><form onSubmit={finishRegistration} className="mt-6 space-y-5">{accountType==='individual'?<div><label className="mb-2 block text-sm font-semibold">F.I.O.</label><input value={form.fullName} onChange={e=>update('fullName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3" placeholder={t('Ism Familiya Otasining ismi','Имя Фамилия Отчество')}/></div>:<><div><label className="mb-2 block text-sm font-semibold">{t('Hamkor turi','Тип партнёра')}</label><select value={partnerType} onChange={e=>setPartnerType(e.target.value as PartnerType)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"><option value="self_employed">{t('O‘zini o‘zi band qilgan — O‘BQ','Самозанятый')}</option><option value="sole_proprietor">{t('Yakka tartibdagi tadbirkor — YaTT','Индивидуальный предприниматель — ИП')}</option><option value="llc">{t('Mas’uliyati cheklangan jamiyat — MChJ','Общество с ограниченной ответственностью — ООО')}</option></select></div><div className="grid gap-4 sm:grid-cols-2"><div><label className="mb-2 block text-sm font-semibold">F.I.O.</label><input value={form.fullName} onChange={e=>update('fullName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div><div><label className="mb-2 block text-sm font-semibold">INN</label><input value={form.inn} onChange={e=>update('inn',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div></div>{partnerType==='llc'&&<div><label className="mb-2 block text-sm font-semibold">{t('Tashkilot nomi','Название организации')}</label><input value={form.companyName} onChange={e=>update('companyName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div>}<div><label className="mb-2 block text-sm font-semibold">{t('Rahbar F.I.O.','Ф.И.О. руководителя')}</label><input value={form.directorFullName} onChange={e=>update('directorFullName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div><div className="rounded-2xl border border-slate-200 p-4"><h2 className="font-bold">{t('Bank rekvizitlari','Банковские реквизиты')}</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><input value={form.bankName} onChange={e=>update('bankName',e.target.value)} required placeholder={t('Bank nomi','Название банка')} className="rounded-xl border border-slate-200 px-4 py-3"/><input value={form.mfo} onChange={e=>update('mfo',e.target.value)} required placeholder="MFO" className="rounded-xl border border-slate-200 px-4 py-3"/><input value={form.bankAccount} onChange={e=>update('bankAccount',e.target.value)} required placeholder={t('Hisob raqami','Расчётный счёт')} className="rounded-xl border border-slate-200 px-4 py-3"/></div></div></>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}<button disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Saqlanmoqda...','Сохранение...'):t('Ro‘yxatdan o‘tish','Зарегистрироваться')}</button></form></>}
   </div></div>
