@@ -24,6 +24,12 @@ export function listenForSmsOtp({ onCode, onError, timeoutMs = 60000 }: ListenOp
 
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
+  let settled = false
+
+  const finish = () => {
+    if (timer) clearTimeout(timer)
+    timer = undefined
+  }
 
   const listen = async () => {
     try {
@@ -33,17 +39,26 @@ export function listenForSmsOtp({ onCode, onError, timeoutMs = 60000 }: ListenOp
         signal: controller.signal,
       } as CredentialRequestOptions & { otp: { transport: string[] } }) as WebOtpCredential | null
 
+      settled = true
       const code = normalizeCode(credential?.code)
-      if (code.length === 6) onCode?.(code)
+      if (code.length === 6) {
+        console.debug('[otp-autofill] WebOTP resolved')
+        onCode?.(code)
+      }
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return
+      settled = true
       if ((error as { name?: string } | null)?.name === 'AbortError') return
+      console.debug('[otp-autofill] WebOTP rejected', (error as { name?: string } | null)?.name || error)
       onError?.(error)
     } finally {
-      if (timer) clearTimeout(timer)
+      finish()
     }
   }
 
   void listen()
-  return () => controller.abort()
+
+  return () => {
+    if (!settled) controller.abort()
+    finish()
+  }
 }
