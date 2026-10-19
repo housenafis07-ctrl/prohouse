@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 
 type TelegramWebApp = {
@@ -22,7 +22,7 @@ export async function ensureTelegramSession() {
 
   const startParam = webApp.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('tgWebAppStartParam') || ''
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), 15000)
+  const timeout = window.setTimeout(() => controller.abort(), 10000)
 
   try {
     const response = await fetch('/api/auth/telegram', {
@@ -37,10 +37,6 @@ export async function ensureTelegramSession() {
     const data = await response.json().catch(() => null)
     if (!response.ok) throw new Error(data?.error || 'Telegram authentication failed')
 
-    // The API authenticates the user on the server and writes the Supabase
-    // session cookies. Do NOT call browser auth.setSession() here: that creates
-    // a second GoTrue lock/storage operation inside Telegram WebView and was
-    // the remaining source of the endless "Telegram orqali avtomatik..." spinner.
     webApp.ready()
     webApp.expand()
     return true
@@ -49,12 +45,18 @@ export async function ensureTelegramSession() {
   }
 }
 
+/**
+ * Telegram authentication is intentionally non-blocking.
+ *
+ * The Mini App itself must always remain usable even if the authentication
+ * endpoint is temporarily unavailable. Previously this component rendered a
+ * full-screen spinner before the API completed, which made the bot appear
+ * completely frozen when server auth failed or timed out.
+ */
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
   const pathname = usePathname()
   const started = useRef(false)
-  const [active, setActive] = useState(false)
-  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (started.current) return
@@ -67,33 +69,23 @@ export default function TelegramMiniAppAuth() {
     const finish = async () => {
       const webApp = window.Telegram?.WebApp
       if (cancelled || !webApp?.initData) return
-      setActive(true)
 
       try {
         const authenticated = await ensureTelegramSession()
-        if (cancelled) return
-        if (!authenticated) throw new Error('Telegram initData is missing')
+        if (cancelled || !authenticated) return
 
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
 
         if (target !== pathname) {
-          setActive(false)
           router.replace(target || '/')
           return
         }
 
-        // Refresh server-rendered account/profile data after the server session
-        // cookie has been established. No client-side Supabase setSession is
-        // needed here.
         router.refresh()
-        setActive(false)
       } catch (error) {
+        // Never block the Mini App because Telegram auth failed.
         console.error('[telegram-miniapp-auth]', error)
-        if (!cancelled) {
-          setActive(false)
-          setFailed(true)
-        }
       }
     }
 
@@ -103,10 +95,7 @@ export default function TelegramMiniAppAuth() {
         void finish()
         return true
       }
-      if (Date.now() - startedAt >= 8000) {
-        if (!cancelled) setFailed(true)
-        return true
-      }
+      if (Date.now() - startedAt >= 8000) return true
       timer = window.setTimeout(tryStart, 100)
       return false
     }
@@ -119,15 +108,5 @@ export default function TelegramMiniAppAuth() {
     }
   }, [pathname, router])
 
-  if (!active || failed) return null
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
-        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
-        <p className="text-lg font-extrabold text-slate-900">Royalhouse</p>
-        <p className="mt-1 text-sm text-slate-500">Telegram orqali avtomatik kirilmoqda...</p>
-      </div>
-    </div>
-  )
+  return null
 }
