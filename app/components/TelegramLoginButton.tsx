@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
@@ -48,7 +48,7 @@ export default function TelegramLoginButton() {
 
   if (pathname !== '/register' || !target) return null
 
-  const openTelegram = (event: React.MouseEvent<HTMLAnchorElement>) => {
+  const openTelegram = (event: MouseEvent<HTMLAnchorElement>) => {
     const webApp = window.Telegram?.WebApp
     if (webApp?.openTelegramLink) {
       event.preventDefault()
