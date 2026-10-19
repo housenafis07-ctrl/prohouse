@@ -19,6 +19,16 @@ type ListenOptions = {
   timeoutMs?: number
 }
 
+function syncOtpInput(code: string) {
+  if (typeof document === 'undefined') return
+  const input = document.querySelector<HTMLInputElement>('input[autocomplete="one-time-code"]')
+  if (!input || input.disabled) return
+
+  const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+  nativeSetter?.call(input, code)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 export function listenForSmsOtp({ onCode, onError, timeoutMs = 60000 }: ListenOptions = {}): () => void {
   if (!isWebOtpSupported()) return () => {}
 
@@ -43,6 +53,7 @@ export function listenForSmsOtp({ onCode, onError, timeoutMs = 60000 }: ListenOp
       const code = normalizeCode(credential?.code)
       if (code.length === 6) {
         console.debug('[otp-autofill] WebOTP resolved')
+        syncOtpInput(code)
         onCode?.(code)
       }
     } catch (error) {
