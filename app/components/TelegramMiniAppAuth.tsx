@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
@@ -38,15 +37,10 @@ export async function ensureTelegramSession() {
     const data = await response.json().catch(() => null)
     if (!response.ok) throw new Error(data?.error || 'Telegram authentication failed')
 
-    if (data?.session?.access_token && data?.session?.refresh_token) {
-      const supabase = createClient()
-      const { error } = await supabase.auth.setSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      })
-      if (error) throw error
-    }
-
+    // The API authenticates the user on the server and writes the Supabase
+    // session cookies. Do NOT call browser auth.setSession() here: that creates
+    // a second GoTrue lock/storage operation inside Telegram WebView and was
+    // the remaining source of the endless "Telegram orqali avtomatik..." spinner.
     webApp.ready()
     webApp.expand()
     return true
@@ -83,16 +77,16 @@ export default function TelegramMiniAppAuth() {
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
 
-        // /telegram is itself the Main Mini App landing page. After successful
-        // authentication there is nothing to navigate to: replacing /telegram
-        // with /telegram leaves the loading overlay mounted forever. Only
-        // navigate when authentication actually requires a different route.
         if (target !== pathname) {
           setActive(false)
           router.replace(target || '/')
           return
         }
 
+        // Refresh server-rendered account/profile data after the server session
+        // cookie has been established. No client-side Supabase setSession is
+        // needed here.
+        router.refresh()
         setActive(false)
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
