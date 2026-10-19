@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 
 type TelegramWebApp = {
   initData: string
+  initDataUnsafe?: { start_param?: string }
   ready: () => void
   expand: () => void
 }
@@ -13,6 +14,26 @@ declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp }
   }
+}
+
+async function authenticateTelegram(webApp: TelegramWebApp) {
+  if (!webApp.initData) return false
+
+  const startParam = webApp.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('tgWebAppStartParam') || ''
+  const response = await fetch('/api/auth/telegram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ initData: webApp.initData, startParam }),
+    credentials: 'include',
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null)
+    throw new Error(data?.error || 'Telegram authentication failed')
+  }
+
+  return true
 }
 
 export default function TelegramMiniAppAuth() {
@@ -27,63 +48,50 @@ export default function TelegramMiniAppAuth() {
     started.current = true
 
     let cancelled = false
-    const authenticate = async (webApp: TelegramWebApp) => {
-      if (!webApp.initData) return
+    let timer: number | undefined
+    const startedAt = Date.now()
+
+    const finish = async (webApp: TelegramWebApp) => {
+      if (cancelled || !webApp.initData) return
       setActive(true)
       webApp.ready()
       webApp.expand()
 
       try {
-        const response = await fetch('/api/auth/telegram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ initData: webApp.initData }),
-          credentials: 'include',
-        })
-        if (!response.ok) throw new Error('Telegram authentication failed')
+        await authenticateTelegram(webApp)
         if (cancelled) return
 
-        // Read the redirect target only in the browser. This keeps the
-        // global client component safe during Next.js prerendering.
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
         router.replace(target || '/')
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
-        if (!cancelled) setFailed(true)
+        if (!cancelled) {
+          setActive(false)
+          setFailed(true)
+        }
       }
     }
 
     const tryStart = () => {
       const webApp = window.Telegram?.WebApp
       if (webApp?.initData) {
-        void authenticate(webApp)
+        void finish(webApp)
         return true
       }
+      if (Date.now() - startedAt >= 8000) {
+        if (!cancelled) setFailed(true)
+        return true
+      }
+      timer = window.setTimeout(tryStart, 100)
       return false
     }
 
-    if (tryStart()) return () => { cancelled = true }
-
-    const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', tryStart, { once: true })
-      return () => {
-        cancelled = true
-        existing.removeEventListener('load', tryStart)
-      }
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-web-app.js'
-    script.async = true
-    script.dataset.telegramWebApp = 'true'
-    script.onload = tryStart
-    document.head.appendChild(script)
+    tryStart()
 
     return () => {
       cancelled = true
-      script.onload = null
+      if (timer) window.clearTimeout(timer)
     }
   }, [pathname, router])
 
