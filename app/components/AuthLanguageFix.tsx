@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { useI18n } from './I18nProvider'
 
 type Pair = [string, string]
+type OTPCredential = Credential & { code?: string }
+type OTPOptions = CredentialRequestOptions & { otp: { transport: ['sms'] }; signal?: AbortSignal }
 
 const PAIRS: Pair[] = [
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'], ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
@@ -18,9 +20,9 @@ const PAIRS: Pair[] = [
   ['Jismoniy shaxs', 'Физическое лицо'], ['Hamkor', 'Партнёр'], ['Hamkor turi', 'Тип партнёра'],
   ['O‘zini o‘zi band qilgan — O‘BQ', 'Самозанятый — O‘BQ'], ['Yakka tartibdagi tadbirkor — YaTT', 'Индивидуальный предприниматель — ИП'],
   ['Mas’uliyati cheklangan jamiyat — MChJ', 'Общество с ограниченной ответственностью — ООО'], ['Tashkilot nomi', 'Название организации'],
-  ['Rahbar F.I.O.', 'Ф.И.О. руководителя'], ['Bank rekvizitlari', 'Банковские реквизиты'], ['Bank nomi', 'Название банка'], ['Hisob raqami', 'Номер счёта'],
+  ['Rahbar F.I.O.', 'Ф.И.О. руководителя'], ['Bank rekvizitlari', 'Банковские реквизиты'], ['Bank nomi', 'Название банка'], ['Hisob raqami', 'Номер счёta'],
   ['Saqlanmoqda...', 'Сохранение...'], ['Ro‘yxatdan o‘tish', 'Зарегистрироваться'],
-  ['Ommaviy oferta yuklanmadi. Sahifani yangilang va qayta urinib ko‘ring.', 'Публичная оферта не загружена. Обновите страницу и попробуйте снова.'],
+  ['Ommaviy oferta yuklanmadi. Sahifani yangilang va qayta urinib ko‘ring.', 'Публичная оферта не загружan. Обновите страницу va qayta urinib ko‘ring.'],
   ['Avval telefon raqamini tasdiqlang.', 'Сначала подтвердите номер телефона.'], ['Sessiya topilmadi. Qayta kirib ko‘ring.', 'Сессия не найдена. Войдите снова.'],
   ['Foydalanuvchi sessiyasi topilmadi.', 'Сессия пользователя не найдена.'], ['Sessiya ma’lumotlari qaytmadi.', 'Данные сессии не получены.'],
   ['Ro‘yxatdan o‘tishda xatolik', 'Ошибка регистрации'], ['Yopish', 'Закрыть'],
@@ -46,14 +48,18 @@ export default function AuthLanguageFix() {
     if (path !== '/register' && path !== '/realtors/cabinet') return
 
     let frame = 0
+    let otpController: AbortController | null = null
+    let otpStarted = false
 
-    const findOtpInput = () => {
-      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
-      return inputs.find((input) => {
-        if (input.type !== 'text' && input.type !== 'tel' && input.inputMode !== 'numeric') return false
-        const label = input.parentElement?.querySelector('label')?.textContent?.trim().toLowerCase() || ''
-        return input.inputMode === 'numeric' || label.includes('sms') || label.includes('код')
-      }) || null
+    const findOtpInputs = () => {
+      const byAutocomplete = Array.from(document.querySelectorAll<HTMLInputElement>('input[autocomplete="one-time-code"]'))
+      if (byAutocomplete.length) return byAutocomplete.slice(0, 6)
+
+      const smsInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input')).filter((input) => {
+        const label = input.getAttribute('aria-label')?.toLowerCase() || ''
+        return label.includes('sms kodi') || label.includes('sms-код')
+      })
+      return smsInputs.slice(0, 6)
     }
 
     const makeOtpAutofillEligible = (input: HTMLInputElement) => {
@@ -61,15 +67,58 @@ export default function AuthLanguageFix() {
       input.setAttribute('name', 'one-time-code')
       input.setAttribute('aria-label', 'SMS kodi')
       input.setAttribute('enterkeyhint', 'done')
-      // Android Chrome can skip a fully transparent input for native OTP autofill.
-      // Keep the six-cell visual UI, but leave the real input technically visible to the browser.
-      input.style.opacity = '0.01'
-      input.style.color = 'transparent'
-      input.style.caretColor = 'transparent'
-      input.style.background = 'transparent'
-      input.style.borderColor = 'transparent'
-      input.style.outline = 'none'
-      input.style.webkitTextFillColor = 'transparent'
+    }
+
+    const writeValue = (input: HTMLInputElement, value: string) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(input, value)
+      input.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        inputType: 'insertText',
+        data: value,
+      }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    const applyOtpToSixInputs = (otp: string) => {
+      const code = otp.replace(/\D/g, '').slice(0, 6)
+      if (!code) return
+      const inputs = findOtpInputs().slice(0, 6)
+      if (!inputs.length) return
+
+      inputs.forEach((input, index) => {
+        if (index === 0) makeOtpAutofillEligible(input)
+        writeValue(input, code[index] || '')
+      })
+
+      const last = inputs[Math.min(code.length - 1, inputs.length - 1)]
+      last?.focus()
+    }
+
+    const startNativeWebOtp = async () => {
+      if (otpStarted) return
+      if (!('OTPCredential' in window) || !navigator.credentials?.get) return
+
+      const inputs = findOtpInputs()
+      if (!inputs.length) return
+
+      makeOtpAutofillEligible(inputs[0])
+      otpController?.abort()
+      otpController = new AbortController()
+      otpStarted = true
+
+      try {
+        const credential = await navigator.credentials.get({
+          otp: { transport: ['sms'] },
+          signal: otpController.signal,
+        } as OTPOptions) as OTPCredential | null
+
+        const code = credential?.code
+        if (code) applyOtpToSixInputs(code)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        console.debug('[otp-autofill] WebOTP unavailable', error)
+      }
     }
 
     const apply = () => {
@@ -87,20 +136,26 @@ export default function AuthLanguageFix() {
         if (next !== current) text.nodeValue = next
       })
 
-      const otpInput = findOtpInput()
-      if (otpInput) makeOtpAutofillEligible(otpInput)
-    }
-
-    const schedule = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(() => { frame = 0; apply() })
+      const inputs = findOtpInputs()
+      if (inputs.length) {
+        makeOtpAutofillEligible(inputs[0])
+        void startNativeWebOtp()
+      }
     }
 
     apply()
-    const observer = new MutationObserver(schedule)
+    const observer = new MutationObserver(() => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        apply()
+      })
+    })
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+
     return () => {
       observer.disconnect()
+      otpController?.abort()
       if (frame) window.cancelAnimationFrame(frame)
     }
   }, [lang])
