@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
     const telegramUserId = String(tgUser.id)
     const email = telegramAuthEmail(tgUser.id)
     const password = telegramAuthPassword(tgUser.id)
-    const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
+    const telegramDisplayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim()
+    const displayName = telegramDisplayName || (tgUser.username ? `@${tgUser.username}` : `Telegram ${tgUser.id}`)
 
     // Telegram ID is the source of identity. Do not call the browser/session
     // Supabase client here: this endpoint must work before a RoyalHouse session
@@ -105,12 +106,24 @@ export async function POST(request: NextRequest) {
         account_type: 'individual',
       })
       if (profileInsertError) throw profileInsertError
-    } else if (!profile.full_name?.trim()) {
-      const { error: profileUpdateError } = await admin
-        .from('profiles')
-        .update({ full_name: displayName })
-        .eq('id', profileId)
-      if (profileUpdateError) throw profileUpdateError
+    } else {
+      // Telegram-created profiles must never fall back to a generic/admin name.
+      // Preserve a real name entered by the user, but repair the placeholder
+      // created by older Telegram-auth versions and use the Telegram display name.
+      const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(profileId)
+      if (authUserError) throw authUserError
+
+      const authProvider = authUser.user?.user_metadata?.auth_provider
+      const currentName = profile.full_name?.trim() || ''
+      const isTelegramPlaceholder = authProvider === 'telegram' && (!currentName || /^admin$/i.test(currentName))
+
+      if (isTelegramPlaceholder) {
+        const { error: profileUpdateError } = await admin
+          .from('profiles')
+          .update({ full_name: displayName })
+          .eq('id', profileId)
+        if (profileUpdateError) throw profileUpdateError
+      }
     }
 
     const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
