@@ -53,7 +53,7 @@ export default function TelegramLoginButton() {
   if (pathname !== '/register' || !target) return null
 
   const openTelegram = (event: MouseEvent<HTMLAnchorElement>) => {
-    const webApp = window.Telegram?.WebApp as typeof window.Telegram.WebApp & TelegramWebAppWithOpenLink
+    const webApp = window.Telegram?.WebApp as unknown as TelegramWebAppWithOpenLink | undefined
     const openTelegramLink = webApp?.openTelegramLink
 
     if (typeof openTelegramLink === 'function') {
