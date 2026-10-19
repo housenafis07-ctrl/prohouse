@@ -4,8 +4,6 @@ import { useEffect } from 'react'
 import { useI18n } from './I18nProvider'
 
 type Pair = [string, string]
-type OTPCredential = Credential & { code?: string }
-type OTPOptions = CredentialRequestOptions & { otp: { transport: ['sms'] }; signal?: AbortSignal }
 
 const PAIRS: Pair[] = [
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'], ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
@@ -20,7 +18,7 @@ const PAIRS: Pair[] = [
   ['Jismoniy shaxs', 'Физическое лицо'], ['Hamkor', 'Партнёр'], ['Hamkor turi', 'Тип партнёра'],
   ['O‘zini o‘zi band qilgan — O‘BQ', 'Самозанятый — O‘BQ'], ['Yakka tartibdagi tadbirkor — YaTT', 'Индивидуальный предприниматель — ИП'],
   ['Mas’uliyati cheklangan jamiyat — MChJ', 'Общество с ограниченной ответственностью — ООО'], ['Tashkilot nomi', 'Название организации'],
-  ['Rahbar F.I.O.', 'Ф.И.О. руководителя'], ['Bank rekvizitlari', 'Банковские реквизitlari'], ['Bank nomi', 'Название банка'], ['Hisob raqami', 'Номер счёта'],
+  ['Rahbar F.I.O.', 'Ф.И.О. руководителя'], ['Bank rekvizitlari', 'Банковские реквизиты'], ['Bank nomi', 'Название банка'], ['Hisob raqami', 'Номер счёта'],
   ['Saqlanmoqda...', 'Сохранение...'], ['Ro‘yxatdan o‘tish', 'Зарегистрироваться'],
   ['Ommaviy oferta yuklanmadi. Sahifani yangilang va qayta urinib ko‘ring.', 'Публичная оферта не загружена. Обновите страницу и попробуйте снова.'],
   ['Avval telefon raqamini tasdiqlang.', 'Сначала подтвердите номер телефона.'], ['Sessiya topilmadi. Qayta kirib ko‘ring.', 'Сессия не найдена. Войдите снова.'],
@@ -48,8 +46,7 @@ export default function AuthLanguageFix() {
     if (path !== '/register' && path !== '/realtors/cabinet') return
 
     let frame = 0
-    let otpController: AbortController | null = null
-    let otpStarted = false
+    let lastNativeOtp = ''
 
     const findOtpInputs = () => {
       const smsInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input')).filter((input) => {
@@ -81,40 +78,26 @@ export default function AuthLanguageFix() {
 
     const applyOtpToSixInputs = (otp: string) => {
       const code = otp.replace(/\D/g, '').slice(0, 6)
-      if (!code) return
+      if (code.length !== 6) return
       const inputs = findOtpInputs().slice(0, 6)
-      if (!inputs.length) return
+      if (inputs.length < 6) return
 
       inputs.forEach((input, index) => {
         if (index === 0) makeOtpAutofillEligible(input)
-        writeValue(input, code[index] || '')
+        writeValue(input, code[index])
       })
 
-      inputs[Math.min(code.length - 1, inputs.length - 1)]?.focus()
+      lastNativeOtp = code
+      inputs[5]?.focus()
     }
 
-    const startNativeWebOtp = async () => {
-      if (otpStarted) return
-      if (!('OTPCredential' in window) || !navigator.credentials?.get) return
+    const syncNativeAutofill = () => {
+      const inputs = findOtpInputs().slice(0, 6)
+      if (inputs.length < 6) return
 
-      const inputs = findOtpInputs()
-      if (!inputs.length) return
-
-      makeOtpAutofillEligible(inputs[0])
-      otpController?.abort()
-      otpController = new AbortController()
-      otpStarted = true
-
-      try {
-        const credential = await navigator.credentials.get({
-          otp: { transport: ['sms'] },
-          signal: otpController.signal,
-        } as OTPOptions) as OTPCredential | null
-
-        if (credential?.code) applyOtpToSixInputs(credential.code)
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        console.debug('[otp-autofill] WebOTP unavailable', error)
+      const firstValue = inputs[0].value.replace(/\D/g, '').slice(0, 6)
+      if (firstValue.length === 6 && firstValue !== lastNativeOtp) {
+        applyOtpToSixInputs(firstValue)
       }
     }
 
@@ -134,10 +117,7 @@ export default function AuthLanguageFix() {
       })
 
       const inputs = findOtpInputs()
-      if (inputs.length) {
-        makeOtpAutofillEligible(inputs[0])
-        void startNativeWebOtp()
-      }
+      if (inputs.length) makeOtpAutofillEligible(inputs[0])
     }
 
     apply()
@@ -150,9 +130,11 @@ export default function AuthLanguageFix() {
     })
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
+    const nativeAutofillPoll = window.setInterval(syncNativeAutofill, 50)
+
     return () => {
       observer.disconnect()
-      otpController?.abort()
+      window.clearInterval(nativeAutofillPoll)
       if (frame) window.cancelAnimationFrame(frame)
     }
   }, [lang])
