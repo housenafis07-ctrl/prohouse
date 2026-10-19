@@ -24,9 +24,6 @@ export async function POST(request: NextRequest) {
     const sessionClient = await createClient()
     const { data: { user: currentUser } } = await sessionClient.auth.getUser()
 
-    // If the Telegram identity is already linked, it must always resolve to
-    // that same RoyalHouse profile. Never silently switch an authenticated user
-    // into another profile.
     if (existingLink?.profile_id && currentUser?.id && existingLink.profile_id !== currentUser.id) {
       return NextResponse.json({ error: 'TELEGRAM_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
     }
@@ -82,8 +79,6 @@ export async function POST(request: NextRequest) {
       if (profileUpdateError) throw profileUpdateError
     }
 
-    // One Telegram identity maps to exactly one RoyalHouse profile. When the
-    // current session is already that profile, keep the existing session.
     const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
       profile_id: profileId,
       telegram_user_id: telegramUserId,
@@ -93,23 +88,38 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'profile_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    // No existing browser session means this Telegram identity needs a login
-    // session. If the current session already belongs to profileId, do not
-    // replace it with another credential.
+    let session = null
     if (currentUser?.id !== profileId) {
-      const { error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
+      let { data: signInData, error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
+
+      // Telegram accounts created by an earlier deployment may have been
+      // created with a previous auth secret. Rotate that deterministic password
+      // once and retry, keeping the same RoyalHouse profile.
+      if (signInError) {
+        const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
+        if (passwordUpdateError) throw signInError
+        const retry = await sessionClient.auth.signInWithPassword({ email, password })
+        signInData = retry.data
+        signInError = retry.error
+      }
+
       if (signInError) throw signInError
+      session = signInData.session
     }
 
     return NextResponse.json({
       ok: true,
+      session: session ? {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      } : null,
       profile: {
         id: profileId,
         fullName: displayName,
         phone: profile?.phone || null,
         hasPhone: Boolean(profile?.phone),
       },
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     console.error('[Telegram auth] failed', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED' }, { status: 500 })
