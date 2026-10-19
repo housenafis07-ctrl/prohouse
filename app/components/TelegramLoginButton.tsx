@@ -59,10 +59,10 @@ export default function TelegramLoginButton() {
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-5 py-3.5 font-bold text-white transition hover:bg-sky-700"
       >
         <span aria-hidden="true">✈️</span>
-        Telegram orqali kirish
+        Telegram orqali davom etish
       </a>
       <p className="mt-2 text-center text-xs text-sky-700/70">
-        Telegram ichida RoyalHouse avtomatik ochiladi.
+        Telegram ichida RoyalHouse avtomatik ochiladi va profilga kiritadi.
       </p>
     </div>,
     target,
