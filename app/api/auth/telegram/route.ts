@@ -52,9 +52,22 @@ export async function POST(request: NextRequest) {
       if (createdUser?.user?.id) {
         profileId = createdUser.user.id
       } else {
-        const { data: foundUser, error: foundUserError } = await admin.auth.admin.getUserByEmail(email)
-        if (foundUserError) throw foundUserError
-        profileId = foundUser.user?.id || null
+        // Supabase's GoTrueAdminApi does not expose getUserByEmail in the JS client.
+        // Resolve an existing deterministic Telegram account through the admin user list.
+        // This path is only reached when createUser reports that the account already exists.
+        let page = 1
+        const perPage = 1000
+        while (!profileId) {
+          const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
+          if (usersError) throw usersError
+          const foundUser = usersPage.users.find((user) => user.email?.toLowerCase() === email.toLowerCase())
+          if (foundUser?.id) {
+            profileId = foundUser.id
+            break
+          }
+          if (usersPage.users.length < perPage) break
+          page += 1
+        }
       }
     }
 
