@@ -6,6 +6,10 @@ import { usePathname } from 'next/navigation'
 
 const TELEGRAM_MAIN_APP_URL = 'https://t.me/RoyalHouseUz_bot?startapp=login'
 
+type TelegramWebAppWithOpenLink = {
+  openTelegramLink?: (url: string) => void
+}
+
 export default function TelegramLoginButton() {
   const pathname = usePathname()
   const [target, setTarget] = useState<HTMLElement | null>(null)
@@ -49,10 +53,12 @@ export default function TelegramLoginButton() {
   if (pathname !== '/register' || !target) return null
 
   const openTelegram = (event: MouseEvent<HTMLAnchorElement>) => {
-    const webApp = window.Telegram?.WebApp
-    if (webApp?.openTelegramLink) {
+    const webApp = window.Telegram?.WebApp as typeof window.Telegram.WebApp & TelegramWebAppWithOpenLink
+    const openTelegramLink = webApp?.openTelegramLink
+
+    if (typeof openTelegramLink === 'function') {
       event.preventDefault()
-      webApp.openTelegramLink(TELEGRAM_MAIN_APP_URL)
+      openTelegramLink.call(webApp, TELEGRAM_MAIN_APP_URL)
     }
   }
 
