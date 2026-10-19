@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 type TelegramWebApp = {
   initData: string
@@ -18,7 +18,6 @@ declare global {
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const started = useRef(false)
   const [active, setActive] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -43,7 +42,10 @@ export default function TelegramMiniAppAuth() {
         })
         if (!response.ok) throw new Error('Telegram authentication failed')
         if (cancelled) return
-        const next = searchParams.get('next')
+
+        // Read the redirect target only in the browser. This keeps the
+        // global client component safe during Next.js prerendering.
+        const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
         router.replace(target || '/')
       } catch (error) {
@@ -83,7 +85,7 @@ export default function TelegramMiniAppAuth() {
       cancelled = true
       script.onload = null
     }
-  }, [pathname, router, searchParams])
+  }, [pathname, router])
 
   if (!active || failed) return null
 
