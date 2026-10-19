@@ -59,7 +59,8 @@ export default function OtpSixDigitInput({ value, disabled, onChange, onComplete
         autoCorrect="off"
         spellCheck={false}
         maxLength={6}
-        onChange={e => apply(e.target.value)}
+        onInput={e => apply(e.currentTarget.value)}
+        onChange={e => apply(e.currentTarget.value)}
         onPaste={e => {
           e.preventDefault()
           apply(e.clipboardData.getData('text'))
