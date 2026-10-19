@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
       if (createdUser?.user?.id) {
         profileId = createdUser.user.id
       } else {
-        const { data: foundUser, error: foundUserError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        const { data: foundUser, error: foundUserError } = await admin.auth.admin.getUserByEmail(email)
         if (foundUserError) throw foundUserError
-        profileId = foundUser.users.find(u => u.email?.toLowerCase() === email.toLowerCase())?.id || null
+        profileId = foundUser.user?.id || null
       }
     }
 
@@ -92,9 +92,6 @@ export async function POST(request: NextRequest) {
     if (currentUser?.id !== profileId) {
       let { data: signInData, error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
 
-      // Telegram accounts created by an earlier deployment may have been
-      // created with a previous auth secret. Rotate that deterministic password
-      // once and retry, keeping the same RoyalHouse profile.
       if (signInError) {
         const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
         if (passwordUpdateError) throw signInError
