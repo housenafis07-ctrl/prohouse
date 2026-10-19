@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
@@ -15,23 +16,31 @@ declare global {
   }
 }
 
+/**
+ * Authenticate the Telegram Mini App without ever blocking the UI.
+ * The server validates Telegram initData and returns a Supabase session;
+ * the browser must explicitly hydrate its Supabase client with that session.
+ */
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
-  const pathname = usePathname()
   const started = useRef(false)
-  const [active, setActive] = useState(false)
-  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (started.current) return
     started.current = true
 
     let cancelled = false
+    let timer: number | undefined
+
     const authenticate = async (webApp: TelegramWebApp) => {
-      if (!webApp.initData) return
-      setActive(true)
+      if (cancelled || !webApp.initData) return
+
+      // Never wait for auth before releasing the Telegram Mini App UI.
       webApp.ready()
       webApp.expand()
+
+      const controller = new AbortController()
+      timer = window.setTimeout(() => controller.abort(), 7000)
 
       try {
         const response = await fetch('/api/auth/telegram', {
@@ -39,38 +48,66 @@ export default function TelegramMiniAppAuth() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ initData: webApp.initData }),
           credentials: 'include',
+          cache: 'no-store',
+          signal: controller.signal,
         })
-        if (!response.ok) throw new Error('Telegram authentication failed')
+
+        const data = await response.json().catch(() => null)
+        if (cancelled || !response.ok) {
+          console.warn('[telegram-miniapp-auth] server auth failed', data?.error || response.status)
+          return
+        }
+
+        if (!data?.session?.access_token || !data?.session?.refresh_token) {
+          console.warn('[telegram-miniapp-auth] server returned no session')
+          return
+        }
+
+        // Critical: the API runs on the server. Its Supabase session does not
+        // automatically become the browser's session. Hydrate the exact same
+        // browser client used by /account and /listings/new.
+        const supabase = createClient()
+        const { error } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+        if (error) {
+          console.error('[telegram-miniapp-auth] setSession failed', error)
+          return
+        }
+
         if (cancelled) return
-
-        // Read the redirect target only in the browser. This keeps the
-        // global client component safe during Next.js prerendering.
-        const next = new URLSearchParams(window.location.search).get('next')
-        const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
-        router.replace(target || '/')
+        router.refresh()
       } catch (error) {
-        console.error('[telegram-miniapp-auth]', error)
-        if (!cancelled) setFailed(true)
+        // Authentication failure must never freeze or redirect the Mini App.
+        console.warn('[telegram-miniapp-auth] background authentication skipped', error)
+      } finally {
+        if (timer) window.clearTimeout(timer)
       }
     }
 
-    const tryStart = () => {
+    const start = () => {
+      if (cancelled) return true
       const webApp = window.Telegram?.WebApp
-      if (webApp?.initData) {
-        void authenticate(webApp)
-        return true
-      }
-      return false
+      if (!webApp?.initData) return false
+      void authenticate(webApp)
+      return true
     }
 
-    if (tryStart()) return () => { cancelled = true }
+    if (start()) {
+      return () => {
+        cancelled = true
+        if (timer) window.clearTimeout(timer)
+      }
+    }
 
     const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
     if (existing) {
-      existing.addEventListener('load', tryStart, { once: true })
+      existing.addEventListener('load', start, { once: true })
       return () => {
         cancelled = true
-        existing.removeEventListener('load', tryStart)
+        if (timer) window.clearTimeout(timer)
+        existing.removeEventListener('load', start)
       }
     }
 
@@ -78,24 +115,15 @@ export default function TelegramMiniAppAuth() {
     script.src = 'https://telegram.org/js/telegram-web-app.js'
     script.async = true
     script.dataset.telegramWebApp = 'true'
-    script.onload = tryStart
+    script.onload = start
     document.head.appendChild(script)
 
     return () => {
       cancelled = true
+      if (timer) window.clearTimeout(timer)
       script.onload = null
     }
-  }, [pathname, router])
+  }, [router])
 
-  if (!active || failed) return null
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
-        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
-        <p className="text-lg font-extrabold text-slate-900">Royalhouse</p>
-        <p className="mt-1 text-sm text-slate-500">Telegram orqali avtomatik kirilmoqda...</p>
-      </div>
-    </div>
-  )
+  return null
 }
