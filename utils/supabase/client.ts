@@ -8,7 +8,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 // browser auth lock and leave the Mini App spinner waiting indefinitely.
 let browserClient: ReturnType<typeof createBrowserClient> | undefined;
 
-export const createClient = () => {
+export const createClient = (): any => {
   if (!browserClient) {
     browserClient = createBrowserClient(supabaseUrl!, supabaseKey!);
   }
