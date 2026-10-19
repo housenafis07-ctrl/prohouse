@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/components/I18nProvider'
 import AppIcon from '@/app/components/AppIcon'
+import { createClient } from '@/utils/supabase/client'
 
 export default function NewListingPage() {
   const { tx } = useI18n()
@@ -16,22 +17,31 @@ export default function NewListingPage() {
 
   useEffect(() => {
     let mounted = true
-    fetch('/api/account/profile', { credentials: 'include' })
-      .then(async response => {
-        if (!response.ok) throw new Error('AUTH_REQUIRED')
-        const data = await response.json()
-        if (!mounted) return
-        setFullName(data.profile?.full_name || '')
-        const currentPhone = data.profile?.phone || ''
+    const load = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        if (mounted) {
+          setError(tx('Avval Telegram yoki telefon orqali tizimga kiring.','Сначала войдите через Telegram или по номеру телефона.'))
+          setLoading(false)
+        }
+        return
+      }
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('full_name,phone').eq('id', user.id).maybeSingle()
+      if (!mounted) return
+      if (profileError || !profile) {
+        setError(tx('Profil ma’lumotlarini olishda xatolik.','Не удалось получить данные профиля.'))
+      } else {
+        setFullName(profile.full_name || '')
+        const currentPhone = profile.phone || ''
         if (currentPhone) {
           setPhone(currentPhone)
           setPhoneSaved(true)
         }
-      })
-      .catch(() => {
-        if (mounted) setError(tx('Avval Telegram yoki telefon orqali tizimga kiring.','Сначала войдите через Telegram или по номеру телефона.'))
-      })
-      .finally(() => mounted && setLoading(false))
+      }
+      setLoading(false)
+    }
+    void load()
     return () => { mounted = false }
   }, [tx])
 
