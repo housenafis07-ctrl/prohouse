@@ -24,6 +24,8 @@ import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish"
 import RoyalhouseMobileAISearch from "./components/RoyalhouseMobileAISearch";
 import RoyalhousePwaHomeSearchFix from "./components/RoyalhousePwaHomeSearchFix";
 import RoyalhousePwaAiSearchStyle from "./components/RoyalhousePwaAiSearchStyle";
+import TelegramMiniAppAuth from "./components/TelegramMiniAppAuth";
+import TelegramLoginButton from "./components/TelegramLoginButton";
 
 export const metadata: Metadata = {
   title: "Royalhouse — Ko‘chmas mulk platformasi",
@@ -36,6 +38,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="uz">
       <body>
         <I18nProvider>
+          <TelegramMiniAppAuth />
           <RoyalhouseBrandFix />
           <RoyalhouseFooterFix />
           <RoyalhouseContactFooter />
@@ -59,6 +62,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <RoyalhouseMobileAISearch />
           <RoyalhousePwaHomeSearchFix />
           <RoyalhousePwaAiSearchStyle />
+          <TelegramLoginButton />
           {children}
         </I18nProvider>
       </body>
