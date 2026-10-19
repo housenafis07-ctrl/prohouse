@@ -82,7 +82,18 @@ export default function TelegramMiniAppAuth() {
 
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
-        router.replace(target || '/')
+
+        // /telegram is itself the Main Mini App landing page. After successful
+        // authentication there is nothing to navigate to: replacing /telegram
+        // with /telegram leaves the loading overlay mounted forever. Only
+        // navigate when authentication actually requires a different route.
+        if (target !== pathname) {
+          setActive(false)
+          router.replace(target || '/')
+          return
+        }
+
+        setActive(false)
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
         if (!cancelled) {
