@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
@@ -16,8 +17,9 @@ declare global {
 }
 
 /**
- * Telegram Main Mini App authentication is a background enhancement.
- * It must never gate or visually block the RoyalHouse UI.
+ * Authenticate the Telegram Mini App without ever blocking the UI.
+ * The server validates Telegram initData and returns a Supabase session;
+ * the browser must explicitly hydrate its Supabase client with that session.
  */
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
@@ -33,7 +35,7 @@ export default function TelegramMiniAppAuth() {
     const authenticate = async (webApp: TelegramWebApp) => {
       if (cancelled || !webApp.initData) return
 
-      // Release Telegram UI immediately. Never wait for our server auth here.
+      // Never wait for auth before releasing the Telegram Mini App UI.
       webApp.ready()
       webApp.expand()
 
@@ -50,9 +52,31 @@ export default function TelegramMiniAppAuth() {
           signal: controller.signal,
         })
 
-        if (!response.ok || cancelled) return
+        const data = await response.json().catch(() => null)
+        if (cancelled || !response.ok) {
+          console.warn('[telegram-miniapp-auth] server auth failed', data?.error || response.status)
+          return
+        }
 
-        // Preserve the page the user opened. Refresh only after background auth succeeds.
+        if (!data?.session?.access_token || !data?.session?.refresh_token) {
+          console.warn('[telegram-miniapp-auth] server returned no session')
+          return
+        }
+
+        // Critical: the API runs on the server. Its Supabase session does not
+        // automatically become the browser's session. Hydrate the exact same
+        // browser client used by /account and /listings/new.
+        const supabase = createClient()
+        const { error } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+        if (error) {
+          console.error('[telegram-miniapp-auth] setSession failed', error)
+          return
+        }
+
+        if (cancelled) return
         router.refresh()
       } catch (error) {
         // Authentication failure must never freeze or redirect the Mini App.
