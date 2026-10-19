@@ -32,8 +32,12 @@ export async function POST(request: NextRequest) {
     const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
     const email = telegramAuthEmail(tgUser.id)
     const password = telegramAuthPassword(tgUser.id)
+    let session = null
 
     if (!profileId) {
+      // Fast path: create the deterministic Telegram auth user. If it already
+      // exists, sign in directly. We only scan auth.users as a legacy recovery
+      // fallback, not on every Mini App launch.
       const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
         email,
         password,
@@ -47,27 +51,32 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      if (createUserError && !/already registered|already exists/i.test(createUserError.message)) throw createUserError
-
-      if (createdUser?.user?.id) {
+      if (!createUserError && createdUser?.user?.id) {
         profileId = createdUser.user.id
-      } else {
-        // Supabase's GoTrueAdminApi does not expose getUserByEmail in the JS client.
-        // Resolve an existing deterministic Telegram account through the admin user list.
-        // This path is only reached when createUser reports that the account already exists.
-        let page = 1
-        const perPage = 1000
-        while (!profileId) {
-          const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
-          if (usersError) throw usersError
-          const foundUser = usersPage.users.find((user) => user.email?.toLowerCase() === email.toLowerCase())
-          if (foundUser?.id) {
-            profileId = foundUser.id
-            break
+      } else if (createUserError && /already registered|already exists/i.test(createUserError.message)) {
+        const signIn = await sessionClient.auth.signInWithPassword({ email, password })
+        if (!signIn.error && signIn.data.user?.id) {
+          profileId = signIn.data.user.id
+          session = signIn.data.session
+        } else {
+          // Legacy account recovery: only now do the expensive admin lookup.
+          let page = 1
+          const perPage = 1000
+          while (!profileId) {
+            const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
+            if (usersError) throw usersError
+            const foundUser = usersPage.users.find((user) => user.email?.toLowerCase() === email.toLowerCase())
+            if (foundUser?.id) {
+              profileId = foundUser.id
+              break
+            }
+            if (usersPage.users.length < perPage) break
+            page += 1
           }
-          if (usersPage.users.length < perPage) break
-          page += 1
+          if (!profileId) throw signIn.error || new Error('TELEGRAM_USER_NOT_FOUND')
         }
+      } else if (createUserError) {
+        throw createUserError
       }
     }
 
@@ -101,19 +110,18 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'profile_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    let session = null
-    if (currentUser?.id !== profileId) {
+    if (currentUser?.id !== profileId && !session) {
       let { data: signInData, error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
 
       if (signInError) {
         const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
-        if (passwordUpdateError) throw signInError
+        if (passwordUpdateError) throw passwordUpdateError
         const retry = await sessionClient.auth.signInWithPassword({ email, password })
         signInData = retry.data
         signInError = retry.error
       }
 
-      if (signInError) throw signInError
+      if (signInError || !signInData.session) throw signInError || new Error('TELEGRAM_SESSION_CREATE_FAILED')
       session = signInData.session
     }
 
