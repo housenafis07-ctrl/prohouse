@@ -1,24 +1,43 @@
 'use client'
 
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 
 const TELEGRAM_MAIN_APP_URL = 'https://t.me/RoyalHouseUz_bot?startapp=login'
 
-type TelegramWebAppWithOpenLink = {
-  openTelegramLink?: (url: string) => void
-}
-
 export default function TelegramLoginButton() {
   const pathname = usePathname()
   const [target, setTarget] = useState<HTMLElement | null>(null)
+  const [insideTelegram, setInsideTelegram] = useState(false)
 
   useEffect(() => {
     if (pathname !== '/register') return
 
+    let cancelled = false
+    let interval: number | undefined
     let mounted = true
+
+    const detectTelegram = () => {
+      if (window.Telegram?.WebApp?.initData) {
+        setInsideTelegram(true)
+        if (interval) window.clearInterval(interval)
+        return true
+      }
+      return false
+    }
+
+    if (!detectTelegram()) {
+      const startedAt = Date.now()
+      interval = window.setInterval(() => {
+        if (detectTelegram() || Date.now() - startedAt >= 3000) {
+          if (interval) window.clearInterval(interval)
+        }
+      }, 100)
+    }
+
     const findTarget = () => {
+      if (cancelled || insideTelegram) return false
       const phoneInput = document.querySelector<HTMLInputElement>('input[autocomplete="tel"]')
       const form = phoneInput?.closest('form')
       if (!form) return false
@@ -36,31 +55,30 @@ export default function TelegramLoginButton() {
       return true
     }
 
-    if (findTarget()) return () => { mounted = false }
+    if (findTarget()) {
+      return () => {
+        cancelled = true
+        mounted = false
+        if (interval) window.clearInterval(interval)
+      }
+    }
 
     const observer = new MutationObserver(() => {
+      if (insideTelegram) return
       if (findTarget()) observer.disconnect()
     })
     observer.observe(document.body, { childList: true, subtree: true })
 
     return () => {
+      cancelled = true
       mounted = false
       observer.disconnect()
+      if (interval) window.clearInterval(interval)
       document.getElementById('royalhouse-telegram-login')?.remove()
     }
-  }, [pathname])
+  }, [pathname, insideTelegram])
 
-  if (pathname !== '/register' || !target) return null
-
-  const openTelegram = (event: MouseEvent<HTMLAnchorElement>) => {
-    const webApp = window.Telegram?.WebApp as unknown as TelegramWebAppWithOpenLink | undefined
-    const openTelegramLink = webApp?.openTelegramLink
-
-    if (typeof openTelegramLink === 'function') {
-      event.preventDefault()
-      openTelegramLink.call(webApp, TELEGRAM_MAIN_APP_URL)
-    }
-  }
+  if (pathname !== '/register' || insideTelegram || !target) return null
 
   return createPortal(
     <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50/70 p-4">
@@ -72,7 +90,6 @@ export default function TelegramLoginButton() {
       </div>
       <a
         href={TELEGRAM_MAIN_APP_URL}
-        onClick={openTelegram}
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-5 py-3.5 font-bold text-white transition hover:bg-sky-700"
       >
         <span aria-hidden="true">✈️</span>
