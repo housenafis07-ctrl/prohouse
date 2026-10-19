@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
+import { listenForSmsOtp, normalizeCode } from '@/app/lib/web-otp'
 
 type AccountType = 'individual' | 'partner'
 type PartnerType = 'self_employed' | 'sole_proprietor' | 'llc'
@@ -69,7 +70,7 @@ export default function RegisterPage() {
 
   async function verifyCode(overrideCode?:string){
     const normalizedPhone=phone.replace(/\s/g,'')
-    const otpCode=(overrideCode ?? code).replace(/\D/g,'').slice(0,6)
+    const otpCode=normalizeCode(overrideCode ?? code)
     if(!sent||otpCode.length<4) return setMessage(t('SMS kodini kiriting.','Введите SMS-код.'))
     if(otpCode.length===6) otpVerifyStartedRef.current=true
     setLoading(true);setMessage('')
@@ -97,10 +98,19 @@ export default function RegisterPage() {
   }
 
   function handleOtpInput(index:number,value:string){
-    const digits=value.replace(/\D/g,'').slice(0,6)
+    const raw=value
+    const current=code.split('')
+    while(current.length<6) current.push('')
+
+    if(!raw){
+      current[index]=''
+      setCode(current.join('').slice(0,6))
+      return
+    }
+
+    const digits=normalizeCode(raw)
     if(!digits) return
 
-    const current=code.split('')
     digits.split('').forEach((digit,offset)=>{
       if(index+offset<6) current[index+offset]=digit
     })
@@ -129,29 +139,26 @@ export default function RegisterPage() {
 
   useEffect(()=>{
     if(!sent || verified) return
-    if(!('OTPCredential' in window)) return
 
-    const controller = new AbortController()
-    const listenForOtp = async()=>{
-      try{
-        const credential = await navigator.credentials.get({
-          otp: { transport: ['sms'] },
-          signal: controller.signal,
-        } as CredentialRequestOptions & { otp: { transport: string[] } }) as (Credential & { code?: string }) | null
-        const otp = credential?.code?.replace(/\D/g,'').slice(0,6)
-        if(!otp) return
-        setCode(otp)
+    const stopListening=listenForSmsOtp({
+      onCode:(otp)=>{
+        const normalized=normalizeCode(otp)
+        if(normalized.length!==6) return
+        setCode(normalized)
+        for(let index=0;index<6;index++){
+          otpInputRefs.current[index]?.dispatchEvent(new Event('input',{bubbles:true}))
+        }
         if(!otpVerifyStartedRef.current){
           otpVerifyStartedRef.current=true
-          await verifyCode(otp)
+          void verifyCode(normalized)
         }
-      }catch(error){
-        if(error instanceof DOMException && error.name === 'AbortError') return
-        console.debug('[otp-autofill] WebOTP unavailable', error)
-      }
-    }
-    void listenForOtp()
-    return()=>controller.abort()
+      },
+      onError:(error)=>{
+        console.debug('[otp-autofill] WebOTP unavailable',error)
+      },
+    })
+
+    return stopListening
   },[sent,verified])
 
   async function finishRegistration(e:FormEvent){
