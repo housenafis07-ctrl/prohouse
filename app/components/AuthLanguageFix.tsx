@@ -20,9 +20,9 @@ const PAIRS: Pair[] = [
   ['Jismoniy shaxs', 'Физическое лицо'], ['Hamkor', 'Партнёр'], ['Hamkor turi', 'Тип партнёра'],
   ['O‘zini o‘zi band qilgan — O‘BQ', 'Самозанятый — O‘BQ'], ['Yakka tartibdagi tadbirkor — YaTT', 'Индивидуальный предприниматель — ИП'],
   ['Mas’uliyati cheklangan jamiyat — MChJ', 'Общество с ограниченной ответственностью — ООО'], ['Tashkilot nomi', 'Название организации'],
-  ['Rahbar F.I.O.', 'Ф.И.О. руководителя'], ['Bank rekvizitlari', 'Банковские реквизиты'], ['Bank nomi', 'Название банка'], ['Hisob raqami', 'Номер счёta'],
+  ['Rahbar F.I.O.', 'Ф.И.О. руководителя'], ['Bank rekvizitlari', 'Банковские реквизitlari'], ['Bank nomi', 'Название банка'], ['Hisob raqami', 'Номер счёта'],
   ['Saqlanmoqda...', 'Сохранение...'], ['Ro‘yxatdan o‘tish', 'Зарегистрироваться'],
-  ['Ommaviy oferta yuklanmadi. Sahifani yangilang va qayta urinib ko‘ring.', 'Публичная оферта не загружan. Обновите страницу va qayta urinib ko‘ring.'],
+  ['Ommaviy oferta yuklanmadi. Sahifani yangilang va qayta urinib ko‘ring.', 'Публичная оферта не загружена. Обновите страницу и попробуйте снова.'],
   ['Avval telefon raqamini tasdiqlang.', 'Сначала подтвердите номер телефона.'], ['Sessiya topilmadi. Qayta kirib ko‘ring.', 'Сессия не найдена. Войдите снова.'],
   ['Foydalanuvchi sessiyasi topilmadi.', 'Сессия пользователя не найдена.'], ['Sessiya ma’lumotlari qaytmadi.', 'Данные сессии не получены.'],
   ['Ro‘yxatdan o‘tishda xatolik', 'Ошибка регистрации'], ['Yopish', 'Закрыть'],
@@ -52,14 +52,13 @@ export default function AuthLanguageFix() {
     let otpStarted = false
 
     const findOtpInputs = () => {
-      const byAutocomplete = Array.from(document.querySelectorAll<HTMLInputElement>('input[autocomplete="one-time-code"]'))
-      if (byAutocomplete.length) return byAutocomplete.slice(0, 6)
-
       const smsInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input')).filter((input) => {
         const label = input.getAttribute('aria-label')?.toLowerCase() || ''
         return label.includes('sms kodi') || label.includes('sms-код')
       })
-      return smsInputs.slice(0, 6)
+      if (smsInputs.length) return smsInputs.slice(0, 6)
+
+      return Array.from(document.querySelectorAll<HTMLInputElement>('input[autocomplete="one-time-code"]')).slice(0, 6)
     }
 
     const makeOtpAutofillEligible = (input: HTMLInputElement) => {
@@ -91,8 +90,7 @@ export default function AuthLanguageFix() {
         writeValue(input, code[index] || '')
       })
 
-      const last = inputs[Math.min(code.length - 1, inputs.length - 1)]
-      last?.focus()
+      inputs[Math.min(code.length - 1, inputs.length - 1)]?.focus()
     }
 
     const startNativeWebOtp = async () => {
@@ -113,8 +111,7 @@ export default function AuthLanguageFix() {
           signal: otpController.signal,
         } as OTPOptions) as OTPCredential | null
 
-        const code = credential?.code
-        if (code) applyOtpToSixInputs(code)
+        if (credential?.code) applyOtpToSixInputs(credential.code)
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
         console.debug('[otp-autofill] WebOTP unavailable', error)
