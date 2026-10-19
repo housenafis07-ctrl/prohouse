@@ -1,19 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 import { telegramAuthEmail, telegramAuthPassword, validateTelegramInitData } from '@/app/lib/telegram-miniapp'
+
+export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null)
     const initData = typeof body?.initData === 'string' ? body.initData : ''
     const validated = validateTelegramInitData(initData)
-    if (!validated) return NextResponse.json({ error: 'INVALID_TELEGRAM_INIT_DATA' }, { status: 401 })
+    if (!validated) {
+      return NextResponse.json({ error: 'INVALID_TELEGRAM_INIT_DATA' }, { status: 401 })
+    }
 
     const { user: tgUser } = validated
     const admin = serviceClient()
     const telegramUserId = String(tgUser.id)
+    const email = telegramAuthEmail(tgUser.id)
+    const password = telegramAuthPassword(tgUser.id)
+    const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
 
+    // Telegram ID is the source of identity. Do not call the browser/session
+    // Supabase client here: this endpoint must work before a RoyalHouse session
+    // exists. The previous implementation performed auth.getUser() first and
+    // could leave the Mini App waiting during Telegram startup.
     const { data: existingLink, error: linkLookupError } = await admin
       .from('telegram_user_links')
       .select('profile_id')
@@ -21,23 +31,10 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    const sessionClient = await createClient()
-    const { data: { user: currentUser } } = await sessionClient.auth.getUser()
-
-    if (existingLink?.profile_id && currentUser?.id && existingLink.profile_id !== currentUser.id) {
-      return NextResponse.json({ error: 'TELEGRAM_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
-    }
-
-    let profileId = existingLink?.profile_id || currentUser?.id || null
-    const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
-    const email = telegramAuthEmail(tgUser.id)
-    const password = telegramAuthPassword(tgUser.id)
-    let session = null
+    let profileId = existingLink?.profile_id || null
+    let session: { access_token: string; refresh_token: string } | null = null
 
     if (!profileId) {
-      // Fast path: create the deterministic Telegram auth user. If it already
-      // exists, sign in directly. We only scan auth.users as a legacy recovery
-      // fallback, not on every Mini App launch.
       const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
         email,
         password,
@@ -54,18 +51,28 @@ export async function POST(request: NextRequest) {
       if (!createUserError && createdUser?.user?.id) {
         profileId = createdUser.user.id
       } else if (createUserError && /already registered|already exists/i.test(createUserError.message)) {
-        const signIn = await sessionClient.auth.signInWithPassword({ email, password })
-        if (!signIn.error && signIn.data.user?.id) {
+        // Existing deterministic Telegram account. Find it without scanning
+        // auth.users on the normal path.
+        const { createClient } = await import('@/utils/supabase/server')
+        const authClient = await createClient()
+        const signIn = await authClient.auth.signInWithPassword({ email, password })
+
+        if (!signIn.error && signIn.data.user?.id && signIn.data.session) {
           profileId = signIn.data.user.id
-          session = signIn.data.session
+          session = {
+            access_token: signIn.data.session.access_token,
+            refresh_token: signIn.data.session.refresh_token,
+          }
         } else {
-          // Legacy account recovery: only now do the expensive admin lookup.
+          // Legacy recovery only. This path is not used for a newly created
+          // Telegram account and is retained for accounts created by earlier
+          // versions of the integration.
           let page = 1
           const perPage = 1000
           while (!profileId) {
             const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
             if (usersError) throw usersError
-            const foundUser = usersPage.users.find((user) => user.email?.toLowerCase() === email.toLowerCase())
+            const foundUser = usersPage.users.find(user => user.email?.toLowerCase() === email.toLowerCase())
             if (foundUser?.id) {
               profileId = foundUser.id
               break
@@ -80,7 +87,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!profileId) return NextResponse.json({ error: 'TELEGRAM_USER_CREATE_FAILED' }, { status: 500 })
+    if (!profileId) {
+      return NextResponse.json({ error: 'TELEGRAM_USER_CREATE_FAILED' }, { status: 500 })
+    }
 
     const { data: profile, error: profileLookupError } = await admin
       .from('profiles')
@@ -97,7 +106,10 @@ export async function POST(request: NextRequest) {
       })
       if (profileInsertError) throw profileInsertError
     } else if (!profile.full_name?.trim()) {
-      const { error: profileUpdateError } = await admin.from('profiles').update({ full_name: displayName }).eq('id', profileId)
+      const { error: profileUpdateError } = await admin
+        .from('profiles')
+        .update({ full_name: displayName })
+        .eq('id', profileId)
       if (profileUpdateError) throw profileUpdateError
     }
 
@@ -110,27 +122,36 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'profile_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    if (currentUser?.id !== profileId && !session) {
-      let { data: signInData, error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
+    // A newly created account still needs a browser session. Existing accounts
+    // may already have received one above; otherwise sign in now and return the
+    // tokens so the Mini App can call auth.setSession() in the browser.
+    if (!session) {
+      const { createClient } = await import('@/utils/supabase/server')
+      const authClient = await createClient()
+      let { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email, password })
 
       if (signInError) {
         const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
         if (passwordUpdateError) throw passwordUpdateError
-        const retry = await sessionClient.auth.signInWithPassword({ email, password })
+
+        const retry = await authClient.auth.signInWithPassword({ email, password })
         signInData = retry.data
         signInError = retry.error
       }
 
-      if (signInError || !signInData.session) throw signInError || new Error('TELEGRAM_SESSION_CREATE_FAILED')
-      session = signInData.session
+      if (signInError || !signInData.session) {
+        throw signInError || new Error('TELEGRAM_SESSION_CREATE_FAILED')
+      }
+
+      session = {
+        access_token: signInData.session.access_token,
+        refresh_token: signInData.session.refresh_token,
+      }
     }
 
     return NextResponse.json({
       ok: true,
-      session: session ? {
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      } : null,
+      session,
       profile: {
         id: profileId,
         fullName: displayName,
@@ -140,6 +161,8 @@ export async function POST(request: NextRequest) {
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     console.error('[Telegram auth] failed', error)
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED' }, { status: 500 })
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED',
+    }, { status: 500 })
   }
 }
