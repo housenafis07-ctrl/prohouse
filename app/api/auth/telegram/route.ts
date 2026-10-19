@@ -21,10 +21,15 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    // If Telegram is opened while a RoyalHouse session already exists, keep
-    // that profile instead of silently creating a second account.
     const sessionClient = await createClient()
     const { data: { user: currentUser } } = await sessionClient.auth.getUser()
+
+    // If the Telegram identity is already linked, it must always resolve to
+    // that same RoyalHouse profile. Never silently switch an authenticated user
+    // into another profile.
+    if (existingLink?.profile_id && currentUser?.id && existingLink.profile_id !== currentUser.id) {
+      return NextResponse.json({ error: 'TELEGRAM_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
+    }
 
     let profileId = existingLink?.profile_id || currentUser?.id || null
     const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
@@ -77,8 +82,8 @@ export async function POST(request: NextRequest) {
       if (profileUpdateError) throw profileUpdateError
     }
 
-    // profile_id is the primary key and telegram_user_id is unique, so this
-    // keeps one Telegram identity attached to one RoyalHouse profile.
+    // One Telegram identity maps to exactly one RoyalHouse profile. When the
+    // current session is already that profile, keep the existing session.
     const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
       profile_id: profileId,
       telegram_user_id: telegramUserId,
@@ -88,12 +93,13 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'profile_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    const { error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
-
-    // If the profile was already authenticated with phone/email, the current
-    // session is already the correct identity. Only sign in with the synthetic
-    // Telegram credential when Telegram owns this profile.
-    if (signInError && currentUser?.id !== profileId) throw signInError
+    // No existing browser session means this Telegram identity needs a login
+    // session. If the current session already belongs to profileId, do not
+    // replace it with another credential.
+    if (currentUser?.id !== profileId) {
+      const { error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
+      if (signInError) throw signInError
+    }
 
     return NextResponse.json({
       ok: true,
