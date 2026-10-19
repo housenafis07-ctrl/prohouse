@@ -10,13 +10,26 @@ type TelegramUpdate = {
   }
 }
 
-async function sendTelegramMessage(chatId: string | number, text: string) {
+async function sendTelegramMessage(chatId: string | number, text: string, includeMiniApp = false) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured')
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'
+  const body: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true,
+  }
+  if (includeMiniApp) {
+    body.reply_markup = {
+      inline_keyboard: [[
+        { text: '🚀 Royalhouse’ni ochish', web_app: { url: siteUrl } },
+      ]],
+    }
+  }
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    body: JSON.stringify(body),
     cache: 'no-store',
   })
   const data = await response.json()
@@ -42,7 +55,11 @@ export async function POST(request: NextRequest) {
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (!payload.startsWith('link_')) {
-        await sendTelegramMessage(chatId, 'Assalomu alaykum! Royalhouse bronlari haqida xabar olish uchun saytdagi Shaxsiy kabinet → Telegram bildirishnomalari bo‘limidan akkauntingizni ulang.')
+        await sendTelegramMessage(
+          chatId,
+          'Assalomu alaykum! Royalhouse’da uy qidiring, e’lon joylang va bronlarni boshqaring. Telegram orqali avtomatik kirish mumkin — SMS kod kerak emas.',
+          true,
+        )
         return NextResponse.json({ ok: true })
       }
       if (!from?.id) {
@@ -81,7 +98,7 @@ export async function POST(request: NextRequest) {
 
       const { error: usedError } = await admin.from('telegram_link_tokens').update({ used_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('used_at', null)
       if (usedError) throw usedError
-      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi dacha bronlari, avans to‘lovlari va bekor qilishlar haqida shu botdan xabar olasiz.')
+      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi Royalhouse’ni shu yerdan bir bosishda ochishingiz mumkin.', true)
       return NextResponse.json({ ok: true })
     }
 
@@ -98,7 +115,7 @@ export async function POST(request: NextRequest) {
       console.error('telegram support insert failed', error)
       return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
-    await sendTelegramMessage(chatId, 'Xabaringiz Royalhouse qo‘llab-quvvatlash xizmatiga yuborildi.')
+    await sendTelegramMessage(chatId, 'Xabaringiz Royalhouse qo‘llab-quvvatlash xizmatiga yuborildi.', true)
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('telegram webhook failed', error)
