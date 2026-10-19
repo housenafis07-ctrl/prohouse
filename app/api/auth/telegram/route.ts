@@ -21,7 +21,12 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    let profileId = existingLink?.profile_id || null
+    // If Telegram is opened while a RoyalHouse session already exists, keep
+    // that profile instead of silently creating a second account.
+    const sessionClient = await createClient()
+    const { data: { user: currentUser } } = await sessionClient.auth.getUser()
+
+    let profileId = existingLink?.profile_id || currentUser?.id || null
     const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
     const email = telegramAuthEmail(tgUser.id)
     const password = telegramAuthPassword(tgUser.id)
@@ -45,13 +50,9 @@ export async function POST(request: NextRequest) {
       if (createdUser?.user?.id) {
         profileId = createdUser.user.id
       } else {
-        const { data: foundProfile, error: profileLookupError } = await admin
-          .from('profiles')
-          .select('id')
-          .eq('id', (await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })).data.users.find(u => u.email === email)?.id || '')
-          .maybeSingle()
-        if (profileLookupError) throw profileLookupError
-        profileId = foundProfile?.id || null
+        const { data: foundUser, error: foundUserError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        if (foundUserError) throw foundUserError
+        profileId = foundUser.users.find(u => u.email?.toLowerCase() === email.toLowerCase())?.id || null
       }
     }
 
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
       if (profileUpdateError) throw profileUpdateError
     }
 
+    // profile_id is the primary key and telegram_user_id is unique, so this
+    // keeps one Telegram identity attached to one RoyalHouse profile.
     const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
       profile_id: profileId,
       telegram_user_id: telegramUserId,
@@ -85,9 +88,12 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'profile_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    const supabase = await createClient()
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) throw signInError
+    const { error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
+
+    // If the profile was already authenticated with phone/email, the current
+    // session is already the correct identity. Only sign in with the synthetic
+    // Telegram credential when Telegram owns this profile.
+    if (signInError && currentUser?.id !== profileId) throw signInError
 
     return NextResponse.json({
       ok: true,
