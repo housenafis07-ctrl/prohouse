@@ -4,15 +4,13 @@ import { useEffect } from 'react'
 import { useI18n } from './I18nProvider'
 
 type Pair = [string, string]
-type OTPCredential = Credential & { code?: string }
-type OTPGetOptions = CredentialRequestOptions & { otp: { transport: ['sms'] }; signal?: AbortSignal }
 
 const PAIRS: Pair[] = [
   ['Royalhouse’ga kirish', 'Вход в Royalhouse'], ['Royalhouse’ga kirish', 'Вход в Royalhouse'],
   ['Profilni to‘ldirish', 'Заполнить профиль'], ['Telefon raqamingiz orqali davom eting.', 'Продолжите с помощью номера телефона.'],
   ['Telefon raqamingiz tasdiqlandi.', 'Номер телефона подтверждён.'], ['Telefon raqami', 'Номер телефона'],
   ['SMS yuborish', 'Отправить SMS'], ['Qayta yuborish', 'Отправить повторно'], ['SMS kodi', 'SMS-код'], ['Kirish', 'Войти'],
-  ['Davom etish orqali siz ', 'Продолжая, вы '], ['Ommaviy Oferta Shartlariga', 'с публичной офертой'], [' rozilik bildirasiz.', ' соглашаетесь.'],
+  ['Davom etish orqali siz ', 'Продолжая, вы '], ['Ommaviy Oferta Shartlariga', 'условия Публичной оферты'], [' rozilik bildirasiz.', ' соглашаетесь.'],
   ['Telefon raqamini to‘liq kiriting.', 'Введите полный номер телефона.'], ['SMS kodi yuborildi.', 'SMS-код отправлен.'],
   ['SMS yuborilmadi', 'Не удалось отправить SMS'], ['SMS yuborishda xatolik', 'Ошибка при отправке SMS'], ['SMS kodini kiriting.', 'Введите SMS-код.'],
   ['Kod noto‘g‘ri', 'Неверный код'], ['Tasdiqlashda xatolik', 'Ошибка подтверждения'],
@@ -48,7 +46,6 @@ export default function AuthLanguageFix() {
     if (path !== '/register' && path !== '/realtors/cabinet') return
 
     let frame = 0
-    let otpAbort: AbortController | null = null
 
     const findOtpInput = () => {
       const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
@@ -63,8 +60,9 @@ export default function AuthLanguageFix() {
       input.setAttribute('autocomplete', 'one-time-code')
       input.setAttribute('name', 'one-time-code')
       input.setAttribute('aria-label', 'SMS kodi')
-      // Keep the six-cell UI visible, but make the real input an eligible native autofill target.
-      // opacity:0 can cause Android Chrome to skip the field for native OTP insertion.
+      input.setAttribute('enterkeyhint', 'done')
+      // Android Chrome can skip a fully transparent input for native OTP autofill.
+      // Keep the six-cell visual UI, but leave the real input technically visible to the browser.
       input.style.opacity = '0.01'
       input.style.color = 'transparent'
       input.style.caretColor = 'transparent'
@@ -72,31 +70,6 @@ export default function AuthLanguageFix() {
       input.style.borderColor = 'transparent'
       input.style.outline = 'none'
       input.style.webkitTextFillColor = 'transparent'
-    }
-
-    const startWebOtp = async () => {
-      if (!('OTPCredential' in window) || !navigator.credentials?.get) return
-      const input = findOtpInput()
-      if (!input) return
-      makeOtpAutofillEligible(input)
-      otpAbort?.abort()
-      otpAbort = new AbortController()
-      try {
-        const credential = await navigator.credentials.get({
-          otp: { transport: ['sms'] },
-          signal: otpAbort.signal,
-        } as OTPGetOptions) as OTPCredential | null
-        const code = credential?.code?.replace(/\D/g, '').slice(0, 6)
-        if (!code) return
-        const currentInput = findOtpInput()
-        if (!currentInput) return
-        makeOtpAutofillEligible(currentInput)
-        currentInput.value = code
-        currentInput.dispatchEvent(new Event('input', { bubbles: true }))
-        currentInput.dispatchEvent(new Event('change', { bubbles: true }))
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-      }
     }
 
     const apply = () => {
@@ -113,11 +86,9 @@ export default function AuthLanguageFix() {
         const next = translateText(current, lang)
         if (next !== current) text.nodeValue = next
       })
+
       const otpInput = findOtpInput()
-      if (otpInput) {
-        makeOtpAutofillEligible(otpInput)
-        void startWebOtp()
-      }
+      if (otpInput) makeOtpAutofillEligible(otpInput)
     }
 
     const schedule = () => {
@@ -130,7 +101,6 @@ export default function AuthLanguageFix() {
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
     return () => {
       observer.disconnect()
-      otpAbort?.abort()
       if (frame) window.cancelAnimationFrame(frame)
     }
   }, [lang])
