@@ -22,29 +22,37 @@ export async function ensureTelegramSession() {
   if (!webApp?.initData) return false
 
   const startParam = webApp.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('tgWebAppStartParam') || ''
-  const response = await fetch('/api/auth/telegram', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ initData: webApp.initData, startParam }),
-    credentials: 'include',
-    cache: 'no-store',
-  })
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 15000)
 
-  const data = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(data?.error || 'Telegram authentication failed')
-
-  if (data?.session?.access_token && data?.session?.refresh_token) {
-    const supabase = createClient()
-    const { error } = await supabase.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
+  try {
+    const response = await fetch('/api/auth/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: webApp.initData, startParam }),
+      credentials: 'include',
+      cache: 'no-store',
+      signal: controller.signal,
     })
-    if (error) throw error
-  }
 
-  webApp.ready()
-  webApp.expand()
-  return true
+    const data = await response.json().catch(() => null)
+    if (!response.ok) throw new Error(data?.error || 'Telegram authentication failed')
+
+    if (data?.session?.access_token && data?.session?.refresh_token) {
+      const supabase = createClient()
+      const { error } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      })
+      if (error) throw error
+    }
+
+    webApp.ready()
+    webApp.expand()
+    return true
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 export default function TelegramMiniAppAuth() {
@@ -68,8 +76,9 @@ export default function TelegramMiniAppAuth() {
       setActive(true)
 
       try {
-        await ensureTelegramSession()
+        const authenticated = await ensureTelegramSession()
         if (cancelled) return
+        if (!authenticated) throw new Error('Telegram initData is missing')
 
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
