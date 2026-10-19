@@ -8,6 +8,7 @@ type TelegramWebApp = {
   initDataUnsafe?: { start_param?: string }
   ready: () => void
   expand: () => void
+  openTelegramLink?: (url: string) => void
 }
 
 declare global {
@@ -16,8 +17,9 @@ declare global {
   }
 }
 
-async function authenticateTelegram(webApp: TelegramWebApp) {
-  if (!webApp.initData) return false
+export async function ensureTelegramSession() {
+  const webApp = window.Telegram?.WebApp
+  if (!webApp?.initData) return false
 
   const startParam = webApp.initDataUnsafe?.start_param || new URLSearchParams(window.location.search).get('tgWebAppStartParam') || ''
   const response = await fetch('/api/auth/telegram', {
@@ -33,6 +35,8 @@ async function authenticateTelegram(webApp: TelegramWebApp) {
     throw new Error(data?.error || 'Telegram authentication failed')
   }
 
+  webApp.ready()
+  webApp.expand()
   return true
 }
 
@@ -51,14 +55,13 @@ export default function TelegramMiniAppAuth() {
     let timer: number | undefined
     const startedAt = Date.now()
 
-    const finish = async (webApp: TelegramWebApp) => {
-      if (cancelled || !webApp.initData) return
+    const finish = async () => {
+      const webApp = window.Telegram?.WebApp
+      if (cancelled || !webApp?.initData) return
       setActive(true)
-      webApp.ready()
-      webApp.expand()
 
       try {
-        await authenticateTelegram(webApp)
+        await ensureTelegramSession()
         if (cancelled) return
 
         const next = new URLSearchParams(window.location.search).get('next')
@@ -76,7 +79,7 @@ export default function TelegramMiniAppAuth() {
     const tryStart = () => {
       const webApp = window.Telegram?.WebApp
       if (webApp?.initData) {
-        void finish(webApp)
+        void finish()
         return true
       }
       if (Date.now() - startedAt >= 8000) {
