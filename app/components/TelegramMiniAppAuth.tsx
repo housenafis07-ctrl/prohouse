@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
   initDataUnsafe?: { start_param?: string }
   ready: () => void
   expand: () => void
-  openTelegramLink?: (url: string) => void
 }
 
 declare global {
@@ -30,9 +30,16 @@ export async function ensureTelegramSession() {
     cache: 'no-store',
   })
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => null)
-    throw new Error(data?.error || 'Telegram authentication failed')
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(data?.error || 'Telegram authentication failed')
+
+  if (data?.session?.access_token && data?.session?.refresh_token) {
+    const supabase = createClient()
+    const { error } = await supabase.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    })
+    if (error) throw error
   }
 
   webApp.ready()
