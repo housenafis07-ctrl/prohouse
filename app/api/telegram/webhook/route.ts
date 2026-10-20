@@ -22,7 +22,7 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
   if (includeMiniApp) {
     body.reply_markup = {
       inline_keyboard: [[
-        { text: '🚀 Royalhouse’ni ochish', web_app: { url: siteUrl } },
+        { text: '🚀 Royalhouse’ni ochish', web_app: { url: `${siteUrl.replace(/\/$/, '')}/telegram` } },
       ]],
     }
   }
@@ -31,9 +31,10 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     cache: 'no-store',
+    signal: AbortSignal.timeout(5000),
   })
-  const data = await response.json()
-  if (!response.ok || !data.ok) throw new Error(data.description || 'Telegram sendMessage failed')
+  const data = await response.json().catch(() => null)
+  if (!response.ok || !data?.ok) throw new Error(data?.description || 'Telegram sendMessage failed')
 }
 
 export async function POST(request: NextRequest) {
@@ -54,7 +55,28 @@ export async function POST(request: NextRequest) {
 
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
+
+      // Plain /start is deliberately lightweight. Resolve an existing link in
+      // one indexed query so already-linked users are recognized immediately.
       if (!payload.startsWith('link_')) {
+        const telegramUserId = from?.id ? String(from.id) : ''
+        if (telegramUserId) {
+          const { data: link } = await admin
+            .from('telegram_user_links')
+            .select('profile_id')
+            .eq('telegram_user_id', telegramUserId)
+            .maybeSingle()
+
+          if (link) {
+            await sendTelegramMessage(
+              chatId,
+              '✅ Telegram akkauntingiz Royalhouse profiliga ulangan. Royalhouse’ni bir bosishda oching.',
+              true,
+            )
+            return NextResponse.json({ ok: true })
+          }
+        }
+
         await sendTelegramMessage(
           chatId,
           'Assalomu alaykum! Royalhouse’da uy qidiring, e’lon joylang va bronlarni boshqaring. Telegram orqali avtomatik kirish mumkin — SMS kod kerak emas.',
@@ -62,6 +84,7 @@ export async function POST(request: NextRequest) {
         )
         return NextResponse.json({ ok: true })
       }
+
       if (!from?.id) {
         await sendTelegramMessage(chatId, 'Telegram foydalanuvchisi aniqlanmadi. Saytdan yangi ulash havolasini oling.')
         return NextResponse.json({ ok: true })
