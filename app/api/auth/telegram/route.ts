@@ -16,21 +16,22 @@ export async function POST(request: NextRequest) {
     const telegramUserId = String(tgUser.id)
     const admin = serviceClient()
 
-    // Telegram initData is the only identity input for Mini App login.
-    // Never use an existing browser/session user to select a RoyalHouse profile.
     const { data: link, error: linkError } = await admin
       .from('telegram_user_links')
-      .select('profile_id,verified_at')
+      .select('profile_id,verified_at,verification_method')
       .eq('telegram_user_id', telegramUserId)
       .maybeSingle()
     if (linkError) throw linkError
 
-    // A link without verified_at may have been created by an older, unsafe
-    // auto-link flow. It must not be trusted for automatic account switching.
+    console.info('[telegram-auth] identity', {
+      telegramUserId,
+      mappedProfileId: link?.profile_id || null,
+      verifiedAt: link?.verified_at || null,
+      verificationMethod: link?.verification_method || null,
+    })
+
     if (!link?.profile_id || !link.verified_at) {
-      return NextResponse.json({
-        error: 'TELEGRAM_PHONE_VERIFICATION_REQUIRED',
-      }, { status: 428, headers: noStore })
+      return NextResponse.json({ error: 'TELEGRAM_PHONE_VERIFICATION_REQUIRED' }, { status: 428, headers: noStore })
     }
 
     const profileId = link.profile_id
@@ -61,26 +62,24 @@ export async function POST(request: NextRequest) {
         },
       })
       if (passwordError) throw passwordError
-
       signIn = await authClient.auth.signInWithPassword({ email, password })
     }
 
     if (signIn.error || !signIn.data.session || signIn.data.user?.id !== profileId) {
+      console.error('[telegram-auth] session mismatch', {
+        telegramUserId,
+        expectedProfileId: profileId,
+        actualAuthUserId: signIn.data.user?.id || null,
+      })
       return NextResponse.json({ error: 'TELEGRAM_SESSION_CREATE_FAILED' }, { status: 500, headers: noStore })
     }
 
+    console.info('[telegram-auth] session ready', { telegramUserId, profileId })
+
     return NextResponse.json({
       ok: true,
-      session: {
-        access_token: signIn.data.session.access_token,
-        refresh_token: signIn.data.session.refresh_token,
-      },
-      profile: {
-        id: profileId,
-        fullName: profile.full_name || '',
-        phone: profile.phone || null,
-        hasPhone: Boolean(profile.phone),
-      },
+      session: { access_token: signIn.data.session.access_token, refresh_token: signIn.data.session.refresh_token },
+      profile: { id: profileId, fullName: profile.full_name || '', phone: profile.phone || null, hasPhone: Boolean(profile.phone) },
     }, { headers: noStore })
   } catch (error) {
     console.error('[Telegram auth] failed', error)
