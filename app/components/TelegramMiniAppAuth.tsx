@@ -4,10 +4,31 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
+type TelegramWebAppUser = {
+  id: number
+  username?: string
+  first_name?: string
+  last_name?: string
+}
+
 type TelegramWebApp = {
   initData: string
+  initDataUnsafe?: {
+    user?: TelegramWebAppUser
+  }
   ready: () => void
   expand: () => void
+}
+
+type TelegramAuthResponse = {
+  ok?: boolean
+  requiresPhone?: boolean
+  telegramId?: string
+  error?: string
+  session?: {
+    access_token: string
+    refresh_token: string
+  }
 }
 
 declare global {
@@ -17,9 +38,14 @@ declare global {
 }
 
 /**
- * Authenticate the Telegram Mini App without ever blocking the UI.
- * The server validates Telegram initData and returns a Supabase session;
- * the browser must explicitly hydrate its Supabase client with that session.
+ * Strict Telegram Mini App authentication.
+ *
+ * Rules:
+ * - Telegram initData is the only identity source.
+ * - A mismatched/missing telegram_id in an existing Supabase session
+ *   triggers an immediate hard reset.
+ * - The server is always asked to authenticate the current Telegram identity.
+ * - No old browser session is used as a profile fallback.
  */
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
@@ -32,17 +58,84 @@ export default function TelegramMiniAppAuth() {
     let cancelled = false
     let timer: number | undefined
 
+    const hardReset = async (supabase: ReturnType<typeof createClient>) => {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('[STRICT AUTH] signOut failed', error)
+      }
+
+      try {
+        window.localStorage.clear()
+      } catch (error) {
+        console.error('[STRICT AUTH] localStorage.clear failed', error)
+      }
+
+      try {
+        window.sessionStorage.clear()
+      } catch (error) {
+        console.error('[STRICT AUTH] sessionStorage.clear failed', error)
+      }
+    }
+
     const authenticate = async (webApp: TelegramWebApp) => {
       if (cancelled || !webApp.initData) return
 
-      // Never wait for auth before releasing the Telegram Mini App UI.
       webApp.ready()
       webApp.expand()
 
-      const controller = new AbortController()
-      timer = window.setTimeout(() => controller.abort(), 7000)
+      const supabase = createClient()
+      const telegramId = webApp.initDataUnsafe?.user?.id
+        ? String(webApp.initDataUnsafe.user.id)
+        : null
+
+      if (!telegramId) {
+        console.error('[STRICT AUTH] Telegram user.id is missing')
+        return
+      }
+
+      console.log('[STRICT AUTH] Current Telegram identity', {
+        telegram_id: telegramId,
+      })
 
       try {
+        /*
+         * Existing browser state is checked only to detect cross-account
+         * contamination. It is NEVER used to choose the account on the server.
+         */
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          console.error('[STRICT AUTH] getSession failed', sessionError)
+        }
+
+        const existingUser = session?.user ?? null
+        const existingTelegramId = existingUser?.user_metadata?.telegram_id
+          ? String(existingUser.user_metadata.telegram_id)
+          : null
+
+        const mismatch = Boolean(existingUser) && (
+          !existingTelegramId ||
+          existingTelegramId !== telegramId
+        )
+
+        if (mismatch) {
+          console.error('[STRICT AUTH] IDENTITY MISMATCH - HARD RESET', {
+            existing_supabase_user_id: existingUser?.id ?? null,
+            existing_telegram_id: existingTelegramId,
+            current_telegram_id: telegramId,
+          })
+
+          await hardReset(supabase)
+        }
+
+        if (cancelled) return
+
+        const controller = new AbortController()
+        timer = window.setTimeout(() => controller.abort(), 10000)
+
         const response = await fetch('/api/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -52,35 +145,71 @@ export default function TelegramMiniAppAuth() {
           signal: controller.signal,
         })
 
-        const data = await response.json().catch(() => null)
-        if (cancelled || !response.ok) {
-          console.warn('[telegram-miniapp-auth] server auth failed', data?.error || response.status)
+        const data = (await response.json().catch(() => null)) as TelegramAuthResponse | null
+
+        if (cancelled) return
+
+        if (response.ok && data?.requiresPhone) {
+          console.log('[STRICT AUTH] Telegram mapping not found', {
+            telegram_id: data.telegramId ?? telegramId,
+          })
           return
         }
 
-        if (!data?.session?.access_token || !data?.session?.refresh_token) {
-          console.warn('[telegram-miniapp-auth] server returned no session')
+        if (!response.ok) {
+          console.error('[STRICT AUTH] server authentication failed', {
+            status: response.status,
+            error: data?.error ?? null,
+          })
           return
         }
 
-        // Critical: the API runs on the server. Its Supabase session does not
-        // automatically become the browser's session. Hydrate the exact same
-        // browser client used by /account and /listings/new.
-        const supabase = createClient()
-        const { error } = await supabase.auth.setSession({
+        if (!data?.session?.access_token || !data.session.refresh_token) {
+          console.error('[STRICT AUTH] server returned no complete session')
+          return
+        }
+
+        const {
+          data: sessionResult,
+          error: setSessionError,
+        } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         })
-        if (error) {
-          console.error('[telegram-miniapp-auth] setSession failed', error)
+
+        if (setSessionError) {
+          console.error('[STRICT AUTH] setSession failed', setSessionError)
+          await hardReset(supabase)
           return
         }
 
-        if (cancelled) return
+        const authenticatedTelegramId = sessionResult.user?.user_metadata?.telegram_id
+          ? String(sessionResult.user.user_metadata.telegram_id)
+          : null
+
+        if (
+          !sessionResult.user ||
+          !authenticatedTelegramId ||
+          authenticatedTelegramId !== telegramId
+        ) {
+          console.error('[STRICT AUTH] FINAL IDENTITY CHECK FAILED', {
+            expected_telegram_id: telegramId,
+            actual_telegram_id: authenticatedTelegramId,
+            supabase_user_id: sessionResult.user?.id ?? null,
+          })
+
+          await hardReset(supabase)
+          return
+        }
+
+        console.log('[STRICT AUTH] AUTHENTICATION SUCCESS', {
+          telegram_id: telegramId,
+          supabase_user_id: sessionResult.user.id,
+        })
+
         router.refresh()
       } catch (error) {
-        // Authentication failure must never freeze or redirect the Mini App.
-        console.warn('[telegram-miniapp-auth] background authentication skipped', error)
+        console.error('[STRICT AUTH] authentication failed', error)
       } finally {
         if (timer) window.clearTimeout(timer)
       }
@@ -88,8 +217,10 @@ export default function TelegramMiniAppAuth() {
 
     const start = () => {
       if (cancelled) return true
+
       const webApp = window.Telegram?.WebApp
       if (!webApp?.initData) return false
+
       void authenticate(webApp)
       return true
     }
@@ -101,7 +232,10 @@ export default function TelegramMiniAppAuth() {
       }
     }
 
-    const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
+    const existing = document.querySelector(
+      'script[data-telegram-web-app]'
+    ) as HTMLScriptElement | null
+
     if (existing) {
       existing.addEventListener('load', start, { once: true })
       return () => {
