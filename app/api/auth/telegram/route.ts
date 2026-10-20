@@ -16,20 +16,24 @@ export async function POST(request: NextRequest) {
     const admin = serviceClient()
     const telegramUserId = String(tgUser.id)
 
-    // Telegram identity is authoritative inside the Mini App. Never use the
-    // browser's existing Supabase session to choose a Royalhouse profile.
     const { data: existingLink, error: linkLookupError } = await admin
       .from('telegram_user_links')
-      .select('profile_id,verified_at')
+      .select('profile_id,verified_at,verification_method')
       .eq('telegram_user_id', telegramUserId)
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    // Links created by the old auto-link flow are deliberately untrusted.
-    // This prevents a stale/wrong mapping from silently logging a user into
-    // somebody else's Royalhouse account. The user must prove the phone number
-    // with the existing SMS OTP flow before the Telegram link is established.
-    if (!existingLink || !existingLink.verified_at) {
+    // SECURITY: a Telegram link is trusted for silent login only when it was
+    // explicitly verified with the Royalhouse phone OTP flow. Older links may
+    // point to the wrong profile because of the previous auto-link behaviour.
+    // Never let an old/stale mapping choose the account.
+    const trustedLink = Boolean(
+      existingLink?.profile_id &&
+      existingLink?.verified_at &&
+      existingLink?.verification_method === 'phone_otp',
+    )
+
+    if (!trustedLink) {
       return NextResponse.json({
         error: 'TELEGRAM_PHONE_VERIFICATION_REQUIRED',
         telegramUserId,
