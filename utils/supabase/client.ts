@@ -1,21 +1,11 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-type LooseTable = {
-  Row: any;
-  Insert: any;
-  Update: any;
-  Relationships: any[];
-};
-
-type LooseDatabase = {
-  public: {
-    Tables: Record<string, LooseTable>;
-    Views: Record<string, LooseTable>;
-    Functions: Record<string, { Args: any; Returns: any }>;
-    Enums: Record<string, string>;
-    CompositeTypes: Record<string, any>;
-  };
-};
+// This project currently does not have a generated Supabase Database type that
+// covers the full production schema. A hand-written partial schema causes
+// PostgREST to infer false SelectQueryError/unknown shapes for legacy tables
+// and relationships. Keep the browser client intentionally untyped until the
+// generated production schema is restored; feature boundaries own their types.
+type LooseDatabase = any;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
