@@ -1,1 +1,0 @@
-Canonical Telegram profile lookup is required before phone fallback.
