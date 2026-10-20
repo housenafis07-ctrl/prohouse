@@ -41,8 +41,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (telegramLookupError) throw telegramLookupError
 
-    // Only a phone-OTP verified link is an ownership proof. Legacy/untrusted
-    // mappings can be safely replaced after the user proves this phone number.
     const trustedExistingLink = Boolean(
       byTelegram?.verified_at && byTelegram?.verification_method === 'phone_otp',
     )
@@ -73,10 +71,33 @@ export async function POST(request: NextRequest) {
     const conflictingAuthUser = existingAuthUsers.users.find(
       user => user.email?.toLowerCase() === email.toLowerCase() && user.id !== profileId,
     )
+
     if (conflictingAuthUser) {
-      // A legacy Telegram auth identity may have been created for the wrong
-      // profile. It must never be reused as the phone-verified user's account.
-      return NextResponse.json({ error: 'TELEGRAM_AUTH_IDENTITY_CONFLICT' }, { status: 409, headers: noStore })
+      // A previous buggy auto-link could have created the deterministic Telegram
+      // auth identity under the wrong Royalhouse profile. Do not sign into it.
+      // Detach only when the conflicting auth user is provably the old Telegram
+      // identity for this same Telegram ID; never modify an unrelated auth user.
+      const metadataTelegramId = String(conflictingAuthUser.user_metadata?.telegram_user_id || '')
+      const isLegacyTelegramIdentity =
+        conflictingAuthUser.user_metadata?.auth_provider === 'telegram' &&
+        metadataTelegramId === telegramUserId
+
+      if (!isLegacyTelegramIdentity) {
+        return NextResponse.json({ error: 'TELEGRAM_AUTH_IDENTITY_CONFLICT' }, { status: 409, headers: noStore })
+      }
+
+      const detachedEmail = `legacy-telegram-${telegramUserId}-${Date.now()}@auth.royalhouse.uz`
+      const { error: detachError } = await authAdmin.auth.admin.updateUserById(conflictingAuthUser.id, {
+        email: detachedEmail,
+        email_confirm: true,
+        password: crypto.randomUUID() + crypto.randomUUID(),
+        user_metadata: {
+          ...(conflictingAuthUser.user_metadata || {}),
+          auth_provider: 'legacy_telegram_detached',
+          telegram_identity_detached_at: new Date().toISOString(),
+        },
+      })
+      if (detachError) throw detachError
     }
 
     const { error: updateUserError } = await authAdmin.auth.admin.updateUserById(profileId, {
