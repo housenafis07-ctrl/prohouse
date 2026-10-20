@@ -27,13 +27,12 @@ export async function POST(request: NextRequest) {
     // explicitly verified with the Royalhouse phone OTP flow. Older links may
     // point to the wrong profile because of the previous auto-link behaviour.
     // Never let an old/stale mapping choose the account.
-    const trustedLink = Boolean(
-      existingLink?.profile_id &&
-      existingLink?.verified_at &&
-      existingLink?.verification_method === 'phone_otp',
-    )
-
-    if (!trustedLink) {
+    if (
+      !existingLink ||
+      !existingLink.profile_id ||
+      !existingLink.verified_at ||
+      existingLink.verification_method !== 'phone_otp'
+    ) {
       return NextResponse.json({
         error: 'TELEGRAM_PHONE_VERIFICATION_REQUIRED',
         telegramUserId,
