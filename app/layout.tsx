@@ -25,7 +25,7 @@ import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish"
 import RoyalhouseMobileAISearch from "./components/RoyalhouseMobileAISearch";
 import RoyalhousePwaHomeSearchFix from "./components/RoyalhousePwaHomeSearchFix";
 import RoyalhousePwaAiSearchStyle from "./components/RoyalhousePwaAiSearchStyle";
-import TelegramMiniAppAuth from "./components/TelegramMiniAppAuth";
+import TelegramMiniAppAuthCanonical from "./components/TelegramMiniAppAuthCanonical";
 import TelegramLoginButton from "./components/TelegramLoginButton";
 
 export const metadata: Metadata = {
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <I18nProvider>
-          <TelegramMiniAppAuth>
+          <TelegramMiniAppAuthCanonical>
             <RoyalhouseBrandFix />
             <RoyalhouseFooterFix />
             <RoyalhouseContactFooter />
@@ -66,7 +66,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <RoyalhousePwaAiSearchStyle />
             <TelegramLoginButton />
             {children}
-          </TelegramMiniAppAuth>
+          </TelegramMiniAppAuthCanonical>
         </I18nProvider>
       </body>
     </html>
