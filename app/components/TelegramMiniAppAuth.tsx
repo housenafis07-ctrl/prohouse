@@ -1,20 +1,29 @@
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = { initData: string; ready: () => void; expand: () => void }
+type AuthState = 'idle' | 'pending' | 'ready' | 'blocked' | 'failed'
 
 declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp }
     TelegramWebviewProxy?: unknown
-    __ROYALHOUSE_TELEGRAM_AUTH_STATE__?: 'idle' | 'pending' | 'ready' | 'blocked' | 'failed'
+    __ROYALHOUSE_TELEGRAM_AUTH_STATE__?: AuthState
   }
 }
 
 type Props = { children?: ReactNode }
+
+function detectTelegramContext() {
+  if (typeof window === 'undefined') return false
+  const webApp = window.Telegram?.WebApp
+  const userAgent = navigator.userAgent || ''
+  const telegramUrl = /tgWebApp(?:Data|Version|Platform|StartParam)/i.test(window.location.href)
+  return Boolean(webApp?.initData || window.TelegramWebviewProxy || telegramUrl || /Telegram/i.test(userAgent))
+}
 
 function Gate({ children }: { children: ReactNode }) {
   return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white px-5"><div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">{children}</div></div>
@@ -38,8 +47,9 @@ function PhoneGate({ phone, setPhone, code, setCode, sent, loading, message, onS
 
 export default function TelegramMiniAppAuth({ children }: Props) {
   const pathname = usePathname()
-  const [telegramContext, setTelegramContext] = useState<boolean>(() => typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp?.initData || window.TelegramWebviewProxy))
-  const [state, setState] = useState<'idle' | 'pending' | 'ready' | 'blocked' | 'failed'>(() => typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp?.initData || window.TelegramWebviewProxy) ? 'pending' : 'idle')
+  const started = useRef(false)
+  const [telegramContext, setTelegramContext] = useState<boolean>(() => detectTelegramContext())
+  const [state, setState] = useState<AuthState>(() => detectTelegramContext() ? 'pending' : 'idle')
   const [verificationRequired, setVerificationRequired] = useState(false)
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -48,29 +58,27 @@ export default function TelegramMiniAppAuth({ children }: Props) {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const webApp = window.Telegram?.WebApp
-    const inTelegram = Boolean(webApp?.initData || window.TelegramWebviewProxy)
+    if (started.current) return
+    const inTelegram = detectTelegramContext()
     if (!inTelegram) {
       setTelegramContext(false)
       setState('idle')
       return
     }
+
+    started.current = true
     setTelegramContext(true)
-    if (!webApp?.initData) {
-      setState('failed')
-      window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'failed'
-      return
-    }
+    setState('pending')
 
     let cancelled = false
-    const authenticate = async () => {
+    let attempts = 0
+    let timer: ReturnType<typeof setInterval> | undefined
+
+    const authenticate = async (webApp: TelegramWebApp) => {
       window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'pending'
-      setState('pending')
       webApp.ready()
       webApp.expand()
 
-      // Mini App login is a new authentication context. Never let an old
-      // browser session choose the RoyalHouse account.
       const supabase = createClient()
       await supabase.auth.signOut({ scope: 'local' })
       if (cancelled) return
@@ -86,6 +94,7 @@ export default function TelegramMiniAppAuth({ children }: Props) {
         }
         if (!response.ok) throw new Error(data?.error || 'TELEGRAM_AUTH_FAILED')
         if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.profile?.id) throw new Error('TELEGRAM_SESSION_MISSING')
+
         const { error } = await supabase.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token })
         if (error) throw error
         const { data: verified } = await supabase.auth.getUser()
@@ -93,20 +102,42 @@ export default function TelegramMiniAppAuth({ children }: Props) {
           await supabase.auth.signOut({ scope: 'local' })
           throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
         }
+
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'ready'
         setState('ready')
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
-        if (!cancelled) window.location.replace(target || '/')
+        if (!cancelled && target && target !== window.location.pathname) window.history.replaceState(null, '', target)
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'failed'
         if (!cancelled) setState('failed')
       }
     }
-    void authenticate()
-    return () => { cancelled = true }
-  }, [pathname])
+
+    const findInitData = () => {
+      const webApp = window.Telegram?.WebApp
+      if (webApp?.initData) {
+        if (timer) clearInterval(timer)
+        void authenticate(webApp)
+        return
+      }
+      attempts += 1
+      if (attempts >= 20) {
+        if (timer) clearInterval(timer)
+        window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'failed'
+        setState('failed')
+      }
+    }
+
+    findInitData()
+    if (!window.Telegram?.WebApp?.initData) timer = setInterval(findInitData, 100)
+
+    return () => {
+      cancelled = true
+      if (timer) clearInterval(timer)
+    }
+  }, [])
 
   const verifyWithPhone = async () => {
     setLoading(true)
@@ -122,14 +153,17 @@ export default function TelegramMiniAppAuth({ children }: Props) {
         setSent(true)
         return
       }
+
       const r = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: normalized, code }), cache: 'no-store' })
       const d = await r.json().catch(() => null)
       if (!r.ok || !d?.session?.access_token) throw new Error(d?.error || 'Telefon tasdiqlanmadi.')
+
       const initData = window.Telegram?.WebApp?.initData
       if (!initData) throw new Error('Telegram sessiyasi topilmadi. Mini Appni qayta oching.')
       const r2 = await fetch('/api/auth/telegram/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData, accessToken: d.session.access_token }), cache: 'no-store' })
       const d2 = await r2.json().catch(() => null)
       if (!r2.ok || !d2?.session?.access_token || !d2?.profile?.id) throw new Error(d2?.error || 'Telegramni profilga ulab bo‘lmadi.')
+
       const supabase = createClient()
       await supabase.auth.signOut({ scope: 'local' })
       const { error } = await supabase.auth.setSession({ access_token: d2.session.access_token, refresh_token: d2.session.refresh_token })
@@ -139,11 +173,16 @@ export default function TelegramMiniAppAuth({ children }: Props) {
         await supabase.auth.signOut({ scope: 'local' })
         throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
       }
+
       window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'ready'
-      window.location.replace(new URLSearchParams(window.location.search).get('next') || pathname || '/')
+      setVerificationRequired(false)
+      setState('ready')
+      window.history.replaceState(null, '', new URLSearchParams(window.location.search).get('next') || pathname || '/')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tasdiqlash amalga oshmadi.')
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (!telegramContext) return <>{children}</>
