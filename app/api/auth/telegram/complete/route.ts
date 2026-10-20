@@ -41,10 +41,12 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (telegramLookupError) throw telegramLookupError
 
-    const trustedExistingLink = Boolean(
-      byTelegram?.verified_at && byTelegram?.verification_method === 'phone_otp',
-    )
-    if (trustedExistingLink && byTelegram.profile_id !== profileId) {
+    if (
+      byTelegram &&
+      byTelegram.verified_at &&
+      byTelegram.verification_method === 'phone_otp' &&
+      byTelegram.profile_id !== profileId
+    ) {
       return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409, headers: noStore })
     }
 
@@ -54,12 +56,14 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', profileId)
       .maybeSingle()
     if (profileLinkError) throw profileLinkError
-    const trustedProfileLink = Boolean(
-      byProfile?.telegram_user_id &&
+
+    if (
+      byProfile &&
+      byProfile.telegram_user_id &&
       byProfile.verified_at &&
-      byProfile.verification_method === 'phone_otp',
-    )
-    if (trustedProfileLink && byProfile.telegram_user_id !== telegramUserId) {
+      byProfile.verification_method === 'phone_otp' &&
+      byProfile.telegram_user_id !== telegramUserId
+    ) {
       return NextResponse.json({ error: 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM' }, { status: 409, headers: noStore })
     }
 
