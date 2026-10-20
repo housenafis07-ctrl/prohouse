@@ -54,7 +54,11 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
       const { error: sessionError } = await supabase.auth.setSession({ access_token: result.session.access_token, refresh_token: result.session.refresh_token })
       if (sessionError) throw sessionError
       const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError || userData.user?.id !== result.profile.id || String(userData.user?.user_metadata?.telegram_user_id ?? '') !== String(result.telegramUserId ?? '')) {
+      const authenticatedUser = userData.user
+      if (userError || !authenticatedUser) {
+        await supabase.auth.signOut({ scope: 'local' }); clearSupabaseBrowserState(); throw userError || new Error('TELEGRAM_USER_MISSING_AFTER_SESSION')
+      }
+      if (authenticatedUser.id !== result.profile.id || String(authenticatedUser.user_metadata?.telegram_user_id ?? '') !== String(result.telegramUserId ?? '')) {
         await supabase.auth.signOut({ scope: 'local' }); clearSupabaseBrowserState(); throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
       }
       authenticatedInitData.current = data; setPending(false); setAuthState('ready'); return true
@@ -108,7 +112,8 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
       const { error: sessionError } = await supabase.auth.setSession({ access_token: linked.session.access_token, refresh_token: linked.session.refresh_token })
       if (sessionError) throw sessionError
       const { data: userData } = await supabase.auth.getUser()
-      if (userData.user?.id !== linked.profile.id || String(userData.user.user_metadata?.telegram_user_id ?? '') !== String(linked.telegramUserId ?? '')) throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
+      const authenticatedUser = userData.user
+      if (!authenticatedUser || authenticatedUser.id !== linked.profile.id || String(authenticatedUser.user_metadata?.telegram_user_id ?? '') !== String(linked.telegramUserId ?? '')) throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
       setPhoneRequired(false); setPending(false); authenticatedInitData.current = telegramData; setAuthState('ready')
     } catch (e) { setError(e instanceof Error ? e.message : 'Tasdiqlash amalga oshmadi.') }
     finally { setLoading(false) }
@@ -117,6 +122,6 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
   if (!active) return <>{children}</>
   if (pending) return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"><div className="rounded-3xl bg-white p-7 text-center shadow-xl ring-1 ring-slate-200"><div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600"/><b>Royalhouse</b><p className="mt-2 text-sm text-slate-500">Telegram profilingiz tekshirilmoqda…</p></div></div>
   if (phoneRequired) return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white px-5"><div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200"><b className="text-xl">Telegram profil topilmadi</b><p className="mt-2 text-sm text-slate-600">Telegram profilingizga bog‘langan Royalhouse akkaunt topilmadi. Telefon raqamingizni tasdiqlang.</p><input value={phone} onChange={e => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="+998 90 123 45 67" className="mt-5 w-full rounded-2xl border px-4 py-3" disabled={sent || loading}/>{sent && <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0,6))} inputMode="numeric" placeholder="SMS kod" className="mt-3 w-full rounded-2xl border px-4 py-3" disabled={loading}/>}<button onClick={verifyPhone} disabled={loading || (sent && code.length !== 6)} className="mt-3 w-full rounded-2xl bg-emerald-600 px-5 py-3 font-bold text-white">{loading ? 'Tekshirilmoqda…' : sent ? 'Tasdiqlash' : 'Tasdiqlash'}</button>{error && <p className="mt-3 text-sm text-rose-600">{error}</p>}</div></div>
-  if (error) return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"><div className="rounded-3xl p-7 text-center shadow-xl ring-1 ring-slate-200"><b>Telegram tekshiruvi bajarilmadi</b><p className="mt-2 text-sm text-slate-600">{error}</p></div></div>
+  if (error) return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"><div className="rounded-3xl p-7 text-center shadow-xl ring-1 className="rounded-3xl p-7 text-center shadow-xl ring-1 ring-slate-200"><b>Telegram tekshiruvi bajarilmadi</b><p className="mt-2 text-sm text-slate-600">{error}</p></div></div>
   return <>{children}</>
 }
