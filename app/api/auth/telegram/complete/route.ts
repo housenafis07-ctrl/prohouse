@@ -7,9 +7,9 @@ const noStore = { 'Cache-Control': 'private, no-store' }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => null)
-    const initData = typeof body?.initData === 'string' ? body.initData : ''
-    const accessToken = typeof body?.accessToken === 'string' ? body.accessToken : ''
+    const body: unknown = await request.json().catch(() => null)
+    const initData = body && typeof body === 'object' && typeof (body as { initData?: unknown }).initData === 'string' ? (body as { initData: string }).initData : ''
+    const accessToken = body && typeof body === 'object' && typeof (body as { accessToken?: unknown }).accessToken === 'string' ? (body as { accessToken: string }).accessToken : ''
     if (!accessToken) return NextResponse.json({ error: 'PHONE_SESSION_REQUIRED' }, { status: 401, headers: noStore })
 
     const validated = validateTelegramInitData(initData)
@@ -25,82 +25,31 @@ export async function POST(request: NextRequest) {
     if (authUserError || !authUser.user) return NextResponse.json({ error: 'INVALID_PHONE_SESSION' }, { status: 401, headers: noStore })
 
     const profileId = authUser.user.id
-    const { data: profile, error: profileError } = await admin
-      .from('profiles')
-      .select('id,phone,full_name')
-      .eq('id', profileId)
-      .maybeSingle()
+    const { data: profile, error: profileError } = await admin.from('profiles').select('id,phone,full_name').eq('id', profileId).maybeSingle()
     if (profileError) throw profileError
     if (!profile?.phone) return NextResponse.json({ error: 'PHONE_NOT_VERIFIED' }, { status: 400, headers: noStore })
 
     const telegramUserId = String(validated.user.id)
-    const { data: byTelegram, error: telegramLookupError } = await admin
-      .from('telegram_user_links')
-      .select('profile_id,verified_at,verification_method')
-      .eq('telegram_user_id', telegramUserId)
-      .maybeSingle()
+    const { data: byTelegram, error: telegramLookupError } = await admin.from('telegram_user_links').select('profile_id,verified_at,verification_method').eq('telegram_user_id', telegramUserId).maybeSingle()
     if (telegramLookupError) throw telegramLookupError
+    if (byTelegram && byTelegram.verified_at && byTelegram.profile_id !== profileId) return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409, headers: noStore })
 
-    if (
-      byTelegram &&
-      byTelegram.verified_at &&
-      byTelegram.verification_method === 'phone_otp' &&
-      byTelegram.profile_id !== profileId
-    ) {
-      return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409, headers: noStore })
-    }
-
-    const { data: byProfile, error: profileLinkError } = await admin
-      .from('telegram_user_links')
-      .select('telegram_user_id,verified_at,verification_method')
-      .eq('profile_id', profileId)
-      .maybeSingle()
+    const { data: byProfile, error: profileLinkError } = await admin.from('telegram_user_links').select('telegram_user_id,verified_at,verification_method').eq('profile_id', profileId).maybeSingle()
     if (profileLinkError) throw profileLinkError
-
-    if (
-      byProfile &&
-      byProfile.telegram_user_id &&
-      byProfile.verified_at &&
-      byProfile.verification_method === 'phone_otp' &&
-      byProfile.telegram_user_id !== telegramUserId
-    ) {
-      return NextResponse.json({ error: 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM' }, { status: 409, headers: noStore })
-    }
+    if (byProfile && byProfile.telegram_user_id && byProfile.verified_at && byProfile.telegram_user_id !== telegramUserId) return NextResponse.json({ error: 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM' }, { status: 409, headers: noStore })
 
     const email = telegramAuthEmail(validated.user.id)
     const password = telegramAuthPassword(validated.user.id)
     const { data: existingAuthUsers, error: usersError } = await authAdmin.auth.admin.listUsers({ perPage: 1000 })
     if (usersError) throw usersError
 
-    const conflictingAuthUser = existingAuthUsers.users.find(
-      user => user.email?.toLowerCase() === email.toLowerCase() && user.id !== profileId,
-    )
-
+    const conflictingAuthUser = existingAuthUsers.users.find(user => user.email?.toLowerCase() === email.toLowerCase() && user.id !== profileId)
     if (conflictingAuthUser) {
-      // A previous buggy auto-link could have created the deterministic Telegram
-      // auth identity under the wrong Royalhouse profile. Do not sign into it.
-      // Detach only when the conflicting auth user is provably the old Telegram
-      // identity for this same Telegram ID; never modify an unrelated auth user.
       const metadataTelegramId = String(conflictingAuthUser.user_metadata?.telegram_user_id || '')
-      const isLegacyTelegramIdentity =
-        conflictingAuthUser.user_metadata?.auth_provider === 'telegram' &&
-        metadataTelegramId === telegramUserId
-
-      if (!isLegacyTelegramIdentity) {
-        return NextResponse.json({ error: 'TELEGRAM_AUTH_IDENTITY_CONFLICT' }, { status: 409, headers: noStore })
-      }
-
+      const isLegacyTelegramIdentity = conflictingAuthUser.user_metadata?.auth_provider === 'telegram' && metadataTelegramId === telegramUserId
+      if (!isLegacyTelegramIdentity) return NextResponse.json({ error: 'TELEGRAM_AUTH_IDENTITY_CONFLICT' }, { status: 409, headers: noStore })
       const detachedEmail = `legacy-telegram-${telegramUserId}-${Date.now()}@auth.royalhouse.uz`
-      const { error: detachError } = await authAdmin.auth.admin.updateUserById(conflictingAuthUser.id, {
-        email: detachedEmail,
-        email_confirm: true,
-        password: crypto.randomUUID() + crypto.randomUUID(),
-        user_metadata: {
-          ...(conflictingAuthUser.user_metadata || {}),
-          auth_provider: 'legacy_telegram_detached',
-          telegram_identity_detached_at: new Date().toISOString(),
-        },
-      })
+      const { error: detachError } = await authAdmin.auth.admin.updateUserById(conflictingAuthUser.id, { email: detachedEmail, email_confirm: true, password: crypto.randomUUID() + crypto.randomUUID(), user_metadata: { ...(conflictingAuthUser.user_metadata || {}), auth_provider: 'legacy_telegram_detached', telegram_identity_detached_at: new Date().toISOString() } })
       if (detachError) throw detachError
     }
 
@@ -108,27 +57,12 @@ export async function POST(request: NextRequest) {
       email,
       email_confirm: true,
       password,
-      user_metadata: {
-        ...(authUser.user.user_metadata || {}),
-        auth_provider: 'telegram',
-        telegram_user_id: telegramUserId,
-        telegram_username: validated.user.username || null,
-        telegram_first_name: validated.user.first_name || null,
-        telegram_last_name: validated.user.last_name || null,
-      },
+      user_metadata: { ...(authUser.user.user_metadata || {}), auth_provider: 'telegram', telegram_user_id: telegramUserId, telegram_username: validated.user.username || null, telegram_first_name: validated.user.first_name || null, telegram_last_name: validated.user.last_name || null },
     })
     if (updateUserError) throw updateUserError
 
     const now = new Date().toISOString()
-    const { error: linkError } = await admin.from('telegram_user_links').upsert({
-      profile_id: profileId,
-      telegram_user_id: telegramUserId,
-      chat_id: telegramUserId,
-      telegram_username: validated.user.username || null,
-      linked_at: now,
-      verified_at: now,
-      verification_method: 'phone_otp',
-    }, { onConflict: 'telegram_user_id' })
+    const { error: linkError } = await admin.from('telegram_user_links').upsert({ profile_id: profileId, telegram_user_id: telegramUserId, chat_id: telegramUserId, telegram_username: validated.user.username || null, linked_at: now, verified_at: now, verification_method: 'phone_otp' }, { onConflict: 'telegram_user_id' })
     if (linkError) throw linkError
 
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -137,8 +71,11 @@ export async function POST(request: NextRequest) {
     const { data: sessionData, error: signInError } = await client.auth.signInWithPassword({ email, password })
     if (signInError || !sessionData.session) throw signInError || new Error('TELEGRAM_SESSION_CREATE_FAILED')
 
+    if (sessionData.session.user.id !== profileId || String(sessionData.session.user.user_metadata?.telegram_user_id ?? '') !== telegramUserId) throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
+
     return NextResponse.json({
       ok: true,
+      telegramUserId,
       session: { access_token: sessionData.session.access_token, refresh_token: sessionData.session.refresh_token },
       profile: { id: profileId, phone: profile.phone, fullName: profile.full_name || '' },
     }, { headers: noStore })
