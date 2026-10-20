@@ -156,7 +156,7 @@ export default function RoyalhousePartnersLinkFix() {
           try {
             const db = createClient()
             const { data } = await db.from('listings').select('neighborhood').eq('district', state.district).not('neighborhood', 'is', null).limit(500)
-            neighborhoods = Array.from(new Set((data || []).map((item: { neighborhood?: string | null }) => String(item.neighborhood || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+            neighborhoods = Array.from(new Set<string>((data || []).map((item: { neighborhood?: string | null }) => String(item.neighborhood || '').trim()).filter(Boolean))).sort((a: string, b: string) => a.localeCompare(b))
           } catch {
             neighborhoods = []
           } finally {
