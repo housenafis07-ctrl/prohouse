@@ -45,6 +45,10 @@ export default function TelegramMiniAppAuth() {
       webApp.expand()
 
       try {
+        // Do not let a stale phone-authenticated browser session determine
+        // which RoyalHouse profile is shown while Telegram auth is running.
+        // The server is authoritative: it validates initData and returns the
+        // canonical Telegram-linked profile/session.
         const response = await fetch('/api/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -64,6 +68,12 @@ export default function TelegramMiniAppAuth() {
 
         if (!response.ok) throw new Error('Telegram authentication failed')
         if (cancelled) return
+
+        // Force Next/Supabase-backed pages to remount after the Telegram auth
+        // response has established the canonical session. Without this,
+        // /listings/new could render once from the previous phone session.
+        router.refresh()
+        await new Promise((resolve) => window.setTimeout(resolve, 100))
 
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
@@ -85,9 +95,6 @@ export default function TelegramMiniAppAuth() {
       return true
     }
 
-    // Telegram's script may already be loaded before this component mounts.
-    // Listening only for the script `load` event in that case misses initData,
-    // leaving the old browser session visible on the new Telegram profile.
     if (tryStart()) {
       return () => {
         cancelled = true
