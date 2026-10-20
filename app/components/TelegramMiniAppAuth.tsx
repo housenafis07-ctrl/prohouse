@@ -4,48 +4,49 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
-type TelegramWebAppUser = {
+type TelegramUser = {
   id: number
-  username?: string
   first_name?: string
   last_name?: string
+  username?: string
 }
 
 type TelegramWebApp = {
   initData: string
-  initDataUnsafe?: {
-    user?: TelegramWebAppUser
-  }
+  initDataUnsafe?: { user?: TelegramUser }
   ready: () => void
   expand: () => void
 }
 
 type TelegramAuthResponse = {
   ok?: boolean
-  requiresPhone?: boolean
-  telegramId?: string
   error?: string
   session?: {
-    access_token: string
-    refresh_token: string
+    access_token?: string
+    refresh_token?: string
   }
 }
 
 declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp }
+    __royalHouseTelegramAuthReady?: boolean
+    __royalHouseTelegramAuthPromise?: Promise<void>
   }
 }
 
 /**
- * Strict Telegram Mini App authentication.
+ * Telegram is the authoritative identity for Mini Apps.
  *
- * Rules:
- * - Telegram initData is the only identity source.
- * - A mismatched/missing telegram_id in an existing Supabase session
- *   triggers an immediate hard reset.
- * - The server is always asked to authenticate the current Telegram identity.
- * - No old browser session is used as a profile fallback.
+ * Ordering is strict:
+ * 1. Read Telegram identity.
+ * 2. Compare it with the existing Supabase session.
+ * 3. Hard-reset a mismatched session before any API call.
+ * 4. Authenticate the current Telegram identity on the server.
+ * 5. Hydrate this browser's Supabase client with the returned session.
+ *
+ * The readiness promise prevents pages such as /listings/new from reading
+ * an old browser session while Telegram authentication is still in progress.
  */
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
@@ -58,84 +59,68 @@ export default function TelegramMiniAppAuth() {
     let cancelled = false
     let timer: number | undefined
 
-    const hardReset = async (supabase: ReturnType<typeof createClient>) => {
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error('[STRICT AUTH] signOut failed', error)
-      }
+    const run = async (): Promise<void> => {
+      const supabase = createClient()
+      const webApp = window.Telegram?.WebApp
 
-      try {
-        window.localStorage.clear()
-      } catch (error) {
-        console.error('[STRICT AUTH] localStorage.clear failed', error)
+      // Normal web/PWA navigation is unaffected by the Telegram gate.
+      if (!webApp?.initData) {
+        window.__royalHouseTelegramAuthReady = true
+        return
       }
-
-      try {
-        window.sessionStorage.clear()
-      } catch (error) {
-        console.error('[STRICT AUTH] sessionStorage.clear failed', error)
-      }
-    }
-
-    const authenticate = async (webApp: TelegramWebApp) => {
-      if (cancelled || !webApp.initData) return
 
       webApp.ready()
       webApp.expand()
 
-      const supabase = createClient()
-      const telegramId = webApp.initDataUnsafe?.user?.id
+      const telegramId = webApp.initDataUnsafe?.user?.id != null
         ? String(webApp.initDataUnsafe.user.id)
         : null
 
       if (!telegramId) {
-        console.error('[STRICT AUTH] Telegram user.id is missing')
-        return
+        throw new Error('TELEGRAM_ID_MISSING')
       }
 
-      console.log('[STRICT AUTH] Current Telegram identity', {
-        telegram_id: telegramId,
-      })
-
-      try {
-        /*
-         * Existing browser state is checked only to detect cross-account
-         * contamination. It is NEVER used to choose the account on the server.
-         */
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-
-        if (sessionError) {
-          console.error('[STRICT AUTH] getSession failed', sessionError)
-        }
-
-        const existingUser = session?.user ?? null
-        const existingTelegramId = existingUser?.user_metadata?.telegram_id
-          ? String(existingUser.user_metadata.telegram_id)
+      const { data: currentSessionData } = await supabase.auth.getSession()
+      const currentUser = currentSessionData.session?.user ?? null
+      const currentTelegramId = currentUser?.user_metadata?.telegram_user_id != null
+        ? String(currentUser.user_metadata.telegram_user_id)
+        : currentUser?.user_metadata?.telegram_id != null
+          ? String(currentUser.user_metadata.telegram_id)
           : null
 
-        const mismatch = Boolean(existingUser) && (
-          !existingTelegramId ||
-          existingTelegramId !== telegramId
-        )
+      // Existing browser state is used only to detect contamination. It never
+      // selects the account that the server will authenticate.
+      const mismatch = Boolean(currentUser) && (
+        !currentTelegramId || currentTelegramId !== telegramId
+      )
 
-        if (mismatch) {
-          console.error('[STRICT AUTH] IDENTITY MISMATCH - HARD RESET', {
-            existing_supabase_user_id: existingUser?.id ?? null,
-            existing_telegram_id: existingTelegramId,
-            current_telegram_id: telegramId,
-          })
+      if (mismatch) {
+        console.warn('[STRICT AUTH] stale Supabase session detected; hard reset', {
+          oldUserId: currentUser?.id ?? null,
+          oldTelegramId: currentTelegramId,
+          currentTelegramId: telegramId,
+        })
 
-          await hardReset(supabase)
+        const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' })
+        if (signOutError) {
+          console.warn('[STRICT AUTH] signOut failed during hard reset', signOutError)
         }
 
-        if (cancelled) return
+        try { window.localStorage.clear() } catch (error) {
+          console.warn('[STRICT AUTH] localStorage.clear failed', error)
+        }
 
-        const controller = new AbortController()
-        timer = window.setTimeout(() => controller.abort(), 10000)
+        try { window.sessionStorage.clear() } catch (error) {
+          console.warn('[STRICT AUTH] sessionStorage.clear failed', error)
+        }
+      }
 
+      if (cancelled) return
+
+      const controller = new AbortController()
+      timer = window.setTimeout(() => controller.abort(), 10000)
+
+      try {
         const response = await fetch('/api/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -145,117 +130,62 @@ export default function TelegramMiniAppAuth() {
           signal: controller.signal,
         })
 
-        const data = (await response.json().catch(() => null)) as TelegramAuthResponse | null
+        const data = await response.json().catch(() => null) as TelegramAuthResponse | null
+
+        if (!response.ok) {
+          throw new Error(data?.error || `TELEGRAM_AUTH_FAILED_${response.status}`)
+        }
+
+        const accessToken = data?.session?.access_token
+        const refreshToken = data?.session?.refresh_token
+
+        if (!accessToken || !refreshToken) {
+          throw new Error('TELEGRAM_SESSION_MISSING')
+        }
+
+        const { data: hydrated, error: setSessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+
+        if (setSessionError) throw setSessionError
+        if (!hydrated.user) throw new Error('TELEGRAM_USER_MISSING_AFTER_SESSION')
+
+        const finalTelegramId = hydrated.user.user_metadata?.telegram_user_id != null
+          ? String(hydrated.user.user_metadata.telegram_user_id)
+          : hydrated.user.user_metadata?.telegram_id != null
+            ? String(hydrated.user.user_metadata.telegram_id)
+            : null
+
+        if (finalTelegramId !== telegramId) {
+          await supabase.auth.signOut({ scope: 'local' })
+          try { window.localStorage.clear() } catch {}
+          try { window.sessionStorage.clear() } catch {}
+          throw new Error('TELEGRAM_SESSION_IDENTITY_MISMATCH')
+        }
 
         if (cancelled) return
 
-        if (response.ok && data?.requiresPhone) {
-          console.log('[STRICT AUTH] Telegram mapping not found', {
-            telegram_id: data.telegramId ?? telegramId,
-          })
-          return
-        }
-
-        if (!response.ok) {
-          console.error('[STRICT AUTH] server authentication failed', {
-            status: response.status,
-            error: data?.error ?? null,
-          })
-          return
-        }
-
-        if (!data?.session?.access_token || !data.session.refresh_token) {
-          console.error('[STRICT AUTH] server returned no complete session')
-          return
-        }
-
-        const {
-          data: sessionResult,
-          error: setSessionError,
-        } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        })
-
-        if (setSessionError) {
-          console.error('[STRICT AUTH] setSession failed', setSessionError)
-          await hardReset(supabase)
-          return
-        }
-
-        const authenticatedTelegramId = sessionResult.user?.user_metadata?.telegram_id
-          ? String(sessionResult.user.user_metadata.telegram_id)
-          : null
-
-        if (
-          !sessionResult.user ||
-          !authenticatedTelegramId ||
-          authenticatedTelegramId !== telegramId
-        ) {
-          console.error('[STRICT AUTH] FINAL IDENTITY CHECK FAILED', {
-            expected_telegram_id: telegramId,
-            actual_telegram_id: authenticatedTelegramId,
-            supabase_user_id: sessionResult.user?.id ?? null,
-          })
-
-          await hardReset(supabase)
-          return
-        }
-
-        console.log('[STRICT AUTH] AUTHENTICATION SUCCESS', {
-          telegram_id: telegramId,
-          supabase_user_id: sessionResult.user.id,
-        })
-
+        window.__royalHouseTelegramAuthReady = true
+        window.dispatchEvent(new CustomEvent('royalhouse:telegram-auth-ready'))
         router.refresh()
-      } catch (error) {
-        console.error('[STRICT AUTH] authentication failed', error)
       } finally {
         if (timer) window.clearTimeout(timer)
       }
     }
 
-    const start = () => {
-      if (cancelled) return true
+    const promise = run().catch((error) => {
+      console.error('[STRICT AUTH] Telegram authentication failed', error)
+      // A failed mismatch reset must never expose the previous account again.
+      window.__royalHouseTelegramAuthReady = true
+      window.dispatchEvent(new CustomEvent('royalhouse:telegram-auth-ready'))
+    })
 
-      const webApp = window.Telegram?.WebApp
-      if (!webApp?.initData) return false
-
-      void authenticate(webApp)
-      return true
-    }
-
-    if (start()) {
-      return () => {
-        cancelled = true
-        if (timer) window.clearTimeout(timer)
-      }
-    }
-
-    const existing = document.querySelector(
-      'script[data-telegram-web-app]'
-    ) as HTMLScriptElement | null
-
-    if (existing) {
-      existing.addEventListener('load', start, { once: true })
-      return () => {
-        cancelled = true
-        if (timer) window.clearTimeout(timer)
-        existing.removeEventListener('load', start)
-      }
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-web-app.js'
-    script.async = true
-    script.dataset.telegramWebApp = 'true'
-    script.onload = start
-    document.head.appendChild(script)
+    window.__royalHouseTelegramAuthPromise = promise
 
     return () => {
       cancelled = true
       if (timer) window.clearTimeout(timer)
-      script.onload = null
     }
   }, [router])
 
