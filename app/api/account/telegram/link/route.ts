@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomBytes, createHash, createHmac } from 'node:crypto'
+import { randomBytes, createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
@@ -24,7 +24,7 @@ function verifyTelegramIdentity(value: string | undefined) {
   const expected = createHmac('sha256', telegramCookieSecret()).update(`${profileId}:${telegramUserId}`).digest('hex')
   if (signature.length !== expected.length) return null
   try {
-    if (!require('node:crypto').timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
+    if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
   } catch {
     return null
   }
