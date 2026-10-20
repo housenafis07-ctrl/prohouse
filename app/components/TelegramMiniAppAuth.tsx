@@ -26,11 +26,7 @@ function isTelegramLaunchUrl() {
 function detectTelegramContext() {
   if (typeof window === 'undefined') return false
   const webApp = window.Telegram?.WebApp
-  return Boolean(
-    webApp?.initData ||
-    window.TelegramWebviewProxy ||
-    isTelegramLaunchUrl(),
-  )
+  return Boolean(webApp?.initData || window.TelegramWebviewProxy || isTelegramLaunchUrl())
 }
 
 function Gate({ children }: { children: ReactNode }) {
@@ -114,8 +110,9 @@ export default function TelegramMiniAppAuth({ children }: Props) {
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'ready'
         setState('ready')
         const next = new URLSearchParams(window.location.search).get('next')
-        const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
-        if (!cancelled && target && target !== window.location.pathname) window.history.replaceState(null, '', target)
+        const currentPath = window.location.pathname
+        const target = next && next.startsWith('/') ? next : currentPath === '/register' ? '/account' : currentPath
+        if (!cancelled && target && target !== currentPath) window.history.replaceState(null, '', target)
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'failed'
@@ -159,7 +156,7 @@ export default function TelegramMiniAppAuth({ children }: Props) {
       cancelled = true
       if (timer) clearInterval(timer)
     }
-  }, [pathname])
+  }, [])
 
   const verifyWithPhone = async () => {
     setLoading(true)
