@@ -67,33 +67,39 @@ export default function TelegramMiniAppAuth() {
         if (!response.ok) throw new Error(data?.error || 'TELEGRAM_AUTH_FAILED')
         if (cancelled) return
 
-        // The API creates the canonical session server-side AND returns the
-        // exact tokens for the Telegram-linked RoyalHouse profile. Hydrate the
-        // browser client explicitly; otherwise a stale phone session can keep
-        // /listings/new on the previous profile.
-        if (!data?.session?.access_token || !data?.session?.refresh_token) {
+        if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.profile?.id) {
           throw new Error('TELEGRAM_SESSION_MISSING')
         }
 
         const supabase = createClient()
+
+        // A Telegram Mini App must never inherit the previous phone-authenticated
+        // browser identity. Clear only the local browser auth state first, then
+        // install the canonical Telegram session returned by the server.
+        await supabase.auth.signOut({ scope: 'local' })
+
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         })
         if (sessionError) throw sessionError
 
-        // Give the browser auth state a tick to persist before any protected
-        // page reads the current user. Do not render the old profile during
-        // this transition.
-        await new Promise((resolve) => window.setTimeout(resolve, 150))
+        // Verify the browser now resolves to exactly the profile selected by
+        // Telegram. If it does not, never allow the old profile to render.
+        const { data: verified } = await supabase.auth.getUser()
+        if (!verified.user || verified.user.id !== data.profile.id) {
+          await supabase.auth.signOut({ scope: 'local' })
+          throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
+        }
+
         if (cancelled) return
 
-        router.refresh()
-        await new Promise((resolve) => window.setTimeout(resolve, 100))
-
+        // Use a hard navigation after the session has been persisted. This is
+        // intentional: account/listing pages may be server-rendered and can
+        // otherwise retain data from the previous Supabase cookie/session.
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
-        router.replace(target || '/')
+        window.location.replace(target || '/')
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
         if (!cancelled) {
@@ -171,20 +177,11 @@ export default function TelegramMiniAppAuth() {
               : 'Siz hozir RoyalHouse akkauntiga telefon orqali kirgansiz. Telegramni shu profilga ulash uchun tasdiqlang.'}
           </p>
           {conflict === 'link' ? (
-            <button
-              type="button"
-              onClick={startLinking}
-              disabled={linking}
-              className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-60"
-            >
+            <button type="button" onClick={startLinking} disabled={linking} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-60">
               {linking ? 'Ulash havolasi tayyorlanmoqda…' : 'Telegramni ulash'}
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => router.replace('/account')}
-              className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white"
-            >
+            <button type="button" onClick={() => router.replace('/account')} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white">
               Hozirgi profilga qaytish
             </button>
           )}
@@ -200,13 +197,7 @@ export default function TelegramMiniAppAuth() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-xl">⚠️</div>
           <p className="text-lg font-extrabold text-slate-900">Telegram tekshiruvi bajarilmadi</p>
           <p className="mt-2 text-sm leading-6 text-slate-600">Telegram orqali ochilgan oynani qayta oching. Eski RoyalHouse profiliga avtomatik o‘tmaymiz.</p>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white"
-          >
-            Qayta tekshirish
-          </button>
+          <button type="button" onClick={() => window.location.reload()} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white">Qayta tekshirish</button>
         </div>
       </div>
     )
