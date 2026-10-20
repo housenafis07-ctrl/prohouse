@@ -17,12 +17,20 @@ declare global {
 
 type Props = { children?: ReactNode }
 
+function isTelegramLaunchUrl() {
+  if (typeof window === 'undefined') return false
+  const url = window.location.href
+  return /[?&#](?:tgWebApp|tgWebAppData|tgWebAppVersion|tgWebAppPlatform|tgWebAppStartParam)(?:=|%3D)/i.test(url)
+}
+
 function detectTelegramContext() {
   if (typeof window === 'undefined') return false
   const webApp = window.Telegram?.WebApp
-  const userAgent = navigator.userAgent || ''
-  const telegramUrl = /tgWebApp(?:Data|Version|Platform|StartParam)/i.test(window.location.href)
-  return Boolean(webApp?.initData || window.TelegramWebviewProxy || telegramUrl || /Telegram/i.test(userAgent))
+  return Boolean(
+    webApp?.initData ||
+    window.TelegramWebviewProxy ||
+    isTelegramLaunchUrl(),
+  )
 }
 
 function Gate({ children }: { children: ReactNode }) {
@@ -123,21 +131,35 @@ export default function TelegramMiniAppAuth({ children }: Props) {
         return
       }
       attempts += 1
-      if (attempts >= 20) {
+      if (attempts >= 50) {
         if (timer) clearInterval(timer)
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'failed'
         setState('failed')
       }
     }
 
-    findInitData()
+    const startTelegramScript = () => {
+      const existing = document.querySelector<HTMLScriptElement>('script[data-royalhouse-telegram-webapp]')
+      if (existing) {
+        findInitData()
+        return
+      }
+      const script = document.createElement('script')
+      script.src = 'https://telegram.org/js/telegram-web-app.js'
+      script.async = true
+      script.dataset.royalhouseTelegramWebapp = 'true'
+      script.onload = findInitData
+      document.head.appendChild(script)
+    }
+
+    startTelegramScript()
     if (!window.Telegram?.WebApp?.initData) timer = setInterval(findInitData, 100)
 
     return () => {
       cancelled = true
       if (timer) clearInterval(timer)
     }
-  }, [])
+  }, [pathname])
 
   const verifyWithPhone = async () => {
     setLoading(true)
