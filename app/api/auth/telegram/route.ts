@@ -23,16 +23,12 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    // SECURITY: a Telegram link is trusted for silent login only when it was
-    // explicitly verified with the Royalhouse phone OTP flow. Older links may
-    // point to the wrong profile because of the previous auto-link behaviour.
-    // Never let an old/stale mapping choose the account.
-    if (
-      !existingLink ||
-      !existingLink.profile_id ||
-      !existingLink.verified_at ||
-      existingLink.verification_method !== 'phone_otp'
-    ) {
+    // SECURITY: only an explicit, verified link may choose the Royalhouse account.
+    // phone_otp proves phone ownership; account_link_token proves the user explicitly
+    // initiated Telegram linking from the authenticated Royalhouse profile. Older
+    // unverified/legacy mappings are never allowed to select an account.
+    const trustedVerification = existingLink?.verification_method === 'phone_otp' || existingLink?.verification_method === 'account_link_token'
+    if (!existingLink || !existingLink.profile_id || !existingLink.verified_at || !trustedVerification) {
       return NextResponse.json({
         error: 'TELEGRAM_PHONE_VERIFICATION_REQUIRED',
         telegramUserId,
