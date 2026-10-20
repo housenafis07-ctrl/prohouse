@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/utils/supabase/server'
+import { telegramAuthEmail, telegramAuthPassword } from '@/app/lib/telegram-miniapp'
 
 const MAX_ATTEMPTS = 5
 
@@ -48,30 +49,17 @@ export async function POST(request: Request) {
     .maybeSingle()
 
   if (otpLookupError) return NextResponse.json({ error: otpLookupError.message }, { status: 500 })
-
-  if (!otp) {
-    return NextResponse.json({ error: 'Tasdiqlash kodi topilmadi. Yangi kod so‘rang.' }, { status: 401 })
-  }
-
-  if (new Date(otp.expires_at).getTime() <= Date.now()) {
-    return NextResponse.json({ error: 'Tasdiqlash kodi muddati tugagan. Yangi kod so‘rang.' }, { status: 401 })
-  }
-
-  if (otp.attempts >= MAX_ATTEMPTS) {
-    return NextResponse.json({ error: 'Urinishlar soni tugadi. Yangi kod so‘rang.' }, { status: 429 })
-  }
+  if (!otp) return NextResponse.json({ error: 'Tasdiqlash kodi topilmadi. Yangi kod so‘rang.' }, { status: 401 })
+  if (new Date(otp.expires_at).getTime() <= Date.now()) return NextResponse.json({ error: 'Tasdiqlash kodi muddati tugagan. Yangi kod so‘rang.' }, { status: 401 })
+  if (otp.attempts >= MAX_ATTEMPTS) return NextResponse.json({ error: 'Urinishlar soni tugadi. Yangi kod so‘rang.' }, { status: 429 })
 
   const isValid = hashOtp(normalizedCode) === otp.code_hash
-
   if (!isValid) {
     const nextAttempts = otp.attempts + 1
     await admin.from('sms_otp_codes').update({ attempts: nextAttempts }).eq('id', otp.id)
     return NextResponse.json({ error: 'Tasdiqlash kodi noto‘g‘ri.' }, { status: 401 })
   }
 
-  // When the user arrived through Telegram, keep Telegram and phone as two
-  // identities of one canonical RoyalHouse account. Never silently create a
-  // second account just because the phone was verified later.
   const browserAuth = await createServerClient()
   const { data: { user: currentUser } } = await browserAuth.auth.getUser()
   const currentUserId = currentUser?.id || null
@@ -82,9 +70,7 @@ export async function POST(request: Request) {
     .eq('phone', normalizedPhone)
     .maybeSingle()
 
-  if (profileLookupError) {
-    return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
-  }
+  if (profileLookupError) return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
 
   let telegramSource: { id: string; telegramUserId: string; chatId: string } | null = null
 
@@ -96,8 +82,7 @@ export async function POST(request: Request) {
       .maybeSingle()
     if (currentProfileError) return NextResponse.json({ error: currentProfileError.message }, { status: 500 })
 
-    const authProvider = currentUser?.user_metadata?.auth_provider
-    if (authProvider === 'telegram' && !currentProfile?.phone) {
+    if (currentUser?.user_metadata?.auth_provider === 'telegram' && !currentProfile?.phone) {
       const { data: sourceLink, error: sourceLinkError } = await admin
         .from('telegram_user_links')
         .select('profile_id,telegram_user_id,chat_id')
@@ -114,7 +99,6 @@ export async function POST(request: Request) {
     }
   }
 
-  // Do not consume the OTP when an unsafe identity merge needs intervention.
   if (telegramSource && existingProfile?.id) {
     const { data: targetLink, error: targetLinkError } = await admin
       .from('telegram_user_links')
@@ -149,19 +133,19 @@ export async function POST(request: Request) {
     .update({ used_at: new Date().toISOString() })
     .eq('id', otp.id)
     .is('used_at', null)
-
   if (usedError) return NextResponse.json({ error: usedError.message }, { status: 500 })
 
   const authEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
   let user
+  let signInEmail = authEmail
+  let signInPassword = normalizedCode
 
-  // Telegram-first user with a new phone: upgrade the same Auth user instead
-  // of creating a second phone account.
+  // Telegram-first user with a new phone keeps the Telegram Auth credentials.
+  // The verified phone is stored on the same RoyalHouse profile. Phone login
+  // can temporarily set a password during its own OTP verification, while the
+  // Telegram auth route restores its deterministic credentials on Telegram login.
   if (telegramSource && !existingProfile) {
     const { data: updated, error: updateError } = await admin.auth.admin.updateUserById(currentUserId!, {
-      email: authEmail,
-      email_confirm: true,
-      password: normalizedCode,
       user_metadata: {
         ...(currentUser?.user_metadata || {}),
         phone: normalizedPhone,
@@ -176,16 +160,70 @@ export async function POST(request: Request) {
     if (profileUpdateError) return NextResponse.json({ error: profileUpdateError.message }, { status: 500 })
 
     user = updated.user
-  } else {
-    if (existingProfile?.id) {
-      const { data: existingUserData, error: existingUserError } = await admin.auth.admin.getUserById(existingProfile.id)
-      if (existingUserError || !existingUserData.user) {
-        return NextResponse.json(
-          { error: existingUserError?.message || 'Mavjud foydalanuvchi topilmadi.' },
-          { status: 500 },
-        )
+    signInEmail = telegramAuthEmail(telegramSource.telegramUserId)
+    signInPassword = telegramAuthPassword(telegramSource.telegramUserId)
+  } else if (existingProfile?.id) {
+    const { data: existingUserData, error: existingUserError } = await admin.auth.admin.getUserById(existingProfile.id)
+    if (existingUserError || !existingUserData.user) {
+      return NextResponse.json({ error: existingUserError?.message || 'Mavjud foydalanuvchi topilmadi.' }, { status: 500 })
+    }
+
+    const existingAuthProvider = existingUserData.user.user_metadata?.auth_provider
+
+    if (telegramSource && currentUserId && currentUserId !== existingProfile.id) {
+      // The phone owner becomes the canonical account. Give it the Telegram
+      // credentials, move the Telegram mapping, then remove the empty duplicate.
+      const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
+        email: telegramAuthEmail(telegramSource.telegramUserId),
+        email_confirm: true,
+        password: telegramAuthPassword(telegramSource.telegramUserId),
+        user_metadata: {
+          ...(existingUserData.user.user_metadata || {}),
+          auth_provider: 'telegram',
+          telegram_user_id: telegramSource.telegramUserId,
+          phone: normalizedPhone,
+        },
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      user = data.user
+      signInEmail = telegramAuthEmail(telegramSource.telegramUserId)
+      signInPassword = telegramAuthPassword(telegramSource.telegramUserId)
+
+      const { data: targetLink } = await admin
+        .from('telegram_user_links')
+        .select('telegram_user_id')
+        .eq('profile_id', existingProfile.id)
+        .maybeSingle()
+
+      if (!targetLink) {
+        const { error: moveLinkError } = await admin
+          .from('telegram_user_links')
+          .update({ profile_id: existingProfile.id, linked_at: new Date().toISOString() })
+          .eq('profile_id', currentUserId)
+        if (moveLinkError) return NextResponse.json({ error: moveLinkError.message }, { status: 500 })
+      } else {
+        const { error: removeSourceLinkError } = await admin
+          .from('telegram_user_links')
+          .delete()
+          .eq('profile_id', currentUserId)
+        if (removeSourceLinkError) return NextResponse.json({ error: removeSourceLinkError.message }, { status: 500 })
       }
 
+      const { error: deleteDuplicateError } = await admin.auth.admin.deleteUser(currentUserId)
+      if (deleteDuplicateError) return NextResponse.json({ error: deleteDuplicateError.message }, { status: 500 })
+    } else if (existingAuthProvider === 'telegram') {
+      // Same canonical Telegram account: keep its Telegram email, only rotate
+      // the temporary password so the current phone OTP login can succeed.
+      const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
+        password: normalizedCode,
+        user_metadata: { ...(existingUserData.user.user_metadata || {}), phone: normalizedPhone },
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      user = data.user
+      signInEmail = data.user.email || authEmail
+      signInPassword = normalizedCode
+      await admin.from('profiles').update({ phone: normalizedPhone }).eq('id', existingProfile.id)
+    } else {
       const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
         email: authEmail,
         email_confirm: true,
@@ -194,83 +232,49 @@ export async function POST(request: Request) {
       })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       user = data.user
+    }
+  } else {
+    // Legacy fallback for phone accounts created before the profile lookup path.
+    const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
 
-      // The Telegram identity follows the verified phone owner. If the current
-      // Telegram-only profile was empty, move its link and retire that duplicate
-      // Auth user so future Telegram and phone logins resolve to one user_id.
-      if (telegramSource && currentUserId && currentUserId !== existingProfile.id) {
-        const { data: targetLink } = await admin
-          .from('telegram_user_links')
-          .select('telegram_user_id')
-          .eq('profile_id', existingProfile.id)
-          .maybeSingle()
+    user = usersData.users.find((item) => item.email === authEmail || item.phone === normalizedPhone)
 
-        if (!targetLink) {
-          const { error: moveLinkError } = await admin
-            .from('telegram_user_links')
-            .update({ profile_id: existingProfile.id, linked_at: new Date().toISOString() })
-            .eq('profile_id', currentUserId)
-          if (moveLinkError) return NextResponse.json({ error: moveLinkError.message }, { status: 500 })
-        } else {
-          const { error: removeSourceLinkError } = await admin
-            .from('telegram_user_links')
-            .delete()
-            .eq('profile_id', currentUserId)
-          if (removeSourceLinkError) return NextResponse.json({ error: removeSourceLinkError.message }, { status: 500 })
-        }
-
-        const { error: deleteDuplicateError } = await admin.auth.admin.deleteUser(currentUserId)
-        if (deleteDuplicateError) return NextResponse.json({ error: deleteDuplicateError.message }, { status: 500 })
-      }
+    if (!user) {
+      const { data, error } = await admin.auth.admin.createUser({
+        email: authEmail,
+        email_confirm: true,
+        password: normalizedCode,
+        user_metadata: { phone: normalizedPhone },
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      user = data.user
     } else {
-      // Legacy fallback for phone accounts created before the profile lookup
-      // path existed. This is deliberately kept off the normal Telegram path.
-      const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
-      if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
-
-      user = usersData.users.find((item) => item.email === authEmail || item.phone === normalizedPhone)
-
-      if (!user) {
-        const { data, error } = await admin.auth.admin.createUser({
-          email: authEmail,
-          email_confirm: true,
-          password: normalizedCode,
-          user_metadata: { phone: normalizedPhone },
-        })
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        user = data.user
-      } else {
-        const { data, error } = await admin.auth.admin.updateUserById(user.id, {
-          email: authEmail,
-          email_confirm: true,
-          password: normalizedCode,
-          user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
-        })
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        user = data.user
-      }
+      const { data, error } = await admin.auth.admin.updateUserById(user.id, {
+        email: authEmail,
+        email_confirm: true,
+        password: normalizedCode,
+        user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone },
+      })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      user = data.user
     }
   }
 
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  if (!publishableKey) {
-    return NextResponse.json({ error: 'Supabase publishable key sozlanmagan.' }, { status: 500 })
-  }
+  if (!publishableKey) return NextResponse.json({ error: 'Supabase publishable key sozlanmagan.' }, { status: 500 })
 
   const authClient = createClient(supabaseUrl, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
   const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({
-    email: authEmail,
-    password: normalizedCode,
+    email: signInEmail,
+    password: signInPassword,
   })
 
   if (signInError || !sessionData.session) {
-    return NextResponse.json(
-      { error: signInError?.message || 'Sessiya yaratilmadi.' },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: signInError?.message || 'Sessiya yaratilmadi.' }, { status: 500 })
   }
 
   return NextResponse.json({
