@@ -26,5 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: I3 auth regression test
+        run: npm run test:auth
+
       - name: Build
         run: npm run build
