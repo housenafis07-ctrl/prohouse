@@ -21,12 +21,31 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    // If Telegram is opened while a RoyalHouse session already exists, keep
-    // that profile instead of silently creating a second account.
     const sessionClient = await createClient()
     const { data: { user: currentUser } } = await sessionClient.auth.getUser()
 
-    let profileId = existingLink?.profile_id || currentUser?.id || null
+    // A Telegram identity is globally unique. Never let a Telegram Mini App
+    // silently replace an already-authenticated RoyalHouse phone/email account.
+    // If this Telegram identity is already linked elsewhere, keep the current
+    // session intact and require explicit linking instead of switching profiles.
+    if (existingLink && currentUser && existingLink.profile_id !== currentUser.id) {
+      return NextResponse.json({
+        error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE',
+        requiresLinking: true,
+      }, { status: 409 })
+    }
+
+    // If a user is already authenticated with a phone/email account but this
+    // Telegram identity has never been linked, do not silently bind it to the
+    // current account. The user must explicitly start the Telegram linking flow.
+    if (!existingLink && currentUser) {
+      return NextResponse.json({
+        error: 'TELEGRAM_LINK_REQUIRED',
+        requiresLinking: true,
+      }, { status: 409 })
+    }
+
+    let profileId = existingLink?.profile_id || null
     const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
     const email = telegramAuthEmail(tgUser.id)
     const password = telegramAuthPassword(tgUser.id)
@@ -77,23 +96,19 @@ export async function POST(request: NextRequest) {
       if (profileUpdateError) throw profileUpdateError
     }
 
-    // profile_id is the primary key and telegram_user_id is unique, so this
-    // keeps one Telegram identity attached to one RoyalHouse profile.
+    // telegram_user_id has a UNIQUE constraint. Use it as the conflict key so
+    // the same Telegram identity can never be attached to a second profile.
     const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
       profile_id: profileId,
       telegram_user_id: telegramUserId,
       chat_id: telegramUserId,
       telegram_username: tgUser.username || null,
       linked_at: new Date().toISOString(),
-    }, { onConflict: 'profile_id' })
+    }, { onConflict: 'telegram_user_id' })
     if (telegramLinkError) throw telegramLinkError
 
     const { error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
-
-    // If the profile was already authenticated with phone/email, the current
-    // session is already the correct identity. Only sign in with the synthetic
-    // Telegram credential when Telegram owns this profile.
-    if (signInError && currentUser?.id !== profileId) throw signInError
+    if (signInError) throw signInError
 
     return NextResponse.json({
       ok: true,
