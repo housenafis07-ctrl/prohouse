@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
 const TELEGRAM_IDENTITY_COOKIE = 'rh_telegram_identity'
+const TELEGRAM_MISMATCH_COOKIE = 'rh_telegram_mismatch'
 
 function telegramCookieSecret() {
   return process.env.TELEGRAM_BOT_TOKEN || process.env.SUPABASE_SERVICE_ROLE_KEY || 'royalhouse-telegram-fallback'
@@ -15,7 +16,7 @@ function signTelegramIdentity(profileId: string, telegramUserId: string) {
   return `${profileId}.${telegramUserId}.${signature}`
 }
 
-function verifyTelegramIdentity(value: string | undefined) {
+function verifySignedPair(value: string | undefined) {
   if (!value) return null
   const parts = value.split('.')
   if (parts.length !== 3) return null
@@ -36,34 +37,35 @@ export async function GET(request: NextRequest) {
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
 
-    const cookieIdentity = verifyTelegramIdentity(request.cookies.get(TELEGRAM_IDENTITY_COOKIE)?.value)
+    const cookieIdentity = verifySignedPair(request.cookies.get(TELEGRAM_IDENTITY_COOKIE)?.value)
+    const mismatch = verifySignedPair(request.cookies.get(TELEGRAM_MISMATCH_COOKIE)?.value)
     const db = serviceClient()
 
     if (user) {
       const { data, error } = await db.from('telegram_user_links')
-        .select('telegram_username,linked_at').eq('profile_id', user.id).maybeSingle()
+        .select('telegram_user_id,telegram_username,linked_at').eq('profile_id', user.id).maybeSingle()
       if (error) throw error
 
-      // Telegram-first accounts are already linked even if the link row is still
-      // being hydrated. The signed cookie is an immediate, server-created signal
-      // from the successful Telegram auth response and removes the UI race.
-      const isTelegramAuth = user.user_metadata?.auth_provider === 'telegram'
-      const cookieMatchesUser = cookieIdentity?.profileId === user.id
-      const username = data?.telegram_username || user.user_metadata?.telegram_username || null
+      const metadataTelegramId = String(user.user_metadata?.telegram_user_id || '')
+      const currentTelegramId = cookieIdentity?.profileId === user.id
+        ? cookieIdentity.telegramUserId
+        : metadataTelegramId || null
+      const linkedToCurrentTelegram = Boolean(
+        data?.telegram_user_id && currentTelegramId && String(data.telegram_user_id) === String(currentTelegramId),
+      )
+      const mismatchForUser = mismatch?.profileId === user.id && Boolean(mismatch.telegramUserId)
 
       return NextResponse.json({
-        linked: Boolean(data) || isTelegramAuth || cookieMatchesUser,
-        username,
+        linked: linkedToCurrentTelegram,
+        mismatch: mismatchForUser,
+        username: data?.telegram_username || user.user_metadata?.telegram_username || null,
         linkedAt: data?.linked_at || null,
-        source: isTelegramAuth ? 'telegram_auth' : cookieMatchesUser ? 'telegram_cookie' : 'linked_bot',
+        source: linkedToCurrentTelegram ? 'linked_telegram' : mismatchForUser ? 'telegram_mismatch' : 'unlinked',
       }, { headers: { 'Cache-Control': 'private, no-store' } })
     }
 
-    // This path is only a startup-race fallback. Never expose account data from
-    // the cookie; only return the boolean status and let the authenticated call
-    // populate the username once the Supabase session is ready.
     if (cookieIdentity) {
-      return NextResponse.json({ linked: true, username: null, linkedAt: null, source: 'telegram_cookie' }, {
+      return NextResponse.json({ linked: true, mismatch: false, username: null, linkedAt: null, source: 'telegram_cookie' }, {
         headers: { 'Cache-Control': 'private, no-store' },
       })
     }
@@ -91,10 +93,12 @@ export async function POST() {
     })
     if (error) throw error
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       url: `https://t.me/RoyalHouseUz_bot?start=link_${token}`,
       expiresInSeconds: 600,
     })
+    response.cookies.set(TELEGRAM_MISMATCH_COOKIE, '', { path: '/', maxAge: 0 })
+    return response
   } catch (error) {
     console.error('[Telegram link] Failed to create link', error)
     return NextResponse.json({ error: 'TELEGRAM_LINK_CREATE_FAILED' }, { status: 500 })
