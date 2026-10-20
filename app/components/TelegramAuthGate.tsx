@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 type TelegramAuthGateValue = {
@@ -22,22 +22,26 @@ export function TelegramAuthGateProvider({ children }: { children: ReactNode }) 
     })
   }
 
-  const markReady = () => {
-    if (ready) return
-    setReady(true)
-    resolveRef.current?.()
-    resolveRef.current = null
-  }
+  const markReady = useCallback(() => {
+    setReady((current) => {
+      if (current) return current
+      resolveRef.current?.()
+      resolveRef.current = null
+      return true
+    })
+  }, [])
+
+  const waitForReady = useCallback(() => promiseRef.current!, [])
 
   const value = useMemo<TelegramAuthGateValue>(() => ({
     ready,
-    waitForReady: () => promiseRef.current!,
+    waitForReady,
     markReady,
-  }), [ready])
+  }), [ready, waitForReady, markReady])
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_TG_AUTH_BARRIER !== '1') markReady()
-  }, [])
+  }, [markReady])
 
   return (
     <TelegramAuthGateContext.Provider value={value}>
