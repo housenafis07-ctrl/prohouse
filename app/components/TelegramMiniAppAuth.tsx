@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
@@ -17,7 +17,9 @@ declare global {
   }
 }
 
-export default function TelegramMiniAppAuth() {
+type Props = { children?: ReactNode }
+
+export default function TelegramMiniAppAuth({ children }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const started = useRef(false)
@@ -25,6 +27,7 @@ export default function TelegramMiniAppAuth() {
   const [failed, setFailed] = useState(false)
   const [conflict, setConflict] = useState<'link' | 'already-linked' | null>(null)
   const [linking, setLinking] = useState(false)
+  const [telegramContext, setTelegramContext] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (started.current) return
@@ -43,6 +46,7 @@ export default function TelegramMiniAppAuth() {
     const authenticate = async (webApp: TelegramWebApp) => {
       if (cancelled || !webApp.initData) return
 
+      setTelegramContext(true)
       window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'pending'
       setActive(true)
       webApp.ready()
@@ -91,6 +95,7 @@ export default function TelegramMiniAppAuth() {
         }
 
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'ready'
+        setActive(false)
 
         if (cancelled) return
 
@@ -137,9 +142,12 @@ export default function TelegramMiniAppAuth() {
 
     timeoutTimer = window.setTimeout(() => {
       finish()
-      if (!cancelled && !window.Telegram?.WebApp?.initData) {
+      if (!cancelled) {
+        // No initData means this is an ordinary RoyalHouse browser, not a
+        // Telegram Mini App. Only a real Telegram Mini App is gated.
+        if (window.Telegram?.WebApp?.initData) return
+        setTelegramContext(false)
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'idle'
-        setFailed(false)
       }
     }, 5000)
 
@@ -164,6 +172,16 @@ export default function TelegramMiniAppAuth() {
       console.error('[telegram-miniapp-auth] link failed', error)
       setLinking(false)
     }
+  }
+
+  // Normal browser: do not interfere with the existing RoyalHouse session.
+  if (telegramContext === false) return <>{children}</>
+
+  // A real Telegram Mini App is not allowed to render account-dependent pages
+  // until the Telegram identity has been resolved. This prevents a stale
+  // Supabase/phone session from painting another user's profile first.
+  if (telegramContext === true && window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ === 'ready') {
+    return <>{children}</>
   }
 
   if (conflict) {
@@ -204,15 +222,19 @@ export default function TelegramMiniAppAuth() {
     )
   }
 
-  if (!active) return null
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
-        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
-        <p className="text-lg font-extrabold text-slate-900">Royalhouse</p>
-        <p className="mt-1 text-sm text-slate-500">Telegram orqali avtomatik kirilmoqda...</p>
+  if (telegramContext === true || active) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+          <p className="text-lg font-extrabold text-slate-900">Royalhouse</p>
+          <p className="mt-1 text-sm text-slate-500">Telegram profilingiz tekshirilmoqda...</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  // During the very first browser render, preserve the existing page until we
+  // can determine whether Telegram injected initData.
+  return <>{children}</>
 }
