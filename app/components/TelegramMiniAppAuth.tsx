@@ -29,8 +29,17 @@ export default function TelegramMiniAppAuth() {
     started.current = true
 
     let cancelled = false
+    let pollTimer: number | undefined
+    let timeoutTimer: number | undefined
+
+    const finish = () => {
+      if (pollTimer) window.clearInterval(pollTimer)
+      if (timeoutTimer) window.clearTimeout(timeoutTimer)
+    }
+
     const authenticate = async (webApp: TelegramWebApp) => {
-      if (!webApp.initData) return
+      if (cancelled || !webApp.initData) return
+
       setActive(true)
       webApp.ready()
       webApp.expand()
@@ -61,40 +70,52 @@ export default function TelegramMiniAppAuth() {
         router.replace(target || '/')
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
-        if (!cancelled) setFailed(true)
+        if (!cancelled) {
+          setActive(false)
+          setFailed(true)
+        }
       }
     }
 
     const tryStart = () => {
+      if (cancelled) return true
       const webApp = window.Telegram?.WebApp
-      if (webApp?.initData) {
-        void authenticate(webApp)
-        return true
-      }
-      return false
+      if (!webApp?.initData) return false
+      void authenticate(webApp)
+      return true
     }
 
-    if (tryStart()) return () => { cancelled = true }
-
-    const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', tryStart, { once: true })
+    // Telegram's script may already be loaded before this component mounts.
+    // Listening only for the script `load` event in that case misses initData,
+    // leaving the old browser session visible on the new Telegram profile.
+    if (tryStart()) {
       return () => {
         cancelled = true
-        existing.removeEventListener('load', tryStart)
+        finish()
       }
     }
 
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-web-app.js'
-    script.async = true
-    script.dataset.telegramWebApp = 'true'
-    script.onload = tryStart
-    document.head.appendChild(script)
+    const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
+    if (!existing) {
+      const script = document.createElement('script')
+      script.src = 'https://telegram.org/js/telegram-web-app.js'
+      script.async = true
+      script.dataset.telegramWebApp = 'true'
+      document.head.appendChild(script)
+    }
+
+    pollTimer = window.setInterval(() => {
+      if (tryStart()) finish()
+    }, 50)
+
+    timeoutTimer = window.setTimeout(() => {
+      finish()
+      if (!cancelled && !window.Telegram?.WebApp?.initData) setFailed(true)
+    }, 5000)
 
     return () => {
       cancelled = true
-      script.onload = null
+      finish()
     }
   }, [pathname, router])
 
@@ -149,7 +170,26 @@ export default function TelegramMiniAppAuth() {
     )
   }
 
-  if (!active || failed) return null
+  if (failed) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-xl">⚠️</div>
+          <p className="text-lg font-extrabold text-slate-900">Telegram tekshiruvi bajarilmadi</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Telegram orqali ochilgan oynani qayta oching. Eski RoyalHouse profiliga avtomatik o‘tmaymiz.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white"
+          >
+            Qayta tekshirish
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!active) return null
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
