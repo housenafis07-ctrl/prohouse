@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import GlobalNavigationGate from "./components/GlobalNavigationGate";
 import GlobalLanguageFix from "./components/GlobalLanguageFix";
@@ -37,33 +38,35 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="uz">
       <body>
+        <Script src="https://telegram.org/js/telegram-web-app.js?64" strategy="beforeInteractive" />
         <I18nProvider>
-          <TelegramMiniAppAuth />
-          <RoyalhouseBrandFix />
-          <RoyalhouseFooterFix />
-          <RoyalhouseContactFooter />
-          <GlobalLanguageFix />
-          <LegacySurfaceLanguageFix />
-          <LanguageRuntimeFix />
-          <AuthLanguageFix />
-          <RoyalhousePartnersLinkFix />
-          <GlobalNavigationGate />
-          <RentalNavigationFix />
-          <PurchaseNavigationFix />
-          <NewBuildingsNavigationFix />
-          <HomeBuildingNavigationFix />
-          <MobileMainNavigation />
-          <PwaServiceWorkerRegistration />
-          <PushRegistration />
-          <ListingCardIconStyle />
-          <TaxCalculatorServiceFix />
-          <RoyalhouseMobileHomeRedesign />
-          <RoyalhouseMobileHomePolish />
-          <RoyalhouseMobileAISearch />
-          <RoyalhousePwaHomeSearchFix />
-          <RoyalhousePwaAiSearchStyle />
-          <TelegramLoginButton />
-          {children}
+          <TelegramMiniAppAuth>
+            <RoyalhouseBrandFix />
+            <RoyalhouseFooterFix />
+            <RoyalhouseContactFooter />
+            <GlobalLanguageFix />
+            <LegacySurfaceLanguageFix />
+            <LanguageRuntimeFix />
+            <AuthLanguageFix />
+            <RoyalhousePartnersLinkFix />
+            <GlobalNavigationGate />
+            <RentalNavigationFix />
+            <PurchaseNavigationFix />
+            <NewBuildingsNavigationFix />
+            <HomeBuildingNavigationFix />
+            <MobileMainNavigation />
+            <PwaServiceWorkerRegistration />
+            <PushRegistration />
+            <ListingCardIconStyle />
+            <TaxCalculatorServiceFix />
+            <RoyalhouseMobileHomeRedesign />
+            <RoyalhouseMobileHomePolish />
+            <RoyalhouseMobileAISearch />
+            <RoyalhousePwaHomeSearchFix />
+            <RoyalhousePwaAiSearchStyle />
+            <TelegramLoginButton />
+            {children}
+          </TelegramMiniAppAuth>
         </I18nProvider>
       </body>
     </html>
