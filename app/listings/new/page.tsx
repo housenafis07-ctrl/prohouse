@@ -69,9 +69,6 @@ export default function NewListingPage() {
       }, 50)
     }
 
-    // In Telegram Mini App, the global auth component must finish before this
-    // page reads Supabase. Otherwise this page can capture the old phone session
-    // while the Telegram overlay is still verifying the new identity.
     if (telegramWebApp() || window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ === 'pending') {
       waitForTelegramIdentity()
     } else {
@@ -88,9 +85,13 @@ export default function NewListingPage() {
     setSavingPhone(true)
     setError('')
     try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error(tx('Sessiya topilmadi. Telegram yoki Royalhouse hisobingizga qayta kiring.','Сессия не найдена. Повторно войдите в Telegram или в аккаунт Royalhouse.'))
+
       const response = await fetch('/api/account/contact', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         credentials: 'include',
         body: JSON.stringify({ phone }),
       })
