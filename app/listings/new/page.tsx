@@ -4,10 +4,12 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/app/components/I18nProvider'
 import AppIcon from '@/app/components/AppIcon'
+import { useTelegramAuthGate } from '@/app/components/TelegramAuthGate'
 import { createClient } from '@/utils/supabase/client'
 
 export default function NewListingPage() {
   const { tx } = useI18n()
+  const { waitForReady } = useTelegramAuthGate()
   const [loading, setLoading] = useState(true)
   const [savingPhone, setSavingPhone] = useState(false)
   const [phone, setPhone] = useState('+998 ')
@@ -18,6 +20,13 @@ export default function NewListingPage() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
+      // In Telegram, this promise resolves only after Telegram identity has
+      // replaced any stored local Supabase session. Outside Telegram the gate
+      // resolves immediately and the page keeps its normal behavior.
+      await waitForReady()
+
+      if (!mounted) return
+
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -43,7 +52,7 @@ export default function NewListingPage() {
     }
     void load()
     return () => { mounted = false }
-  }, [tx])
+  }, [tx, waitForReady])
 
   async function savePhone() {
     setSavingPhone(true)
@@ -75,7 +84,7 @@ export default function NewListingPage() {
     <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><strong>{fullName || tx('Royalhouse foydalanuvchisi','Пользователь Royalhouse')}</strong> · {phone}</div>
     <div className="grid gap-5 sm:grid-cols-2">
       <Link href="/listings/new/property" className="group rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-950 hover:shadow-md"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><AppIcon name="building" className="h-7 w-7" /></div><h2 className="mt-5 text-xl font-bold text-slate-950">{tx('Ko‘chmas mulk','Недвижимость')}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{tx('Sotish, sotib olish, ijara va yangi uylar','Продажа, покупка, аренда и новостройки')}</p><span className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">{tx('E’lon joylashtirish →','Разместить объявление →')}</span></Link>
-      <Link href="/listings/new/service" className="group rounded-3xl border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><AppIcon name="tools" className="h-7 w-7" /></div><h2 className="mt-5 text-xl font-bold text-slate-950">{tx('Xizmatlar','Услуги')}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{tx('Professional xizmatlaringizni mijozlarga taklif qiling','Размещение профессиональных услуг для клиентов')}</p><span className="mt-5 inline-flex rounded-xl border border-emerald-500 px-5 py-3 text-sm font-semibold text-emerald-700">{tx('Xizmat e’lonini joylashtirish →','Разместить услугу →')}</span></Link>
+      <Link href="/listings/new/service" className="group rounded-3xl border border-emerald-500 bg-white p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><AppIcon name="tools" className="h-7 w-7" /></div><h2 className="mt-5 text-xl font-bold text-slate-950">{tx('Xizmatlar','Услуги')}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{tx('Professional xizmatlaringizni mijozlarga taklif qiling','Размещение профессиональных услуг для клиентов')}</p><span className="mt-5 inline-flex rounded-xl border border-emerald-500 px-5 py-3 text-sm font-semibold text-emerald-700">{tx('Xizmat e’lonini joylashtirish →','Разместить объявление услуги →')}</span></Link>
     </div>
     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">{tx('Xizmatlar uchun alohida forma ishlatiladi: xizmat turi → ma’lumotlar → hudud → narx → rasmlar → tekshirish.','Для услуг используется отдельная форма: услуга → данные → регион → цена → фото → проверка.')}</div>
   </div></main>
