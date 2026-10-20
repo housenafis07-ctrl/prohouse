@@ -1,1 +1,0 @@
-Telegram profile links are canonical.
