@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 
 type Props = { children?: ReactNode }
 type WebApp = { initData: string; ready: () => void; expand: () => void }
-type AuthState = 'pending' | 'ready' | 'blocked' | 'failed'
+type AuthState = 'idle' | 'pending' | 'ready' | 'blocked' | 'failed'
 
 declare global {
   interface Window {
