@@ -17,30 +17,81 @@ export default function NewListingPage() {
 
   useEffect(() => {
     let mounted = true
-    const load = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        if (mounted) {
-          setError(tx('Avval Telegram yoki telefon orqali tizimga kiring.','Сначала войдите через Telegram или по номеру телефона.'))
-          setLoading(false)
-        }
+
+    const waitForTelegramAuth = async () => {
+      if (window.__royalHouseTelegramAuthReady) return
+
+      const existingPromise = window.__royalHouseTelegramAuthPromise
+      if (existingPromise) {
+        await existingPromise
         return
       }
-      const { data: profile, error: profileError } = await supabase.from('profiles').select('full_name,phone').eq('id', user.id).maybeSingle()
-      if (!mounted) return
-      if (profileError || !profile) {
-        setError(tx('Profil ma’lumotlarini olishda xatolik.','Не удалось получить данные профиля.'))
-      } else {
-        setFullName(profile.full_name || '')
-        const currentPhone = profile.phone || ''
-        if (currentPhone) {
-          setPhone(currentPhone)
-          setPhoneSaved(true)
+
+      // Layout auth and page effects can start in either order. Never read
+      // Supabase while Telegram reconciliation is still pending.
+      await new Promise<void>((resolve) => {
+        if (window.__royalHouseTelegramAuthReady) {
+          resolve()
+          return
         }
-      }
-      setLoading(false)
+
+        const onReady = () => {
+          window.removeEventListener('royalhouse:telegram-auth-ready', onReady)
+          resolve()
+        }
+
+        window.addEventListener('royalhouse:telegram-auth-ready', onReady, { once: true })
+
+        window.setTimeout(() => {
+          window.removeEventListener('royalhouse:telegram-auth-ready', onReady)
+          resolve()
+        }, 10000)
+      })
     }
+
+    const load = async () => {
+      try {
+        await waitForTelegramAuth()
+        if (!mounted) return
+
+        const supabase = createClient()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+        if (userError) throw userError
+
+        if (!user) {
+          setError(tx('Avval Telegram yoki telefon orqali tizimga kiring.','Сначала войдите через Telegram или по номеру телефона.'))
+          setLoading(false)
+          return
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name,phone')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!mounted) return
+
+        if (profileError || !profile) {
+          setError(tx('Profil ma’lumotlarini olishda xatolik.','Не удалось получить данные профиля.'))
+        } else {
+          setFullName(profile.full_name || '')
+          const currentPhone = profile.phone || ''
+          if (currentPhone) {
+            setPhone(currentPhone)
+            setPhoneSaved(true)
+          }
+        }
+        setLoading(false)
+      } catch (loadError) {
+        if (!mounted) return
+        console.error('[new-listing] auth/profile load failed', loadError)
+        setError(tx('Profil ma’lumotlarini olishda xatolik.','Не удалось получить данные профиля.'))
+        setLoading(false)
+      }
+    }
+
     void load()
     return () => { mounted = false }
   }, [tx])
