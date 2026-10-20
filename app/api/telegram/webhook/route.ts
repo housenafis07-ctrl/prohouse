@@ -84,21 +84,80 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
 
-      const { error: linkError } = await admin.from('telegram_user_links').upsert({
-        profile_id: token.profile_id,
-        telegram_user_id: String(from.id),
-        chat_id: String(chatId),
-        telegram_username: from.username || null,
-        linked_at: new Date().toISOString(),
-      }, { onConflict: 'profile_id' })
-      if (linkError) {
-        await sendTelegramMessage(chatId, 'Bu Telegram akkaunti boshqa Royalhouse profiliga ulangan bo‘lishi mumkin. Yordam uchun Royalhouse qo‘llab-quvvatlash xizmatiga murojaat qiling.')
-        return NextResponse.json({ ok: true })
+      const telegramUserId = String(from.id)
+
+      // This token proves that the browser user controls token.profile_id,
+      // while this Telegram message proves that the same person controls
+      // telegramUserId. If the Telegram identity was previously auto-created
+      // as a duplicate profile, rebind only the Telegram mapping to the
+      // verified token.profile_id. Do not merge or delete either profile.
+      const { data: existingTelegramLink, error: existingTelegramLinkError } = await admin
+        .from('telegram_user_links')
+        .select('profile_id')
+        .eq('telegram_user_id', telegramUserId)
+        .maybeSingle()
+      if (existingTelegramLinkError) throw existingTelegramLinkError
+
+      const { data: existingProfileLink, error: existingProfileLinkError } = await admin
+        .from('telegram_user_links')
+        .select('telegram_user_id')
+        .eq('profile_id', token.profile_id)
+        .maybeSingle()
+      if (existingProfileLinkError) throw existingProfileLinkError
+
+      if (existingTelegramLink?.profile_id && existingTelegramLink.profile_id !== token.profile_id) {
+        if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
+          await sendTelegramMessage(
+            chatId,
+            'Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.',
+          )
+          return NextResponse.json({ ok: true })
+        }
+
+        // Move only the verified Telegram mapping. The old Auth user/profile
+        // remains untouched; this is intentionally not an account merge.
+        const { error: rebindError } = await admin
+          .from('telegram_user_links')
+          .update({
+            profile_id: token.profile_id,
+            chat_id: String(chatId),
+            telegram_username: from.username || null,
+            linked_at: new Date().toISOString(),
+          })
+          .eq('telegram_user_id', telegramUserId)
+
+        if (rebindError) throw rebindError
+      } else {
+        if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
+          await sendTelegramMessage(
+            chatId,
+            'Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.',
+          )
+          return NextResponse.json({ ok: true })
+        }
+
+        const { error: linkError } = await admin.from('telegram_user_links').upsert({
+          profile_id: token.profile_id,
+          telegram_user_id: telegramUserId,
+          chat_id: String(chatId),
+          telegram_username: from.username || null,
+          linked_at: new Date().toISOString(),
+        }, { onConflict: 'profile_id' })
+        if (linkError) throw linkError
       }
 
-      const { error: usedError } = await admin.from('telegram_link_tokens').update({ used_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('used_at', null)
+      const { error: usedError } = await admin
+        .from('telegram_link_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('token_hash', tokenHash)
+        .is('used_at', null)
       if (usedError) throw usedError
-      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi Royalhouse’ni shu yerdan bir bosishda ochishingiz mumkin.', true)
+
+      await sendTelegramMessage(
+        chatId,
+        '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi Royalhouse’ni shu yerdan bir bosishda ochishingiz mumkin.',
+        true,
+      )
       return NextResponse.json({ ok: true })
     }
 
