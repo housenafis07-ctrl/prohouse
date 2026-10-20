@@ -24,20 +24,9 @@ export async function POST(request: NextRequest) {
     const sessionClient = await createClient()
     const { data: { user: currentUser } } = await sessionClient.auth.getUser()
 
-    // A Telegram identity is globally unique. Never let a Telegram Mini App
-    // silently replace an already-authenticated RoyalHouse phone/email account.
-    // If this Telegram identity is already linked elsewhere, keep the current
-    // session intact and require explicit linking instead of switching profiles.
-    if (existingLink && currentUser && existingLink.profile_id !== currentUser.id) {
-      return NextResponse.json({
-        error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE',
-        requiresLinking: true,
-      }, { status: 409 })
-    }
-
-    // If a user is already authenticated with a phone/email account but this
-    // Telegram identity has never been linked, do not silently bind it to the
-    // current account. The user must explicitly start the Telegram linking flow.
+    // If this Telegram identity is already linked, that link is authoritative.
+    // A stale browser session must NOT win over the canonical Telegram profile.
+    // The client will hydrate itself with the session returned below.
     if (!existingLink && currentUser) {
       return NextResponse.json({
         error: 'TELEGRAM_LINK_REQUIRED',
@@ -96,8 +85,20 @@ export async function POST(request: NextRequest) {
       if (profileUpdateError) throw profileUpdateError
     }
 
-    // telegram_user_id has a UNIQUE constraint. Use it as the conflict key so
-    // the same Telegram identity can never be attached to a second profile.
+    // Telegram ID is globally unique. Never overwrite another profile's link.
+    const { data: linkAfterLookup, error: finalLinkLookupError } = await admin
+      .from('telegram_user_links')
+      .select('profile_id')
+      .eq('telegram_user_id', telegramUserId)
+      .maybeSingle()
+    if (finalLinkLookupError) throw finalLinkLookupError
+    if (linkAfterLookup && linkAfterLookup.profile_id !== profileId) {
+      return NextResponse.json({
+        error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE',
+        requiresLinking: true,
+      }, { status: 409 })
+    }
+
     const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
       profile_id: profileId,
       telegram_user_id: telegramUserId,
@@ -107,18 +108,47 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'telegram_user_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    const { error: signInError } = await sessionClient.auth.signInWithPassword({ email, password })
-    if (signInError) throw signInError
+    // Always create the session for the canonical Telegram-linked profile.
+    // Returning these tokens is critical: server-side signIn cookies are not
+    // guaranteed to replace a stale browser Supabase session in the Mini App.
+    const signIn = await sessionClient.auth.signInWithPassword({ email, password })
+    if (signIn.error || !signIn.data.session) {
+      // Legacy Telegram users may have an old password. Reset it to the
+      // deterministic Telegram password, then create the canonical session.
+      const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
+      if (passwordUpdateError) throw passwordUpdateError
+
+      const retry = await sessionClient.auth.signInWithPassword({ email, password })
+      if (retry.error || !retry.data.session) throw retry.error || new Error('TELEGRAM_SESSION_CREATE_FAILED')
+
+      return NextResponse.json({
+        ok: true,
+        session: {
+          access_token: retry.data.session.access_token,
+          refresh_token: retry.data.session.refresh_token,
+        },
+        profile: {
+          id: profileId,
+          fullName: displayName,
+          phone: profile?.phone || null,
+          hasPhone: Boolean(profile?.phone),
+        },
+      }, { headers: { 'Cache-Control': 'private, no-store' } })
+    }
 
     return NextResponse.json({
       ok: true,
+      session: {
+        access_token: signIn.data.session.access_token,
+        refresh_token: signIn.data.session.refresh_token,
+      },
       profile: {
         id: profileId,
         fullName: displayName,
         phone: profile?.phone || null,
         hasPhone: Boolean(profile?.phone),
       },
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     console.error('[Telegram auth] failed', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED' }, { status: 500 })
