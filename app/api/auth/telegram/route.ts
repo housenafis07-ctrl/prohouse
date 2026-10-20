@@ -54,7 +54,29 @@ export async function POST(request: NextRequest) {
     let profile: TelegramProfile | null = null
 
     if (existingLink?.profile_id) {
-      // Existing Telegram identity: resolve ONLY through telegram_user_id -> profile_id.
+      /*
+       * Existing but untrusted legacy link:
+       * do not silently choose that profile. The user must explicitly
+       * complete the existing phone-linking flow.
+       */
+      const trustedVerification =
+        existingLink.verified_at !== null &&
+        (
+          existingLink.verification_method === 'phone_otp' ||
+          existingLink.verification_method === 'account_link_token'
+        )
+
+      if (!trustedVerification) {
+        return NextResponse.json(
+          {
+            error: 'TELEGRAM_PHONE_VERIFICATION_REQUIRED',
+            telegramUserId,
+          },
+          { status: 428, headers: noStore },
+        )
+      }
+
+      // Existing trusted Telegram identity: resolve ONLY through telegram_user_id -> profile_id.
       profileId = existingLink.profile_id
 
       const { data: existingProfile, error: profileLookupError } = await admin
@@ -226,7 +248,7 @@ export async function POST(request: NextRequest) {
       authEmail = mappedAuthUser.email ?? authEmail
     }
 
-    // Ensure metadata on the mapped Auth user, never on another/current-session user.
+    // Ensure Telegram metadata is attached to THIS mapped Auth user only.
     const currentTelegramId = mappedAuthUser.user_metadata?.telegram_user_id
 
     if (String(currentTelegramId ?? '') !== telegramUserId) {
