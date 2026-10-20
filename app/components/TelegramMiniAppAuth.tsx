@@ -13,11 +13,24 @@ type TelegramWebApp = {
 declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp }
+    TelegramWebviewProxy?: unknown
     __ROYALHOUSE_TELEGRAM_AUTH_STATE__?: 'idle' | 'pending' | 'ready' | 'blocked' | 'failed'
   }
 }
 
 type Props = { children?: ReactNode }
+
+function LoadingGate({ text = 'Telegram profilingiz tekshirilmoqda...' }: { text?: string }) {
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white px-6">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
+        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+        <p className="text-lg font-extrabold text-slate-900">Royalhouse</p>
+        <p className="mt-1 text-sm text-slate-500">{text}</p>
+      </div>
+    </div>
+  )
+}
 
 export default function TelegramMiniAppAuth({ children }: Props) {
   const router = useRouter()
@@ -60,7 +73,6 @@ export default function TelegramMiniAppAuth({ children }: Props) {
           credentials: 'include',
           cache: 'no-store',
         })
-
         const data = await response.json().catch(() => null)
 
         if (response.status === 409) {
@@ -80,6 +92,8 @@ export default function TelegramMiniAppAuth({ children }: Props) {
         }
 
         const supabase = createClient()
+        // The browser may contain a session for a different person. It must
+        // never survive into the Telegram Mini App identity.
         await supabase.auth.signOut({ scope: 'local' })
 
         const { error: sessionError } = await supabase.auth.setSession({
@@ -96,11 +110,13 @@ export default function TelegramMiniAppAuth({ children }: Props) {
 
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'ready'
         setActive(false)
-
         if (cancelled) return
 
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
+        // Full navigation makes the new auth cookie/session authoritative for
+        // both server components and client components; router.refresh alone
+        // can retain a stale authenticated tree during hydration.
         window.location.replace(target || '/')
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
@@ -120,6 +136,8 @@ export default function TelegramMiniAppAuth({ children }: Props) {
       return true
     }
 
+    // Telegram normally injects WebApp before React runs. If it is already
+    // available, authentication starts immediately with no artificial delay.
     if (tryStart()) {
       return () => {
         cancelled = true
@@ -140,16 +158,15 @@ export default function TelegramMiniAppAuth({ children }: Props) {
       if (tryStart()) finish()
     }, 50)
 
+    // Ordinary browser visits must not be held by the Telegram gate forever.
+    // 1500ms is only a fallback; Telegram normally resolves immediately.
     timeoutTimer = window.setTimeout(() => {
       finish()
-      if (!cancelled) {
-        // No initData means this is an ordinary RoyalHouse browser, not a
-        // Telegram Mini App. Only a real Telegram Mini App is gated.
-        if (window.Telegram?.WebApp?.initData) return
+      if (!cancelled && !window.Telegram?.WebApp?.initData) {
         setTelegramContext(false)
         window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'idle'
       }
-    }, 5000)
+    }, 1500)
 
     return () => {
       cancelled = true
@@ -174,67 +191,51 @@ export default function TelegramMiniAppAuth({ children }: Props) {
     }
   }
 
-  // Normal browser: do not interfere with the existing RoyalHouse session.
-  if (telegramContext === false) return <>{children}</>
-
-  // A real Telegram Mini App is not allowed to render account-dependent pages
-  // until the Telegram identity has been resolved. This prevents a stale
-  // Supabase/phone session from painting another user's profile first.
-  if (telegramContext === true && window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ === 'ready') {
-    return <>{children}</>
-  }
-
-  if (conflict) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
-        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-xl">⚠️</div>
-          <p className="text-lg font-extrabold text-slate-900">Telegram akkaunti tekshirildi</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            {conflict === 'already-linked'
-              ? 'Bu Telegram akkaunti boshqa RoyalHouse profiliga ulangan. Hozirgi profilni almashtirmaymiz.'
-              : 'Siz hozir RoyalHouse akkauntiga telefon orqali kirgansiz. Telegramni shu profilga ulash uchun tasdiqlang.'}
-          </p>
-          {conflict === 'link' ? (
-            <button type="button" onClick={startLinking} disabled={linking} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-60">
-              {linking ? 'Ulash havolasi tayyorlanmoqda…' : 'Telegramni ulash'}
-            </button>
-          ) : (
-            <button type="button" onClick={() => router.replace('/account')} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white">
-              Hozirgi profilga qaytish
-            </button>
-          )}
+  // A real Telegram Mini App is always gated until its identity is resolved.
+  // This prevents an old browser/phone session from rendering another user's
+  // account before Telegram authentication completes.
+  if (telegramContext === null || telegramContext === true) {
+    if (conflict) {
+      return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-xl">⚠️</div>
+            <p className="text-lg font-extrabold text-slate-900">Telegram akkaunti tekshirildi</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {conflict === 'already-linked'
+                ? 'Bu Telegram akkaunti boshqa RoyalHouse profiliga ulangan. Hozirgi profilni almashtirmaymiz.'
+                : 'Siz hozir RoyalHouse akkauntiga telefon orqali kirgansiz. Telegramni shu profilga ulash uchun tasdiqlang.'}
+            </p>
+            {conflict === 'link' ? (
+              <button type="button" onClick={startLinking} disabled={linking} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-60">
+                {linking ? 'Ulash havolasi tayyorlanmoqda…' : 'Telegramni ulash'}
+              </button>
+            ) : (
+              <button type="button" onClick={() => router.replace('/account')} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white">
+                Hozirgi profilga qaytish
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
-  if (failed) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
-        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-xl">⚠️</div>
-          <p className="text-lg font-extrabold text-slate-900">Telegram tekshiruvi bajarilmadi</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Telegram orqali ochilgan oynani qayta oching. Eski RoyalHouse profiliga avtomatik o‘tmaymiz.</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white">Qayta tekshirish</button>
+    if (failed) {
+      return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-xl">⚠️</div>
+            <p className="text-lg font-extrabold text-slate-900">Telegram tekshiruvi bajarilmadi</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Telegram orqali ochilgan oynani qayta oching. Eski RoyalHouse profiliga avtomatik o‘tmaymiz.</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 w-full rounded-2xl bg-slate-900 px-5 py-3 font-bold text-white">Qayta tekshirish</button>
+          </div>
         </div>
-      </div>
-    )
+      )
+    }
+
+    return <LoadingGate text={active ? 'Telegram profilingiz tekshirilmoqda...' : 'Royalhouse xavfsiz kirishni tekshirmoqda...'} />
   }
 
-  if (telegramContext === true || active) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/95 px-6">
-        <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
-          <p className="text-lg font-extrabold text-slate-900">Royalhouse</p>
-          <p className="mt-1 text-sm text-slate-500">Telegram profilingiz tekshirilmoqda...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // During the very first browser render, preserve the existing page until we
-  // can determine whether Telegram injected initData.
+  // Normal browser: preserve the existing RoyalHouse session and render the app.
   return <>{children}</>
 }
