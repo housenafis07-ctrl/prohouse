@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
@@ -45,10 +46,6 @@ export default function TelegramMiniAppAuth() {
       webApp.expand()
 
       try {
-        // Do not let a stale phone-authenticated browser session determine
-        // which RoyalHouse profile is shown while Telegram auth is running.
-        // The server is authoritative: it validates initData and returns the
-        // canonical Telegram-linked profile/session.
         const response = await fetch('/api/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -57,8 +54,9 @@ export default function TelegramMiniAppAuth() {
           cache: 'no-store',
         })
 
+        const data = await response.json().catch(() => null)
+
         if (response.status === 409) {
-          const data = await response.json().catch(() => null)
           if (!cancelled) {
             setConflict(data?.error === 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' ? 'already-linked' : 'link')
             setActive(false)
@@ -66,12 +64,30 @@ export default function TelegramMiniAppAuth() {
           return
         }
 
-        if (!response.ok) throw new Error('Telegram authentication failed')
+        if (!response.ok) throw new Error(data?.error || 'TELEGRAM_AUTH_FAILED')
         if (cancelled) return
 
-        // Force Next/Supabase-backed pages to remount after the Telegram auth
-        // response has established the canonical session. Without this,
-        // /listings/new could render once from the previous phone session.
+        // The API creates the canonical session server-side AND returns the
+        // exact tokens for the Telegram-linked RoyalHouse profile. Hydrate the
+        // browser client explicitly; otherwise a stale phone session can keep
+        // /listings/new on the previous profile.
+        if (!data?.session?.access_token || !data?.session?.refresh_token) {
+          throw new Error('TELEGRAM_SESSION_MISSING')
+        }
+
+        const supabase = createClient()
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+        if (sessionError) throw sessionError
+
+        // Give the browser auth state a tick to persist before any protected
+        // page reads the current user. Do not render the old profile during
+        // this transition.
+        await new Promise((resolve) => window.setTimeout(resolve, 150))
+        if (cancelled) return
+
         router.refresh()
         await new Promise((resolve) => window.setTimeout(resolve, 100))
 
