@@ -11,7 +11,6 @@ declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp }
     TelegramWebviewProxy?: unknown
-    __ROYALHOUSE_TELEGRAM_AUTH_STATE__?: AuthState
   }
 }
 
