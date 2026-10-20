@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
 import { telegramAuthEmail, telegramAuthPassword, validateTelegramInitData } from '@/app/lib/telegram-miniapp'
+import { createHmac } from 'node:crypto'
 
 export const runtime = 'nodejs'
+
+function telegramCookieSecret() {
+  return process.env.TELEGRAM_BOT_TOKEN || process.env.SUPABASE_SERVICE_ROLE_KEY || 'royalhouse-telegram-fallback'
+}
+
+function signTelegramIdentity(profileId: string, telegramUserId: string) {
+  const payload = `${profileId}:${telegramUserId}`
+  const signature = createHmac('sha256', telegramCookieSecret()).update(payload).digest('hex')
+  return `${profileId}.${telegramUserId}.${signature}`
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -162,7 +173,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       ok: true,
       session,
       profile: {
@@ -172,6 +183,19 @@ export async function POST(request: NextRequest) {
         hasPhone: Boolean(profile?.phone),
       },
     }, { headers: { 'Cache-Control': 'private, no-store' } })
+
+    // The Mini App sets the Supabase browser session immediately after this
+    // response. Keep a short-lived signed identity marker so the account page
+    // can render Telegram-linked status during that small hydration window.
+    response.cookies.set('rh_telegram_identity', signTelegramIdentity(profileId, telegramUserId), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60,
+    })
+
+    return response
   } catch (error) {
     console.error('[Telegram auth] failed', error)
     return NextResponse.json({
