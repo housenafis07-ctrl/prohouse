@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import GlobalNavigationGate from "./components/GlobalNavigationGate";
 import GlobalLanguageFix from "./components/GlobalLanguageFix";
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="uz">
       <body>
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
         <I18nProvider>
           <TelegramMiniAppAuth>
             <RoyalhouseBrandFix />
