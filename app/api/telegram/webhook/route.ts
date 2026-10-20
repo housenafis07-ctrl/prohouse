@@ -14,23 +14,12 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured')
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'
-  const body: Record<string, unknown> = {
-    chat_id: chatId,
-    text,
-    disable_web_page_preview: true,
-  }
+  const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true }
   if (includeMiniApp) {
-    body.reply_markup = {
-      inline_keyboard: [[
-        { text: '🚀 Royalhouse’ni ochish', web_app: { url: siteUrl } },
-      ]],
-    }
+    body.reply_markup = { inline_keyboard: [[{ text: '🚀 Royalhouse’ni ochish', web_app: { url: siteUrl } }]] }
   }
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    cache: 'no-store',
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store',
   })
   const data = await response.json()
   if (!response.ok || !data.ok) throw new Error(data.description || 'Telegram sendMessage failed')
@@ -38,59 +27,54 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
 
 export async function POST(request: NextRequest) {
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET
-  if (expectedSecret && request.headers.get('x-telegram-bot-api-secret-token') !== expectedSecret) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
+  if (expectedSecret && request.headers.get('x-telegram-bot-api-secret-token') !== expectedSecret) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
     const update = (await request.json()) as TelegramUpdate
     const message = update.message
     const text = String(message?.text || '').trim()
     const chatId = message?.chat?.id
     if (!message || !text || !chatId) return NextResponse.json({ ok: true })
-
     const from = message.from
     const admin = serviceClient()
 
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (!payload.startsWith('link_')) {
-        await sendTelegramMessage(
-          chatId,
-          'Assalomu alaykum! Royalhouse’da uy qidiring, e’lon joylang va bronlarni boshqaring. Telegram orqali avtomatik kirish mumkin — SMS kod kerak emas.',
-          true,
-        )
+        await sendTelegramMessage(chatId, 'Assalomu alaykum! Royalhouse’da uy qidiring, e’lon joylang va bronlarni boshqaring. Telegram orqali avtomatik kirish mumkin — SMS kod kerak emas.', true)
         return NextResponse.json({ ok: true })
       }
       if (!from?.id) {
         await sendTelegramMessage(chatId, 'Telegram foydalanuvchisi aniqlanmadi. Saytdan yangi ulash havolasini oling.')
         return NextResponse.json({ ok: true })
       }
-
       const rawToken = payload.slice(5)
       if (!/^[a-f0-9]{48}$/i.test(rawToken)) {
         await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Royalhouse shaxsiy kabinetidan yangi havola oling.')
         return NextResponse.json({ ok: true })
       }
       const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-      const { data: token, error: tokenError } = await admin
-        .from('telegram_link_tokens')
-        .select('profile_id,expires_at,used_at')
-        .eq('token_hash', tokenHash)
-        .maybeSingle()
+      const { data: token, error: tokenError } = await admin.from('telegram_link_tokens').select('profile_id,expires_at,used_at').eq('token_hash', tokenHash).maybeSingle()
       if (tokenError) throw tokenError
       if (!token || token.used_at || new Date(token.expires_at).getTime() <= Date.now()) {
         await sendTelegramMessage(chatId, 'Ulash havolasi eskirgan yoki ishlatilgan. Royalhouse shaxsiy kabinetidan yangi havola yarating.')
         return NextResponse.json({ ok: true })
       }
 
+      const telegramUserId = String(from.id)
+      const { data: existingLink, error: existingError } = await admin.from('telegram_user_links').select('profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
+      if (existingError) throw existingError
+      if (existingLink && existingLink.profile_id !== token.profile_id) {
+        await sendTelegramMessage(chatId, '⚠️ Bu Telegram akkaunti boshqa Royalhouse profiliga ulangan. Hozirgi profilga qayting yoki avval mavjud bog‘lanishni boshqaring.')
+        return NextResponse.json({ ok: true })
+      }
+
       const { error: linkError } = await admin.from('telegram_user_links').upsert({
         profile_id: token.profile_id,
-        telegram_user_id: String(from.id),
+        telegram_user_id: telegramUserId,
         chat_id: String(chatId),
         telegram_username: from.username || null,
         linked_at: new Date().toISOString(),
-      }, { onConflict: 'profile_id' })
+      }, { onConflict: 'telegram_user_id' })
       if (linkError) {
         await sendTelegramMessage(chatId, 'Bu Telegram akkaunti boshqa Royalhouse profiliga ulangan bo‘lishi mumkin. Yordam uchun Royalhouse qo‘llab-quvvatlash xizmatiga murojaat qiling.')
         return NextResponse.json({ ok: true })
@@ -103,14 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
-    const { error } = await admin.from('support_messages').insert({
-      name: name || null,
-      subject: 'Telegram murojaati',
-      message: text.slice(0, 5000),
-      source: 'telegram',
-      telegram_user_id: String(from?.id || chatId),
-      telegram_username: from?.username ? '@' + from.username : null,
-    })
+    const { error } = await admin.from('support_messages').insert({ name: name || null, subject: 'Telegram murojaati', message: text.slice(0, 5000), source: 'telegram', telegram_user_id: String(from?.id || chatId), telegram_username: from?.username ? '@' + from.username : null })
     if (error) {
       console.error('telegram support insert failed', error)
       return NextResponse.json({ error: 'Database error' }, { status: 500 })
