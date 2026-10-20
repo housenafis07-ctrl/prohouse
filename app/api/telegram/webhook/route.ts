@@ -14,8 +14,9 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured')
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'
+  const miniAppUrl = siteUrl.includes('?') ? `${siteUrl}&tgWebApp=1` : `${siteUrl}?tgWebApp=1`
   const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true }
-  if (includeMiniApp) body.reply_markup = { inline_keyboard: [[{ text: '🚀 Royalhouse’ni ochish', web_app: { url: siteUrl } }]] }
+  if (includeMiniApp) body.reply_markup = { inline_keyboard: [[{ text: '🚀 Royalhouse’ni ochish', web_app: { url: miniAppUrl } }]] }
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' })
   const data = await response.json()
   if (!response.ok || !data.ok) throw new Error(data.description || 'Telegram sendMessage failed')
