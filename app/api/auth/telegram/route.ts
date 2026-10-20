@@ -1,181 +1,496 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
-import { telegramAuthEmail, telegramAuthPassword, validateTelegramInitData } from '@/app/lib/telegram-miniapp'
+import { validateTelegramInitData } from '@/app/lib/telegram-miniapp'
 
 export const runtime = 'nodejs'
 
+const SYNTHETIC_EMAIL_DOMAIN = 'royalhouse.internal'
+
+function syntheticTelegramEmail(telegramId: string) {
+  return `telegram_${telegramId}@${SYNTHETIC_EMAIL_DOMAIN}`
+}
+
 export async function POST(request: NextRequest) {
   try {
+    /*
+     * =========================================================
+     * 1. TELEGRAM INIT DATA
+     * =========================================================
+     *
+     * The request body is the ONLY identity input accepted here.
+     * Cookies, existing Supabase sessions and request user IDs are
+     * deliberately not read or used for account selection.
+     */
     const body = await request.json().catch(() => null)
     const initData = typeof body?.initData === 'string' ? body.initData : ''
-    const validated = validateTelegramInitData(initData)
-    if (!validated) {
-      return NextResponse.json({ error: 'INVALID_TELEGRAM_INIT_DATA' }, { status: 401 })
+
+    if (!initData) {
+      return NextResponse.json(
+        { error: 'TELEGRAM_INIT_DATA_REQUIRED' },
+        { status: 400 }
+      )
     }
 
-    const { user: tgUser } = validated
+    /*
+     * Telegram HMAC + auth_date validation.
+     */
+    const validated = validateTelegramInitData(initData)
+
+    if (!validated) {
+      return NextResponse.json(
+        { error: 'INVALID_TELEGRAM_INIT_DATA' },
+        { status: 401 }
+      )
+    }
+
+    const tgUser = validated.user
+    const telegramId = String(tgUser.id)
+
+    console.log('[STRICT AUTH] verified Telegram identity', {
+      telegram_id: telegramId,
+    })
+
     const admin = serviceClient()
-    const telegramUserId = String(tgUser.id)
-    const email = telegramAuthEmail(tgUser.id)
-    const password = telegramAuthPassword(tgUser.id)
-    const telegramDisplayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim()
-    const displayName = telegramDisplayName || (tgUser.username ? `@${tgUser.username}` : `Telegram ${tgUser.id}`)
 
-    // Telegram ID is the source of identity. Do not call the browser/session
-    // Supabase client here: this endpoint must work before a RoyalHouse session
-    // exists. The previous implementation performed auth.getUser() first and
-    // could leave the Mini App waiting during Telegram startup.
-    const { data: existingLink, error: linkLookupError } = await admin
+    /*
+     * =========================================================
+     * 2. STRICT TELEGRAM -> PROFILE MAPPING
+     * =========================================================
+     *
+     * RoyalHouse's real mapping table is telegram_user_links.
+     * profile_id references profiles(id), and the current project
+     * uses profiles.id as the Supabase Auth user ID.
+     *
+     * IMPORTANT:
+     * There is NO lookup by browser cookie/session here.
+     * There is NO fallback to another profile.
+     */
+    const {
+      data: byTelegram,
+      error: linkLookupError,
+    } = await admin
       .from('telegram_user_links')
-      .select('profile_id')
-      .eq('telegram_user_id', telegramUserId)
+      .select('profile_id,telegram_user_id,telegram_username')
+      .eq('telegram_user_id', telegramId)
       .maybeSingle()
-    if (linkLookupError) throw linkLookupError
 
-    let profileId = existingLink?.profile_id || null
-    let session: { access_token: string; refresh_token: string } | null = null
+    if (linkLookupError) {
+      console.error('[STRICT AUTH] Telegram mapping lookup failed', linkLookupError)
+      throw linkLookupError
+    }
 
-    if (!profileId) {
-      const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
-        email,
-        password,
+    /*
+     * =========================================================
+     * 3. NO MAPPING = NEW REGISTRATION FLOW
+     * =========================================================
+     *
+     * No cookie fallback.
+     * No existing browser user fallback.
+     * No profile guessing.
+     */
+    if (!byTelegram) {
+      console.log('[STRICT AUTH] no Telegram mapping', {
+        telegram_id: telegramId,
+      })
+
+      return NextResponse.json(
+        {
+          requiresPhone: true,
+          telegramId,
+        },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'private, no-store',
+          },
+        }
+      )
+    }
+
+    /*
+     * =========================================================
+     * 4. STRICT TYPE GUARD
+     * =========================================================
+     */
+    const profileId = byTelegram.profile_id
+
+    if (
+      typeof profileId !== 'string' ||
+      profileId.length === 0
+    ) {
+      console.error('[STRICT AUTH] invalid profile_id in Telegram mapping', {
+        telegram_id: telegramId,
+        byTelegram,
+      })
+
+      return NextResponse.json(
+        { error: 'INVALID_TELEGRAM_PROFILE_MAPPING' },
+        { status: 500 }
+      )
+    }
+
+    if (
+      String(byTelegram.telegram_user_id) !== telegramId
+    ) {
+      console.error('[STRICT AUTH] mapping Telegram ID mismatch', {
+        requested_telegram_id: telegramId,
+        mapped_telegram_id: byTelegram.telegram_user_id,
+        profile_id: profileId,
+      })
+
+      return NextResponse.json(
+        { error: 'TELEGRAM_MAPPING_ID_MISMATCH' },
+        { status: 409 }
+      )
+    }
+
+    /*
+     * =========================================================
+     * 5. PROFILE LOOKUP
+     * =========================================================
+     *
+     * profile_id is authoritative. We do not use a session user
+     * to determine the profile.
+     */
+    const {
+      data: byProfile,
+      error: profileLookupError,
+    } = await admin
+      .from('profiles')
+      .select('id,full_name,phone')
+      .eq('id', profileId)
+      .maybeSingle()
+
+    if (profileLookupError) {
+      console.error('[STRICT AUTH] profile lookup failed', profileLookupError)
+      throw profileLookupError
+    }
+
+    if (!byProfile) {
+      console.error('[STRICT AUTH] Telegram mapping points to missing profile', {
+        telegram_id: telegramId,
+        profile_id: profileId,
+      })
+
+      return NextResponse.json(
+        { error: 'MAPPED_PROFILE_NOT_FOUND' },
+        { status: 409 }
+      )
+    }
+
+    /*
+     * =========================================================
+     * 6. AUTH USER ID
+     * =========================================================
+     *
+     * In RoyalHouse, profiles.id is the Auth user UUID. This is
+     * established by the existing telegram_user_links FK:
+     * telegram_user_links.profile_id -> profiles.id.
+     *
+     * No cookie user ID is considered.
+     */
+    const authUserId = byProfile.id
+
+    if (
+      typeof authUserId !== 'string' ||
+      authUserId.length === 0
+    ) {
+      console.error('[STRICT AUTH] auth_user_id is null/invalid', {
+        telegram_id: telegramId,
+        profile_id: profileId,
+      })
+
+      return NextResponse.json(
+        { error: 'INVALID_AUTH_USER_MAPPING' },
+        { status: 500 }
+      )
+    }
+
+    /*
+     * =========================================================
+     * 7. LOAD EXACT AUTH USER
+     * =========================================================
+     */
+    const {
+      data: authUserResult,
+      error: authUserLookupError,
+    } = await admin.auth.admin.getUserById(authUserId)
+
+    if (authUserLookupError) {
+      console.error('[STRICT AUTH] Auth user lookup failed', authUserLookupError)
+      throw authUserLookupError
+    }
+
+    const authUser = authUserResult.user
+
+    if (!authUser) {
+      console.error('[STRICT AUTH] mapped Auth user does not exist', {
+        telegram_id: telegramId,
+        profile_id: profileId,
+        auth_user_id: authUserId,
+      })
+
+      return NextResponse.json(
+        { error: 'MAPPED_AUTH_USER_NOT_FOUND' },
+        { status: 409 }
+      )
+    }
+
+    /*
+     * =========================================================
+     * 8. AUTH USER TELEGRAM ID CHECK
+     * =========================================================
+     *
+     * Existing legacy users may only have telegram_user_id in
+     * metadata. Absence is repaired below; an existing different
+     * telegram_id, however, is a hard isolation failure.
+     */
+    const existingMetadataTelegramId =
+      authUser.user_metadata?.telegram_id != null
+        ? String(authUser.user_metadata.telegram_id)
+        : null
+
+    if (
+      existingMetadataTelegramId &&
+      existingMetadataTelegramId !== telegramId
+    ) {
+      console.error('[STRICT AUTH] CRITICAL Telegram/Auth mismatch', {
+        telegram_id: telegramId,
+        profile_id: profileId,
+        auth_user_id: authUserId,
+        auth_user_telegram_id: existingMetadataTelegramId,
+      })
+
+      return NextResponse.json(
+        { error: 'AUTH_USER_BELONGS_TO_ANOTHER_TELEGRAM_ACCOUNT' },
+        { status: 409 }
+      )
+    }
+
+    /*
+     * =========================================================
+     * 9. EMAIL PREPARATION
+     * =========================================================
+     *
+     * generateLink requires an email identity. For Auth users
+     * without email, assign a deterministic synthetic email tied
+     * exclusively to the verified Telegram ID.
+     *
+     * We do NOT create a new Auth user here.
+     */
+    let authEmail = authUser.email?.trim() || ''
+
+    if (!authEmail) {
+      authEmail = syntheticTelegramEmail(telegramId)
+
+      console.log('[STRICT AUTH] assigning synthetic email', {
+        telegram_id: telegramId,
+        auth_user_id: authUserId,
+        synthetic_email: authEmail,
+      })
+
+      const {
+        data: updatedUserResult,
+        error: emailUpdateError,
+      } = await admin.auth.admin.updateUserById(authUserId, {
+        email: authEmail,
         email_confirm: true,
+      })
+
+      if (emailUpdateError) {
+        console.error('[STRICT AUTH] synthetic email update failed', emailUpdateError)
+        throw emailUpdateError
+      }
+
+      if (!updatedUserResult.user?.email) {
+        throw new Error('AUTH_USER_EMAIL_UPDATE_FAILED')
+      }
+
+      authEmail = updatedUserResult.user.email
+    }
+
+    /*
+     * =========================================================
+     * 10. REPAIR/SET TELEGRAM METADATA
+     * =========================================================
+     *
+     * The client uses user_metadata.telegram_id for the final
+     * identity check. Keep the legacy telegram_user_id as well.
+     */
+    const currentMetadata = authUser.user_metadata || {}
+    const metadataTelegramUserId =
+      currentMetadata.telegram_user_id != null
+        ? String(currentMetadata.telegram_user_id)
+        : null
+
+    if (
+      existingMetadataTelegramId !== telegramId ||
+      metadataTelegramUserId !== telegramId
+    ) {
+      const {
+        data: updatedAuthResult,
+        error: metadataUpdateError,
+      } = await admin.auth.admin.updateUserById(authUserId, {
         user_metadata: {
+          ...currentMetadata,
           auth_provider: 'telegram',
-          telegram_user_id: telegramUserId,
+          telegram_id: telegramId,
+          telegram_user_id: telegramId,
           telegram_username: tgUser.username || null,
           telegram_first_name: tgUser.first_name || null,
           telegram_last_name: tgUser.last_name || null,
         },
       })
 
-      if (!createUserError && createdUser?.user?.id) {
-        profileId = createdUser.user.id
-      } else if (createUserError && /already registered|already exists/i.test(createUserError.message)) {
-        // Existing deterministic Telegram account. Find it without scanning
-        // auth.users on the normal path.
-        const { createClient } = await import('@/utils/supabase/server')
-        const authClient = await createClient()
-        const signIn = await authClient.auth.signInWithPassword({ email, password })
+      if (metadataUpdateError) {
+        console.error('[STRICT AUTH] Telegram metadata update failed', metadataUpdateError)
+        throw metadataUpdateError
+      }
 
-        if (!signIn.error && signIn.data.user?.id && signIn.data.session) {
-          profileId = signIn.data.user.id
-          session = {
-            access_token: signIn.data.session.access_token,
-            refresh_token: signIn.data.session.refresh_token,
-          }
-        } else {
-          // Legacy recovery only. This path is not used for a newly created
-          // Telegram account and is retained for accounts created by earlier
-          // versions of the integration.
-          let page = 1
-          const perPage = 1000
-          while (!profileId) {
-            const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
-            if (usersError) throw usersError
-            const foundUser = usersPage.users.find(user => user.email?.toLowerCase() === email.toLowerCase())
-            if (foundUser?.id) {
-              profileId = foundUser.id
-              break
-            }
-            if (usersPage.users.length < perPage) break
-            page += 1
-          }
-          if (!profileId) throw signIn.error || new Error('TELEGRAM_USER_NOT_FOUND')
-        }
-      } else if (createUserError) {
-        throw createUserError
+      if (!updatedAuthResult.user) {
+        throw new Error('AUTH_METADATA_UPDATE_FAILED')
       }
     }
 
-    if (!profileId) {
-      return NextResponse.json({ error: 'TELEGRAM_USER_CREATE_FAILED' }, { status: 500 })
-    }
-
-    const { data: profile, error: profileLookupError } = await admin
-      .from('profiles')
-      .select('id,full_name,phone')
-      .eq('id', profileId)
-      .maybeSingle()
-    if (profileLookupError) throw profileLookupError
-
-    if (!profile) {
-      const { error: profileInsertError } = await admin.from('profiles').insert({
-        id: profileId,
-        full_name: displayName,
-        account_type: 'individual',
-      })
-      if (profileInsertError) throw profileInsertError
-    } else {
-      // Telegram-created profiles must never fall back to a generic/admin name.
-      // Preserve a real name entered by the user, but repair the placeholder
-      // created by older Telegram-auth versions and use the Telegram display name.
-      const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(profileId)
-      if (authUserError) throw authUserError
-
-      const authProvider = authUser.user?.user_metadata?.auth_provider
-      const currentName = profile.full_name?.trim() || ''
-      const isTelegramPlaceholder = authProvider === 'telegram' && (!currentName || /^admin$/i.test(currentName))
-
-      if (isTelegramPlaceholder) {
-        const { error: profileUpdateError } = await admin
-          .from('profiles')
-          .update({ full_name: displayName })
-          .eq('id', profileId)
-        if (profileUpdateError) throw profileUpdateError
-      }
-    }
-
-    const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
-      profile_id: profileId,
-      telegram_user_id: telegramUserId,
-      chat_id: telegramUserId,
-      telegram_username: tgUser.username || null,
-      linked_at: new Date().toISOString(),
-    }, { onConflict: 'profile_id' })
-    if (telegramLinkError) throw telegramLinkError
-
-    // A newly created account still needs a browser session. Existing accounts
-    // may already have received one above; otherwise sign in now and return the
-    // tokens so the Mini App can call auth.setSession() in the browser.
-    if (!session) {
-      const { createClient } = await import('@/utils/supabase/server')
-      const authClient = await createClient()
-      let { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email, password })
-
-      if (signInError) {
-        const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
-        if (passwordUpdateError) throw passwordUpdateError
-
-        const retry = await authClient.auth.signInWithPassword({ email, password })
-        signInData = retry.data
-        signInError = retry.error
-      }
-
-      if (signInError || !signInData.session) {
-        throw signInError || new Error('TELEGRAM_SESSION_CREATE_FAILED')
-      }
-
-      session = {
-        access_token: signInData.session.access_token,
-        refresh_token: signInData.session.refresh_token,
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      session,
-      profile: {
-        id: profileId,
-        fullName: displayName,
-        phone: profile?.phone || null,
-        hasPhone: Boolean(profile?.phone),
+    /*
+     * =========================================================
+     * 11. GENERATE SESSION FOR EXACT MAPPED AUTH USER
+     * =========================================================
+     *
+     * No signInWithPassword.
+     * No browser session.
+     * No cookie user.
+     * No fallback profile.
+     *
+     * generateLink -> verifyOtp produces a fresh session for
+     * the exact Auth user selected from the Telegram mapping.
+     */
+    const {
+      data: generatedLink,
+      error: generateLinkError,
+    } = await admin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: authEmail,
+      options: {
+        redirectTo: process.env.NEXT_PUBLIC_SITE_URL,
       },
-    }, { headers: { 'Cache-Control': 'private, no-store' } })
+    })
+
+    if (generateLinkError) {
+      console.error('[STRICT AUTH] generateLink failed', generateLinkError)
+      throw generateLinkError
+    }
+
+    const hashedToken = generatedLink.properties?.hashed_token
+
+    if (
+      typeof hashedToken !== 'string' ||
+      hashedToken.length === 0
+    ) {
+      console.error('[STRICT AUTH] generateLink returned no hashed_token')
+      throw new Error('AUTH_SESSION_TOKEN_NOT_GENERATED')
+    }
+
+    const {
+      data: verifiedAuth,
+      error: verifyOtpError,
+    } = await admin.auth.verifyOtp({
+      token_hash: hashedToken,
+      type: 'magiclink',
+    })
+
+    if (verifyOtpError) {
+      console.error('[STRICT AUTH] verifyOtp failed', verifyOtpError)
+      throw verifyOtpError
+    }
+
+    const session = verifiedAuth.session
+
+    if (!session) {
+      throw new Error('TELEGRAM_SESSION_CREATE_FAILED')
+    }
+
+    /*
+     * =========================================================
+     * 12. FINAL SERVER-SIDE ISOLATION CHECKS
+     * =========================================================
+     */
+    if (session.user.id !== authUserId) {
+      console.error('[STRICT AUTH] CRITICAL SESSION USER MISMATCH', {
+        telegram_id: telegramId,
+        expected_auth_user_id: authUserId,
+        actual_session_user_id: session.user.id,
+      })
+
+      return NextResponse.json(
+        { error: 'SESSION_USER_MISMATCH' },
+        { status: 500 }
+      )
+    }
+
+    const sessionTelegramId =
+      session.user.user_metadata?.telegram_id != null
+        ? String(session.user.user_metadata.telegram_id)
+        : null
+
+    if (
+      !sessionTelegramId ||
+      sessionTelegramId !== telegramId
+    ) {
+      console.error('[STRICT AUTH] CRITICAL SESSION TELEGRAM MISMATCH', {
+        telegram_id: telegramId,
+        session_telegram_id: sessionTelegramId,
+        auth_user_id: session.user.id,
+      })
+
+      return NextResponse.json(
+        { error: 'SESSION_TELEGRAM_ID_MISMATCH' },
+        { status: 500 }
+      )
+    }
+
+    console.log('[STRICT AUTH] CLEAN SESSION CREATED', {
+      telegram_id: telegramId,
+      profile_id: profileId,
+      auth_user_id: session.user.id,
+    })
+
+    return NextResponse.json(
+      {
+        ok: true,
+        session: {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        },
+        profile: {
+          id: profileId,
+          fullName: byProfile.full_name || null,
+          phone: byProfile.phone || null,
+          hasPhone: Boolean(byProfile.phone),
+        },
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'private, no-store',
+        },
+      }
+    )
   } catch (error) {
-    console.error('[Telegram auth] failed', error)
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED',
-    }, { status: 500 })
+    console.error('[STRICT AUTH] Telegram authentication failed', error)
+
+    return NextResponse.json(
+      {
+        error: error instanceof Error
+          ? error.message
+          : 'TELEGRAM_AUTH_FAILED',
+      },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'private, no-store',
+        },
+      }
+    )
   }
 }
