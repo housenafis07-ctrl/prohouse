@@ -38,32 +38,33 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="uz">
       <body>
         <I18nProvider>
-          <TelegramMiniAppAuth />
-          <RoyalhouseBrandFix />
-          <RoyalhouseFooterFix />
-          <RoyalhouseContactFooter />
-          <GlobalLanguageFix />
-          <LegacySurfaceLanguageFix />
-          <LanguageRuntimeFix />
-          <AuthLanguageFix />
-          <RoyalhousePartnersLinkFix />
-          <GlobalNavigationGate />
-          <RentalNavigationFix />
-          <PurchaseNavigationFix />
-          <NewBuildingsNavigationFix />
-          <HomeBuildingNavigationFix />
-          <MobileMainNavigation />
-          <PwaServiceWorkerRegistration />
-          <PushRegistration />
-          <ListingCardIconStyle />
-          <TaxCalculatorServiceFix />
-          <RoyalhouseMobileHomeRedesign />
-          <RoyalhouseMobileHomePolish />
-          <RoyalhouseMobileAISearch />
-          <RoyalhousePwaHomeSearchFix />
-          <RoyalhousePwaAiSearchStyle />
-          <TelegramLoginButton />
-          {children}
+          <TelegramMiniAppAuth>
+            <RoyalhouseBrandFix />
+            <RoyalhouseFooterFix />
+            <RoyalhouseContactFooter />
+            <GlobalLanguageFix />
+            <LegacySurfaceLanguageFix />
+            <LanguageRuntimeFix />
+            <AuthLanguageFix />
+            <RoyalhousePartnersLinkFix />
+            <GlobalNavigationGate />
+            <RentalNavigationFix />
+            <PurchaseNavigationFix />
+            <NewBuildingsNavigationFix />
+            <HomeBuildingNavigationFix />
+            <MobileMainNavigation />
+            <PwaServiceWorkerRegistration />
+            <PushRegistration />
+            <ListingCardIconStyle />
+            <TaxCalculatorServiceFix />
+            <RoyalhouseMobileHomeRedesign />
+            <RoyalhouseMobileHomePolish />
+            <RoyalhouseMobileAISearch />
+            <RoyalhousePwaHomeSearchFix />
+            <RoyalhousePwaAiSearchStyle />
+            <TelegramLoginButton />
+            {children}
+          </TelegramMiniAppAuth>
         </I18nProvider>
       </body>
     </html>
