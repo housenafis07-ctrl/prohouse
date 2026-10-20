@@ -8,10 +8,24 @@ export async function GET() {
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
-    const { data, error } = await serviceClient().from('telegram_user_links')
+
+    const db = serviceClient()
+    const { data, error } = await db.from('telegram_user_links')
       .select('telegram_username,linked_at').eq('profile_id', user.id).maybeSingle()
     if (error) throw error
-    return NextResponse.json({ linked: Boolean(data), username: data?.telegram_username || null, linkedAt: data?.linked_at || null })
+
+    // A Telegram-first account is already authenticated by the Telegram Mini App.
+    // The link row is still the canonical notification mapping, but the UI must
+    // not briefly show "Telegram ulanmagan" while that mapping is being hydrated.
+    const isTelegramAuth = user.user_metadata?.auth_provider === 'telegram'
+    const username = data?.telegram_username || user.user_metadata?.telegram_username || null
+
+    return NextResponse.json({
+      linked: Boolean(data) || isTelegramAuth,
+      username,
+      linkedAt: data?.linked_at || null,
+      source: isTelegramAuth ? 'telegram_auth' : 'linked_bot',
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     console.error('[Telegram link] Status check failed', error)
     return NextResponse.json({ error: 'TELEGRAM_LINK_STATUS_FAILED' }, { status: 500 })
