@@ -1,6 +1,7 @@
 'use client'
 
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 type Props = { children?: ReactNode }
@@ -18,12 +19,17 @@ function hasTelegramContext() {
   return Boolean(
     window.Telegram?.WebApp?.initData ||
     window.TelegramWebviewProxy ||
-    /[?&#]tgWebApp/i.test(window.location.href),
+    /[?&#]tgWebApp(?:Data|Version|Platform|StartParam)?/i.test(window.location.href),
   )
 }
 
+function getTelegramInitData() {
+  if (typeof window === 'undefined') return ''
+  return window.Telegram?.WebApp?.initData || ''
+}
+
 export default function TelegramMiniAppAuthCanonical({ children }: Props) {
-  const started = useRef(false)
+  const pathname = usePathname()
   const [active, setActive] = useState(false)
   const [pending, setPending] = useState(false)
   const [phoneRequired, setPhoneRequired] = useState(false)
@@ -32,79 +38,86 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const authInFlight = useRef(false)
+  const lastAuthenticatedPath = useRef('')
+  const telegramInitDataRef = useRef('')
+
+  const resolveTelegramIdentity = useCallback(async (force = false) => {
+    const initData = getTelegramInitData()
+    if (!initData || authInFlight.current) return false
+    if (!force && telegramInitDataRef.current === initData && lastAuthenticatedPath.current === pathname) return true
+
+    authInFlight.current = true
+    setActive(true)
+    setPending(true)
+    setPhoneRequired(false)
+    setError('')
+
+    const supabase = createClient()
+    try {
+      // A Telegram Mini App must never inherit the previous browser account.
+      // Clear the old RoyalHouse session BEFORE resolving Telegram identity.
+      await supabase.auth.signOut({ scope: 'local' })
+
+      const response = await fetch('/api/auth/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify({ initData }),
+      })
+      const data = await response.json().catch(() => null)
+
+      if (response.status === 428) {
+        setPhoneRequired(true)
+        setPending(false)
+        telegramInitDataRef.current = initData
+        lastAuthenticatedPath.current = pathname
+        return true
+      }
+
+      if (!response.ok || !data?.session?.access_token || !data?.profile?.id) {
+        throw new Error(data?.error || 'TELEGRAM_AUTH_FAILED')
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      })
+      if (sessionError) throw sessionError
+
+      // Critical invariant: the browser session MUST be the exact profile
+      // resolved by the verified Telegram initData. Never accept the previous
+      // browser session as a fallback.
+      const { data: userData } = await supabase.auth.getUser()
+      if (userData.user?.id !== data.profile.id) {
+        await supabase.auth.signOut({ scope: 'local' })
+        throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
+      }
+
+      telegramInitDataRef.current = initData
+      lastAuthenticatedPath.current = pathname
+      setPending(false)
+      return true
+    } catch (e) {
+      await supabase.auth.signOut({ scope: 'local' })
+      setError(e instanceof Error ? e.message : 'TELEGRAM_AUTH_FAILED')
+      setPending(false)
+      return true
+    } finally {
+      authInFlight.current = false
+    }
+  }, [pathname])
 
   useEffect(() => {
-    if (started.current) return
-    started.current = true
-
     let timer: ReturnType<typeof setInterval> | undefined
     let attempts = 0
 
-    const run = async () => {
-      const webApp = window.Telegram?.WebApp
-      if (!webApp?.initData) return false
-
-      if (timer) clearInterval(timer)
-      webApp.ready()
-      webApp.expand()
-      setActive(true)
-      setPending(true)
-      setPhoneRequired(false)
-      setError('')
-
-      const supabase = createClient()
-
-      // Never allow a Telegram Mini App to reuse the browser's previous
-      // RoyalHouse account. Telegram initData is the authoritative identity.
-      await supabase.auth.signOut({ scope: 'local' })
-
-      try {
-        const response = await fetch('/api/auth/telegram', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          cache: 'no-store',
-          body: JSON.stringify({ initData: webApp.initData }),
-        })
-        const data = await response.json().catch(() => null)
-
-        if (response.status === 428) {
-          setPhoneRequired(true)
-          setPending(false)
-          return true
-        }
-
-        if (!response.ok || !data?.session?.access_token || !data?.profile?.id) {
-          throw new Error(data?.error || 'TELEGRAM_AUTH_FAILED')
-        }
-
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        })
-        if (sessionError) throw sessionError
-
-        // Critical invariant: the session returned by the Telegram endpoint
-        // must belong to the exact profile resolved from Telegram ID.
-        const { data: userData } = await supabase.auth.getUser()
-        if (userData.user?.id !== data.profile.id) {
-          await supabase.auth.signOut({ scope: 'local' })
-          throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
-        }
-
-        setPending(false)
-        return true
-      } catch (e) {
-        await supabase.auth.signOut({ scope: 'local' })
-        setError(e instanceof Error ? e.message : 'TELEGRAM_AUTH_FAILED')
-        setPending(false)
-        return true
-      }
-    }
-
     const poll = () => {
-      if (window.Telegram?.WebApp?.initData) {
-        void run()
+      const initData = getTelegramInitData()
+      if (initData) {
+        if (timer) clearInterval(timer)
+        void resolveTelegramIdentity(true)
         return
       }
 
@@ -122,10 +135,8 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
       }
     }
 
-    // Telegram's WebApp object can appear after the React tree has mounted.
-    // Do not decide that this is a normal browser before Telegram is ready.
-    if (window.Telegram?.WebApp?.initData) {
-      void run()
+    if (getTelegramInitData()) {
+      void resolveTelegramIdentity(true)
     } else if (hasTelegramContext()) {
       setActive(true)
       setPending(true)
@@ -143,19 +154,39 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
       }
     }
 
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && getTelegramInitData()) {
+        void resolveTelegramIdentity(true)
+      }
+    }
+    const onFocus = () => {
+      if (getTelegramInitData()) void resolveTelegramIdentity(true)
+    }
+
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
     return () => {
       if (timer) clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
     }
-  }, [])
+  }, [pathname, resolveTelegramIdentity])
+
+  // Important: Next.js client navigation does NOT remount the root layout.
+  // Re-resolve Telegram identity when entering the listing flow, otherwise a
+  // stale account can survive from the page that was open before the Mini App.
+  useEffect(() => {
+    if (pathname.startsWith('/listings/new') && getTelegramInitData()) {
+      void resolveTelegramIdentity(true)
+    }
+  }, [pathname, resolveTelegramIdentity])
 
   const verifyPhone = async () => {
     setLoading(true)
     setError('')
     try {
       const normalized = phone.replace(/\D/g, '').replace(/^998/, '+998')
-      if (!/^\+998\d{9}$/.test(normalized)) {
-        throw new Error('Telefon raqamini to‘g‘ri kiriting.')
-      }
+      if (!/^\+998\d{9}$/.test(normalized)) throw new Error('Telefon raqamini to‘g‘ri kiriting.')
 
       if (!sent) {
         const response = await fetch('/api/auth/send-code', {
@@ -178,11 +209,9 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
         cache: 'no-store',
       })
       const data = await response.json().catch(() => null)
-      if (!response.ok || !data?.session?.access_token) {
-        throw new Error(data?.error || 'Telefon tasdiqlanmadi.')
-      }
+      if (!response.ok || !data?.session?.access_token) throw new Error(data?.error || 'Telefon tasdiqlanmadi.')
 
-      const initData = window.Telegram?.WebApp?.initData
+      const initData = getTelegramInitData()
       if (!initData) throw new Error('Telegram sessiyasi topilmadi.')
 
       const link = await fetch('/api/auth/telegram/complete', {
@@ -192,9 +221,7 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
         cache: 'no-store',
       })
       const linked = await link.json().catch(() => null)
-      if (!link.ok || !linked?.session?.access_token) {
-        throw new Error(linked?.error || 'Telegramni profilga ulab bo‘lmadi.')
-      }
+      if (!link.ok || !linked?.session?.access_token) throw new Error(linked?.error || 'Telegramni profilga ulab bo‘lmadi.')
 
       const supabase = createClient()
       await supabase.auth.signOut({ scope: 'local' })
@@ -212,6 +239,8 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
 
       setPhoneRequired(false)
       setPending(false)
+      telegramInitDataRef.current = initData
+      lastAuthenticatedPath.current = pathname
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Tasdiqlash amalga oshmadi.')
     } finally {
@@ -222,43 +251,15 @@ export default function TelegramMiniAppAuthCanonical({ children }: Props) {
   if (!active) return <>{children}</>
 
   if (pending) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white">
-        <div className="rounded-3xl bg-white p-7 text-center shadow-xl ring-1 ring-slate-200">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
-          <b>Royalhouse</b>
-          <p className="mt-2 text-sm text-slate-500">Telegram profilingiz tekshirilmoqda…</p>
-        </div>
-      </div>
-    )
+    return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"><div className="rounded-3xl bg-white p-7 text-center shadow-xl ring-1 ring-slate-200"><div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600"/><b>Royalhouse</b><p className="mt-2 text-sm text-slate-500">Telegram profilingiz tekshirilmoqda…</p></div></div>
   }
 
   if (phoneRequired) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white px-5">
-        <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
-          <b className="text-xl">Telegram profil topilmadi</b>
-          <p className="mt-2 text-sm text-slate-600">Telegram profilingizga bog‘langan Royalhouse akkaunt topilmadi. Telefon raqamingizni tasdiqlang.</p>
-          <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="+998 90 123 45 67" className="mt-5 w-full rounded-2xl border px-4 py-3" disabled={sent || loading} />
-          {sent && <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="SMS kod" className="mt-3 w-full rounded-2xl border px-4 py-3" disabled={loading} />}
-          <button onClick={verifyPhone} disabled={loading || (sent && code.length !== 6)} className="mt-3 w-full rounded-2xl bg-emerald-600 px-5 py-3 font-bold text-white">
-            {loading ? 'Tekshirilmoqda…' : sent ? 'Tasdiqlash' : 'SMS kod yuborish'}
-          </button>
-          {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
-        </div>
-      </div>
-    )
+    return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white px-5"><div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-200"><b className="text-xl">Telegram profil topilmadi</b><p className="mt-2 text-sm text-slate-600">Telegram profilingizga bog‘langan Royalhouse akkaunt topilmadi. Telefon raqamingizni tasdiqlang.</p><input value={phone} onChange={e => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="+998 90 123 45 67" className="mt-5 w-full rounded-2xl border px-4 py-3" disabled={sent || loading}/>{sent && <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0,6))} inputMode="numeric" placeholder="SMS kod" className="mt-3 w-full rounded-2xl border px-4 py-3" disabled={loading}/>}<button onClick={verifyPhone} disabled={loading || (sent && code.length !== 6)} className="mt-3 w-full rounded-2xl bg-emerald-600 px-5 py-3 font-bold text-white">{loading ? 'Tekshirilmoqda…' : sent ? 'Tasdiqlash' : 'SMS kod yuborish'}</button>{error && <p className="mt-3 text-sm text-rose-600">{error}</p>}</div></div>
   }
 
   if (error) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white">
-        <div className="rounded-3xl p-7 text-center shadow-xl ring-1 ring-slate-200">
-          <b>Telegram tekshiruvi bajarilmadi</b>
-          <p className="mt-2 text-sm text-slate-600">{error}</p>
-        </div>
-      </div>
-    )
+    return <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"><div className="rounded-3xl p-7 text-center shadow-xl ring-1 ring-slate-200"><b>Telegram tekshiruvi bajarilmadi</b><p className="mt-2 text-sm text-slate-600">{error}</p></div></div>
   }
 
   return <>{children}</>
