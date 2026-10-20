@@ -14,6 +14,9 @@ export async function POST(request: NextRequest) {
     const admin = serviceClient()
     const telegramUserId = String(tgUser.id)
 
+    // Telegram identity is the source of truth inside the Mini App.
+    // Never use the current browser/Supabase user to select the profile.
+    // A stale phone-authenticated session may belong to another person.
     const { data: existingLink, error: linkLookupError } = await admin
       .from('telegram_user_links')
       .select('profile_id')
@@ -21,24 +24,14 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
 
-    const sessionClient = await createClient()
-    const { data: { user: currentUser } } = await sessionClient.auth.getUser()
-
-    // If this Telegram identity is already linked, that link is authoritative.
-    // A stale browser session must NOT win over the canonical Telegram profile.
-    // The client will hydrate itself with the session returned below.
-    if (!existingLink && currentUser) {
-      return NextResponse.json({
-        error: 'TELEGRAM_LINK_REQUIRED',
-        requiresLinking: true,
-      }, { status: 409 })
-    }
-
     let profileId = existingLink?.profile_id || null
     const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() || `Telegram ${tgUser.id}`
     const email = telegramAuthEmail(tgUser.id)
     const password = telegramAuthPassword(tgUser.id)
 
+    // No Telegram link means this is a new Telegram identity. Do NOT attach it
+    // to whatever Supabase account happens to be in the browser. That would be
+    // an account-confusion vulnerability. Create a fresh canonical account.
     if (!profileId) {
       const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
         email,
@@ -85,7 +78,8 @@ export async function POST(request: NextRequest) {
       if (profileUpdateError) throw profileUpdateError
     }
 
-    // Telegram ID is globally unique. Never overwrite another profile's link.
+    // Race-safe final check: a Telegram ID can never be silently moved to
+    // another profile, even if two login requests arrive at the same time.
     const { data: linkAfterLookup, error: finalLinkLookupError } = await admin
       .from('telegram_user_links')
       .select('profile_id')
@@ -108,13 +102,10 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'telegram_user_id' })
     if (telegramLinkError) throw telegramLinkError
 
-    // Always create the session for the canonical Telegram-linked profile.
-    // Returning these tokens is critical: server-side signIn cookies are not
-    // guaranteed to replace a stale browser Supabase session in the Mini App.
+    // Create the session strictly for the canonical Telegram profile.
+    const sessionClient = await createClient()
     const signIn = await sessionClient.auth.signInWithPassword({ email, password })
     if (signIn.error || !signIn.data.session) {
-      // Legacy Telegram users may have an old password. Reset it to the
-      // deterministic Telegram password, then create the canonical session.
       const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
       if (passwordUpdateError) throw passwordUpdateError
 
@@ -151,6 +142,6 @@ export async function POST(request: NextRequest) {
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
     console.error('[Telegram auth] failed', error)
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED' }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'TELEGRAM_AUTH_FAILED' }, { status: 500, headers: { 'Cache-Control': 'no-store' } })
   }
 }
