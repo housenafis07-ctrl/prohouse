@@ -9,8 +9,30 @@ type TelegramAuthSession = {
   refresh_token: string
 }
 
-function isAlreadyRegisteredError(message: string) {
+type TelegramMetadata = {
+  telegram_user_id?: unknown
+  telegram_id?: unknown
+}
+
+function normalizeTelegramId(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  const normalized = String(value).trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function isAlreadyRegisteredError(message: string): boolean {
   return /already registered|already exists/i.test(message)
+}
+
+function getMetadataTelegramId(metadata: TelegramMetadata | null | undefined): string | null {
+  return normalizeTelegramId(metadata?.telegram_user_id) ?? normalizeTelegramId(metadata?.telegram_id)
+}
+
+function jsonError(error: string, status: number) {
+  return NextResponse.json(
+    { error },
+    { status, headers: { 'Cache-Control': 'private, no-store' } },
+  )
 }
 
 export async function POST(request: NextRequest) {
@@ -18,124 +40,137 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null)
     const initData = typeof body?.initData === 'string' ? body.initData : ''
 
-    if (!initData) {
-      return NextResponse.json({ error: 'TELEGRAM_INIT_DATA_REQUIRED' }, { status: 400 })
-    }
+    if (!initData) return jsonError('TELEGRAM_INIT_DATA_REQUIRED', 400)
 
     const validated = validateTelegramInitData(initData)
-    if (!validated) {
-      return NextResponse.json({ error: 'INVALID_TELEGRAM_INIT_DATA' }, { status: 401 })
-    }
+    if (!validated) return jsonError('INVALID_TELEGRAM_INIT_DATA', 401)
 
     const tgUser = validated.user
-    const telegramUserId = String(tgUser.id)
-    const admin = serviceClient()
-    const email = telegramAuthEmail(tgUser.id)
-    const password = telegramAuthPassword(tgUser.id)
-    const telegramDisplayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim()
-    const displayName = telegramDisplayName || (tgUser.username ? `@${tgUser.username}` : `Telegram ${tgUser.id}`)
+    const telegramId = normalizeTelegramId(tgUser.id)
+    if (!telegramId) return jsonError('TELEGRAM_ID_INVALID', 400)
 
-    // Telegram identity is authoritative. No cookie, existing Supabase session,
-    // request user_id, or other profile can participate in account selection.
+    const admin = serviceClient()
+    const syntheticEmail = telegramAuthEmail(tgUser.id)
+    const telegramPassword = telegramAuthPassword(tgUser.id)
+    const displayName =
+      [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() ||
+      (tgUser.username ? `@${tgUser.username}` : `Telegram ${telegramId}`)
+
+    // Telegram initData is the only identity input. No cookie, existing
+    // browser session, request user_id, or client-supplied profile can choose
+    // the account.
     const { data: existingLink, error: linkLookupError } = await admin
       .from('telegram_user_links')
       .select('profile_id,telegram_user_id,telegram_username,verified_at')
-      .eq('telegram_user_id', telegramUserId)
+      .eq('telegram_user_id', telegramId)
       .maybeSingle()
 
     if (linkLookupError) throw linkLookupError
 
     let profileId: string | null = existingLink?.profile_id ?? null
     let authUserId: string | null = null
+    let authEmail: string | null = null
     let isNewAuthUser = false
 
     if (profileId) {
-      // Existing mapping is immutable for identity resolution.
-      const { data: mappedProfile, error: mappedProfileError } = await admin
+      if (typeof profileId !== 'string' || profileId.trim() === '') {
+        return jsonError('INVALID_TELEGRAM_PROFILE_MAPPING', 409)
+      }
+
+      const { data: mappedProfile, error: profileError } = await admin
         .from('profiles')
         .select('id,full_name,phone')
         .eq('id', profileId)
         .maybeSingle()
 
-      if (mappedProfileError) throw mappedProfileError
-      if (!mappedProfile) {
-        return NextResponse.json({ error: 'TELEGRAM_PROFILE_MAPPING_BROKEN' }, { status: 409 })
-      }
+      if (profileError) throw profileError
+      if (!mappedProfile) return jsonError('TELEGRAM_PROFILE_MAPPING_BROKEN', 409)
 
+      // RoyalHouse profiles.id is the Supabase Auth user ID. Never replace it
+      // with anything supplied by the browser.
       authUserId = mappedProfile.id
+      if (!authUserId) return jsonError('TELEGRAM_AUTH_USER_MAPPING_MISSING', 409)
 
-      const { data: mappedAuth, error: mappedAuthError } = await admin.auth.admin.getUserById(authUserId)
-      if (mappedAuthError) throw mappedAuthError
-      if (!mappedAuth.user) {
-        return NextResponse.json({ error: 'TELEGRAM_AUTH_USER_MISSING' }, { status: 409 })
-      }
+      const { data: mappedAuth, error: authLookupError } = await admin.auth.admin.getUserById(authUserId)
+      if (authLookupError) throw authLookupError
+      if (!mappedAuth.user) return jsonError('TELEGRAM_AUTH_USER_MISSING', 409)
 
-      const linkedTelegramId = mappedAuth.user.user_metadata?.telegram_user_id != null
-        ? String(mappedAuth.user.user_metadata.telegram_user_id)
-        : mappedAuth.user.user_metadata?.telegram_id != null
-          ? String(mappedAuth.user.user_metadata.telegram_id)
-          : null
-
-      // Never silently move an existing Auth account to another Telegram user.
-      if (linkedTelegramId && linkedTelegramId !== telegramUserId) {
+      const mappedTelegramId = getMetadataTelegramId(mappedAuth.user.user_metadata)
+      if (mappedTelegramId && mappedTelegramId !== telegramId) {
         console.error('[STRICT AUTH] mapping/auth identity mismatch', {
-          telegramUserId,
-          profileId,
-          authUserId,
-          linkedTelegramId,
+          telegram_id: telegramId,
+          profile_id: profileId,
+          auth_user_id: authUserId,
+          mapped_telegram_id: mappedTelegramId,
         })
-        return NextResponse.json({ error: 'TELEGRAM_IDENTITY_MISMATCH' }, { status: 409 })
+        return jsonError('TELEGRAM_IDENTITY_MISMATCH', 409)
       }
 
-      if (linkedTelegramId !== telegramUserId) {
-        const { error: metadataError } = await admin.auth.admin.updateUserById(authUserId, {
-          user_metadata: {
-            ...mappedAuth.user.user_metadata,
-            auth_provider: 'telegram',
-            telegram_id: telegramUserId,
-            telegram_user_id: telegramUserId,
-            telegram_username: tgUser.username || null,
-            telegram_first_name: tgUser.first_name || null,
-            telegram_last_name: tgUser.last_name || null,
-          },
+      const updatedMetadata = {
+        ...mappedAuth.user.user_metadata,
+        auth_provider: 'telegram',
+        telegram_id: telegramId,
+        telegram_user_id: telegramId,
+        telegram_username: tgUser.username || null,
+        telegram_first_name: tgUser.first_name || null,
+        telegram_last_name: tgUser.last_name || null,
+      }
+
+      const { error: metadataError } = await admin.auth.admin.updateUserById(authUserId, {
+        user_metadata: updatedMetadata,
+      })
+      if (metadataError) throw metadataError
+
+      // generateLink resolves a user by email. Therefore use the exact mapped
+      // Auth user's email; synthetic email is only for users without email.
+      authEmail = typeof mappedAuth.user.email === 'string' && mappedAuth.user.email.trim()
+        ? mappedAuth.user.email.trim()
+        : syntheticEmail
+
+      if (!mappedAuth.user.email?.trim()) {
+        const { error: emailError } = await admin.auth.admin.updateUserById(authUserId, {
+          email: syntheticEmail,
+          email_confirm: true,
         })
-        if (metadataError) throw metadataError
+        if (emailError) throw emailError
       }
     } else {
-      // No mapping means this Telegram identity is new. Create an Auth user
-      // for this Telegram ID only; never attach an old browser user.
-      const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
-        email,
-        password,
+      // No mapping = genuinely new Telegram identity. Create a brand-new Auth
+      // user; never attach the browser's old Supabase user.
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email: syntheticEmail,
+        password: telegramPassword,
         email_confirm: true,
         user_metadata: {
           auth_provider: 'telegram',
-          telegram_id: telegramUserId,
-          telegram_user_id: telegramUserId,
+          telegram_id: telegramId,
+          telegram_user_id: telegramId,
           telegram_username: tgUser.username || null,
           telegram_first_name: tgUser.first_name || null,
           telegram_last_name: tgUser.last_name || null,
         },
       })
 
-      if (createdUser?.user?.id) {
-        authUserId = createdUser.user.id
-        profileId = createdUser.user.id
+      if (created.user?.id) {
+        authUserId = created.user.id
+        profileId = created.user.id
+        authEmail = syntheticEmail
         isNewAuthUser = true
-      } else if (createUserError && isAlreadyRegisteredError(createUserError.message)) {
-        // Previous interrupted registration may have left the deterministic
-        // Auth user without its Telegram link. Recover that exact user only.
+      } else if (createError && isAlreadyRegisteredError(createError.message)) {
+        // Recover only the deterministic Telegram account. The email is
+        // derived from the verified Telegram ID, so no browser account can be
+        // selected here.
         let page = 1
         const perPage = 1000
-        let recoveredUserId: string | null = null
+        let recovered: { id: string; email?: string | null; user_metadata?: Record<string, unknown> } | null = null
 
-        while (!recoveredUserId) {
+        while (!recovered) {
           const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
           if (usersError) throw usersError
 
-          const found = usersPage.users.find((user) => user.email?.toLowerCase() === email.toLowerCase())
-          if (found?.id) {
-            recoveredUserId = found.id
+          const found = usersPage.users.find((user) => user.email?.toLowerCase() === syntheticEmail.toLowerCase())
+          if (found) {
+            recovered = found
             break
           }
 
@@ -143,48 +178,41 @@ export async function POST(request: NextRequest) {
           page += 1
         }
 
-        if (!recoveredUserId) throw createUserError
+        if (!recovered) throw createError
 
-        const { data: recoveredAuth, error: recoveredAuthError } = await admin.auth.admin.getUserById(recoveredUserId)
-        if (recoveredAuthError) throw recoveredAuthError
-        if (!recoveredAuth.user) throw new Error('TELEGRAM_AUTH_USER_NOT_FOUND')
-
-        const recoveredTelegramId = recoveredAuth.user.user_metadata?.telegram_user_id != null
-          ? String(recoveredAuth.user.user_metadata.telegram_user_id)
-          : recoveredAuth.user.user_metadata?.telegram_id != null
-            ? String(recoveredAuth.user.user_metadata.telegram_id)
-            : null
-
-        if (recoveredTelegramId && recoveredTelegramId !== telegramUserId) {
-          return NextResponse.json({ error: 'TELEGRAM_AUTH_USER_IDENTITY_MISMATCH' }, { status: 409 })
+        const recoveredTelegramId = getMetadataTelegramId(recovered.user_metadata)
+        if (recoveredTelegramId && recoveredTelegramId !== telegramId) {
+          return jsonError('TELEGRAM_AUTH_USER_IDENTITY_MISMATCH', 409)
         }
 
-        authUserId = recoveredUserId
-        profileId = recoveredUserId
+        authUserId = recovered.id
+        profileId = recovered.id
+        authEmail = recovered.email?.trim() || syntheticEmail
 
-        const { error: metadataError } = await admin.auth.admin.updateUserById(recoveredUserId, {
-          password,
+        const { error: recoveryMetadataError } = await admin.auth.admin.updateUserById(recovered.id, {
+          password: telegramPassword,
+          email: recovered.email?.trim() || syntheticEmail,
+          email_confirm: true,
           user_metadata: {
-            ...recoveredAuth.user.user_metadata,
+            ...(recovered.user_metadata || {}),
             auth_provider: 'telegram',
-            telegram_id: telegramUserId,
-            telegram_user_id: telegramUserId,
+            telegram_id: telegramId,
+            telegram_user_id: telegramId,
             telegram_username: tgUser.username || null,
             telegram_first_name: tgUser.first_name || null,
             telegram_last_name: tgUser.last_name || null,
           },
         })
-        if (metadataError) throw metadataError
-      } else if (createUserError) {
-        throw createUserError
+        if (recoveryMetadataError) throw recoveryMetadataError
+      } else if (createError) {
+        throw createError
       }
     }
 
-    if (!profileId || !authUserId || profileId !== authUserId) {
-      return NextResponse.json({ error: 'TELEGRAM_PROFILE_AUTH_MAPPING_FAILED' }, { status: 500 })
+    if (!authUserId || !profileId || profileId !== authUserId || !authEmail) {
+      return jsonError('TELEGRAM_PROFILE_AUTH_MAPPING_FAILED', 500)
     }
 
-    // Create the profile only for the exact Auth user selected above.
     const { data: profile, error: profileLookupError } = await admin
       .from('profiles')
       .select('id,full_name,phone')
@@ -214,86 +242,78 @@ export async function POST(request: NextRequest) {
     }
 
     if (!existingLink) {
-      const { error: telegramLinkError } = await admin.from('telegram_user_links').insert({
+      const { error: linkInsertError } = await admin.from('telegram_user_links').insert({
         profile_id: profileId,
-        telegram_user_id: telegramUserId,
-        chat_id: telegramUserId,
+        telegram_user_id: telegramId,
+        chat_id: telegramId,
         telegram_username: tgUser.username || null,
         linked_at: new Date().toISOString(),
         verified_at: new Date().toISOString(),
       })
 
-      if (telegramLinkError) {
+      if (linkInsertError) {
         if (isNewAuthUser) {
           await admin.from('profiles').delete().eq('id', profileId)
           await admin.auth.admin.deleteUser(authUserId)
         }
-        throw telegramLinkError
+        throw linkInsertError
       }
     } else {
-      // Existing identity link is preserved; only display metadata is refreshed.
       const { error: linkUpdateError } = await admin
         .from('telegram_user_links')
         .update({ telegram_username: tgUser.username || null })
-        .eq('telegram_user_id', telegramUserId)
+        .eq('telegram_user_id', telegramId)
         .eq('profile_id', profileId)
 
       if (linkUpdateError) throw linkUpdateError
     }
 
-    // Fresh session for exactly authUserId. No browser cookie/session is read.
-    const authUserEmail = email
-    const { data: generatedLink, error: generateLinkError } = await admin.auth.admin.generateLink({
+    // Create a fresh session for exactly authUserId. Browser cookies/session
+    // are never inspected or reused here.
+    const { data: generated, error: generateError } = await admin.auth.admin.generateLink({
       type: 'magiclink',
-      email: authUserEmail,
-      options: {
-        redirectTo: process.env.NEXT_PUBLIC_SITE_URL,
-      },
+      email: authEmail,
+      options: { redirectTo: process.env.NEXT_PUBLIC_SITE_URL },
     })
 
-    if (generateLinkError) throw generateLinkError
+    if (generateError) throw generateError
 
-    const hashedToken = generatedLink.properties?.hashed_token
+    const hashedToken = generated.properties?.hashed_token
     if (typeof hashedToken !== 'string' || hashedToken.length === 0) {
       throw new Error('AUTH_SESSION_TOKEN_NOT_GENERATED')
     }
 
-    const { data: verifiedAuth, error: verifyOtpError } = await admin.auth.verifyOtp({
+    const { data: verified, error: verifyError } = await admin.auth.verifyOtp({
       token_hash: hashedToken,
       type: 'magiclink',
     })
 
-    if (verifyOtpError) throw verifyOtpError
-    if (!verifiedAuth.session || !verifiedAuth.user) throw new Error('TELEGRAM_SESSION_CREATE_FAILED')
+    if (verifyError) throw verifyError
+    if (!verified.session || !verified.user) throw new Error('TELEGRAM_SESSION_CREATE_FAILED')
 
-    const session = verifiedAuth.session
+    const session = verified.session
+    const sessionTelegramId = getMetadataTelegramId(session.user.user_metadata)
 
     if (session.user.id !== authUserId) {
       console.error('[STRICT AUTH] CRITICAL SESSION USER MISMATCH', {
-        telegram_id: telegramUserId,
+        telegram_id: telegramId,
         expected_auth_user_id: authUserId,
         actual_session_user_id: session.user.id,
       })
-      return NextResponse.json({ error: 'SESSION_USER_MISMATCH' }, { status: 500 })
+      return jsonError('SESSION_USER_MISMATCH', 500)
     }
 
-    const sessionTelegramId = session.user.user_metadata?.telegram_user_id != null
-      ? String(session.user.user_metadata.telegram_user_id)
-      : session.user.user_metadata?.telegram_id != null
-        ? String(session.user.user_metadata.telegram_id)
-        : null
-
-    if (sessionTelegramId !== telegramUserId) {
+    if (sessionTelegramId !== telegramId) {
       console.error('[STRICT AUTH] CRITICAL SESSION TELEGRAM MISMATCH', {
-        telegram_id: telegramUserId,
+        telegram_id: telegramId,
         session_telegram_id: sessionTelegramId,
         auth_user_id: session.user.id,
       })
-      return NextResponse.json({ error: 'SESSION_TELEGRAM_ID_MISMATCH' }, { status: 500 })
+      return jsonError('SESSION_TELEGRAM_ID_MISMATCH', 500)
     }
 
     console.log('[STRICT AUTH] CLEAN SESSION CREATED', {
-      telegram_id: telegramUserId,
+      telegram_id: telegramId,
       profile_id: profileId,
       auth_user_id: session.user.id,
     })
