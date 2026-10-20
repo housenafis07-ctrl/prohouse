@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 export default function TelegramAccountWarning() {
   const pathname = usePathname()
   const [visible, setVisible] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [busy, setBusy] = useState(false)
   const [url, setUrl] = useState('')
 
@@ -13,27 +14,57 @@ export default function TelegramAccountWarning() {
     if (!pathname?.startsWith('/account')) return
 
     let active = true
+    let timer: number | undefined
+
     const check = async () => {
-      try {
-        const response = await fetch('/api/account/telegram/link', { cache: 'no-store' })
-        if (!response.ok) return
-        const data = await response.json()
-        if (active) setVisible(data.linked === false)
-      } catch {
-        // The account page itself remains usable if the status check fails.
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          const response = await fetch('/api/account/telegram/link', {
+            cache: 'no-store',
+            credentials: 'include',
+          })
+          if (response.ok) {
+            const data = await response.json()
+            if (!active) return
+            setVisible(data.mismatch === true || data.linked === false)
+            setChecking(false)
+            return
+          }
+        } catch {
+          // Retry while the Telegram/Supabase session is hydrating.
+        }
+        await new Promise(resolve => { timer = window.setTimeout(resolve, 250) })
+      }
+
+      if (active) setChecking(false)
+    }
+
+    const onMismatch = () => {
+      if (active) {
+        setVisible(true)
+        setChecking(false)
       }
     }
 
-    check()
-    return () => { active = false }
+    window.addEventListener('royalhouse:telegram-mismatch', onMismatch)
+    void check()
+
+    return () => {
+      active = false
+      if (timer) window.clearTimeout(timer)
+      window.removeEventListener('royalhouse:telegram-mismatch', onMismatch)
+    }
   }, [pathname])
 
-  if (!visible) return null
+  if (!pathname?.startsWith('/account') || checking || !visible) return null
 
   async function connectTelegram() {
     setBusy(true)
     try {
-      const response = await fetch('/api/account/telegram/link', { method: 'POST' })
+      const response = await fetch('/api/account/telegram/link', {
+        method: 'POST',
+        credentials: 'include',
+      })
       const data = await response.json()
       if (!response.ok || !data.url) throw new Error(data.error || 'Telegram ulash havolasini yaratib bo‘lmadi.')
       setUrl(data.url)
