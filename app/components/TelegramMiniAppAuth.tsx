@@ -13,6 +13,7 @@ type TelegramWebApp = {
 declare global {
   interface Window {
     Telegram?: { WebApp?: TelegramWebApp }
+    __ROYALHOUSE_TELEGRAM_AUTH_STATE__?: 'idle' | 'pending' | 'ready' | 'blocked' | 'failed'
   }
 }
 
@@ -28,6 +29,7 @@ export default function TelegramMiniAppAuth() {
   useEffect(() => {
     if (started.current) return
     started.current = true
+    window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'idle'
 
     let cancelled = false
     let pollTimer: number | undefined
@@ -41,6 +43,7 @@ export default function TelegramMiniAppAuth() {
     const authenticate = async (webApp: TelegramWebApp) => {
       if (cancelled || !webApp.initData) return
 
+      window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'pending'
       setActive(true)
       webApp.ready()
       webApp.expand()
@@ -57,6 +60,7 @@ export default function TelegramMiniAppAuth() {
         const data = await response.json().catch(() => null)
 
         if (response.status === 409) {
+          window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'blocked'
           if (!cancelled) {
             setConflict(data?.error === 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' ? 'already-linked' : 'link')
             setActive(false)
@@ -72,10 +76,6 @@ export default function TelegramMiniAppAuth() {
         }
 
         const supabase = createClient()
-
-        // A Telegram Mini App must never inherit the previous phone-authenticated
-        // browser identity. Clear only the local browser auth state first, then
-        // install the canonical Telegram session returned by the server.
         await supabase.auth.signOut({ scope: 'local' })
 
         const { error: sessionError } = await supabase.auth.setSession({
@@ -84,24 +84,22 @@ export default function TelegramMiniAppAuth() {
         })
         if (sessionError) throw sessionError
 
-        // Verify the browser now resolves to exactly the profile selected by
-        // Telegram. If it does not, never allow the old profile to render.
         const { data: verified } = await supabase.auth.getUser()
         if (!verified.user || verified.user.id !== data.profile.id) {
           await supabase.auth.signOut({ scope: 'local' })
           throw new Error('TELEGRAM_PROFILE_SESSION_MISMATCH')
         }
 
+        window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'ready'
+
         if (cancelled) return
 
-        // Use a hard navigation after the session has been persisted. This is
-        // intentional: account/listing pages may be server-rendered and can
-        // otherwise retain data from the previous Supabase cookie/session.
         const next = new URLSearchParams(window.location.search).get('next')
         const target = next && next.startsWith('/') ? next : pathname === '/register' ? '/account' : pathname
         window.location.replace(target || '/')
       } catch (error) {
         console.error('[telegram-miniapp-auth]', error)
+        window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'failed'
         if (!cancelled) {
           setActive(false)
           setFailed(true)
@@ -139,7 +137,10 @@ export default function TelegramMiniAppAuth() {
 
     timeoutTimer = window.setTimeout(() => {
       finish()
-      if (!cancelled && !window.Telegram?.WebApp?.initData) setFailed(true)
+      if (!cancelled && !window.Telegram?.WebApp?.initData) {
+        window.__ROYALHOUSE_TELEGRAM_AUTH_STATE__ = 'idle'
+        setFailed(false)
+      }
     }, 5000)
 
     return () => {
