@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { useTelegramAuthGate } from './TelegramAuthGate'
 
 type TelegramWebApp = {
   initData: string
@@ -16,14 +17,16 @@ declare global {
   }
 }
 
+const AUTH_BARRIER_ENABLED = process.env.NEXT_PUBLIC_TG_AUTH_BARRIER === '1'
+
 /**
- * Authenticate the Telegram Mini App without ever blocking the UI.
- * The server validates Telegram initData and returns a Supabase session;
- * the browser must explicitly hydrate its Supabase client with that session.
+ * Authenticate the Telegram Mini App. When the I3 barrier is enabled, all
+ * session-dependent pages wait for this request before reading Supabase.
  */
 export default function TelegramMiniAppAuth() {
   const router = useRouter()
   const started = useRef(false)
+  const { markReady } = useTelegramAuthGate()
 
   useEffect(() => {
     if (started.current) return
@@ -31,11 +34,20 @@ export default function TelegramMiniAppAuth() {
 
     let cancelled = false
     let timer: number | undefined
+    let readyMarked = false
+
+    const finish = () => {
+      if (readyMarked) return
+      readyMarked = true
+      markReady()
+    }
 
     const authenticate = async (webApp: TelegramWebApp) => {
-      if (cancelled || !webApp.initData) return
+      if (cancelled || !webApp.initData) {
+        finish()
+        return
+      }
 
-      // Never wait for auth before releasing the Telegram Mini App UI.
       webApp.ready()
       webApp.expand()
 
@@ -43,6 +55,14 @@ export default function TelegramMiniAppAuth() {
       timer = window.setTimeout(() => controller.abort(), 7000)
 
       try {
+        const supabase = createClient()
+
+        // Telegram identity has precedence over any stored browser session.
+        // This is intentionally local-only; no server-side identity is used.
+        if (AUTH_BARRIER_ENABLED) {
+          await supabase.auth.signOut({ scope: 'local' })
+        }
+
         const response = await fetch('/api/auth/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -58,38 +78,44 @@ export default function TelegramMiniAppAuth() {
           return
         }
 
-        if (!data?.session?.access_token || !data?.session?.refresh_token) {
-          console.warn('[telegram-miniapp-auth] server returned no session')
+        if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.profile?.id) {
+          console.warn('[telegram-miniapp-auth] server returned incomplete session')
           return
         }
 
-        // Critical: the API runs on the server. Its Supabase session does not
-        // automatically become the browser's session. Hydrate the exact same
-        // browser client used by /account and /listings/new.
-        const supabase = createClient()
-        const { error } = await supabase.auth.setSession({
+        const { error: setSessionError } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         })
-        if (error) {
-          console.error('[telegram-miniapp-auth] setSession failed', error)
+        if (setSessionError) {
+          console.error('[telegram-miniapp-auth] setSession failed', setSessionError)
+          return
+        }
+
+        const { data: userData, error: userError } = await supabase.auth.getUser()
+        if (userError || !userData.user || userData.user.id !== data.profile.id) {
+          console.error('[telegram-miniapp-auth] session/profile mismatch')
+          await supabase.auth.signOut({ scope: 'local' })
           return
         }
 
         if (cancelled) return
         router.refresh()
       } catch (error) {
-        // Authentication failure must never freeze or redirect the Mini App.
-        console.warn('[telegram-miniapp-auth] background authentication skipped', error)
+        console.warn('[telegram-miniapp-auth] authentication failed', error)
       } finally {
         if (timer) window.clearTimeout(timer)
+        if (AUTH_BARRIER_ENABLED) finish()
       }
     }
 
     const start = () => {
       if (cancelled) return true
       const webApp = window.Telegram?.WebApp
-      if (!webApp?.initData) return false
+      if (!webApp?.initData) {
+        finish()
+        return false
+      }
       void authenticate(webApp)
       return true
     }
@@ -103,7 +129,13 @@ export default function TelegramMiniAppAuth() {
 
     const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
     if (existing) {
-      existing.addEventListener('load', start, { once: true })
+      // If Telegram's script was already loaded before this initializer ran,
+      // start immediately instead of waiting forever for a load event that has passed.
+      if (window.Telegram?.WebApp) {
+        start()
+      } else {
+        existing.addEventListener('load', start, { once: true })
+      }
       return () => {
         cancelled = true
         if (timer) window.clearTimeout(timer)
@@ -123,7 +155,7 @@ export default function TelegramMiniAppAuth() {
       if (timer) window.clearTimeout(timer)
       script.onload = null
     }
-  }, [router])
+  }, [markReady, router])
 
   return null
 }
