@@ -25,6 +25,7 @@ import RoyalhouseMobileAISearch from "./components/RoyalhouseMobileAISearch";
 import RoyalhousePwaHomeSearchFix from "./components/RoyalhousePwaHomeSearchFix";
 import RoyalhousePwaAiSearchStyle from "./components/RoyalhousePwaAiSearchStyle";
 import TelegramMiniAppAuth from "./components/TelegramMiniAppAuth";
+import { TelegramAuthGateProvider } from "./components/TelegramAuthGate";
 import TelegramLoginButton from "./components/TelegramLoginButton";
 
 export const metadata: Metadata = {
@@ -38,32 +39,34 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="uz">
       <body>
         <I18nProvider>
-          <TelegramMiniAppAuth />
-          <RoyalhouseBrandFix />
-          <RoyalhouseFooterFix />
-          <RoyalhouseContactFooter />
-          <GlobalLanguageFix />
-          <LegacySurfaceLanguageFix />
-          <LanguageRuntimeFix />
-          <AuthLanguageFix />
-          <RoyalhousePartnersLinkFix />
-          <GlobalNavigationGate />
-          <RentalNavigationFix />
-          <PurchaseNavigationFix />
-          <NewBuildingsNavigationFix />
-          <HomeBuildingNavigationFix />
-          <MobileMainNavigation />
-          <PwaServiceWorkerRegistration />
-          <PushRegistration />
-          <ListingCardIconStyle />
-          <TaxCalculatorServiceFix />
-          <RoyalhouseMobileHomeRedesign />
-          <RoyalhouseMobileHomePolish />
-          <RoyalhouseMobileAISearch />
-          <RoyalhousePwaHomeSearchFix />
-          <RoyalhousePwaAiSearchStyle />
-          <TelegramLoginButton />
-          {children}
+          <TelegramAuthGateProvider>
+            <TelegramMiniAppAuth />
+            <RoyalhouseBrandFix />
+            <RoyalhouseFooterFix />
+            <RoyalhouseContactFooter />
+            <GlobalLanguageFix />
+            <LegacySurfaceLanguageFix />
+            <LanguageRuntimeFix />
+            <AuthLanguageFix />
+            <RoyalhousePartnersLinkFix />
+            <GlobalNavigationGate />
+            <RentalNavigationFix />
+            <PurchaseNavigationFix />
+            <NewBuildingsNavigationFix />
+            <HomeBuildingNavigationFix />
+            <MobileMainNavigation />
+            <PwaServiceWorkerRegistration />
+            <PushRegistration />
+            <ListingCardIconStyle />
+            <TaxCalculatorServiceFix />
+            <RoyalhouseMobileHomeRedesign />
+            <RoyalhouseMobileHomePolish />
+            <RoyalhouseMobileAISearch />
+            <RoyalhousePwaHomeSearchFix />
+            <RoyalhousePwaAiSearchStyle />
+            <TelegramLoginButton />
+            {children}
+          </TelegramAuthGateProvider>
         </I18nProvider>
       </body>
     </html>
