@@ -36,22 +36,32 @@ export async function POST(request: NextRequest) {
     const telegramUserId = String(validated.user.id)
     const { data: byTelegram, error: telegramLookupError } = await admin
       .from('telegram_user_links')
-      .select('profile_id,verified_at')
+      .select('profile_id,verified_at,verification_method')
       .eq('telegram_user_id', telegramUserId)
       .maybeSingle()
     if (telegramLookupError) throw telegramLookupError
 
-    if (byTelegram?.verified_at && byTelegram.profile_id !== profileId) {
+    // Only a phone-OTP verified link is an ownership proof. Legacy/untrusted
+    // mappings can be safely replaced after the user proves this phone number.
+    const trustedExistingLink = Boolean(
+      byTelegram?.verified_at && byTelegram?.verification_method === 'phone_otp',
+    )
+    if (trustedExistingLink && byTelegram.profile_id !== profileId) {
       return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409, headers: noStore })
     }
 
     const { data: byProfile, error: profileLinkError } = await admin
       .from('telegram_user_links')
-      .select('telegram_user_id')
+      .select('telegram_user_id,verified_at,verification_method')
       .eq('profile_id', profileId)
       .maybeSingle()
     if (profileLinkError) throw profileLinkError
-    if (byProfile && byProfile.telegram_user_id !== telegramUserId) {
+    const trustedProfileLink = Boolean(
+      byProfile?.telegram_user_id &&
+      byProfile.verified_at &&
+      byProfile.verification_method === 'phone_otp',
+    )
+    if (trustedProfileLink && byProfile.telegram_user_id !== telegramUserId) {
       return NextResponse.json({ error: 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM' }, { status: 409, headers: noStore })
     }
 
@@ -64,6 +74,8 @@ export async function POST(request: NextRequest) {
       user => user.email?.toLowerCase() === email.toLowerCase() && user.id !== profileId,
     )
     if (conflictingAuthUser) {
+      // A legacy Telegram auth identity may have been created for the wrong
+      // profile. It must never be reused as the phone-verified user's account.
       return NextResponse.json({ error: 'TELEGRAM_AUTH_IDENTITY_CONFLICT' }, { status: 409, headers: noStore })
     }
 
