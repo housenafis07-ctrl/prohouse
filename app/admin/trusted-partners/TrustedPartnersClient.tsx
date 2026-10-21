@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 interface Partner {
@@ -48,6 +50,7 @@ const documentLabel: Record<string, string> = {
 }
 
 export default function TrustedPartnersClient({ partners, documents }: { partners: Partner[]; documents: Document[] }) {
+  const router = useRouter()
   const [items, setItems] = useState(partners)
   const [working, setWorking] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
@@ -81,6 +84,16 @@ export default function TrustedPartnersClient({ partners, documents }: { partner
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8">
     <div className="mx-auto max-w-6xl">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:ring-emerald-300">
+          ← Orqaga
+        </button>
+        <Link href="/admin" aria-label="RoyalHouse Admin bosh sahifasi" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-900 shadow-sm ring-1 ring-slate-200 transition hover:ring-emerald-300">
+          <span className="text-emerald-600">RoyalHouse</span>
+          <span className="text-slate-400">Admin</span>
+        </Link>
+      </div>
+
       <header className="rounded-3xl bg-slate-900 p-7 text-white">
         <p className="text-sm font-bold text-emerald-300">RoyalHouse xavfsizlik tizimi</p>
         <h1 className="mt-2 text-3xl font-black">Ishonchli hamkorlar</h1>
