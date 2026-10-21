@@ -13,6 +13,38 @@ const DOCUMENT_TYPES = new Set([
   'company_charter',
 ])
 
+export async function GET() {
+  const auth = await createClient()
+  const { data: { user } } = await auth.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  const db = serviceClient()
+  const [{ data: profile, error: profileError }, { data: documents, error: documentError }] = await Promise.all([
+    db.from('profiles').select('account_type,partner_type').eq('id', user.id).maybeSingle(),
+    db.from('partner_verification_documents')
+      .select('id,document_type,file_name,mime_type,size_bytes,status,rejection_reason,created_at,reviewed_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
+  ])
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
+  if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 })
+  if (!profile || profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
+
+  const { data: partner, error: partnerError } = await db
+    .from('partner_profiles')
+    .select('trusted_partner_status,trusted_partner_rejection_reason')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (partnerError) return NextResponse.json({ error: partnerError.message }, { status: 500 })
+
+  return NextResponse.json({
+    partnerType: profile.partner_type,
+    trustedPartnerStatus: partner?.trusted_partner_status || 'not_requested',
+    rejectionReason: partner?.trusted_partner_rejection_reason || null,
+    documents: documents || [],
+  })
+}
+
 export async function POST(request: Request) {
   const auth = await createClient()
   const { data: { user } } = await auth.auth.getUser()
@@ -35,9 +67,7 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.account_type !== 'partner') {
-    return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
-  }
+  if (!profile || profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
 
   const { data: partner, error: partnerError } = await admin
     .from('partner_profiles')
@@ -53,11 +83,7 @@ export async function POST(request: Request) {
 
   const { error: uploadError } = await admin.storage
     .from('partner-verification-documents')
-    .upload(storagePath, file, {
-      contentType: file.type,
-      cacheControl: '3600',
-      upsert: false,
-    })
+    .upload(storagePath, file, { contentType: file.type, cacheControl: '3600', upsert: false })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
 
   const { data: document, error: insertError } = await admin
