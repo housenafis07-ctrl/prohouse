@@ -6,7 +6,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
 const DOCUMENT_TYPES = new Set([
   'registration_certificate',
-  'inn_certificate',
+  'other_required_documents',
   'director_id',
   'self_employed_certificate',
   'sole_proprietor_certificate',
