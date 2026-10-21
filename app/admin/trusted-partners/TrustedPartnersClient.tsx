@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 interface Partner {
@@ -81,6 +82,11 @@ export default function TrustedPartnersClient({ partners, documents }: { partner
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8">
     <div className="mx-auto max-w-6xl">
+      <nav className="mb-5 flex items-center justify-between gap-4">
+        <Link href="/admin" className="font-black text-emerald-700 hover:text-emerald-800">← Admin panel</Link>
+        <Link href="/" aria-label="RoyalHouse bosh sahifasi" className="font-black text-slate-900 hover:text-emerald-700">RoyalHouse</Link>
+      </nav>
+
       <header className="rounded-3xl bg-slate-900 p-7 text-white">
         <p className="text-sm font-bold text-emerald-300">RoyalHouse xavfsizlik tizimi</p>
         <h1 className="mt-2 text-3xl font-black">Ishonchli hamkorlar</h1>
