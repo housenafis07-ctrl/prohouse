@@ -58,6 +58,7 @@ export default function TelegramMiniApp() {
   const [ready, setReady] = useState(false)
   const { lang, setLang } = useI18n()
   const [keyword, setKeyword] = useState('')
+  const [openingAd, setOpeningAd] = useState(false)
   const t = copy[lang]
 
   useEffect(() => {
@@ -67,7 +68,6 @@ export default function TelegramMiniApp() {
       tg.expand()
       setReady(true)
     }
-
   }, [])
 
   const changeLanguage = (next: 'uz' | 'ru') => setLang(next)
@@ -82,10 +82,33 @@ export default function TelegramMiniApp() {
     window.location.href = path
   }
 
-  const handlePlaceAd = async () => {
+  const getAuthenticatedUser = async () => {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    openInMiniApp(user ? '/listings/new' : '/register?redirect=/listings/new')
+    const { data } = await supabase.auth.getUser()
+    return data.user
+  }
+
+  const waitForTelegramSession = async () => {
+    // TelegramMiniAppAuth runs globally and hydrates the browser Supabase
+    // client after the server validates initData. Do not race it here.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const user = await getAuthenticatedUser()
+      if (user) return user
+      await new Promise(resolve => window.setTimeout(resolve, 250))
+    }
+    return null
+  }
+
+  const handlePlaceAd = async () => {
+    if (openingAd) return
+    setOpeningAd(true)
+
+    try {
+      const user = await waitForTelegramSession()
+      openInMiniApp(user ? '/listings/new' : '/register?redirect=/listings/new')
+    } finally {
+      setOpeningAd(false)
+    }
   }
 
   const search = (event: FormEvent) => {
@@ -164,11 +187,11 @@ export default function TelegramMiniApp() {
               </div>
             </button>
 
-            <button type="button" onClick={handlePlaceAd} className="w-full rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition active:scale-[.99]">
+            <button type="button" onClick={handlePlaceAd} disabled={openingAd} className="w-full rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition active:scale-[.99] disabled:opacity-70">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-2xl font-black text-white">+</div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-black">{t.placeAd}</h3>
+                  <h3 className="font-black">{openingAd ? 'Kirilmoqda...' : t.placeAd}</h3>
                   <p className="mt-1 text-xs leading-4 text-slate-400">{t.placeAdText}</p>
                 </div>
                 <span className="text-xl text-slate-300">›</span>
