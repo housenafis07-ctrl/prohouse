@@ -170,13 +170,37 @@ export default function ServiceListingWizardV2() {
     finally { setSaving(false) }
   }
 
-  const addImages = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
+  const addImages = async (e: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || [])
     e.target.value = ''
-    if (images.length + files.length > 10) { setError(t('Maksimal 10 ta rasm.', 'Максимум 10 фото.')); return }
-    const bad = files.find(f => !isAcceptedListingImage(f) || f.size > LISTING_IMAGE_MAX_SIZE)
-    if (bad) { setError(t('Faqat JPG, PNG, WebP yoki GIF rasm. Har biri 10 MB gacha.', 'Только JPG, PNG, WebP или GIF. Максимум 10 МБ на файл.')); return }
-    setImages(prev => [...prev, ...files.map(file => ({ file, preview: URL.createObjectURL(file) }))])
+    setError('')
+    if (!selectedFiles.length) return
+    if (images.length + selectedFiles.length > 10) { setError(t('Maksimal 10 ta rasm.', 'Максимум 10 фото.')); return }
+
+    try {
+      const files: File[] = []
+      for (const original of selectedFiles) {
+        const isHeic = /\.(heic|heif)$/i.test(original.name) || original.type.toLowerCase().includes('heic') || original.type.toLowerCase().includes('heif')
+        let file = original
+        if (isHeic) {
+          // iPhone photos are often HEIC, which Telegram's embedded browser cannot preview.
+          const convert = (await import('heic2any')).default
+          const result = await convert({ blob: original, toType: 'image/jpeg', quality: 0.88 })
+          const blob = Array.isArray(result) ? result[0] : result
+          file = new File([blob], original.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg', lastModified: original.lastModified })
+        }
+        if (!isAcceptedListingImage(file)) {
+          throw new Error(t('Rasm formati qo‘llab-quvvatlanmaydi. JPG, PNG yoki WebP tanlang.', 'Формат фото не поддерживается. Выберите JPG, PNG или WebP.'))
+        }
+        if (file.size > LISTING_IMAGE_MAX_SIZE) {
+          throw new Error(t('Har bir rasm 10 MB dan oshmasligi kerak.', 'Размер каждого фото не должен превышать 10 МБ.'))
+        }
+        files.push(file)
+      }
+      setImages(prev => [...prev, ...files.map(file => ({ file, preview: URL.createObjectURL(file) }))])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('Rasmni o‘qib bo‘lmadi. JPG yoki PNG formatida saqlab qayta tanlang.', 'Не удалось прочитать фото. Сохраните его в JPG или PNG и выберите снова.'))
+    }
   }
 
   const removeImage = (index: number) => {
@@ -245,7 +269,7 @@ export default function ServiceListingWizardV2() {
 
       {step === 4 && <div><h2 className="text-xl font-bold">4. {t('Narx va shartlar', 'Цена и условия')}</h2><div className="mt-5 grid gap-4 sm:grid-cols-3"><input value={form.price} onChange={e => update('price', e.target.value)} placeholder={t('Narx', 'Цена')} inputMode="numeric" className="rounded-xl border p-3 sm:col-span-2"/><select value={form.currency} onChange={e => update('currency', e.target.value)} className="rounded-xl border p-3"><option>UZS</option><option>USD</option></select></div><p className="mt-3 text-sm text-slate-500">{t('Masalan: 150 000 so‘mdan yoki xizmat hajmiga qarab.', 'Например: от 150 000 сум или по объёму работ.')}</p></div>}
 
-      {step === 5 && <div><h2 className="text-xl font-bold">5. {t('Rasmlar', 'Фото')}</h2><p className="mt-1 text-sm text-slate-500">{t('Xizmatingiz namunalaridan 10 tagacha rasm yuklang.', 'Загрузите до 10 фото с примерами вашей работы.')}</p><label className="mt-5 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed p-10 text-sm font-semibold"><input type="file" accept={LISTING_IMAGE_ACCEPT} multiple onChange={addImages} className="hidden"/>{t('Rasmlarni tanlash', 'Выбрать фото')}</label><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{images.map((im, i) => <div key={im.preview} className="relative overflow-hidden rounded-2xl border"><img src={im.preview} className="aspect-square w-full object-cover"/><button type="button" onClick={() => removeImage(i)} className="absolute right-2 top-2 rounded-full bg-white px-2 py-1 text-xs">×</button>{i === mainImage && <span className="absolute bottom-2 left-2 rounded-full bg-slate-950 px-2 py-1 text-[10px] text-white">{t('Asosiy', 'Основное')}</span>}</div>)}</div></div>}
+      {step === 5 && <div><h2 className="text-xl font-bold">5. {t('Rasmlar', 'Фото')}</h2><p className="mt-1 text-sm text-slate-500">{t('Xizmatingiz namunalaridan 10 tagacha rasm yuklang.', 'Загрузите до 10 фото с примерами вашей работы.')}</p><label className="mt-5 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed p-10 text-sm font-semibold"><input type="file" accept={`${LISTING_IMAGE_ACCEPT},image/heic,image/heif,.heic,.heif`} multiple onChange={addImages} className="hidden"/>{t('Rasmlarni tanlash', 'Выбрать фото')}</label><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{images.map((im, i) => <div key={im.preview} className="relative overflow-hidden rounded-2xl border"><img src={im.preview} className="aspect-square w-full object-cover"/><button type="button" onClick={() => removeImage(i)} className="absolute right-2 top-2 rounded-full bg-white px-2 py-1 text-xs">×</button>{i === mainImage && <span className="absolute bottom-2 left-2 rounded-full bg-slate-950 px-2 py-1 text-[10px] text-white">{t('Asosiy', 'Основное')}</span>}</div>)}</div></div>}
 
       {step === 6 && <div><h2 className="text-xl font-bold">6. {t('Tekshirish', 'Проверка')}</h2><div className="mt-5 space-y-3">{[[t('Xizmat turi', 'Услуга'), ru ? (selected?.name_ru || selected?.name_uz || '—') : (selected?.name_uz || '—')], [t('Sarlavha', 'Заголовок'), form.title || '—'], [t('Hudud', 'Регион'), regionSummary()], [t('Manzil', 'Адрес'), form.address || '—'], [t('Narx', 'Цена'), `${form.price || '—'} ${form.currency}`], [t('Rasmlar', 'Фото'), `${images.length} ${t('ta', 'шт.')}`]].map(([a, b]) => <div key={String(a)} className="flex justify-between gap-5 rounded-2xl bg-slate-50 p-4 text-sm"><span className="text-slate-500">{a}</span><b className="text-right">{b}</b></div>)}</div><p className="mt-5 text-sm text-slate-500">{t('E’lon moderatsiyaga yuborilgach, tasdiqlangandan so‘ng xizmatlar katalogida ko‘rsatiladi.', 'После отправки на модерацию объявление появится в каталоге услуг после подтверждения.')}</p></div>}
 
