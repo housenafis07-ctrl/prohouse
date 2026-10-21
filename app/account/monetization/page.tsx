@@ -7,7 +7,7 @@ import { pickLocalized } from '@/lib/i18n'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type Product={code:string;name:string;name_ru:string|null;description:string|null;description_ru:string|null;price_uzs:number;duration_days:number;product_type:string|null;audience:string;unit:string;quantity:number;badge:string|null;badge_ru:string|null;metadata?:Record<string, unknown>}
-type Entitlement={id:string;product_code:string;status:string;quantity_remaining:number;starts_at:string|null;ends_at:string|null>}
+type Entitlement={id:string;product_code:string;status:string;quantity_remaining:number;starts_at:string|null;ends_at:string|null}
 
 const planCodes = ['partner_start','partner_pro','partner_business']
 
