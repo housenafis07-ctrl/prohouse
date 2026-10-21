@@ -40,8 +40,22 @@ export async function GET() {
       const ownershipType = item.ownership_type || draft.ownership_type || attributes.ownership_type || null
       const isOwner = ownershipType === 'owner'
 
+      // Private Storage objects must be rendered through the authorized
+      // application endpoint, never via stale/public bucket URLs. Also derive
+      // the endpoint from the image ID so blank legacy image_url values do not
+      // break the admin moderation gallery.
+      const listingImages = Array.isArray(item.listing_images)
+        ? item.listing_images.map((image: Record<string, any>) => ({
+            ...image,
+            image_url: image.storage_path && image.id
+              ? `/api/listing-images/${image.id}`
+              : image.image_url,
+          }))
+        : item.listing_images
+
       return {
         ...item,
+        listing_images: listingImages,
         city: item.city || draft.city || null,
         district: item.district || draft.district || null,
         neighborhood: item.neighborhood || draft.neighborhood || null,
