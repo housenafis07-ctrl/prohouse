@@ -47,7 +47,8 @@ $$;
 revoke all on function public.get_active_partner_plan(uuid) from public;
 grant execute on function public.get_active_partner_plan(uuid) to authenticated;
 
--- The purchased plan is the single source of truth for partner listing quota.
+-- Partner accounts keep their existing 5 free-listing allowance. A paid
+-- subscription raises that server-side quota to the purchased plan limit.
 create or replace function public.enforce_partner_listing_plan()
 returns trigger
 language plpgsql
@@ -70,10 +71,8 @@ begin
   select plan.listing_limit into v_limit
   from public.get_active_partner_plan(new.owner_id) plan;
 
-  if coalesce(v_limit, 0) <= 0 then
-    raise exception 'PARTNER_SUBSCRIPTION_REQUIRED: Hamkor uchun faol tarif kerak.'
-      using errcode = 'check_violation';
-  end if;
+  -- No paid plan: preserve the existing partner free quota of 5.
+  v_limit := coalesce(v_limit, 5);
 
   select count(*)::integer into v_used
   from public.listings l
