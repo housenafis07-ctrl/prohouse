@@ -38,6 +38,24 @@ type Listing = {
   partner_listing_taxonomy?: { name_uz: string; name_ru: string | null }[] | null
 }
 
+type ListingEngagement = {
+  views: number
+  uniqueViews: number
+  todayViews: number
+  shares: number
+  phoneClicks: number
+  chatStarts: number
+}
+
+const emptyEngagement = (): ListingEngagement => ({
+  views: 0,
+  uniqueViews: 0,
+  todayViews: 0,
+  shares: 0,
+  phoneClicks: 0,
+  chatStarts: 0,
+})
+
 const money = (value: number, currency: string, lang: Lang) =>
   `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(value))} ${currency === 'USD' ? '$' : lang === 'ru' ? 'сум' : 'so‘m'}`
 
@@ -70,6 +88,8 @@ export default function MyListingsPage() {
   const [error, setError] = useState('')
   const [actionId, setActionId] = useState('')
   const [usage, setUsage] = useState<{ isIndividual: boolean; used: number; freeLimit: number; remaining: number | null } | null>(null)
+  const [engagement, setEngagement] = useState<Record<string, ListingEngagement>>({})
+  const [shareState, setShareState] = useState<Record<string, 'idle' | 'copied'>>({})
 
   const text = lang === 'ru'
     ? {
@@ -80,6 +100,8 @@ export default function MyListingsPage() {
         trusted: '✓ Надёжный профиль', view: 'Открыть', edit: 'Редактировать', fix: 'Исправить и отправить повторно',
         cancel: 'Отменить', cancelBusy: 'Отмена...', saveBusy: 'Сохранение...', rented: 'Сдано', sold: 'Продано', close: 'Закрыть',
         resubmit: 'Отправить на модерацию', updated: 'Обновлено', room: 'комн.', floor: 'эт.',
+        stats: 'Статистика объявления', totalViews: 'Всего просмотров', uniqueViews: 'Уникальные', todayViews: 'Сегодня', shares: 'Поделились', phone: 'Телефон', chat: 'Чат',
+        share: 'Поделиться', copied: 'Ссылка скопирована',
         moderationReason: 'Причина отклонения:', moderationNote: 'Комментарий модерации:', errorLoad: 'Не удалось загрузить объявления.',
         tabs: { all: 'Все', draft: 'Черновики', moderation: 'На модерации', active: 'Активные', rejected: 'Отклонённые', sold: 'Проданные', rented: 'Сданные', archived: 'Архив' },
         property: { apartment: 'Квартира', house: 'Частный дом', land: 'Земельный участок', commercial: 'Коммерческая недвижимость', new_building: 'Новостройка' } as Record<string, string>,
@@ -92,6 +114,8 @@ export default function MyListingsPage() {
         trusted: '✓ Ishonchli profil', view: 'Ko‘rish', edit: 'Tahrirlash', fix: 'Tuzatish va qayta yuborish',
         cancel: 'Bekor qilish', cancelBusy: 'Bekor qilinmoqda...', saveBusy: 'Saqlanmoqda...', rented: 'Ijaraga berildi', sold: 'Sotildi', close: 'Yopish',
         resubmit: 'Qayta moderatsiyaga yuborish', updated: 'Yangilangan', room: 'xona', floor: 'qavat',
+        stats: 'E’lon statistikasi', totalViews: 'Jami ko‘rish', uniqueViews: 'Noyob ko‘rish', todayViews: 'Bugun', shares: 'Ulashish', phone: 'Telefon', chat: 'Chat',
+        share: 'Ulashish', copied: 'Havola nusxalandi',
         moderationReason: 'Rad etish sababi:', moderationNote: 'Moderatsiya izohi:', errorLoad: 'E’lonlarni yuklab bo‘lmadi.',
         tabs: { all: 'Barchasi', draft: 'Qoralama', moderation: 'Moderatsiyada', active: 'Faol', rejected: 'Rad etilgan', sold: 'Sotilgan', rented: 'Ijaraga berilgan', archived: 'Arxiv' },
         property: { apartment: 'Kvartira', house: 'Xususiy uy', land: 'Yer uchastkasi', commercial: 'Tijorat mulki', new_building: 'Yangi bino' } as Record<string, string>,
@@ -118,7 +142,46 @@ export default function MyListingsPage() {
     ])
 
     if (qError) setError(qError.message || text.errorLoad)
-    setItems((data || []) as Listing[])
+    const listingRows = (data || []) as Listing[]
+    setItems(listingRows)
+
+    const nextEngagement: Record<string, ListingEngagement> = {}
+    listingRows.forEach(item => { nextEngagement[item.id] = emptyEngagement() })
+
+    if (listingRows.length > 0) {
+      const { data: events, error: eventsError } = await db
+        .from('listing_events')
+        .select('listing_id,event_type,user_id,session_id,created_at')
+        .in('listing_id', listingRows.map(item => item.id))
+        .in('event_type', ['view', 'share', 'phone_click', 'chat_start'])
+
+      if (!eventsError) {
+        const uniqueByListing: Record<string, Set<string>> = {}
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+
+        for (const event of events || []) {
+          if (!nextEngagement[event.listing_id]) nextEngagement[event.listing_id] = emptyEngagement()
+          const stats = nextEngagement[event.listing_id]
+
+          if (event.event_type === 'view') {
+            stats.views += 1
+            if (!uniqueByListing[event.listing_id]) uniqueByListing[event.listing_id] = new Set<string>()
+            const key = event.session_id || (event.user_id ? `user:${event.user_id}` : `event:${event.created_at}`)
+            uniqueByListing[event.listing_id].add(key)
+            if (new Date(event.created_at) >= todayStart) stats.todayViews += 1
+          } else if (event.event_type === 'share') stats.shares += 1
+          else if (event.event_type === 'phone_click') stats.phoneClicks += 1
+          else if (event.event_type === 'chat_start') stats.chatStarts += 1
+        }
+
+        Object.entries(uniqueByListing).forEach(([id, keys]) => {
+          if (nextEngagement[id]) nextEngagement[id].uniqueViews = keys.size
+        })
+      }
+    }
+
+    setEngagement(nextEngagement)
 
     if (profile?.account_type === 'individual') {
       const r = await fetch('/api/monetization/usage')
@@ -188,6 +251,42 @@ export default function MyListingsPage() {
     setActionId('')
   }
 
+  const shareListing = async (id: string, title: string) => {
+    const url = `${window.location.origin}/listings/${encodeURIComponent(id)}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url })
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url)
+        setShareState(current => ({ ...current, [id]: 'copied' }))
+        window.setTimeout(() => setShareState(current => ({ ...current, [id]: 'idle' })), 1800)
+      } else {
+        const input = document.createElement('input')
+        input.value = url
+        document.body.appendChild(input)
+        input.select()
+        document.execCommand('copy')
+        input.remove()
+        setShareState(current => ({ ...current, [id]: 'copied' }))
+        window.setTimeout(() => setShareState(current => ({ ...current, [id]: 'idle' })), 1800)
+      }
+
+      void fetch('/api/listings/interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId: id, action: 'share' }),
+        keepalive: true,
+      }).catch(() => {})
+
+      setEngagement(current => ({
+        ...current,
+        [id]: { ...(current[id] || emptyEngagement()), shares: (current[id]?.shares || 0) + 1 },
+      }))
+    } catch {
+      // The native share sheet can be dismissed by the user; do not count a cancelled share.
+    }
+  }
+
   const viewHref = (id: string) => '/account/listings/' + id + '/view'
   const editHref = (id: string) => '/account/listings/' + id + '/edit'
 
@@ -204,9 +303,27 @@ export default function MyListingsPage() {
         const promotionActive = !!promotionUntil && promotionUntil.getTime() > Date.now()
         const bumpActive = !!item.bumped_at && new Date(item.bumped_at).getTime() > Date.now() - 86400000
         const badge = promotionActive ? (item.promotion_badge || 'TOP') : bumpActive ? 'UP' : null
+        const stats = engagement[item.id] || emptyEngagement()
+        const shareLabel = shareState[item.id] === 'copied' ? text.copied : text.share
         return <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><div className="grid md:grid-cols-[220px_1fr]"><div className="h-52 bg-slate-100 md:h-full">{image ? <img src={image} alt={item.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-slate-400">{text.noImage}</div>}</div><div className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap gap-2"><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{statusMeta[item.status as Exclude<Status,'all'>]?.label || item.status}</span>{item.seller_type === 'owner' && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{text.owner}</span>}{item.is_mortgage_available && <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{text.mortgage}</span>}{item.is_trusted_seller && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{text.trusted}</span>}{badge && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{badge}</span>}</div><h2 className="mt-3 text-xl font-black">{lang === 'ru' ? (item.title_ru || item.title) : item.title}</h2><p className="mt-1 text-xs text-slate-400">{item.listing_code}{taxonomyName ? ' · ' + taxonomyName : ''}</p></div><p className="text-xl font-black text-emerald-600">{money(item.price, item.currency, lang)}</p></div>
           <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-500"><span>{text.property[item.property_type] || item.property_type}</span>{item.area_m2 != null && <span>{item.area_m2} m²</span>}{item.rooms != null && <span>{item.rooms} {text.room}</span>}{item.property_type === 'apartment' && item.floor != null && <span>{item.floor}{item.floors_total != null ? '/' + item.floors_total : ''} {text.floor}</span>}<span>{localizeLocation(item.city, lang)}{item.district ? ', ' + localizeLocation(item.district, lang) : ''}</span></div>
+          <section className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-black text-slate-900">📊 {text.stats}</h3>
+              <button type="button" onClick={() => void shareListing(item.id, lang === 'ru' ? (item.title_ru || item.title) : item.title)} className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-extrabold text-emerald-700 shadow-sm transition hover:bg-emerald-50 active:scale-[.98]">
+                <span aria-hidden="true">↗</span>{shareLabel}
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <StatItem icon="👁" label={text.totalViews} value={stats.views} />
+              <StatItem icon="👤" label={text.uniqueViews} value={stats.uniqueViews} />
+              <StatItem icon="📈" label={text.todayViews} value={stats.todayViews} />
+              <StatItem icon="↗" label={text.shares} value={stats.shares} />
+              <StatItem icon="☎" label={text.phone} value={stats.phoneClicks} />
+              <StatItem icon="💬" label={text.chat} value={stats.chatStarts} />
+            </div>
+          </section>
           {item.moderation_note && <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm"><b>{item.status === 'rejected' ? text.moderationReason : text.moderationNote}</b> {item.moderation_note}</div>}
           <div className="mt-5 flex flex-wrap gap-2"><Link href={viewHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.view}</Link>{(item.status === 'draft' || item.status === 'moderation' || item.status === 'active' || item.status === 'rejected') && <Link href={editHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{item.status === 'rejected' ? text.fix : text.edit}</Link>}{(item.status === 'draft' || item.status === 'rejected') && <button type="button" disabled={actionId === item.id} onClick={() => void cancelListing(item.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700">{actionId === item.id ? text.cancelBusy : text.cancel}</button>}{item.status === 'active' && <><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, item.listing_type === 'rent' || item.listing_type === 'daily' ? 'rented' : 'sold')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white">{actionId === item.id ? text.saveBusy : item.listing_type === 'rent' || item.listing_type === 'daily' ? text.rented : text.sold}</button><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, 'archived')} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.close}</button></>}{(item.status === 'sold' || item.status === 'rented' || item.status === 'archived') && <button type="button" onClick={() => void reopen(item.id)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold">{text.resubmit}</button>}</div>
           <p className="mt-4 text-xs text-slate-400">{text.updated}: {new Intl.DateTimeFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.updated_at))}</p>
@@ -214,4 +331,11 @@ export default function MyListingsPage() {
       })}</div>}
     </div>
   </main>
+}
+
+function StatItem({ icon, label, value }: { icon: string; label: string; value: number }) {
+  return <div className="rounded-xl bg-white p-3 shadow-sm">
+    <div className="flex items-center gap-1 text-xs text-slate-400"><span aria-hidden="true">{icon}</span>{label}</div>
+    <b className="mt-1 block text-lg font-black text-slate-900">{value.toLocaleString('uz-UZ')}</b>
+  </div>
 }
