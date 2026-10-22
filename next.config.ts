@@ -23,6 +23,30 @@ const nextConfig: NextConfig = {
         destination: "/realtors",
         permanent: false,
       },
+      {
+        source: "/listings",
+        has: [{ type: "query", key: "tab", value: "sale" }],
+        destination: "/sotuv",
+        permanent: true,
+      },
+      {
+        source: "/listings",
+        has: [{ type: "query", key: "tab", value: "rent" }],
+        destination: "/ijara",
+        permanent: true,
+      },
+      {
+        source: "/listings",
+        has: [{ type: "query", key: "tab", value: "daily" }],
+        destination: "/kunlik",
+        permanent: true,
+      },
+      {
+        source: "/listings",
+        has: [{ type: "query", key: "tab", value: "new_building" }],
+        destination: "/yangi-uylar",
+        permanent: true,
+      },
     ];
   },
 };
