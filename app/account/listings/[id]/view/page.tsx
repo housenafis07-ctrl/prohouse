@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import ListingDetailClient from '@/app/listings/[id]/ListingDetailClient'
-import ListingOwnerStats from '@/app/listings/[id]/ListingOwnerStats'
+import ListingOwnerStats, { type ListingOwnerStatsData } from '@/app/listings/[id]/ListingOwnerStats'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
 export default async function OwnerListingViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,10 +27,46 @@ export default async function OwnerListingViewPage({ params }: { params: Promise
       image_url: getListingCardImageUrl(image.image_url),
     }))
 
+  const { data: events } = await supabase
+    .from('listing_events')
+    .select('event_type,user_id,session_id,created_at')
+    .eq('listing_id', id)
+    .in('event_type', ['view', 'share', 'phone_click', 'chat_start'])
+
+  const rows = events || []
+  const uniqueKeys = new Set<string>()
+  let views = 0
+  let shares = 0
+  let phoneClicks = 0
+  let chatStarts = 0
+  let todayViews = 0
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  for (const event of rows) {
+    if (event.event_type === 'view') {
+      const key = event.session_id || (event.user_id ? `user:${event.user_id}` : `event:${event.created_at}`)
+      uniqueKeys.add(key)
+      views += 1
+      if (new Date(event.created_at) >= todayStart) todayViews += 1
+    } else if (event.event_type === 'share') shares += 1
+    else if (event.event_type === 'phone_click') phoneClicks += 1
+    else if (event.event_type === 'chat_start') chatStarts += 1
+  }
+
+  const ownerStats: ListingOwnerStatsData = {
+    views,
+    uniqueViews: uniqueKeys.size,
+    todayViews,
+    shares,
+    phoneClicks,
+    chatStarts,
+  }
+
   return (
     <>
       <ListingDetailClient listing={{ ...(data as any), listing_images: images }} />
-      <ListingOwnerStats listingId={id} />
+      <ListingOwnerStats listingId={id} initialStats={ownerStats} />
     </>
   )
 }

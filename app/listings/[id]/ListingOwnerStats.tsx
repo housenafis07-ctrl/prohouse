@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-interface Stats {
+export interface ListingOwnerStatsData {
   views: number
   uniqueViews: number
   todayViews: number
@@ -11,16 +11,28 @@ interface Stats {
   chatStarts: number
 }
 
-export default function ListingOwnerStats({ listingId }: { listingId: string }) {
-  const [stats, setStats] = useState<Stats | null>(null)
+export default function ListingOwnerStats({
+  listingId,
+  initialStats,
+}: {
+  listingId: string
+  initialStats?: ListingOwnerStatsData | null
+}) {
+  const [stats, setStats] = useState<ListingOwnerStatsData | null>(initialStats ?? null)
   const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
 
   useEffect(() => {
     let cancelled = false
-    void fetch(`/api/listings/interactions?listingId=${encodeURIComponent(listingId)}&stats=1`)
+    void fetch(`/api/listings/interactions?listingId=${encodeURIComponent(listingId)}&stats=1`, {
+      cache: 'no-store',
+    })
       .then(async response => response.ok ? response.json() : null)
-      .then(data => { if (!cancelled && data) setStats(data) })
-      .catch(() => {})
+      .then(data => {
+        if (!cancelled && data) setStats(data)
+      })
+      .catch(() => {
+        // Keep server-provided stats visible if the client refresh request fails.
+      })
     return () => { cancelled = true }
   }, [listingId])
 
