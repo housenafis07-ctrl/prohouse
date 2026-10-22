@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import ListingDetailClient from './ListingDetailClient'
-import ListingConversionBar from './ListingConversionBar'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
@@ -102,36 +101,34 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   if (!listing) notFound()
 
   const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((image) => ({ ...image, image_url: getListingCardImageUrl(image.image_url) }))
-  const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
-  const title = listing.title
-  const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
-  const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
-  const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
 
   const structuredData = {
-    '@context': 'https://schema.org', '@type': 'RealEstateListing', name: title, description, url,
+    '@context': 'https://schema.org', '@type': 'RealEstateListing', name: listing.title, description: (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500), url: `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`,
     image: images.map((image) => image.image_url.startsWith('http') ? image.image_url : `${SITE_URL}${image.image_url}`), datePosted: listing.published_at || undefined,
+  }
+
+  const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
+  const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
+  const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
+  Object.assign(structuredData, {
     ...(location ? { address: { '@type': 'PostalAddress', streetAddress: listing.address || undefined, addressLocality: listing.district || listing.city, addressRegion: listing.city, addressCountry: 'UZ' } } : {}),
     ...(listing.latitude != null && listing.longitude != null ? { geo: { '@type': 'GeoCoordinates', latitude: listing.latitude, longitude: listing.longitude } } : {}),
     offers: { '@type': 'Offer', price: Number(listing.price), priceCurrency: listing.currency === 'USD' ? 'USD' : 'UZS', url, availability: 'https://schema.org/InStock', ...(isRental ? { category: 'Rental' } : {}) },
     ...(listing.seller_name ? { seller: { '@type': 'Person', name: listing.seller_name } } : {}),
-  }
+  })
 
   const breadcrumbData = {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'RoyalHouse', item: SITE_URL },
       { '@type': 'ListItem', position: 2, name: 'E’lonlar', item: `${SITE_URL}/listings` },
-      { '@type': 'ListItem', position: 3, name: title, item: url },
+      { '@type': 'ListItem', position: 3, name: listing.title, item: url },
     ],
   }
-
-  const priceLabel = formatPrice(listing)
 
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
-    <ListingConversionBar listingId={listing.id} title={title} priceLabel={priceLabel} isTrusted={listing.is_trusted_seller} isOwner={false} />
   </>
 }
