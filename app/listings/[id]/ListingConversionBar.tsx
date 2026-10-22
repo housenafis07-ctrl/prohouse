@@ -99,7 +99,7 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isO
   )
 }
 
-type ShareSheetProps = {
+export type ShareSheetProps = {
   lang: string
   telegramShareUrl: string
   whatsappUrl: string
@@ -131,14 +131,14 @@ function XIcon({ className = 'h-6 w-6' }: { className?: string }) {
 }
 
 function LinkIcon({ className = 'h-6 w-6' }: { className?: string }) {
-  return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10.6 13.4a4 4 0 0 0 5.66.01l2.12-2.12a4 4 0 0 0-5.66-5.66l-1.22 1.22" /><path d="M13.4 10.6a4 4 0 0 0-5.66-.01l-2.12 2.12a4 4 0 0 0 5.66 5.66l1.22-1.22" /></svg>
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10.6 13.4a4 4 0 0 0 5.66.01l2.12-2.12a4 4 0 0 0-5.66-5.66l-1.22 1.22" /><path d="M13.4 10.6a4 4 0 0 0-5.66-.01l-2.12 2.12a4 4 0 0 0-5.66 5.66l1.22-1.22" /></svg>
 }
 
 function ShareIcon({ className = 'h-6 w-6' }: { className?: string }) {
   return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M5 12v7h14v-7" /></svg>
 }
 
-function ShareSheet({ lang, telegramShareUrl, whatsappUrl, facebookUrl, xUrl, shared, onCopy, onNativeShare, onTrackShare, onClose, telegramText, telegramMediaText }: ShareSheetProps) {
+export function ShareSheet({ lang, telegramShareUrl, whatsappUrl, facebookUrl, xUrl, shared, onCopy, onNativeShare, onTrackShare, onClose, telegramText, telegramMediaText }: ShareSheetProps) {
   const title = lang === 'ru' ? 'Поделиться объявлением' : 'E’lonni ulashish'
   const description = lang === 'ru' ? 'E’lonni Telegram yoki boshqa ilova orqali yuboring.' : 'E’lonni do‘stlaringizga yuboring yoki boshqa ilovani tanlang.'
   const copy = lang === 'ru' ? 'Скопировать ссылку' : 'Havolani nusxalash'
