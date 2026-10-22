@@ -74,9 +74,9 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isT
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 px-3 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur md:hidden">
-      <div className="mx-auto flex max-w-xl items-center gap-2">
-        {isTrusted && <div className="hidden min-w-0 flex-1 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 sm:flex"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">✓</span><span className="truncate">{trustText}</span></div>}
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 px-3 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur md:inset-x-auto md:right-6 md:bottom-6 md:rounded-2xl md:border md:shadow-xl">
+      <div className="mx-auto flex max-w-xl items-center gap-2 md:max-w-none">
+        {isTrusted && <div className="hidden min-w-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 sm:flex"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">✓</span><span className="truncate">{trustText}</span></div>}
         <button type="button" onClick={share} className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700 active:scale-[.98]"><span aria-hidden="true">↗</span><span>{shared ? copyText : shareText}</span></button>
         <a href={telegramUrl} target="_blank" rel="noreferrer" className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-sky-500 px-3 py-3 text-sm font-extrabold text-white active:scale-[.98]"><span aria-hidden="true">✈</span><span>Telegram</span></a>
       </div>
