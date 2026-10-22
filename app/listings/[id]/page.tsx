@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import ListingDetailClient from './ListingDetailClient'
+import ListingViewTracker from './ListingViewTracker'
+import ListingOwnerStats from './ListingOwnerStats'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
@@ -146,6 +148,9 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
   const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
   const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const isOwner = user?.id === listing.owner_id
 
   const structuredData = {
     '@context': 'https://schema.org', '@type': 'RealEstateListing', name: title, description, url,
@@ -166,8 +171,10 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   }
 
   return <>
+    {!isOwner && <ListingViewTracker listingId={listing.id} />}
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
+    {isOwner && <ListingOwnerStats listingId={listing.id} />}
   </>
 }
