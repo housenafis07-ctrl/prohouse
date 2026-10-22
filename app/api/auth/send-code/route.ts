@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 const ESKIZ_BASE_URL = 'https://notify.eskiz.uz'
 const OTP_TTL_SECONDS = 5 * 60
 const RESEND_COOLDOWN_SECONDS = 60
+const ESKIZ_TOKEN_RETRY_DELAY_MS = 1500
 
 function normalizePhone(value: unknown) {
   const digits = String(value || '').replace(/\D/g, '')
@@ -24,33 +25,50 @@ function getAdminClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
+function isEskizTokenTimingError(data: any) {
+  const message = String(data?.message || data?.error || '').toLowerCase()
+  return message.includes('token used before issued') || message.includes('token used too early') || message.includes('not yet valid')
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function eskizLogin() {
   const email = process.env.ESKIZ_EMAIL
   const password = process.env.ESKIZ_PASSWORD
   if (!email || !password) throw new Error('ESKIZ_EMAIL yoki ESKIZ_PASSWORD sozlanmagan.')
 
-  const body = new FormData()
-  body.append('email', email)
-  body.append('password', password)
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const body = new FormData()
+    body.append('email', email)
+    body.append('password', password)
 
-  const response = await fetch(`${ESKIZ_BASE_URL}/api/auth/login`, {
-    method: 'POST',
-    body,
-    cache: 'no-store',
-  })
+    const response = await fetch(`${ESKIZ_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      body,
+      cache: 'no-store',
+    })
 
-  const data = await response.json().catch(() => null)
-  if (!response.ok || !data?.data?.token) {
+    const data = await response.json().catch(() => null)
+    if (response.ok && data?.data?.token) return data.data.token as string
+
+    if (isEskizTokenTimingError(data) && attempt === 0) {
+      await sleep(ESKIZ_TOKEN_RETRY_DELAY_MS)
+      continue
+    }
+
     throw new Error(data?.message || data?.error || `Eskiz login xatosi (${response.status}).`)
   }
-  return data.data.token as string
+
+  throw new Error('Eskiz login xatosi.')
 }
 
 async function sendEskizSms(phone: string, message: string) {
   const from = process.env.ESKIZ_FROM || '4546'
   let token = await eskizLogin()
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const body = new FormData()
     body.append('mobile_phone', phone.replace('+', ''))
     body.append('message', message)
@@ -66,7 +84,8 @@ async function sendEskizSms(phone: string, message: string) {
     const data = await response.json().catch(() => null)
     if (response.ok) return data
 
-    if (response.status === 401 && attempt === 0) {
+    if ((response.status === 401 || isEskizTokenTimingError(data)) && attempt < 2) {
+      await sleep(ESKIZ_TOKEN_RETRY_DELAY_MS)
       token = await eskizLogin()
       continue
     }
@@ -106,6 +125,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let admin: ReturnType<typeof getAdminClient> | null = null
+  let insertedOtpId: string | null = null
+
   try {
     const { phone } = await request.json()
     const normalizedPhone = normalizePhone(phone)
@@ -114,7 +136,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Telefon raqami noto‘g‘ri.' }, { status: 400 })
     }
 
-    const admin = getAdminClient()
+    admin = getAdminClient()
     const now = new Date()
     const cooldownSince = new Date(now.getTime() - RESEND_COOLDOWN_SECONDS * 1000).toISOString()
 
@@ -139,20 +161,27 @@ export async function POST(request: Request) {
     const code = randomInt(100000, 1000000).toString()
     const expiresAt = new Date(now.getTime() + OTP_TTL_SECONDS * 1000).toISOString()
 
-    const { error: insertError } = await admin.from('sms_otp_codes').insert({
+    const { data: insertedOtp, error: insertError } = await admin.from('sms_otp_codes').insert({
       phone: normalizedPhone,
       code_hash: hashOtp(code),
       expires_at: expiresAt,
-    })
+    }).select('id').single()
     if (insertError) throw new Error(insertError.message)
+    insertedOtpId = insertedOtp.id
 
-    // Restore the exact approved Eskiz SMS template.
-    // Do not append @/# WebOTP markers: they cause Eskiz moderation to reject the text.
+    // Keep the approved Eskiz SMS template unchanged.
+    // Do not append @/# WebOTP markers: they can cause Eskiz moderation to reject the text.
     const message = `royalhouse.uz saytiga kirish uchun tasdiqlash kodi: ${code}`
     await sendEskizSms(normalizedPhone, message)
 
     return NextResponse.json({ ok: true, testMode: false, message: 'SMS kodi yuborildi.' })
   } catch (error) {
+    // If the provider rejected the send, do not leave a fresh unused OTP that
+    // blocks the user from immediately requesting another code.
+    if (admin && insertedOtpId) {
+      await admin.from('sms_otp_codes').delete().eq('id', insertedOtpId).catch(() => {})
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'SMS yuborilmadi.' },
       { status: 502 },
