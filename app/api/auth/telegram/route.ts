@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // could leave the Mini App waiting during Telegram startup.
     const { data: existingLink, error: linkLookupError } = await admin
       .from('telegram_user_links')
-      .select('profile_id')
+      .select('profile_id,telegram_username,chat_id')
       .eq('telegram_user_id', telegramUserId)
       .maybeSingle()
     if (linkLookupError) throw linkLookupError
@@ -107,33 +107,43 @@ export async function POST(request: NextRequest) {
       })
       if (profileInsertError) throw profileInsertError
     } else {
-      // Telegram-created profiles must never fall back to a generic/admin name.
-      // Preserve a real name entered by the user, but repair the placeholder
-      // created by older Telegram-auth versions and use the Telegram display name.
-      const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(profileId)
-      if (authUserError) throw authUserError
-
-      const authProvider = authUser.user?.user_metadata?.auth_provider
+      // Avoid an extra auth.users lookup on the hot path. Only repair the
+      // legacy Telegram placeholder when the profile itself still has the
+      // placeholder name; real profile names are left untouched.
       const currentName = profile.full_name?.trim() || ''
-      const isTelegramPlaceholder = authProvider === 'telegram' && (!currentName || /^admin$/i.test(currentName))
+      const isTelegramPlaceholder = !currentName || /^admin$/i.test(currentName)
 
       if (isTelegramPlaceholder) {
-        const { error: profileUpdateError } = await admin
-          .from('profiles')
-          .update({ full_name: displayName })
-          .eq('id', profileId)
-        if (profileUpdateError) throw profileUpdateError
+        const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(profileId)
+        if (authUserError) throw authUserError
+
+        if (authUser.user?.user_metadata?.auth_provider === 'telegram') {
+          const { error: profileUpdateError } = await admin
+            .from('profiles')
+            .update({ full_name: displayName })
+            .eq('id', profileId)
+          if (profileUpdateError) throw profileUpdateError
+        }
       }
     }
 
-    const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
-      profile_id: profileId,
-      telegram_user_id: telegramUserId,
-      chat_id: telegramUserId,
-      telegram_username: tgUser.username || null,
-      linked_at: new Date().toISOString(),
-    }, { onConflict: 'profile_id' })
-    if (telegramLinkError) throw telegramLinkError
+    // The Telegram link normally already exists. Skip the write when nothing
+    // changed; this removes a database write from every repeat Mini App open.
+    const linkNeedsUpdate =
+      !existingLink ||
+      existingLink.telegram_username !== (tgUser.username || null) ||
+      existingLink.chat_id !== telegramUserId
+
+    if (linkNeedsUpdate) {
+      const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
+        profile_id: profileId,
+        telegram_user_id: telegramUserId,
+        chat_id: telegramUserId,
+        telegram_username: tgUser.username || null,
+        linked_at: new Date().toISOString(),
+      }, { onConflict: 'profile_id' })
+      if (telegramLinkError) throw telegramLinkError
+    }
 
     // A newly created account still needs a browser session. Existing accounts
     // may already have received one above; otherwise sign in now and return the
