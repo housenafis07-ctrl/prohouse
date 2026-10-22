@@ -5,53 +5,48 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
-type NavItem = {
-  href: string
-  label: string
-  className: string
-}
+type NavItem = { href: string; label: string; className: string }
 
 export default function AccountNavigation() {
   const { lang, setLang } = useI18n()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [isPartner, setIsPartner] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
     let mounted = true
-    const loadUnread = async () => {
+    const loadAccountState = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!mounted || !user) { if (mounted) setUnreadCount(0); return }
-      const { count, error } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('read_at', null)
-      if (mounted) setUnreadCount(error ? 0 : (count ?? 0))
+      if (!mounted || !user) { if (mounted) { setUnreadCount(0); setIsPartner(false) }; return }
+      const [{ count, error }, { data: profile }] = await Promise.all([
+        supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('read_at', null),
+        supabase.from('profiles').select('account_type').eq('id', user.id).maybeSingle(),
+      ])
+      if (mounted) {
+        setUnreadCount(error ? 0 : (count ?? 0))
+        setIsPartner(profile?.account_type === 'partner')
+      }
     }
-    void loadUnread()
+    void loadAccountState()
     const channel = supabase.channel(`account-notifications-${Date.now()}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => { const row = payload.new as { user_id?: string; read_at?: string | null }; if (row.user_id && row.read_at == null) void loadUnread() })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, payload => { const row = payload.new as { user_id?: string }; if (row.user_id) void loadUnread() })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, payload => { const row = payload.new as { user_id?: string; read_at?: string | null }; if (row.user_id && row.read_at == null) void loadAccountState() })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, payload => { const row = payload.new as { user_id?: string }; if (row.user_id) void loadAccountState() })
       .subscribe()
-    const onFocus = () => { void loadUnread() }
+    const onFocus = () => { void loadAccountState() }
     window.addEventListener('focus', onFocus)
     return () => { mounted = false; window.removeEventListener('focus', onFocus); void supabase.removeChannel(channel) }
   }, [])
 
   const ru = lang === 'ru'
   const text = {
-    cabinet: ru ? 'Кабинет' : 'Kabinet',
-    favorites: ru ? '♡ Избранное' : '♡ Saqlanganlar',
+    cabinet: ru ? 'Кабинет' : 'Kabinet', favorites: ru ? '♡ Избранное' : '♡ Saqlanganlar',
     savedSearches: ru ? '⌕ Сохранённые поиски' : '⌕ Saqlangan qidiruvlar',
-    addListing: ru ? '+ Разместить объявление' : '+ E’lon joylashtirish',
-    myListings: ru ? 'Мои объявления' : 'Mening e’lonlarim',
-    bookings: ru ? 'Мои бронирования' : 'Mening bronlarim',
-    messages: ru ? '💬 Сообщения' : '💬 Xabarlar',
-    trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil',
-    promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
-    wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
-    switchLanguage: ru ? 'Ru / O‘z' : 'O‘z / Ru',
-    primary: ru ? 'Основное' : 'Asosiy',
-    search: ru ? 'Поиск' : 'Qidiruv',
-    seller: ru ? 'Продавец' : 'Sotuvchi',
+    addListing: ru ? '+ Разместить объявление' : '+ E’lon joylashtirish', myListings: ru ? 'Мои объявления' : 'Mening e’lonlarim',
+    bookings: ru ? 'Мои бронирования' : 'Mening bronlarim', messages: ru ? '💬 Сообщения' : '💬 Xabarlar',
+    trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil', promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
+    company: ru ? '🏢 Профиль компании' : '🏢 Firma profili', wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
+    switchLanguage: ru ? 'Ru / O‘z' : 'O‘z / Ru', primary: ru ? 'Основное' : 'Asosiy', search: ru ? 'Поиск' : 'Qidiruv', seller: ru ? 'Продавец' : 'Sotuvchi',
   }
-
   const toggleLanguage = () => setLang(ru ? 'uz' : 'ru')
 
   const primaryItems: NavItem[] = [
@@ -62,54 +57,26 @@ export default function AccountNavigation() {
     { href: '/chat', label: text.messages, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/favorites', label: text.favorites, className: 'bg-rose-50 text-rose-700' },
   ]
-
   const sellerItems: NavItem[] = [
     { href: '/account/trusted-profile', label: text.trusted, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
+    ...(isPartner ? [{ href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' }] : []),
     { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
   ]
 
-  return (
-    <nav className="border-b border-slate-100 bg-white px-3 py-2">
-      <div className="mx-auto max-w-6xl">
-        <div className="hidden gap-1.5 md:flex md:flex-col">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Link href="/account" className="rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
-            {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
-            <Link href="/account/saved-searches" className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-1.5">
-            {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
-            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
-          </div>
-        </div>
-
-        <div className="md:hidden">
-          <div className="mb-2 flex items-center justify-between">
-            <Link href="/account" className="text-base font-black text-slate-900">{text.cabinet}</Link>
-            <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узbekский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700">{text.switchLanguage}</button>
-          </div>
-
-          <section className="mb-2" aria-labelledby="account-primary-navigation">
-            <h2 id="account-primary-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.primary}</h2>
-            <div className="grid grid-cols-2 gap-1.5">
-              {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className}`}>{item.label}</Link>)}
-            </div>
-          </section>
-
-          <section className="mb-2" aria-labelledby="account-search-navigation">
-            <h2 id="account-search-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.search}</h2>
-            <Link href="/account/saved-searches" className="block rounded-lg bg-blue-50 px-2.5 py-2.5 text-center text-[11px] font-black text-blue-700">{text.savedSearches}</Link>
-          </section>
-
-          <section aria-labelledby="account-seller-navigation">
-            <h2 id="account-seller-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2>
-            <div className="grid grid-cols-2 gap-1.5">
-              {sellerItems.map((item, index) => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className} ${index === sellerItems.length - 1 ? 'col-span-2' : ''}`}>{item.label}</Link>)}
-            </div>
-          </section>
-        </div>
-      </div>
-    </nav>
-  )
+  return <nav className="border-b border-slate-100 bg-white px-3 py-2"><div className="mx-auto max-w-6xl">
+    <div className="hidden gap-1.5 md:flex md:flex-col"><div className="flex flex-wrap items-center gap-1.5">
+      <Link href="/account" className="rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
+      {primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+      <Link href="/account/saved-searches" className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-extrabold text-blue-700 hover:bg-blue-100">{text.savedSearches}</Link>
+    </div><div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-1.5">
+      {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
+      <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
+    </div></div>
+    <div className="md:hidden"><div className="mb-2 flex items-center justify-between"><Link href="/account" className="text-base font-black text-slate-900">{text.cabinet}</Link><button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узbekский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700">{text.switchLanguage}</button></div>
+      <section className="mb-2" aria-labelledby="account-primary-navigation"><h2 id="account-primary-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.primary}</h2><div className="grid grid-cols-2 gap-1.5">{primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className}`}>{item.label}</Link>)}</div></section>
+      <section className="mb-2" aria-labelledby="account-search-navigation"><h2 id="account-search-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.search}</h2><Link href="/account/saved-searches" className="block rounded-lg bg-blue-50 px-2.5 py-2.5 text-center text-[11px] font-black text-blue-700">{text.savedSearches}</Link></section>
+      <section aria-labelledby="account-seller-navigation"><h2 id="account-seller-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2><div className="grid grid-cols-2 gap-1.5">{sellerItems.map((item, index) => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className} ${index === sellerItems.length - 1 ? 'col-span-2' : ''}`}>{item.label}</Link>)}</div></section>
+    </div>
+  </div></nav>
 }

@@ -20,6 +20,7 @@ export async function GET() {
     const listings = (data ?? []) as Array<Record<string, any>>
     const ownerIds = [...new Set(listings.map(item => item.owner_id).filter(Boolean))]
     const profilesById = new Map<string, { full_name: string | null; phone: string | null }>()
+    const priorityOwnerIds = new Set<string>()
 
     if (ownerIds.length) {
       const { data: profiles, error: profilesError } = await adminClient
@@ -28,6 +29,24 @@ export async function GET() {
         .in('id', ownerIds)
       if (profilesError) throw profilesError
       for (const profile of profiles ?? []) profilesById.set(profile.id, { full_name: profile.full_name, phone: profile.phone })
+
+      const { data: priorityPlans, error: planError } = await adminClient
+        .from('monetization_entitlements')
+        .select('user_id,product_code,ends_at,monetization_products!inner(code,product_type,audience,active,metadata)')
+        .in('user_id', ownerIds)
+        .eq('status', 'active')
+        .not('ends_at', 'is', null)
+        .gt('ends_at', new Date().toISOString())
+
+      if (planError) throw planError
+      for (const entitlement of priorityPlans ?? []) {
+        const product = Array.isArray(entitlement.monetization_products)
+          ? entitlement.monetization_products[0]
+          : entitlement.monetization_products
+        if (product?.product_type === 'subscription' && product?.audience === 'partner' && product?.active && product?.metadata?.priority_moderation === true) {
+          priorityOwnerIds.add(entitlement.user_id)
+        }
+      }
     }
 
     // Older drafts may have location only in draft_data. Prefer the persisted
@@ -42,6 +61,7 @@ export async function GET() {
 
       return {
         ...item,
+        moderation_priority: priorityOwnerIds.has(item.owner_id) ? 100 : 0,
         city: item.city || draft.city || null,
         district: item.district || draft.district || null,
         neighborhood: item.neighborhood || draft.neighborhood || null,
@@ -54,6 +74,9 @@ export async function GET() {
         seller_phone: item.seller_phone || (isOwner ? profile?.phone || null : null),
         is_mortgage_available: item.is_mortgage_available ?? (attributes.mortgage === 'true' ? true : attributes.mortgage === 'false' ? false : null),
       }
+    }).sort((a, b) => {
+      if (b.moderation_priority !== a.moderation_priority) return b.moderation_priority - a.moderation_priority
+      return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
     })
 
     return NextResponse.json({ listings: normalized })
