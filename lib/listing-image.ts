@@ -50,8 +50,8 @@ function getSupabaseTransformUrl(imageUrl: string, width: number, height: number
     if (!objectPath) return imageUrl
     url.pathname = `${url.pathname.slice(0, index)}/storage/v1/render/image/public/${objectPath}`
     url.search = ''
-    url.searchParams.set('width', String(Math.min(2500, Math.max(1, Math.round(width)))))
-    url.searchParams.set('height', String(Math.min(2500, Math.max(1, Math.round(height))))
+    url.searchParams.set('width', String(Math.min(2500, Math.max(1, Math.round(width)))) )
+    url.searchParams.set('height', String(Math.min(2500, Math.max(1, Math.round(height)))))
     url.searchParams.set('resize', 'cover')
     url.searchParams.set('quality', String(quality))
     return url.toString()
