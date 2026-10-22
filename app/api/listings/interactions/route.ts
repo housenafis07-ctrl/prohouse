@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   }
 
   if (action === 'view') {
+    if (user?.id === listing.owner_id) return NextResponse.json({ ok: true, recorded: false })
     // A page refresh/reopen from the same browser must not inflate the view count.
     // Authenticated users fall back to user_id when a session id is unavailable.
     const since = new Date(Date.now() - VIEW_DEDUPE_HOURS * 60 * 60 * 1000).toISOString()
