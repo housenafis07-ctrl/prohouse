@@ -102,11 +102,11 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isT
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/90 bg-white/95 px-3 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur md:inset-x-auto md:right-6 md:bottom-6 md:rounded-2xl md:border md:shadow-xl">
-        <div className="mx-auto flex max-w-xl items-center gap-2 md:max-w-none">
-          {isTrusted && <div className="hidden min-w-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 sm:flex"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">✓</span><span className="truncate">{trustText}</span></div>}
-          <button type="button" onClick={openShare} className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700 active:scale-[.98]"><span aria-hidden="true">↗</span><span>{shared ? copyText : shareText}</span></button>
-        </div>
+      <div className="fixed right-3 bottom-[5.5rem] z-50 rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur md:top-[68px] md:right-[max(136px,calc((100vw-1200px)/2+120px))] md:bottom-auto md:rounded-xl md:p-1">
+        <button type="button" onClick={openShare} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-white px-3 py-2 text-sm font-extrabold text-slate-700 hover:border-emerald-300 hover:text-emerald-700 active:scale-[.98] md:h-11 md:w-11 md:min-w-0 md:px-0" aria-label={shared ? copyText : shareText} title={shared ? copyText : shareText}>
+          <span aria-hidden="true" className="text-lg leading-none">↗</span>
+          <span className="md:hidden">{shared ? copyText : shareText}</span>
+        </button>
       </div>
       {renderSheet}
     </>
@@ -141,7 +141,7 @@ function FacebookIcon({ className = 'h-6 w-6' }: { className?: string }) {
 }
 
 function XIcon({ className = 'h-6 w-6' }: { className?: string }) {
-  return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor"><path d="M4.1 3h4.75l3.72 5.2L17.02 3h2.9l-5.99 6.86L20.2 21h-4.76l-4.03-5.65L6.9 21H4l6.08-6.98L4.1 3Zm4.3 1.86H7.02l8.83 14.28h1.38L8.4 4.86Z" /></svg>
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor"><path d="M4.1 3h4.75l3.72 5.2L17.02 3h2.9l-5.99 6.86L20.2 21h-4.76l-4.03 14? no" /></svg>
 }
 
 function LinkIcon({ className = 'h-6 w-6' }: { className?: string }) {
