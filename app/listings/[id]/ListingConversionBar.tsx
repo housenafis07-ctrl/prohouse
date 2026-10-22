@@ -12,7 +12,7 @@ type Props = {
   variant?: 'mobile' | 'inline'
 }
 
-export default function ListingConversionBar({ listingId, title, priceLabel, isOwner, variant = 'mobile' }: Props) {
+export default function ListingConversionBar({ listingId, title, priceLabel, isOwner }: Props) {
   const { lang } = useI18n()
   const [shared, setShared] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -81,32 +81,19 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isO
   const shareText = lang === 'ru' ? 'Поделиться' : 'Ulashish'
   const telegramText = 'Telegram orqali ulashish'
   const telegramMediaText = 'Rasm va video bilan yuborish'
-
-  const openShare = () => setShareOpen(true)
   const renderSheet = shareOpen ? <ShareSheet lang={lang} telegramShareUrl={telegramShareUrl} whatsappUrl={whatsappUrl} facebookUrl={facebookUrl} xUrl={xUrl} shared={shared} onCopy={copyLink} onNativeShare={openNativeShare} onTrackShare={trackShare} onClose={() => setShareOpen(false)} telegramText={telegramText} telegramMediaText={telegramMediaText} /> : null
-
-  if (variant === 'inline') {
-    return (
-      <>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={openShare} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 hover:border-emerald-300 hover:text-emerald-700 active:scale-[.98]">
-            <span aria-hidden="true">↗</span>
-            <span>{shared ? copyText : shareText}</span>
-          </button>
-        </div>
-        {renderSheet}
-      </>
-    )
-  }
 
   return (
     <>
-      <div className="fixed right-3 bottom-[5.5rem] z-50 rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur md:top-[68px] md:right-[max(136px,calc((100vw-1200px)/2+120px))] md:bottom-auto md:rounded-xl md:p-1">
-        <button type="button" onClick={openShare} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-white px-3 py-2 text-sm font-extrabold text-slate-700 hover:border-emerald-300 hover:text-emerald-700 active:scale-[.98] md:h-11 md:w-11 md:min-w-0 md:px-0" aria-label={shared ? copyText : shareText} title={shared ? copyText : shareText}>
-          <span aria-hidden="true" className="text-lg leading-none">↗</span>
-          <span className="md:hidden">{shared ? copyText : shareText}</span>
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setShareOpen(true)}
+        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[.97]"
+        aria-label={shared ? copyText : shareText}
+        title={shared ? copyText : shareText}
+      >
+        <ShareIcon className="h-5 w-5" />
+      </button>
       {renderSheet}
     </>
   )
