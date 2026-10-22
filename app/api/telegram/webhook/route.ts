@@ -38,7 +38,6 @@ type ListingVideo = {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'
-const BOT_USERNAME = 'RoyalHouseUz_bot'
 
 async function telegramApi(method: string, body: Record<string, unknown>) {
   const token = process.env.TELEGRAM_BOT_TOKEN
@@ -154,7 +153,7 @@ async function sendListingShare(chatId: string | number, listingId: string) {
     const items = chunk.map((item, index) => ({
       type: item.type,
       media: item.media,
-      ...(chunkIndex === 0 && index === 0 ? { caption, parse_mode: 'HTML' } : {}),
+      ...(chunkIndex === 0 && index === 0 ? { caption } : {}),
     }))
     try {
       await telegramApi('sendMediaGroup', { chat_id: chatId, media: items })
