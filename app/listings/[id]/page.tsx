@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import ListingDetailClient from './ListingDetailClient'
+import ListingViewTracker from './ListingViewTracker'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
@@ -166,6 +167,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   }
 
   return <>
+    <ListingViewTracker listingId={listing.id} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
