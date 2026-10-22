@@ -30,7 +30,7 @@ as $$
     greatest(coalesce((p.metadata->>'employees')::integer, 1), 1),
     p.code = 'partner_business'
   from public.monetization_entitlements e
-  join public.monetization_products p on p.id = e.product_id
+  join public.monetization_products p on p.code = e.product_code
   where e.user_id = p_user_id
     and e.status = 'active'
     and p.product_type = 'subscription'
