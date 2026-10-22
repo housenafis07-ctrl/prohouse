@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import ListingDetailClient from './ListingDetailClient'
+import ListingConversionBar from './ListingConversionBar'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
@@ -58,18 +59,9 @@ async function getListing(id: string) {
   const fallbackPromotionActive = !topPromotion && data.promoted_until && new Date(data.promoted_until).getTime() > now.getTime()
   const effectiveBadge = topPromotion?.product?.badge || (bumpActive ? 'UP' : fallbackPromotionActive ? data.promotion_badge : null)
   const effectiveUntil = topPromotion?.ends_at || (bumpActive ? new Date(new Date(data.bumped_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : fallbackPromotionActive ? data.promoted_until : null)
-  const effectiveRank = Math.max(
-    Number(topPromotion?.product?.boost_rank || 0),
-    bumpActive ? 20 : 0,
-    fallbackPromotionActive ? Number(data.promotion_rank || 0) : 0,
-  )
+  const effectiveRank = Math.max(Number(topPromotion?.product?.boost_rank || 0), bumpActive ? 20 : 0, fallbackPromotionActive ? Number(data.promotion_rank || 0) : 0)
 
-  return {
-    ...(data as Listing),
-    promotion_badge: effectiveBadge,
-    promoted_until: effectiveUntil,
-    is_featured: effectiveRank >= 60,
-  }
+  return { ...(data as Listing), promotion_badge: effectiveBadge, promoted_until: effectiveUntil, is_featured: effectiveRank >= 60 }
 }
 
 function formatPrice(listing: Listing) {
@@ -79,12 +71,7 @@ function formatPrice(listing: Listing) {
 
 function buildDescription(listing: Listing) {
   const location = [listing.district, listing.city].filter(Boolean).join(', ')
-  const details = [
-    formatPrice(listing),
-    location,
-    listing.area_m2 ? `${listing.area_m2} m²` : null,
-    listing.rooms ? `${listing.rooms} xona` : null,
-  ].filter(Boolean).join(' · ')
+  const details = [formatPrice(listing), location, listing.area_m2 ? `${listing.area_m2} m²` : null, listing.rooms ? `${listing.rooms} xona` : null].filter(Boolean).join(' · ')
   const base = listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`
   return `${base.replace(/\s+/g, ' ').trim()} ${details}`.trim().slice(0, 160)
 }
@@ -92,43 +79,19 @@ function buildDescription(listing: Listing) {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const listing = await getListing(id)
-
-  if (!listing) {
-    return {
-      title: 'E’lon topilmadi — Royalhouse',
-      robots: { index: false, follow: true },
-    }
-  }
+  if (!listing) return { title: 'E’lon topilmadi — Royalhouse', robots: { index: false, follow: true } }
 
   const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
   const location = [listing.district, listing.city].filter(Boolean).join(', ')
   const title = `${listing.title} — ${formatPrice(listing)} | Royalhouse`
   const description = buildDescription(listing)
   const firstImage = listing.listing_images?.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0]?.image_url
-  const imageUrl = firstImage
-    ? (getListingCardImageUrl(firstImage).startsWith('http') ? getListingCardImageUrl(firstImage) : `${SITE_URL}${getListingCardImageUrl(firstImage)}`)
-    : `${SITE_URL}/royalhouse-icon.svg`
+  const imageUrl = firstImage ? (getListingCardImageUrl(firstImage).startsWith('http') ? getListingCardImageUrl(firstImage) : `${SITE_URL}${getListingCardImageUrl(firstImage)}`) : `${SITE_URL}/royalhouse-icon.svg`
 
   return {
-    title,
-    description,
-    alternates: { canonical: url },
-    robots: { index: true, follow: true },
-    openGraph: {
-      type: 'website',
-      url,
-      siteName: 'Royalhouse',
-      locale: 'uz_UZ',
-      title,
-      description,
-      images: [{ url: imageUrl, alt: listing.title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [imageUrl],
-    },
+    title, description, alternates: { canonical: url }, robots: { index: true, follow: true },
+    openGraph: { type: 'website', url, siteName: 'Royalhouse', locale: 'uz_UZ', title, description, images: [{ url: imageUrl, alt: listing.title }] },
+    twitter: { card: 'summary_large_image', title, description, images: [imageUrl] },
     ...(location ? { keywords: [listing.title, location, 'ko‘chmas mulk', 'uy sotiladi', 'kvartira sotiladi'] } : {}),
   }
 }
@@ -138,9 +101,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const listing = await getListing(id)
   if (!listing) notFound()
 
-  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map((image) => ({ ...image, image_url: getListingCardImageUrl(image.image_url) }))
-
+  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((image) => ({ ...image, image_url: getListingCardImageUrl(image.image_url) }))
   const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
   const title = listing.title
   const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
@@ -165,9 +126,12 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     ],
   }
 
+  const priceLabel = formatPrice(listing)
+
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
+    <ListingConversionBar listingId={listing.id} title={title} priceLabel={priceLabel} isTrusted={listing.is_trusted_seller} isOwner={false} />
   </>
 }
