@@ -7,17 +7,12 @@ export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const body = await request.json().catch(() => null)
-  if (!body || typeof body !== 'object' || typeof body.listingId !== 'string') {
-    return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
-  }
+  if (!body || typeof body !== 'object' || typeof body.listingId !== 'string') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
 
   const listingId = body.listingId
   const action = typeof body.action === 'string' ? body.action : ''
-
   const { data: listing } = await supabase.from('listings').select('id,status,owner_id').eq('id', listingId).maybeSingle()
-  if (!listing || (listing.status !== 'active' && listing.owner_id !== user?.id)) {
-    return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
-  }
+  if (!listing || (listing.status !== 'active' && listing.owner_id !== user?.id)) return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
 
   if (action === 'favorite' || action === 'unfavorite') {
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
@@ -33,6 +28,8 @@ export async function POST(request: Request) {
   }
 
   if (!eventTypes.has(action)) return NextResponse.json({ error: 'INVALID_ACTION' }, { status: 400 })
+  if (action === 'view' && user?.id === listing.owner_id) return NextResponse.json({ ok: true, counted: false })
+
   const { error } = await supabase.from('listing_events').insert({
     listing_id: listingId,
     user_id: user?.id ?? null,

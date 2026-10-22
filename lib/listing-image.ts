@@ -1,6 +1,6 @@
-export const LISTING_IMAGE_CARD_WIDTH = 640
-export const LISTING_IMAGE_CARD_HEIGHT = 480
-export const LISTING_IMAGE_CARD_QUALITY = 75
+export const LISTING_IMAGE_CARD_WIDTH = 480
+export const LISTING_IMAGE_CARD_HEIGHT = 360
+export const LISTING_IMAGE_CARD_QUALITY = 72
 
 export const LISTING_IMAGE_THUMBNAIL_WIDTH = 240
 export const LISTING_IMAGE_THUMBNAIL_HEIGHT = 180
@@ -60,12 +60,6 @@ function getSupabaseTransformUrl(imageUrl: string, width: number, height: number
   }
 }
 
-/**
- * Returns a bounded image URL for the requested delivery surface.
- * Card images use Next.js on-demand optimization for Supabase/Unsplash URLs,
- * while the existing Supabase transformation remains the safe fallback for
- * thumbnails and hero images.
- */
 export function getListingImageUrl(imageUrl: string, variant: ListingImageVariant = 'card') {
   const { width, height, quality } = getVariantOptions(variant)
   if (variant === 'card') {

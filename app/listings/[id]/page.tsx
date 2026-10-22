@@ -58,18 +58,9 @@ async function getListing(id: string) {
   const fallbackPromotionActive = !topPromotion && data.promoted_until && new Date(data.promoted_until).getTime() > now.getTime()
   const effectiveBadge = topPromotion?.product?.badge || (bumpActive ? 'UP' : fallbackPromotionActive ? data.promotion_badge : null)
   const effectiveUntil = topPromotion?.ends_at || (bumpActive ? new Date(new Date(data.bumped_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : fallbackPromotionActive ? data.promoted_until : null)
-  const effectiveRank = Math.max(
-    Number(topPromotion?.product?.boost_rank || 0),
-    bumpActive ? 20 : 0,
-    fallbackPromotionActive ? Number(data.promotion_rank || 0) : 0,
-  )
+  const effectiveRank = Math.max(Number(topPromotion?.product?.boost_rank || 0), bumpActive ? 20 : 0, fallbackPromotionActive ? Number(data.promotion_rank || 0) : 0)
 
-  return {
-    ...(data as Listing),
-    promotion_badge: effectiveBadge,
-    promoted_until: effectiveUntil,
-    is_featured: effectiveRank >= 60,
-  }
+  return { ...(data as Listing), promotion_badge: effectiveBadge, promoted_until: effectiveUntil, is_featured: effectiveRank >= 60 }
 }
 
 function formatPrice(listing: Listing) {
@@ -79,12 +70,7 @@ function formatPrice(listing: Listing) {
 
 function buildDescription(listing: Listing) {
   const location = [listing.district, listing.city].filter(Boolean).join(', ')
-  const details = [
-    formatPrice(listing),
-    location,
-    listing.area_m2 ? `${listing.area_m2} m²` : null,
-    listing.rooms ? `${listing.rooms} xona` : null,
-  ].filter(Boolean).join(' · ')
+  const details = [formatPrice(listing), location, listing.area_m2 ? `${listing.area_m2} m²` : null, listing.rooms ? `${listing.rooms} xona` : null].filter(Boolean).join(' · ')
   const base = listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`
   return `${base.replace(/\s+/g, ' ').trim()} ${details}`.trim().slice(0, 160)
 }
@@ -92,43 +78,19 @@ function buildDescription(listing: Listing) {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const listing = await getListing(id)
-
-  if (!listing) {
-    return {
-      title: 'E’lon topilmadi — Royalhouse',
-      robots: { index: false, follow: true },
-    }
-  }
+  if (!listing) return { title: 'E’lon topilmadi — Royalhouse', robots: { index: false, follow: true } }
 
   const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
   const location = [listing.district, listing.city].filter(Boolean).join(', ')
   const title = `${listing.title} — ${formatPrice(listing)} | Royalhouse`
   const description = buildDescription(listing)
   const firstImage = listing.listing_images?.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0]?.image_url
-  const imageUrl = firstImage
-    ? (getListingCardImageUrl(firstImage).startsWith('http') ? getListingCardImageUrl(firstImage) : `${SITE_URL}${getListingCardImageUrl(firstImage)}`)
-    : `${SITE_URL}/royalhouse-icon.svg`
+  const imageUrl = firstImage ? (getListingCardImageUrl(firstImage).startsWith('http') ? getListingCardImageUrl(firstImage) : `${SITE_URL}${getListingCardImageUrl(firstImage)}`) : `${SITE_URL}/royalhouse-icon.svg`
 
   return {
-    title,
-    description,
-    alternates: { canonical: url },
-    robots: { index: true, follow: true },
-    openGraph: {
-      type: 'website',
-      url,
-      siteName: 'Royalhouse',
-      locale: 'uz_UZ',
-      title,
-      description,
-      images: [{ url: imageUrl, alt: listing.title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [imageUrl],
-    },
+    title, description, alternates: { canonical: url }, robots: { index: true, follow: true },
+    openGraph: { type: 'website', url, siteName: 'Royalhouse', locale: 'uz_UZ', title, description, images: [{ url: imageUrl, alt: listing.title }] },
+    twitter: { card: 'summary_large_image', title, description, images: [imageUrl] },
     ...(location ? { keywords: [listing.title, location, 'ko‘chmas mulk', 'uy sotiladi', 'kvartira sotiladi'] } : {}),
   }
 }
@@ -138,30 +100,29 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const listing = await getListing(id)
   if (!listing) notFound()
 
-  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map((image) => ({ ...image, image_url: getListingCardImageUrl(image.image_url) }))
-
-  const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
-  const title = listing.title
-  const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
-  const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
-  const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
+  const images = (listing.listing_images || []).slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((image) => ({ ...image, image_url: getListingCardImageUrl(image.image_url) }))
 
   const structuredData = {
-    '@context': 'https://schema.org', '@type': 'RealEstateListing', name: title, description, url,
+    '@context': 'https://schema.org', '@type': 'RealEstateListing', name: listing.title, description: (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500), url: `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`,
     image: images.map((image) => image.image_url.startsWith('http') ? image.image_url : `${SITE_URL}${image.image_url}`), datePosted: listing.published_at || undefined,
+  }
+
+  const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
+  const url = `${SITE_URL}/listings/${encodeURIComponent(listing.id)}`
+  const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
+  Object.assign(structuredData, {
     ...(location ? { address: { '@type': 'PostalAddress', streetAddress: listing.address || undefined, addressLocality: listing.district || listing.city, addressRegion: listing.city, addressCountry: 'UZ' } } : {}),
     ...(listing.latitude != null && listing.longitude != null ? { geo: { '@type': 'GeoCoordinates', latitude: listing.latitude, longitude: listing.longitude } } : {}),
     offers: { '@type': 'Offer', price: Number(listing.price), priceCurrency: listing.currency === 'USD' ? 'USD' : 'UZS', url, availability: 'https://schema.org/InStock', ...(isRental ? { category: 'Rental' } : {}) },
     ...(listing.seller_name ? { seller: { '@type': 'Person', name: listing.seller_name } } : {}),
-  }
+  })
 
   const breadcrumbData = {
     '@context': 'https://schema.org', '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'RoyalHouse', item: SITE_URL },
       { '@type': 'ListItem', position: 2, name: 'E’lonlar', item: `${SITE_URL}/listings` },
-      { '@type': 'ListItem', position: 3, name: title, item: url },
+      { '@type': 'ListItem', position: 3, name: listing.title, item: url },
     ],
   }
 
