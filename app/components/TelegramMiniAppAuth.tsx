@@ -5,6 +5,11 @@ import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
+  initDataUnsafe?: {
+    user?: {
+      id?: number | string
+    }
+  }
   ready: () => void
   expand: () => void
 }
@@ -37,6 +42,29 @@ export default function TelegramMiniAppAuth() {
       webApp.ready()
       webApp.expand()
 
+      // Fast path: if this Telegram account already has the same browser
+      // session, there is no reason to call the auth API again. getSession()
+      // reads the existing Supabase session locally and avoids a network round
+      // trip on repeat Mini App opens.
+      try {
+        const supabase = createClient()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const sessionUser = sessionData.session?.user
+        const telegramUserId = webApp.initDataUnsafe?.user?.id
+
+        if (
+          sessionUser?.user_metadata?.auth_provider === 'telegram' &&
+          telegramUserId != null &&
+          String(sessionUser.user_metadata.telegram_user_id) === String(telegramUserId)
+        ) {
+          return
+        }
+      } catch (error) {
+        // Local session inspection is an optimization only. If it fails,
+        // continue with the normal background authentication path.
+        console.warn('[telegram-miniapp-auth] session fast-path skipped', error)
+      }
+
       const controller = new AbortController()
       timer = window.setTimeout(() => controller.abort(), 4000)
 
@@ -64,8 +92,7 @@ export default function TelegramMiniAppAuth() {
         // Hydrate the browser session silently. Do NOT refresh the route here:
         // router.refresh() caused the whole Mini App tree to re-render after
         // opening and made Telegram startup feel slow.
-        const supabase = createClient()
-        const { error } = await supabase.auth.setSession({
+        const { error } = await createClient().auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         })
