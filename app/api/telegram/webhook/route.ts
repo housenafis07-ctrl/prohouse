@@ -145,6 +145,16 @@ async function sendListingShare(chatId: string | number, listingId: string) {
     return
   }
 
+  if (media.length === 1) {
+    const item = media[0]
+    await telegramApi(item.type === 'video' ? 'sendVideo' : 'sendPhoto', {
+      chat_id: chatId,
+      [item.type === 'video' ? 'video' : 'photo']: item.media,
+      caption,
+    })
+    return
+  }
+
   const chunks: Array<typeof media> = []
   for (let i = 0; i < media.length; i += 10) chunks.push(media.slice(i, i + 10))
 
