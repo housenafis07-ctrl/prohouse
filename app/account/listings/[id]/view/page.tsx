@@ -63,10 +63,13 @@ export default async function OwnerListingViewPage({ params }: { params: Promise
     chatStarts,
   }
 
+  const price = new Intl.NumberFormat('uz-UZ').format(Number(data.price))
+  const priceLabel = data.currency === 'USD' ? `$${price}` : `${price} so‘m`
+
   return (
     <>
       <ListingDetailClient listing={{ ...(data as any), listing_images: images }} />
-      <ListingOwnerStats listingId={id} initialStats={ownerStats} />
+      <ListingOwnerStats listingId={id} title={data.title} priceLabel={priceLabel} initialStats={ownerStats} />
     </>
   )
 }
