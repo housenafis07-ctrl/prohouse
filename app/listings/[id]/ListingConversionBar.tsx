@@ -12,7 +12,7 @@ type Props = {
   variant?: 'mobile' | 'inline'
 }
 
-export default function ListingConversionBar({ listingId, title, priceLabel, isTrusted, isOwner, variant = 'mobile' }: Props) {
+export default function ListingConversionBar({ listingId, title, priceLabel, isOwner, variant = 'mobile' }: Props) {
   const { lang } = useI18n()
   const [shared, setShared] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -81,7 +81,6 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isT
   const shareText = lang === 'ru' ? 'Поделиться' : 'Ulashish'
   const telegramText = 'Telegram orqali ulashish'
   const telegramMediaText = 'Rasm va video bilan yuborish'
-  const trustText = lang === 'ru' ? 'Надёжный профиль' : 'Ishonchli profil'
 
   const openShare = () => setShareOpen(true)
   const renderSheet = shareOpen ? <ShareSheet lang={lang} telegramShareUrl={telegramShareUrl} whatsappUrl={whatsappUrl} facebookUrl={facebookUrl} xUrl={xUrl} shared={shared} onCopy={copyLink} onNativeShare={openNativeShare} onTrackShare={trackShare} onClose={() => setShareOpen(false)} telegramText={telegramText} telegramMediaText={telegramMediaText} /> : null
@@ -141,7 +140,7 @@ function FacebookIcon({ className = 'h-6 w-6' }: { className?: string }) {
 }
 
 function XIcon({ className = 'h-6 w-6' }: { className?: string }) {
-  return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor"><path d="M4.1 3h4.75l3.72 5.2L17.02 3h2.9l-5.99 6.86L20.2 21h-4.76l-4.03 14? no" /></svg>
+  return <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor"><path d="M4.1 3h4.75l3.72 5.2L17.02 3h2.9l-5.99 6.86L20.2 21h-4.76l-4.03-5.65L6.9 21H4l6.08-6.98L4.1 3Zm4.3 1.86H7.02l8.83 14.28h1.38L8.4 4.86Z" /></svg>
 }
 
 function LinkIcon({ className = 'h-6 w-6' }: { className?: string }) {
