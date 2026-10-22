@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import HomeClient from './components/HomeClient'
 
+const HOME_HERO_IMAGE = 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=85'
+
 export const metadata: Metadata = {
   title: 'Royalhouse — Ko‘chmas mulk platformasi',
   description: 'O‘zbekistonda uy topish, sotish, ijaraga olish va ipoteka uchun zamonaviy platforma.',
@@ -22,5 +24,11 @@ export const metadata: Metadata = {
 }
 
 export default function HomePage() {
-  return <HomeClient />
+  return (
+    <>
+      <link rel="preconnect" href="https://images.unsplash.com" />
+      <link rel="preload" as="image" href={HOME_HERO_IMAGE} fetchPriority="high" />
+      <HomeClient />
+    </>
+  )
 }
