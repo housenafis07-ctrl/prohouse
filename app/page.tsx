@@ -27,7 +27,7 @@ export default function HomePage() {
   return (
     <>
       <link rel="preconnect" href="https://images.unsplash.com" />
-      <link rel="preload" as="image" href={HOME_HERO_IMAGE} fetchPriority="high" />
+      <link rel="preload" as="image" href={HOME_HERO_IMAGE} />
       <HomeClient />
     </>
   )
