@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
   const admin = serviceClient()
   let query = admin
     .from('support_messages')
-    .select('id,name,phone,email,subject,message,source,telegram_user_id,telegram_username,status,admin_note,created_at,updated_at')
-    .order('created_at', { ascending: false })
+    .select('id,user_id,name,phone,email,subject,message,source,telegram_user_id,telegram_username,status,priority,admin_note,created_at,updated_at')
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: true })
     .limit(200)
 
   if (status && statuses.includes(status)) query = query.eq('status', status)
