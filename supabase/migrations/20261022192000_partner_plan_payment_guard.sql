@@ -20,6 +20,7 @@ declare
   order_id uuid;
   item_total numeric(18,2);
   listing_status text;
+  v_account_type text;
 begin
   if uid is null then raise exception 'AUTH_REQUIRED'; end if;
   if p_quantity < 1 then raise exception 'INVALID_QUANTITY'; end if;
@@ -29,9 +30,11 @@ begin
   where code = p_product_code and active = true;
   if not found then raise exception 'PRODUCT_NOT_AVAILABLE'; end if;
 
-  if p.audience <> 'all' and not exists(
-    select 1 from public.profiles where id = uid and account_type = p.audience
-  ) then
+  select account_type into v_account_type
+  from public.profiles
+  where id = uid;
+
+  if p.audience <> 'all' and coalesce(v_account_type, '') <> p.audience then
     raise exception 'PRODUCT_NOT_ALLOWED';
   end if;
 
@@ -42,6 +45,15 @@ begin
 
   if p.product_type <> 'subscription' and p.product_type in ('top','up','highlight','premium') and p_listing_id is null then
     raise exception 'LISTING_REQUIRED';
+  end if;
+
+  -- PRO/BUSINESS expose promotion tools as a paid-plan benefit. A partner on
+  -- the free quota or START cannot bypass that entitlement by calling the RPC.
+  if coalesce(v_account_type, '') = 'partner'
+     and p.product_type in ('top','up','highlight','premium')
+     and not public.partner_plan_has_feature(uid, 'promo_tools') then
+    raise exception 'PARTNER_PROMO_TOOLS_REQUIRED: PRO yoki BUSINESS tarifi kerak.'
+      using errcode = 'check_violation';
   end if;
 
   if p_listing_id is not null then
@@ -77,4 +89,4 @@ $$;
 revoke all on function public.create_monetization_order(text, uuid, integer, text) from public, anon;
 grant execute on function public.create_monetization_order(text, uuid, integer, text) to authenticated;
 
-commit;
+action commit;
