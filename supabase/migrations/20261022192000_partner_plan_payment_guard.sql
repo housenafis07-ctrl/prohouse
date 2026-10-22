@@ -89,4 +89,4 @@ $$;
 revoke all on function public.create_monetization_order(text, uuid, integer, text) from public, anon;
 grant execute on function public.create_monetization_order(text, uuid, integer, text) to authenticated;
 
-action commit;
+commit;
