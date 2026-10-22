@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import ListingDetailClient from '@/app/listings/[id]/ListingDetailClient'
+import ListingOwnerStats from '@/app/listings/[id]/ListingOwnerStats'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
 export default async function OwnerListingViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,5 +27,10 @@ export default async function OwnerListingViewPage({ params }: { params: Promise
       image_url: getListingCardImageUrl(image.image_url),
     }))
 
-  return <ListingDetailClient listing={{ ...(data as any), listing_images: images }} />
+  return (
+    <>
+      <ListingDetailClient listing={{ ...(data as any), listing_images: images }} />
+      <ListingOwnerStats listingId={id} />
+    </>
+  )
 }
