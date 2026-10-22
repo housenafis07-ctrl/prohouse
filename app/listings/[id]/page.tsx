@@ -175,6 +175,6 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
-    {isOwner && <ListingOwnerStats listingId={listing.id} />}
+    {isOwner && <ListingOwnerStats listingId={listing.id} title={listing.title} priceLabel={formatPrice(listing)} />}
   </>
 }
