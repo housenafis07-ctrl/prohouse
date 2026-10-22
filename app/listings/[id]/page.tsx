@@ -148,7 +148,8 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const description = (listing.description || `${listing.title} — RoyalHouse ko‘chmas mulk e’loni.`).replace(/\s+/g, ' ').trim().slice(0, 500)
   const location = [listing.address, listing.district, listing.city].filter(Boolean).join(', ')
   const isRental = listing.listing_type === 'daily' || listing.listing_type === 'rent' || listing.taxonomy_code === 'rent_dacha'
-  const { data: { user } } = await createClient().auth.getUser()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
   const isOwner = user?.id === listing.owner_id
 
   const structuredData = {
