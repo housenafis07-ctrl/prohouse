@@ -28,7 +28,7 @@ as $$
     coalesce((p.metadata->>'promo_tools')::boolean, false),
     coalesce((p.metadata->>'priority_support')::boolean, false),
     greatest(coalesce((p.metadata->>'employees')::integer, 1), 1),
-    p.code = 'partner_business'
+    coalesce((p.metadata->>'company_profile')::boolean, false)
   from public.monetization_entitlements e
   join public.monetization_products p on p.code = e.product_code
   where e.user_id = p_user_id
@@ -46,6 +46,31 @@ $$;
 
 revoke all on function public.get_active_partner_plan(uuid) from public;
 grant execute on function public.get_active_partner_plan(uuid) to authenticated;
+grant execute on function public.get_active_partner_plan(uuid) to service_role;
+
+create or replace function public.partner_plan_has_feature(
+  p_user_id uuid,
+  p_feature text
+)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select case p_feature
+    when 'advanced_analytics' then coalesce((select analytics_level = 'advanced' from public.get_active_partner_plan(p_user_id)), false)
+    when 'priority_moderation' then coalesce((select priority_moderation from public.get_active_partner_plan(p_user_id)), false)
+    when 'promo_tools' then coalesce((select promo_tools from public.get_active_partner_plan(p_user_id)), false)
+    when 'priority_support' then coalesce((select priority_support from public.get_active_partner_plan(p_user_id)), false)
+    when 'company_profile' then coalesce((select company_profile from public.get_active_partner_plan(p_user_id)), false)
+    else false
+  end;
+$$;
+
+revoke all on function public.partner_plan_has_feature(uuid, text) from public;
+grant execute on function public.partner_plan_has_feature(uuid, text) to authenticated;
+grant execute on function public.partner_plan_has_feature(uuid, text) to service_role;
 
 -- Partner accounts keep their existing 5 free-listing allowance. A paid
 -- subscription raises that server-side quota to the purchased plan limit.
