@@ -13,25 +13,69 @@ interface Stats {
 
 export default function ListingOwnerStats({ listingId }: { listingId: string }) {
   const [stats, setStats] = useState<Stats | null>(null)
+  const [shareState, setShareState] = useState<'idle' | 'copied'>('idle')
 
   useEffect(() => {
     let cancelled = false
-    void fetch(`/api/listings/events?listingId=${encodeURIComponent(listingId)}&stats=1`)
+    void fetch(`/api/listings/interactions?listingId=${encodeURIComponent(listingId)}&stats=1`)
       .then(async response => response.ok ? response.json() : null)
       .then(data => { if (!cancelled && data) setStats(data) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [listingId])
 
+  const shareListing = async () => {
+    const url = window.location.href
+    const title = document.title
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url })
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url)
+        setShareState('copied')
+        window.setTimeout(() => setShareState('idle'), 1800)
+      } else {
+        const input = document.createElement('input')
+        input.value = url
+        document.body.appendChild(input)
+        input.select()
+        document.execCommand('copy')
+        input.remove()
+        setShareState('copied')
+        window.setTimeout(() => setShareState('idle'), 1800)
+      }
+
+      void fetch('/api/listings/interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listingId, action: 'share' }),
+        keepalive: true,
+      }).catch(() => {})
+
+      setStats(current => current ? { ...current, shares: current.shares + 1 } : current)
+    } catch {
+      // The native share sheet can be dismissed by the user; do not show an error.
+    }
+  }
+
   if (!stats) return null
 
   return (
-    <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+    <section className="mx-auto mt-5 w-full max-w-[1200px] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black text-slate-900">E’lon statistikasi</h2>
           <p className="mt-1 text-xs text-slate-500">Foydalanuvchilar e’loningiz bilan qanday tanishayotganini ko‘ring.</p>
         </div>
+        <button
+          type="button"
+          onClick={shareListing}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 active:scale-[.98]"
+        >
+          <span aria-hidden="true">↗</span>
+          {shareState === 'copied' ? 'Havola nusxalandi' : 'Ulashish'}
+        </button>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Jami ko‘rish" value={stats.views} icon="👁" />
