@@ -85,6 +85,7 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isT
   const trustText = lang === 'ru' ? 'Надёжный профиль' : 'Ishonchli profil'
 
   const openShare = () => setShareOpen(true)
+  const renderSheet = shareOpen ? <ShareSheet lang={lang} telegramBotUrl={telegramBotUrl} telegramShareUrl={telegramShareUrl} whatsappUrl={whatsappUrl} facebookUrl={facebookUrl} xUrl={xUrl} shared={shared} onCopy={copyLink} onNativeShare={openNativeShare} onTrackShare={trackShare} onClose={() => setShareOpen(false)} telegramText={telegramText} telegramMediaText={telegramMediaText} /> : null
 
   if (variant === 'inline') {
     return (
@@ -95,7 +96,7 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isT
             <span>{shared ? copyText : shareText}</span>
           </button>
         </div>
-        {shareOpen && <ShareSheet lang={lang} telegramBotUrl={telegramBotUrl} telegramShareUrl={telegramShareUrl} whatsappUrl={whatsappUrl} facebookUrl={facebookUrl} xUrl={xUrl} shared={shared} onCopy={copyLink} onNativeShare={openNativeShare} onClose={() => setShareOpen(false)} telegramText={telegramText} telegramMediaText={telegramMediaText} />}
+        {renderSheet}
       </>
     )
   }
@@ -108,7 +109,7 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isT
           <button type="button" onClick={openShare} className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700 active:scale-[.98]"><span aria-hidden="true">↗</span><span>{shared ? copyText : shareText}</span></button>
         </div>
       </div>
-      {shareOpen && <ShareSheet lang={lang} telegramBotUrl={telegramBotUrl} telegramShareUrl={telegramShareUrl} whatsappUrl={whatsappUrl} facebookUrl={facebookUrl} xUrl={xUrl} shared={shared} onCopy={copyLink} onNativeShare={openNativeShare} onClose={() => setShareOpen(false)} telegramText={telegramText} telegramMediaText={telegramMediaText} />}
+      {renderSheet}
     </>
   )
 }
@@ -123,18 +124,24 @@ type ShareSheetProps = {
   shared: boolean
   onCopy: () => void
   onNativeShare: () => void
+  onTrackShare: () => void
   onClose: () => void
   telegramText: string
   telegramMediaText: string
 }
 
-function ShareSheet({ lang, telegramBotUrl, telegramShareUrl, whatsappUrl, facebookUrl, xUrl, shared, onCopy, onNativeShare, onClose, telegramText, telegramMediaText }: ShareSheetProps) {
+function ShareSheet({ lang, telegramBotUrl, telegramShareUrl, whatsappUrl, facebookUrl, xUrl, shared, onCopy, onNativeShare, onTrackShare, onClose, telegramText, telegramMediaText }: ShareSheetProps) {
   const title = lang === 'ru' ? 'Поделиться объявлением' : 'E’lonni ulashish'
   const description = lang === 'ru' ? 'Telegram orqali media bilan yuborish yoki boshqa ilovani tanlang.' : 'Telegram orqali rasm/video bilan yuboring yoki boshqa ilovani tanlang.'
-  const directTelegram = lang === 'ru' ? 'Telegram' : 'Telegram'
+  const directTelegram = 'Telegram'
   const copy = lang === 'ru' ? 'Скопировать ссылку' : 'Havolani nusxalash'
   const other = lang === 'ru' ? 'Другие приложения' : 'Boshqa ilovalar'
   const close = lang === 'ru' ? 'Закрыть' : 'Yopish'
+
+  const openExternal = () => {
+    onTrackShare()
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label={title} onMouseDown={onClose}>
@@ -148,23 +155,19 @@ function ShareSheet({ lang, telegramBotUrl, telegramShareUrl, whatsappUrl, faceb
         </div>
 
         <div className="grid grid-cols-2 gap-3 p-4">
-          <a href={telegramBotUrl} target="_blank" rel="noreferrer" onClick={() => { trackShareEvent(); onClose() }} className="col-span-2 flex items-center gap-3 rounded-2xl bg-sky-500 px-4 py-3 text-white shadow-sm hover:bg-sky-600">
+          <a href={telegramBotUrl} target="_blank" rel="noreferrer" onClick={openExternal} className="col-span-2 flex items-center gap-3 rounded-2xl bg-sky-500 px-4 py-3 text-white shadow-sm hover:bg-sky-600">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl" aria-hidden="true">✈</span>
             <span className="min-w-0"><span className="block font-black">{telegramText}</span><span className="mt-0.5 block text-xs text-white/85">{telegramMediaText}</span></span>
           </a>
 
-          <a href={telegramShareUrl} target="_blank" rel="noreferrer" onClick={() => { trackShareEvent(); onClose() }} className="flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3 font-extrabold text-sky-700 hover:bg-sky-100"><span className="text-xl" aria-hidden="true">✈</span>{directTelegram}</a>
-          <a href={whatsappUrl} target="_blank" rel="noreferrer" onClick={() => { trackShareEvent(); onClose() }} className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 font-extrabold text-emerald-700 hover:bg-emerald-100"><span className="text-xl" aria-hidden="true">◉</span>WhatsApp</a>
-          <a href={facebookUrl} target="_blank" rel="noreferrer" onClick={() => { trackShareEvent(); onClose() }} className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-3 font-extrabold text-blue-700 hover:bg-blue-100"><span className="text-xl" aria-hidden="true">f</span>Facebook</a>
-          <a href={xUrl} target="_blank" rel="noreferrer" onClick={() => { trackShareEvent(); onClose() }} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 font-extrabold text-slate-900 hover:bg-slate-100"><span className="text-xl" aria-hidden="true">𝕏</span>X</a>
+          <a href={telegramShareUrl} target="_blank" rel="noreferrer" onClick={openExternal} className="flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3 font-extrabold text-sky-700 hover:bg-sky-100"><span className="text-xl" aria-hidden="true">✈</span>{directTelegram}</a>
+          <a href={whatsappUrl} target="_blank" rel="noreferrer" onClick={openExternal} className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 font-extrabold text-emerald-700 hover:bg-emerald-100"><span className="text-xl" aria-hidden="true">◉</span>WhatsApp</a>
+          <a href={facebookUrl} target="_blank" rel="noreferrer" onClick={openExternal} className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-3 font-extrabold text-blue-700 hover:bg-blue-100"><span className="text-xl" aria-hidden="true">f</span>Facebook</a>
+          <a href={xUrl} target="_blank" rel="noreferrer" onClick={openExternal} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 font-extrabold text-slate-900 hover:bg-slate-100"><span className="text-xl" aria-hidden="true">𝕏</span>X</a>
           <button type="button" onClick={onCopy} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 font-extrabold text-slate-700 hover:bg-slate-50"><span className="text-xl" aria-hidden="true">🔗</span>{shared ? (lang === 'ru' ? 'Скопировано' : 'Nusxalandi') : copy}</button>
           <button type="button" onClick={onNativeShare} className="col-span-2 flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 font-extrabold text-white hover:bg-slate-800"><span aria-hidden="true">↗</span>{other}</button>
         </div>
       </div>
     </div>
   )
-}
-
-function trackShareEvent() {
-  // The listing-specific share event is sent by the parent action when possible.
 }
