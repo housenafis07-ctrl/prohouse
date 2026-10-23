@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 import { mortgagePrograms } from '@/lib/mortgage-programs'
 
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest) {
     const monthlyPayment = Number(body.monthlyPayment || 0)
     if (name.length < 2 || phone.length < 7 || !Number.isFinite(propertyPrice) || propertyPrice <= 0) return NextResponse.json({ error:'Ism, telefon va uy narxini to‘g‘ri kiriting.' },{status:400})
     if (!Number.isFinite(downPayment) || downPayment < 0 || !Number.isFinite(termMonths) || termMonths < 1) return NextResponse.json({ error:'Boshlang‘ich badal va muddatni tekshiring.' },{status:400})
+
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
     const admin = serviceClient()
     let listingId = typeof body.listingId === 'string' ? body.listingId : null
     if (listingId) {
@@ -24,6 +28,7 @@ export async function POST(request: NextRequest) {
       if (!listing || listing.status !== 'active' || !listing.is_mortgage_available) listingId = null
     }
     const { data, error } = await admin.from('mortgage_leads').insert({
+      profile_id: user?.id || null,
       listing_id: listingId, market: program.markets.includes('secondary') && !program.markets.includes('primary') ? 'secondary' : (body.market === 'secondary' ? 'secondary' : 'primary'),
       program_id: program.id, bank_name: program.bank, program_name: program.program,
       customer_name: name, customer_phone: phone, property_price: propertyPrice,
