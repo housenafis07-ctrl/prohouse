@@ -22,6 +22,21 @@ function getVariantOptions(variant: ListingImageVariant) {
   return { width: LISTING_IMAGE_CARD_WIDTH, height: LISTING_IMAGE_CARD_HEIGHT, quality: LISTING_IMAGE_CARD_QUALITY }
 }
 
+function getUnsplashTransformUrl(imageUrl: string, width: number, height: number, quality: number) {
+  try {
+    const url = new URL(imageUrl)
+    if (url.hostname !== 'images.unsplash.com') return imageUrl
+    url.searchParams.set('auto', 'format')
+    url.searchParams.set('fit', 'crop')
+    url.searchParams.set('w', String(Math.min(1600, Math.max(1, Math.round(width)))))
+    url.searchParams.set('h', String(Math.min(1600, Math.max(1, Math.round(height)))))
+    url.searchParams.set('q', String(Math.min(90, Math.max(1, Math.round(quality)))))
+    return url.toString()
+  } catch {
+    return imageUrl
+  }
+}
+
 function getSupabaseTransformUrl(imageUrl: string, width: number, height: number, quality: number) {
   if (process.env.NEXT_PUBLIC_SUPABASE_IMAGE_TRANSFORMS !== 'true') return imageUrl
   try {
@@ -45,10 +60,16 @@ function getSupabaseTransformUrl(imageUrl: string, width: number, height: number
 
 export function getListingImageUrl(imageUrl: string, variant: ListingImageVariant = 'card') {
   const { width, height, quality } = getVariantOptions(variant)
+  if (imageUrl.includes('images.unsplash.com')) {
+    return getUnsplashTransformUrl(imageUrl, width, height, quality)
+  }
   return getSupabaseTransformUrl(imageUrl, width, height, quality)
 }
 
 export function getListingCardImageUrl(imageUrl: string, width = LISTING_IMAGE_CARD_WIDTH, height = LISTING_IMAGE_CARD_HEIGHT) {
+  if (imageUrl.includes('images.unsplash.com')) {
+    return getUnsplashTransformUrl(imageUrl, width, height, LISTING_IMAGE_CARD_QUALITY)
+  }
   return getSupabaseTransformUrl(imageUrl, width, height, LISTING_IMAGE_CARD_QUALITY)
 }
 
