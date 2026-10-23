@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 type ListingQualityInput = Record<string, unknown>
 type Result = { score: number; label: string; breakdown: { data: number; media: number; content: number; completeness: number }; recommendations: string[] }
 
-export default function ListingQualityCard({ listingId, listing, language = 'uz' }: { listingId: string; listing: ListingQualityInput; language?: 'uz' | 'ru' }) {
+export default function ListingQualityCard({ listingId, listing, language = 'uz', imageCountOverride }: { listingId: string; listing: ListingQualityInput; language?: 'uz' | 'ru'; imageCountOverride?: number }) {
   const [result, setResult] = useState<Result | null>(null)
   const [loading, setLoading] = useState(false)
   const ru = language === 'ru'
@@ -15,16 +15,22 @@ export default function ListingQualityCard({ listingId, listing, language = 'uz'
     let cancelled = false
     const run = async () => {
       setLoading(true)
-      const db = createClient()
-      const [{ count: imageCount }, { count: videoCount }] = await Promise.all([
-        db.from('listing_images').select('id', { count: 'exact', head: true }).eq('listing_id', listingId),
-        db.from('listing_media').select('id', { count: 'exact', head: true }).eq('listing_id', listingId).eq('media_type', 'video').eq('status', 'ready'),
-      ])
+      let imageCount = imageCountOverride
+      let videoCount = 0
+      if (imageCount == null) {
+        const db = createClient()
+        const [{ count }, { count: videos }] = await Promise.all([
+          db.from('listing_images').select('id', { count: 'exact', head: true }).eq('listing_id', listingId),
+          db.from('listing_media').select('id', { count: 'exact', head: true }).eq('listing_id', listingId).eq('media_type', 'video').eq('status', 'ready'),
+        ])
+        imageCount = count || 0
+        videoCount = videos || 0
+      }
       if (cancelled) return
       fetch('/api/ai/listing-quality', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listing: { ...listing, image_count: imageCount || 0, has_main_image: (imageCount || 0) > 0, has_video: (videoCount || 0) > 0 }, language }),
+        body: JSON.stringify({ listing: { ...listing, image_count: imageCount || 0, has_main_image: (imageCount || 0) > 0, has_video: videoCount > 0 }, language }),
       }).then(async (response) => {
         const data = await response.json().catch(() => null)
         if (!cancelled && response.ok && data?.score != null) setResult(data as Result)
@@ -32,7 +38,7 @@ export default function ListingQualityCard({ listingId, listing, language = 'uz'
     }
     void run()
     return () => { cancelled = true }
-  }, [listingId, JSON.stringify(listing), language])
+  }, [listingId, imageCountOverride, JSON.stringify(listing), language])
 
   if (loading && !result) return <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">{ru ? 'Оцениваем объявление…' : 'E’lon sifati baholanmoqda…'}</div>
   if (!result) return null
