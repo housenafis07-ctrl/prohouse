@@ -60,11 +60,13 @@ type Listing = {
   }[] | null
   listing_images?: ImageItem[] | null
 }
+
 const money=(v:number,c:string,ru:boolean)=>`${new Intl.NumberFormat(ru?'ru-RU':'uz-UZ').format(Number(v))} ${c==='USD'?'$':c==='EUR'?'€':ru?'сум':'so‘m'}`
 const typeLabel=(t:string,ru:boolean)=>(ru?({sale:'Покупка',rent:'Аренда',daily:'Посуточная аренда',new_building:'Новостройки',service:'Услуги',realtor:'Риелторы'}[t]):({sale:'Sotib olish',rent:'Ijara',daily:'Kunlik ijara',new_building:'Yangi uylar',service:'Xizmatlar',realtor:'Rieltorlar'}[t]))||t
 const propertyLabel=(t:string|null,ru:boolean)=>(ru?({apartment:'Квартира',house:'Частный дом',land:'Земельный участок',commercial:'Коммерческая недвижимость',new_building:'Новостройка'}[t||'']):({apartment:'Kvartira',house:'Xususiy uy',land:'Yer uchastkasi',commercial:'Tijorat ko‘chmas mulki',new_building:'Yangi bino'}[t||'']))||t||'—'
 const sellerTypeLabel=(t:string,ru:boolean)=>(ru?({owner:'Собственник',realtor:'Риелтор',agency:'Агентство',developer:'Застройщик',company:'Компания'}[t]):({owner:'Mulk egasi',realtor:'Rieltor',agency:'Agentlik',developer:'Quruvchi',company:'Kompaniya'}[t]))||t
 const dateTime=(v:string|null|undefined,ru:boolean)=>v?new Intl.DateTimeFormat(ru?'ru-RU':'uz-UZ',{dateStyle:'medium',timeStyle:'short'}).format(new Date(v)):'—'
+const floorLabel=(floor:number|null,floorsTotal:number|null)=>floor!=null?`${floor}${floorsTotal!=null?` / ${floorsTotal}`:''}`:'—'
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</div><div className="mt-1 break-words font-bold text-slate-900">{value ?? '—'}</div></div>
@@ -152,7 +154,7 @@ export default function ModerationPage() {
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
               <Gallery listing={i} ru={ru} />
               <div className="space-y-6">
-                <section><h3 className="mb-3 text-lg font-black">{t('Asosiy ma’lumotlar','Основная информация')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Mulk turi','Тип недвижимости')} value={propertyLabel(i.property_type,ru)} /><Field label={t('Narx','Цена')} value={money(i.price,i.currency,ru)} />{i.area_m2 != null && <Field label={t('Maydon','Площадь')} value={`${i.area_m2} m²`} />}{i.rooms != null && <Field label={t('Xonalar','Комнаты')} value={i.rooms} />}{i.floor != null && <Field label={t('Qavat','Этаж')} value={`${i.floor}${i.floors_total != null ? ` / ${i.floors_total}` : ''}`} />}{i.accommodation_type && <Field label={t('Turar joy turi','Тип размещения')} value={i.accommodation_type} />}{i.max_guests != null && <Field label={t('Maks. mehmonlar','Макс. гостей')} value={i.max_guests} />}</div></section>
+                <section><h3 className="mb-3 text-lg font-black">{t('Asosiy ma’lumotlar','Основная информация')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Mulk turi','Тип недвижимости')} value={propertyLabel(i.property_type,ru)} /><Field label={t('Narx','Цена')} value={money(i.price,i.currency,ru)} />{i.area_m2 != null && <Field label={t('Maydon','Площадь')} value={`${i.area_m2} m²`} />}{i.rooms != null && <Field label={t('Xonalar','Комнаты')} value={i.rooms} />}{i.floor != null && <Field label={t('Qavat','Этаж')} value={floorLabel(i.floor, i.floors_total)} />}{i.accommodation_type && <Field label={t('Turar joy turi','Тип размещения')} value={i.accommodation_type} />}{i.max_guests != null && <Field label={t('Maks. mehmonlar','Макс. гостей')} value={i.max_guests} />}</div></section>
                 <section><h3 className="mb-3 text-lg font-black">{t('Joylashuv','Расположение')}</h3><div className="grid gap-3 sm:grid-cols-2"><Field label={t('Shahar','Город')} value={i.city} /><Field label={t('Tuman','Район')} value={i.district || '—'} /><Field label={t('Mahalla','Махалля')} value={i.neighborhood || '—'} /><Field label={t('Manzil','Адрес')} value={i.address || '—'} /><Field label={t('Koordinata','Координаты')} value={i.latitude != null && i.longitude != null ? `${i.latitude}, ${i.longitude}` : t('Belgilanmagan','Не указано')} /></div></section>
               </div>
             </div>
