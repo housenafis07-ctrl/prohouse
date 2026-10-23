@@ -15,9 +15,13 @@ function safeFacts(input: unknown): ListingFacts {
 const schema = { type: 'object', additionalProperties: false, properties: { description: { type: 'string' }, used_facts: { type: 'array', items: { type: 'string' } } }, required: ['description', 'used_facts'] } as const
 
 async function callOpenAI({ apiKey, model, instructions, input, structured }: { apiKey: string; model: string; instructions: string; input: string; structured: boolean }) {
-  const body: Record<string, unknown> = { model, instructions, input, max_output_tokens: 500 }
-  if (structured) body.text = { format: { type: 'json_schema', name: 'royalhouse_listing_description', strict: true, schema } }
-  return fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) })
+  const body: Record<string, unknown> = { model, instructions, input, max_output_tokens: 1000, reasoning: { effort: 'low' } }
+  if (structured) {
+    body.text = { format: { type: 'json_schema', name: 'royalhouse_listing_description', strict: true, schema } }
+  } else {
+    body.text = { format: { type: 'text' } }
+  }
+  return fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) })
 }
 
 export async function POST(request: NextRequest) {
