@@ -56,34 +56,33 @@ export async function POST(req: NextRequest) {
   if (buttonUrl && !/^https?:\/\//i.test(buttonUrl)) return NextResponse.json({ error: 'Noto‘g‘ri tugma URL manzili.' }, { status: 400 })
 
   if (action === 'test') {
-    // Test no longer depends on TELEGRAM_ADMIN_CHAT_ID. The current admin's
-    // own Telegram chat is resolved through the existing canonical
-    // telegram_user_links mapping, with telegram_bot_users as a fallback.
-    const { data: linkedTelegram, error: linkedTelegramError } = await supabase
-      .from('telegram_user_links')
+    // A test is addressed to the authenticated admin's own registered Telegram
+    // account. No TELEGRAM_ADMIN_CHAT_ID environment variable is needed.
+    const { data: botUser, error: botUserError } = await supabase
+      .from('telegram_bot_users')
       .select('chat_id,telegram_user_id')
-      .eq('profile_id', admin!.user.id)
+      .eq('auth_user_id', admin!.user.id)
+      .eq('is_active', true)
       .maybeSingle()
-    if (linkedTelegramError) return NextResponse.json({ error: linkedTelegramError.message }, { status: 500 })
+    if (botUserError) return NextResponse.json({ error: botUserError.message }, { status: 500 })
 
-    let chatId = linkedTelegram?.chat_id || null
+    let chatId = botUser?.chat_id || null
 
+    // Backward-compatible fallback for users whose Telegram is linked through
+    // the profile mapping but has not yet populated auth_user_id.
     if (!chatId) {
-      const { data: botUser, error: botUserError } = await supabase
-        .from('telegram_bot_users')
+      const { data: linkedTelegram, error: linkedTelegramError } = await supabase
+        .from('telegram_user_links')
         .select('chat_id')
         .eq('profile_id', admin!.user.id)
-        .eq('is_active', true)
-        .order('last_interaction_at', { ascending: false })
-        .limit(1)
         .maybeSingle()
-      if (botUserError) return NextResponse.json({ error: botUserError.message }, { status: 500 })
-      chatId = botUser?.chat_id || null
+      if (linkedTelegramError) return NextResponse.json({ error: linkedTelegramError.message }, { status: 500 })
+      chatId = linkedTelegram?.chat_id || null
     }
 
     if (!chatId) {
       return NextResponse.json({
-        error: 'Admin Telegram akkaunti RoyalHouse profiliga ulanmagan. Avval @RoyalHouseUz_bot ga /start yuboring va Telegram akkauntingizni RoyalHouse profilingiz bilan ulang.',
+        error: 'Admin Telegram akkaunti hali ulanmagan. Avval “Telegramni ulash” tugmasini bosing, keyin @RoyalHouseUz_bot ichida Start bosing.',
       }, { status: 400 })
     }
 
@@ -158,5 +157,5 @@ export async function POST(req: NextRequest) {
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;')
 }
