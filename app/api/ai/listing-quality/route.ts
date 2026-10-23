@@ -66,7 +66,8 @@ export async function POST(request: NextRequest) {
   if (area) completenessScore += 2
   if (rooms) completenessScore += 2
 
-  const score = Math.min(100, dataScore + mediaScore + contentScore + completenessScore)
+  const rawScore = dataScore + mediaScore + contentScore + completenessScore
+  const score = Math.round((rawScore / 85) * 100)
   const recommendations: string[] = []
   if (!title) recommendations.push(language === 'ru' ? 'Добавьте понятный заголовок.' : 'Aniq va tushunarli sarlavha qo‘shing.')
   if (!description || description.length < 120) recommendations.push(language === 'ru' ? 'Сделайте описание подробнее.' : 'Tavsifni batafsilroq yozing.')
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
   if (!price) recommendations.push(language === 'ru' ? 'Укажите цену.' : 'Narxni ko‘rsating.')
   if (!hasMainImage) recommendations.push(language === 'ru' ? 'Добавьте главное фото.' : 'Asosiy rasmni qo‘shing.')
   else if (imageCount < 3) recommendations.push(language === 'ru' ? 'Добавьте ещё несколько фотографий.' : 'Yana bir nechta rasm qo‘shing.')
-  if (imageCount < 6) recommendations.push(language === 'ru' ? 'Покажите квартиру с разных ракурсов.' : 'Kvarteirani turli rakurslardan ko‘rsatuvchi rasmlar qo‘shing.')
+  if (imageCount < 6) recommendations.push(language === 'ru' ? 'Покажите квартиру с разных ракурсов.' : 'Kvartirani turli rakurslardan ko‘rsatuvchi rasmlar qo‘shing.')
   if (!hasVideo) recommendations.push(language === 'ru' ? 'Видео может сделать объявление информативнее.' : 'Video e’lonni yanada tushunarli qilishi mumkin.')
 
   const uniqueRecommendations = [...new Set(recommendations)].slice(0, 5)
