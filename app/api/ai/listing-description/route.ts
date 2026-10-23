@@ -16,8 +16,8 @@ const schema = { type: 'object', additionalProperties: false, properties: { desc
 
 async function callOpenAI({ apiKey, model, instructions, input, structured }: { apiKey: string; model: string; instructions: string; input: string; structured: boolean }) {
   const body: Record<string, unknown> = { model, instructions, input, max_output_tokens: 500 }
-  body.text = structured ? { format: { type: 'json_schema', name: 'royalhouse_listing_description', strict: true, schema } } : { format: { type: 'json_object' } }
-  return fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) })
+  if (structured) body.text = { format: { type: 'json_schema', name: 'royalhouse_listing_description', strict: true, schema } }
+  return fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) })
 }
 
 export async function POST(request: NextRequest) {
@@ -29,20 +29,28 @@ export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return NextResponse.json({ error: language === 'ru' ? 'AI сейчас недоступен.' : 'AI hozircha sozlanmagan.' }, { status: 503 })
   const model = process.env.OPENAI_MODEL || 'gpt-6-luna'
-  const instructions = ['You are the RoyalHouse real-estate listing description editor.', 'Rewrite the supplied listing description into clear, professional, natural marketplace copy.', 'Use ONLY facts explicitly present in the supplied facts object. Never infer, estimate, embellish, invent or add amenities, distances, views, renovation details, legal status, documents, payment options, infrastructure or other facts.', 'If a fact is missing, omit it. Do not fill gaps with typical real-estate language that implies an unverified fact.', 'Preserve the user’s meaning and keep the description concise: normally 2-5 short sentences or a short paragraph.', 'Do not add emojis, hashtags, phone numbers, calls to action, guarantees, superlatives or advertising claims.', language === 'ru' ? 'Write in Russian.' : 'Write in Uzbek Latin script. Keep proper names such as Chilonzor and Sergeli in their supplied form.', 'Return JSON only. The JSON must contain a string field named description and an array field named used_facts.'].join(' ')
+  const instructions = ['You are the RoyalHouse real-estate listing description editor.', 'Rewrite the supplied listing description into clear, professional, natural marketplace copy.', 'Use ONLY facts explicitly present in the supplied facts object. Never infer, estimate, embellish, invent or add amenities, distances, views, renovation details, legal status, documents, payment options, infrastructure or other facts.', 'If a fact is missing, omit it. Do not fill gaps with typical real-estate language that implies an unverified fact.', 'Preserve the user’s meaning and keep the description concise: normally 2-5 short sentences or a short paragraph.', 'Do not add emojis, hashtags, phone numbers, calls to action, guarantees, superlatives or advertising claims.', language === 'ru' ? 'Write in Russian.' : 'Write in Uzbek Latin script. Keep proper names such as Chilonzor and Sergeli in their supplied form.', 'When returning structured JSON, use a string field named description and an array field named used_facts.'].join(' ')
   const input = JSON.stringify({ facts, language })
 
   let response: Response
+  let plainFallback = false
   try {
     response = await callOpenAI({ apiKey, model, instructions, input, structured: true })
     if (!response.ok) {
       const firstError = await response.json().catch(() => ({}))
       console.error('listing-description structured AI error', firstError)
-      response = await callOpenAI({ apiKey, model, instructions, input, structured: false })
+      response = await callOpenAI({ apiKey, model, instructions: `${instructions} Return only the final rewritten description as plain text. Do not return JSON.`, input, structured: false })
+      plainFallback = true
     }
   } catch (error) {
-    console.error('listing-description AI request error', error)
-    return NextResponse.json({ error: 'AI vaqtincha javob bermadi. Qayta urinib ko‘ring.' }, { status: 502 })
+    console.error('listing-description structured request error', error)
+    try {
+      response = await callOpenAI({ apiKey, model, instructions: `${instructions} Return only the final rewritten description as plain text. Do not return JSON.`, input, structured: false })
+      plainFallback = true
+    } catch (fallbackError) {
+      console.error('listing-description plain fallback request error', fallbackError)
+      return NextResponse.json({ error: 'AI vaqtincha javob bermadi. Qayta urinib ko‘ring.' }, { status: 502 })
+    }
   }
 
   if (!response.ok) {
@@ -53,14 +61,18 @@ export async function POST(request: NextRequest) {
 
   const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }
   const outputText = typeof payload.output_text === 'string' ? payload.output_text : payload.output?.flatMap((item) => item.content || []).find((content) => content.type === 'output_text')?.text || ''
-
-  try {
-    const result = JSON.parse(outputText) as { description?: string; used_facts?: string[] }
-    const description = clean(result.description, 1500)
-    if (!description) throw new Error('EMPTY_DESCRIPTION')
-    return NextResponse.json({ description, used_facts: Array.isArray(result.used_facts) ? result.used_facts.slice(0, 30) : [] }, { headers: { 'Cache-Control': 'no-store' } })
-  } catch (error) {
-    console.error('listing-description parse error', { error, outputText: outputText.slice(0, 1000) })
-    return NextResponse.json({ error: 'AI javobini o‘qib bo‘lmadi. Qayta urinib ko‘ring.' }, { status: 502 })
+  let description = ''
+  if (plainFallback) {
+    description = clean(outputText, 1500)
+  } else {
+    try {
+      const result = JSON.parse(outputText) as { description?: string }
+      description = clean(result.description, 1500)
+    } catch (error) {
+      console.error('listing-description parse error', { error, outputText: outputText.slice(0, 1000) })
+    }
   }
+
+  if (!description) return NextResponse.json({ error: 'AI javobini o‘qib bo‘lmadi. Qayta urinib ko‘ring.' }, { status: 502 })
+  return NextResponse.json({ description, used_facts: [] }, { headers: { 'Cache-Control': 'no-store' } })
 }
