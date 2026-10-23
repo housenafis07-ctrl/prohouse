@@ -40,7 +40,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { error: authError } = await requireAdmin('listings.moderate')
+  const { admin, error: authError } = await requireAdmin('listings.moderate')
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
 
   const supabase = serviceClient()
@@ -56,10 +56,39 @@ export async function POST(req: NextRequest) {
   if (buttonUrl && !/^https?:\/\//i.test(buttonUrl)) return NextResponse.json({ error: 'Noto‘g‘ri tugma URL manzili.' }, { status: 400 })
 
   if (action === 'test') {
-    const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID
-    if (!adminChatId) return NextResponse.json({ error: 'TELEGRAM_ADMIN_CHAT_ID sozlanmagan.' }, { status: 500 })
+    // Test no longer depends on TELEGRAM_ADMIN_CHAT_ID. The current admin's
+    // own Telegram chat is resolved through the existing canonical
+    // telegram_user_links mapping, with telegram_bot_users as a fallback.
+    const { data: linkedTelegram, error: linkedTelegramError } = await supabase
+      .from('telegram_user_links')
+      .select('chat_id,telegram_user_id')
+      .eq('profile_id', admin!.user.id)
+      .maybeSingle()
+    if (linkedTelegramError) return NextResponse.json({ error: linkedTelegramError.message }, { status: 500 })
+
+    let chatId = linkedTelegram?.chat_id || null
+
+    if (!chatId) {
+      const { data: botUser, error: botUserError } = await supabase
+        .from('telegram_bot_users')
+        .select('chat_id')
+        .eq('profile_id', admin!.user.id)
+        .eq('is_active', true)
+        .order('last_interaction_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (botUserError) return NextResponse.json({ error: botUserError.message }, { status: 500 })
+      chatId = botUser?.chat_id || null
+    }
+
+    if (!chatId) {
+      return NextResponse.json({
+        error: 'Admin Telegram akkaunti RoyalHouse profiliga ulanmagan. Avval @RoyalHouseUz_bot ga /start yuboring va Telegram akkauntingizni RoyalHouse profilingiz bilan ulang.',
+      }, { status: 400 })
+    }
+
     await telegram('sendMessage', {
-      chat_id: adminChatId,
+      chat_id: chatId,
       text: `<b>${escapeHtml(title)}</b>\n\n${escapeHtml(message)}`,
       parse_mode: 'HTML',
       ...(buttonText && buttonUrl ? { reply_markup: { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] } } : {}),
@@ -109,6 +138,7 @@ export async function POST(req: NextRequest) {
         campaign_id: campaign.id,
         telegram_id: String(user.telegram_id),
         status: 'failed',
+        telegram_message_id: null,
         error: errorText,
       })
       if (/blocked|chat not found|user is deactivated/i.test(errorText)) {
