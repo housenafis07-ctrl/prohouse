@@ -6,7 +6,7 @@ import { useI18n } from '@/app/components/I18nProvider'
 type Props = {
   email: string
   role: string
-  stats: { total:number; moderation:number; active:number; rejected:number; partners:number; today:number; trustedProfiles:number }
+  stats: { total:number; moderation:number; active:number; rejected:number; partners:number; today:number; trustedProfiles:number; clients:number }
 }
 
 export default function AdminHomeClient({ email, role, stats }: Props) {
@@ -15,6 +15,7 @@ export default function AdminHomeClient({ email, role, stats }: Props) {
   const t = (uz:string, ruText:string) => ru ? ruText : uz
   const cards = [
     [t('Jami e’lonlar','Всего объявлений'), stats.total, t('Barcha e’lonlar','Все объявления')],
+    [t('Jami mijozlar','Всего клиентов'), stats.clients, t('Hamkorlar va jismoniy shaxslar','Партнёры и физические лица')],
     [t('Moderatsiyada','На модерации'), stats.moderation, t('Tekshiruv kutilmoqda','Ожидают проверки')],
     [t('Faol e’lonlar','Активные объявления'), stats.active, t('Saytda ko‘rinayotgan','Опубликованы на сайте')],
     [t('Rad etilgan','Отклонённые'), stats.rejected, t('Qayta ishlash mumkin','Можно переработать')],
@@ -32,7 +33,8 @@ export default function AdminHomeClient({ email, role, stats }: Props) {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <p className="font-bold text-emerald-600">{t('Boshqaruv markazi','Центр управления')}</p>
       <h1 className="mt-1 text-3xl font-black">{t('Admin panel','Панель администратора')}</h1>
-      <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-3">{cards.map(([label,value,desc])=><div key={String(label)} className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p><p className="mt-1 text-xs text-slate-400">{desc}</p></div>)}</div>
+      <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">{cards.map(([label,value,desc])=><div key={String(label)} className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-3xl font-black">{value}</p><p className="mt-1 text-xs text-slate-400">{desc}</p></div>)}</div>
+      <Link href="/admin/directory" className="mt-6 block rounded-3xl bg-slate-900 p-6 text-white shadow-sm transition hover:-translate-y-0.5"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><div className="text-3xl">🔎</div><h2 className="mt-3 text-xl font-black">{t('Mijozlar va e’lonlarni qidirish','Поиск клиентов и объявлений')}</h2><p className="mt-2 text-sm text-slate-300">{t('Hamkor ID, e’lon ID, ism, telefon yoki kompaniya bo‘yicha toping. E’lonni qoralamaga qaytaring yoki o‘chiring.','Поиск по ID партнёра, ID объявления, имени, телефону или компании. Возврат объявления в черновик или удаление.')}</p></div><span className="rounded-xl bg-emerald-500 px-5 py-3 font-black text-white">{t('Qidiruvni ochish →','Открыть поиск →')}</span></div></Link>
       <div className="mt-7 grid gap-5 md:grid-cols-3">
         <Link href="/admin/moderation" className="rounded-3xl bg-white p-6 shadow-sm transition hover:-translate-y-0.5"><div className="text-3xl">✓</div><h2 className="mt-4 text-xl font-black">{t('E’lonlar moderatsiyasi','Модерация объявлений')}</h2><p className="mt-2 text-sm text-slate-500">{t('Hamkorlar yuborgan e’lonlarni tekshirish, tasdiqlash yoki rad etish.','Проверяйте, подтверждайте или отклоняйте объявления от партнёров.')}</p><span className="mt-5 inline-block rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">{stats.moderation} {t('ta e’lonni ko‘rish','объявлений')}</span></Link>
         <Link href="/admin/messages" className="rounded-3xl bg-white p-6 shadow-sm transition hover:-translate-y-0.5"><div className="text-3xl">📨</div><h2 className="mt-4 text-xl font-black">{t('Xabarlar','Сообщения')}</h2><p className="mt-2 text-sm text-slate-500">{t('Sayt va Telegram orqali kelgan murojaatlarni ko‘ring va holatini boshqaring.','Просматривайте обращения с сайта и Telegram и управляйте их статусами.')}</p><span className="mt-5 inline-block rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white">{t('Xabarlarni ochish','Открыть сообщения')}</span></Link>
