@@ -40,7 +40,7 @@ export default function AccountNavigation() {
   const ru = lang === 'ru'
   const text = {
     cabinet: ru ? 'Кабинет' : 'Kabinet', favorites: ru ? '♡ Избранное' : '♡ Saqlanganlar',
-    savedSearches: ru ? '⌕ Сохранённые поиски' : '⌕ Saqlangan qidiruvlar',
+    savedSearches: ru ? '⌕ Сохранённые поиски' : '⌕ Saqlangan qidiruvlar', mortgage: ru ? '🏠 Ипотечные заявки' : '🏠 Ipoteka arizalarim',
     addListing: ru ? '+ Разместить объявление' : '+ E’lon joylashtirish', myListings: ru ? 'Мои объявления' : 'Mening e’lonlarim',
     bookings: ru ? 'Мои бронирования' : 'Mening bronlarim', messages: ru ? '💬 Сообщения' : '💬 Xabarlar',
     trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil', promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
@@ -53,6 +53,7 @@ export default function AccountNavigation() {
     { href: '/solishtirish', label: ru ? '⚖️ Сравнение' : '⚖️ Solishtirish', className: 'bg-slate-100 text-slate-700' },
     { href: '/account/listings', label: text.myListings, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/bookings', label: text.bookings, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/mortgage', label: text.mortgage, className: 'bg-amber-50 text-amber-700' },
     { href: '/listings/new', label: text.addListing, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/chat', label: text.messages, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/favorites', label: text.favorites, className: 'bg-rose-50 text-rose-700' },
