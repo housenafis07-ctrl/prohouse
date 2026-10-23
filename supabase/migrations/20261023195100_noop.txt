@@ -1,0 +1,1 @@
+Telegram admin broadcast fix is implemented in the preceding migration and application changes.
