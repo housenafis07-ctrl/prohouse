@@ -7,6 +7,7 @@ type TelegramUpdate = {
     text?: string
     chat?: { id?: number; type?: string }
     from?: { id?: number; username?: string; first_name?: string; last_name?: string }
+    contact?: { user_id?: number; phone_number?: string; first_name?: string; last_name?: string }
   }
 }
 
@@ -67,6 +68,34 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
     }
   }
   await telegramApi('sendMessage', body)
+}
+
+async function requestTelegramPhone(chatId: string | number) {
+  await telegramApi('sendMessage', {
+    chat_id: chatId,
+    text: '🔐 Telegram ulanishini tasdiqlash uchun shu akkauntingizning telefon raqamini yuboring. Bu raqam Royalhouse shaxsiy kabinetingizdagi raqam bilan mos kelishi kerak.',
+    reply_markup: {
+      keyboard: [[{ text: '📱 Telefon raqamimni yuborish', request_contact: true }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    },
+  })
+}
+
+async function clearTelegramKeyboard(chatId: string | number) {
+  await telegramApi('sendMessage', {
+    chat_id: chatId,
+    text: 'Tekshiruv yakunlandi.',
+    reply_markup: { remove_keyboard: true },
+  })
+}
+
+function normalizePhone(value: string | null | undefined) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (digits.startsWith('00')) return digits.slice(2)
+  if (digits.startsWith('998') && digits.length === 12) return digits
+  if (digits.length === 9) return `998${digits}`
+  return digits
 }
 
 function formatPrice(price: number | null | undefined, currency: string | null | undefined) {
@@ -196,10 +225,103 @@ export async function POST(request: NextRequest) {
     const message = update.message
     const text = String(message?.text || '').trim()
     const chatId = message?.chat?.id
-    if (!message || !text || !chatId) return NextResponse.json({ ok: true })
+    if (!message || !chatId) return NextResponse.json({ ok: true })
 
     const from = message.from
     const admin = serviceClient()
+    const telegramUserId = from?.id ? String(from.id) : ''
+
+    // A contact is accepted only when it was shared by the same Telegram account
+    // that started the link flow. This prevents a second Telegram account from
+    // taking over a Royalhouse profile just by opening its deep-link URL.
+    if (message.contact) {
+      if (!from?.id || !telegramUserId || message.contact.user_id !== from.id) {
+        await sendTelegramMessage(chatId, '❌ Iltimos, aynan shu Telegram akkauntingizning o‘z kontaktini yuboring.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const { data: pendingTokens, error: pendingTokenError } = await admin
+        .from('telegram_link_tokens')
+        .select('token_hash,profile_id,expires_at,used_at')
+        .eq('telegram_user_id', telegramUserId)
+        .is('used_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (pendingTokenError) throw pendingTokenError
+
+      const token = pendingTokens?.[0]
+      if (!token) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, 'Ulash jarayoni topilmadi yoki eskirgan. Royalhouse shaxsiy kabinetidan yangi Telegram ulash havolasini oling.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const { data: profile, error: profileError } = await admin
+        .from('profiles')
+        .select('phone')
+        .eq('id', token.profile_id)
+        .maybeSingle()
+      if (profileError) throw profileError
+
+      const websitePhone = normalizePhone(profile?.phone)
+      const telegramPhone = normalizePhone(message.contact.phone_number)
+
+      if (!websitePhone || !telegramPhone || websitePhone !== telegramPhone) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, '❌ Bu Telegram akkaunti Royalhouse profilidagi telefon raqamiga mos kelmaydi. Profilingizdagi raqam bilan aynan shu raqamga ulangan Telegram akkauntidan foydalaning.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const { data: existingTelegramLink, error: existingTelegramLinkError } = await admin
+        .from('telegram_user_links')
+        .select('profile_id')
+        .eq('telegram_user_id', telegramUserId)
+        .maybeSingle()
+      if (existingTelegramLinkError) throw existingTelegramLinkError
+
+      const { data: existingProfileLink, error: existingProfileLinkError } = await admin
+        .from('telegram_user_links')
+        .select('telegram_user_id')
+        .eq('profile_id', token.profile_id)
+        .maybeSingle()
+      if (existingProfileLinkError) throw existingProfileLinkError
+
+      if (existingTelegramLink?.profile_id && existingTelegramLink.profile_id !== token.profile_id) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, '❌ Bu Telegram akkaunti boshqa Royalhouse profiliga ulangan. Avval o‘sha ulanishni uzing.')
+        return NextResponse.json({ ok: true })
+      }
+
+      if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, '❌ Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const { error: linkError } = await admin.from('telegram_user_links').upsert({
+        profile_id: token.profile_id,
+        telegram_user_id: telegramUserId,
+        chat_id: String(chatId),
+        telegram_username: from.username || null,
+        linked_at: new Date().toISOString(),
+      }, { onConflict: 'profile_id' })
+      if (linkError) throw linkError
+
+      const { error: usedError } = await admin
+        .from('telegram_link_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('token_hash', token.token_hash)
+        .eq('telegram_user_id', telegramUserId)
+        .is('used_at', null)
+      if (usedError) throw usedError
+
+      await clearTelegramKeyboard(chatId)
+      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga muvaffaqiyatli ulandi! Endi Royalhouse’ni shu yerdan bir bosishda ochishingiz mumkin.', true)
+      return NextResponse.json({ ok: true })
+    }
+
+    if (!text) return NextResponse.json({ ok: true })
 
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
@@ -235,7 +357,7 @@ export async function POST(request: NextRequest) {
       const tokenHash = createHash('sha256').update(rawToken).digest('hex')
       const { data: token, error: tokenError } = await admin
         .from('telegram_link_tokens')
-        .select('profile_id,expires_at,used_at')
+        .select('token_hash,profile_id,expires_at,used_at,telegram_user_id')
         .eq('token_hash', tokenHash)
         .maybeSingle()
       if (tokenError) throw tokenError
@@ -244,63 +366,30 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
 
-      const telegramUserId = String(from.id)
-
-      const { data: existingTelegramLink, error: existingTelegramLinkError } = await admin
-        .from('telegram_user_links')
-        .select('profile_id')
-        .eq('telegram_user_id', telegramUserId)
-        .maybeSingle()
-      if (existingTelegramLinkError) throw existingTelegramLinkError
-
-      const { data: existingProfileLink, error: existingProfileLinkError } = await admin
-        .from('telegram_user_links')
-        .select('telegram_user_id')
-        .eq('profile_id', token.profile_id)
-        .maybeSingle()
-      if (existingProfileLinkError) throw existingProfileLinkError
-
-      if (existingTelegramLink?.profile_id && existingTelegramLink.profile_id !== token.profile_id) {
-        if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
-          await sendTelegramMessage(chatId, 'Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.')
-          return NextResponse.json({ ok: true })
-        }
-
-        const { error: rebindError } = await admin
-          .from('telegram_user_links')
-          .update({
-            profile_id: token.profile_id,
-            chat_id: String(chatId),
-            telegram_username: from.username || null,
-            linked_at: new Date().toISOString(),
-          })
-          .eq('telegram_user_id', telegramUserId)
-
-        if (rebindError) throw rebindError
-      } else {
-        if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
-          await sendTelegramMessage(chatId, 'Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.')
-          return NextResponse.json({ ok: true })
-        }
-
-        const { error: linkError } = await admin.from('telegram_user_links').upsert({
-          profile_id: token.profile_id,
-          telegram_user_id: telegramUserId,
-          chat_id: String(chatId),
-          telegram_username: from.username || null,
-          linked_at: new Date().toISOString(),
-        }, { onConflict: 'profile_id' })
-        if (linkError) throw linkError
+      // Lock this one-time token to the first Telegram account that opens it.
+      // A different Telegram account can no longer take over the same token.
+      if (token.telegram_user_id && token.telegram_user_id !== telegramUserId) {
+        await sendTelegramMessage(chatId, '❌ Bu ulash havolasi boshqa Telegram akkauntida boshlangan. Royalhouse shaxsiy kabinetidan yangi ulash havolasini oling.')
+        return NextResponse.json({ ok: true })
       }
 
-      const { error: usedError } = await admin
-        .from('telegram_link_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('token_hash', tokenHash)
-        .is('used_at', null)
-      if (usedError) throw usedError
+      if (!token.telegram_user_id) {
+        const { data: claimedToken, error: claimError } = await admin
+          .from('telegram_link_tokens')
+          .update({ telegram_user_id: telegramUserId })
+          .eq('token_hash', tokenHash)
+          .is('telegram_user_id', null)
+          .is('used_at', null)
+          .select('token_hash')
+          .maybeSingle()
+        if (claimError) throw claimError
+        if (!claimedToken) {
+          await sendTelegramMessage(chatId, '❌ Ulash havolasi boshqa Telegram akkauntida boshlangan. Royalhouse shaxsiy kabinetidan yangi havola oling.')
+          return NextResponse.json({ ok: true })
+        }
+      }
 
-      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi Royalhouse’ni shu yerdan bir bosishda ochishingiz mumkin.', true)
+      await requestTelegramPhone(chatId)
       return NextResponse.json({ ok: true })
     }
 
