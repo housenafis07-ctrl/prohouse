@@ -6,7 +6,7 @@ type TelegramUpdate = {
   message?: {
     text?: string
     chat?: { id?: number; type?: string }
-    from?: { id?: number; username?: string; first_name?: string; last_name?: string }
+    from?: { id?: number; username?: string; first_name?: string; last_name?: string; language_code?: string }
   }
 }
 
@@ -201,6 +201,24 @@ export async function POST(request: NextRequest) {
     const from = message.from
     const admin = serviceClient()
 
+    // Register every bot interaction so the admin can build Telegram audiences
+    // even when the user has not linked a RoyalHouse profile yet.
+    if (from?.id) {
+      const { error: botUserError } = await admin.from('telegram_bot_users').upsert({
+        telegram_user_id: String(from.id),
+        chat_id: String(chatId),
+        username: from.username || null,
+        first_name: from.first_name || null,
+        last_name: from.last_name || null,
+        language_code: from.language_code || null,
+        is_active: true,
+        blocked_at: null,
+        last_interaction_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'telegram_user_id' })
+      if (botUserError) throw botUserError
+    }
+
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
 
@@ -229,7 +247,7 @@ export async function POST(request: NextRequest) {
 
       const rawToken = payload.slice(5)
       if (!/^[a-f0-9]{48}$/i.test(rawToken)) {
-        await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Royalhouse shaxsiy kabinetidan yangi havola oling.')
+        await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Royalhouse shaxsiy kabinetidan yangi ulash havolasi oling.')
         return NextResponse.json({ ok: true })
       }
       const tokenHash = createHash('sha256').update(rawToken).digest('hex')
@@ -292,6 +310,11 @@ export async function POST(request: NextRequest) {
         }, { onConflict: 'profile_id' })
         if (linkError) throw linkError
       }
+
+      const { error: botProfileError } = await admin.from('telegram_bot_users')
+        .update({ profile_id: token.profile_id, is_active: true, blocked_at: null, last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('telegram_user_id', telegramUserId)
+      if (botProfileError) throw botProfileError
 
       const { error: usedError } = await admin
         .from('telegram_link_tokens')
