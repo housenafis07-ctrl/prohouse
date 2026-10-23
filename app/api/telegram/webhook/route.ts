@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { serviceClient } from '@/utils/admin/auth'
+import { registerTelegramBotUser } from '@/utils/telegram/bot-users'
 
 type TelegramUpdate = {
   message?: {
@@ -201,6 +202,24 @@ export async function POST(request: NextRequest) {
     const from = message.from
     const admin = serviceClient()
 
+    // Register every private bot user automatically. This is the source used by
+    // admin broadcasts and removes the need for TELEGRAM_ADMIN_CHAT_ID.
+    if (from?.id && message.chat?.type === 'private') {
+      try {
+        await registerTelegramBotUser(admin, {
+          telegramUserId: from.id,
+          chatId,
+          chatType: message.chat.type,
+          username: from.username,
+          firstName: from.first_name,
+          lastName: from.last_name,
+        })
+      } catch (registrationError) {
+        // Registration must not break the existing bot flows.
+        console.error('telegram bot user registration failed', registrationError)
+      }
+    }
+
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
 
@@ -292,6 +311,14 @@ export async function POST(request: NextRequest) {
         }, { onConflict: 'profile_id' })
         if (linkError) throw linkError
       }
+
+      // Keep the broadcast registry linked to the profile after a successful
+      // account-link operation as well.
+      const { error: botUserLinkError } = await admin
+        .from('telegram_bot_users')
+        .update({ profile_id: token.profile_id, chat_id: String(chatId), is_blocked: false })
+        .eq('telegram_user_id', telegramUserId)
+      if (botUserLinkError) throw botUserLinkError
 
       const { error: usedError } = await admin
         .from('telegram_link_tokens')
