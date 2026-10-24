@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, serviceClient } from '@/utils/admin/auth'
 
 const TELEGRAM_API = 'https://api.telegram.org'
+const TELEGRAM_MEDIA_PREFIX = `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/telegram-media/`
 
 type Audience = 'all' | 'buyers' | 'listings' | 'realtors' | 'trusted'
+type MediaType = 'image' | 'video'
 
 function botToken() {
   return process.env.TELEGRAM_BOT_TOKEN || process.env.ROYALHOUSE_TELEGRAM_BOT_TOKEN || ''
@@ -23,13 +25,57 @@ async function telegram(method: string, body: Record<string, unknown>) {
   return data.result
 }
 
+function validateMedia(mediaUrl: string, mediaType: string) {
+  if (!mediaUrl) return null
+  if (!TELEGRAM_MEDIA_PREFIX || !mediaUrl.startsWith(TELEGRAM_MEDIA_PREFIX)) throw new Error('Media manzili RoyalHouse Telegram storage manzilidan bo‘lishi kerak.')
+  if (mediaType !== 'image' && mediaType !== 'video') throw new Error('Noto‘g‘ri media turi.')
+  return mediaType as MediaType
+}
+
+function caption(title: string, message: string) {
+  return `<b>${escapeHtml(title)}</b>\n\n${escapeHtml(message)}`
+}
+
+async function sendCampaignMessage(chatId: string, title: string, message: string, buttonText: string, buttonUrl: string, mediaUrl: string, mediaType: MediaType | null) {
+  const text = caption(title, message)
+  const replyMarkup = buttonText && buttonUrl ? { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] } : undefined
+
+  if (!mediaUrl || !mediaType) {
+    return telegram('sendMessage', {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    })
+  }
+
+  const mediaCaption = text.slice(0, 1024)
+  const result = await telegram(mediaType === 'image' ? 'sendPhoto' : 'sendVideo', {
+    chat_id: chatId,
+    [mediaType === 'image' ? 'photo' : 'video']: mediaUrl,
+    caption: mediaCaption,
+    parse_mode: 'HTML',
+    show_caption_above_media: true,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  })
+
+  if (text.length > 1024) {
+    await telegram('sendMessage', {
+      chat_id: chatId,
+      text: text.slice(1024),
+      parse_mode: 'HTML',
+    })
+  }
+  return result
+}
+
 export async function GET() {
   const { error: authError } = await requireAdmin('listings.moderate')
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
 
   const supabase = serviceClient()
   const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }] = await Promise.all([
-    supabase.from('telegram_broadcast_campaigns').select('id,title,audience,status,sent_count,failed_count,created_at').order('created_at', { ascending: false }).limit(50),
+    supabase.from('telegram_broadcast_campaigns').select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at').order('created_at', { ascending: false }).limit(50),
     supabase.rpc('get_telegram_broadcast_audience_counts'),
   ])
   if (campaignsError) return NextResponse.json({ error: campaignsError.message }, { status: 500 })
@@ -51,13 +97,20 @@ export async function POST(req: NextRequest) {
   const buttonText = String(body.buttonText || '').trim()
   const buttonUrl = String(body.buttonUrl || '').trim()
   const audience = String(body.audience || 'all') as Audience
+  const mediaUrl = String(body.mediaUrl || '').trim()
+  const mediaName = String(body.mediaName || '').trim()
+  let mediaType: MediaType | null = null
 
   if (!title || !message) return NextResponse.json({ error: 'Sarlavha va xabar matni majburiy.' }, { status: 400 })
   if (buttonUrl && !/^https?:\/\//i.test(buttonUrl)) return NextResponse.json({ error: 'Noto‘g‘ri tugma URL manzili.' }, { status: 400 })
 
+  try {
+    mediaType = validateMedia(mediaUrl, String(body.mediaType || ''))
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Media xatosi.' }, { status: 400 })
+  }
+
   if (action === 'test') {
-    // A test is addressed to the authenticated admin's own registered Telegram
-    // account. No TELEGRAM_ADMIN_CHAT_ID environment variable is needed.
     const { data: botUser, error: botUserError } = await supabase
       .from('telegram_bot_users')
       .select('chat_id,telegram_user_id')
@@ -67,9 +120,6 @@ export async function POST(req: NextRequest) {
     if (botUserError) return NextResponse.json({ error: botUserError.message }, { status: 500 })
 
     let chatId = botUser?.chat_id || null
-
-    // Backward-compatible fallback for users whose Telegram is linked through
-    // the profile mapping but has not yet populated auth_user_id.
     if (!chatId) {
       const { data: linkedTelegram, error: linkedTelegramError } = await supabase
         .from('telegram_user_links')
@@ -81,17 +131,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!chatId) {
-      return NextResponse.json({
-        error: 'Admin Telegram akkaunti hali ulanmagan. Avval “Telegramni ulash” tugmasini bosing, keyin @RoyalHouseUz_bot ichida Start bosing.',
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Admin Telegram akkaunti hali ulanmagan. Avval “Telegramni ulash” tugmasini bosing, keyin @RoyalHouseUz_bot ichida Start bosing.' }, { status: 400 })
     }
 
-    await telegram('sendMessage', {
-      chat_id: chatId,
-      text: `<b>${escapeHtml(title)}</b>\n\n${escapeHtml(message)}`,
-      parse_mode: 'HTML',
-      ...(buttonText && buttonUrl ? { reply_markup: { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] } } : {}),
-    })
+    await sendCampaignMessage(chatId, title, message, buttonText, buttonUrl, mediaUrl, mediaType)
     return NextResponse.json({ message: 'Test xabari yuborildi.' })
   }
 
@@ -103,6 +146,9 @@ export async function POST(req: NextRequest) {
     button_text: buttonText || null,
     button_url: buttonUrl || null,
     audience,
+    media_url: mediaUrl || null,
+    media_type: mediaType,
+    media_name: mediaName || null,
     status: 'sending',
   }).select('id').single()
   if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 })
@@ -117,12 +163,7 @@ export async function POST(req: NextRequest) {
   let failed = 0
   for (const user of users || []) {
     try {
-      const result = await telegram('sendMessage', {
-        chat_id: user.telegram_id,
-        text: `<b>${escapeHtml(title)}</b>\n\n${escapeHtml(message)}`,
-        parse_mode: 'HTML',
-        ...(buttonText && buttonUrl ? { reply_markup: { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] } } : {}),
-      })
+      const result = await sendCampaignMessage(String(user.telegram_id), title, message, buttonText, buttonUrl, mediaUrl, mediaType)
       sent += 1
       await supabase.from('telegram_broadcast_deliveries').insert({
         campaign_id: campaign.id,
