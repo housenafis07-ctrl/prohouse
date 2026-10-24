@@ -8,8 +8,29 @@ export async function GET() {
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
-    const { data, error } = await serviceClient().from('telegram_user_links')
-      .select('telegram_username,linked_at').eq('profile_id', user.id).maybeSingle()
+
+    const db = serviceClient()
+    const { data: botUser, error: botUserError } = await db
+      .from('telegram_bot_users')
+      .select('telegram_user_id,username,linked_at,profile_id')
+      .eq('auth_user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle()
+    if (botUserError) throw botUserError
+
+    if (botUser) {
+      return NextResponse.json({
+        linked: true,
+        username: botUser.username || null,
+        linkedAt: botUser.linked_at || null,
+      })
+    }
+
+    const { data, error } = await db
+      .from('telegram_user_links')
+      .select('telegram_username,linked_at')
+      .eq('profile_id', user.id)
+      .maybeSingle()
     if (error) throw error
     return NextResponse.json({ linked: Boolean(data), username: data?.telegram_username || null, linkedAt: data?.linked_at || null })
   } catch (error) {
@@ -27,9 +48,10 @@ export async function POST() {
     const token = randomBytes(24).toString('hex')
     const tokenHash = createHash('sha256').update(token).digest('hex')
     const db = serviceClient()
+
     const { error } = await db.from('telegram_link_tokens').insert({
       token_hash: tokenHash,
-      profile_id: user.id,
+      auth_user_id: user.id,
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     })
     if (error) throw error
@@ -40,6 +62,8 @@ export async function POST() {
     })
   } catch (error) {
     console.error('[Telegram link] Failed to create link', error)
-    return NextResponse.json({ error: 'TELEGRAM_LINK_CREATE_FAILED' }, { status: 500 })
+    return NextResponse.json({
+      error: error instanceof Error ? `TELEGRAM_LINK_CREATE_FAILED: ${error.message}` : 'TELEGRAM_LINK_CREATE_FAILED',
+    }, { status: 500 })
   }
 }

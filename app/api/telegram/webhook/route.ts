@@ -6,7 +6,7 @@ type TelegramUpdate = {
   message?: {
     text?: string
     chat?: { id?: number; type?: string }
-    from?: { id?: number; username?: string; first_name?: string; last_name?: string }
+    from?: { id?: number; username?: string; first_name?: string; last_name?: string; language_code?: string }
   }
 }
 
@@ -201,6 +201,32 @@ export async function POST(request: NextRequest) {
     const from = message.from
     const admin = serviceClient()
 
+    // Every private bot user is registered immediately on /start or any other
+    // bot message. This is the canonical broadcast recipient registry.
+    if (from?.id && message.chat?.type === 'private') {
+      const { data: existingLink, error: linkLookupError } = await admin
+        .from('telegram_user_links')
+        .select('profile_id')
+        .eq('telegram_user_id', String(from.id))
+        .maybeSingle()
+      if (linkLookupError) throw linkLookupError
+
+      const { error: botUserError } = await admin.from('telegram_bot_users').upsert({
+        telegram_user_id: String(from.id),
+        chat_id: String(chatId),
+        profile_id: existingLink?.profile_id || null,
+        username: from.username || null,
+        first_name: from.first_name || null,
+        last_name: from.last_name || null,
+        language_code: from.language_code || null,
+        is_active: true,
+        blocked_at: null,
+        last_interaction_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'telegram_user_id' })
+      if (botUserError) throw botUserError
+    }
+
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
 
@@ -229,13 +255,13 @@ export async function POST(request: NextRequest) {
 
       const rawToken = payload.slice(5)
       if (!/^[a-f0-9]{48}$/i.test(rawToken)) {
-        await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Royalhouse shaxsiy kabinetidan yangi havola oling.')
+        await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Royalhouse shaxsiy kabinetidan yangi ulash havolasi oling.')
         return NextResponse.json({ ok: true })
       }
       const tokenHash = createHash('sha256').update(rawToken).digest('hex')
       const { data: token, error: tokenError } = await admin
         .from('telegram_link_tokens')
-        .select('profile_id,expires_at,used_at')
+        .select('profile_id,auth_user_id,expires_at,used_at')
         .eq('token_hash', tokenHash)
         .maybeSingle()
       if (tokenError) throw tokenError
@@ -245,53 +271,65 @@ export async function POST(request: NextRequest) {
       }
 
       const telegramUserId = String(from.id)
+      const targetAuthUserId = token.auth_user_id || token.profile_id || null
+      const targetProfileId = token.profile_id || null
 
-      const { data: existingTelegramLink, error: existingTelegramLinkError } = await admin
-        .from('telegram_user_links')
-        .select('profile_id')
-        .eq('telegram_user_id', telegramUserId)
-        .maybeSingle()
-      if (existingTelegramLinkError) throw existingTelegramLinkError
+      if (!targetAuthUserId) {
+        await sendTelegramMessage(chatId, 'Ulash havolasida Royalhouse akkaunti aniqlanmadi. Yangi ulash havolasini yarating.')
+        return NextResponse.json({ ok: true })
+      }
 
-      const { data: existingProfileLink, error: existingProfileLinkError } = await admin
-        .from('telegram_user_links')
+      const { data: existingAuthLink, error: existingAuthLinkError } = await admin
+        .from('telegram_bot_users')
         .select('telegram_user_id')
-        .eq('profile_id', token.profile_id)
+        .eq('auth_user_id', targetAuthUserId)
         .maybeSingle()
-      if (existingProfileLinkError) throw existingProfileLinkError
+      if (existingAuthLinkError) throw existingAuthLinkError
 
-      if (existingTelegramLink?.profile_id && existingTelegramLink.profile_id !== token.profile_id) {
-        if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
-          await sendTelegramMessage(chatId, 'Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.')
-          return NextResponse.json({ ok: true })
-        }
+      if (existingAuthLink?.telegram_user_id && existingAuthLink.telegram_user_id !== telegramUserId) {
+        await sendTelegramMessage(chatId, 'Bu Royalhouse akkaunti allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.')
+        return NextResponse.json({ ok: true })
+      }
 
-        const { error: rebindError } = await admin
+      if (targetProfileId) {
+        const { data: existingProfileLink, error: existingProfileLinkError } = await admin
           .from('telegram_user_links')
-          .update({
-            profile_id: token.profile_id,
-            chat_id: String(chatId),
-            telegram_username: from.username || null,
-            linked_at: new Date().toISOString(),
-          })
-          .eq('telegram_user_id', telegramUserId)
-
-        if (rebindError) throw rebindError
-      } else {
+          .select('telegram_user_id')
+          .eq('profile_id', targetProfileId)
+          .maybeSingle()
+        if (existingProfileLinkError) throw existingProfileLinkError
         if (existingProfileLink?.telegram_user_id && existingProfileLink.telegram_user_id !== telegramUserId) {
           await sendTelegramMessage(chatId, 'Bu Royalhouse profili allaqachon boshqa Telegram akkauntiga ulangan. Avval mavjud Telegram ulanishini uzing.')
           return NextResponse.json({ ok: true })
         }
 
         const { error: linkError } = await admin.from('telegram_user_links').upsert({
-          profile_id: token.profile_id,
+          profile_id: targetProfileId,
           telegram_user_id: telegramUserId,
           chat_id: String(chatId),
           telegram_username: from.username || null,
           linked_at: new Date().toISOString(),
+          verified_at: new Date().toISOString(),
+          verification_method: 'admin_telegram_link',
         }, { onConflict: 'profile_id' })
         if (linkError) throw linkError
       }
+
+      const { error: botProfileError } = await admin.from('telegram_bot_users').upsert({
+        telegram_user_id: telegramUserId,
+        chat_id: String(chatId),
+        profile_id: targetProfileId,
+        auth_user_id: targetAuthUserId,
+        username: from.username || null,
+        first_name: from.first_name || null,
+        last_name: from.last_name || null,
+        language_code: from.language_code || null,
+        is_active: true,
+        blocked_at: null,
+        last_interaction_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'telegram_user_id' })
+      if (botProfileError) throw botProfileError
 
       const { error: usedError } = await admin
         .from('telegram_link_tokens')
@@ -300,7 +338,7 @@ export async function POST(request: NextRequest) {
         .is('used_at', null)
       if (usedError) throw usedError
 
-      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi Royalhouse’ni shu yerdan bir bosishda ochishingiz mumkin.', true)
+      await sendTelegramMessage(chatId, '✅ Telegram akkauntingiz Royalhouse profiliga ulandi! Endi test xabarlari shu Telegram akkauntingizga yuboriladi.', true)
       return NextResponse.json({ ok: true })
     }
 
