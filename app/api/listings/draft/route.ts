@@ -227,7 +227,6 @@ export async function DELETE(request: Request) {
     .maybeSingle()
   if (findError) return NextResponse.json({ error: findError.message }, { status: 400 })
   if (!listing) return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
-  if (!['draft', 'rejected'].includes(listing.status)) return NextResponse.json({ error: 'ONLY_DRAFT_OR_REJECTED_CAN_BE_CANCELLED' }, { status: 409 })
 
   const { data: images, error: imageQueryError } = await supabase
     .from('listing_images')
