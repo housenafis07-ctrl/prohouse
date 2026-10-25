@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import ListingDetailLanguageFix from './ListingDetailLanguageFix'
 import ListingVideoPreview from '@/app/components/ListingVideoPreview'
+import ListingDetailReviewsRestore from '@/app/components/ListingDetailReviewsRestore'
+import ServiceListingDetailPolish from '@/app/components/ServiceListingDetailPolish'
 import { createClient } from '@/utils/supabase/server'
 
 const SITE_URL = 'https://royalhouse.uz'
@@ -64,6 +66,8 @@ export default async function ListingDetailLayout({ children, params }: { childr
     <>
       {children}
       <ListingVideoPreview listingId={id} title="RoyalHouse e’loni" />
+      <ListingDetailReviewsRestore />
+      <ServiceListingDetailPolish />
       <ListingDetailLanguageFix />
     </>
   )
