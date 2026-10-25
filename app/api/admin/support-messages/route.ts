@@ -9,7 +9,21 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const status = url.searchParams.get('status')
+  const countOnly = url.searchParams.get('countOnly') === '1'
   const admin = serviceClient()
+
+  if (countOnly) {
+    let countQuery = admin
+      .from('support_messages')
+      .select('id', { count: 'exact', head: true })
+
+    if (status && statuses.includes(status)) countQuery = countQuery.eq('status', status)
+
+    const { count, error: dbError } = await countQuery
+    if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+    return NextResponse.json({ count: count ?? 0 })
+  }
+
   let query = admin
     .from('support_messages')
     .select('id,user_id,name,phone,email,subject,message,source,telegram_user_id,telegram_username,status,priority,admin_note,created_at,updated_at')
