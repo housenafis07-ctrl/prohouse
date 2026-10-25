@@ -10,8 +10,8 @@ create index if not exists listing_reviews_published_listing_idx
   on public.listing_reviews(listing_id, created_at desc)
   where status = 'published';
 
--- Add rating information to the public search view and give highly rated
--- service/dacha listings a modest organic ranking boost.
+-- PostgreSQL CREATE OR REPLACE VIEW can only add new columns at the end.
+-- Keep the existing listing_search column order intact and append the rating fields.
 create or replace view public.listing_search as
 select
   l.id,
@@ -43,8 +43,6 @@ select
   l.promotion_rank,
   l.promotion_badge,
   l.bumped_at,
-  coalesce(rating_summary.average, 0)::numeric as rating_average,
-  coalesce(rating_summary.count, 0)::integer as rating_count,
   greatest(
     coalesce(active_promotion.boost_rank, 0),
     case when l.bumped_at is not null and l.bumped_at > (now() - interval '1 day') then 20 else 0 end,
@@ -75,7 +73,9 @@ select
       end
     ) >= 60
   ) as effective_is_featured,
-  l.is_trusted_seller
+  l.is_trusted_seller,
+  coalesce(rating_summary.average, 0)::numeric as rating_average,
+  coalesce(rating_summary.count, 0)::integer as rating_count
 from public.listings l
 left join public.listing_categories category on category.code = l.taxonomy_code
 left join lateral (
