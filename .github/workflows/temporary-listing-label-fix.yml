@@ -1,0 +1,58 @@
+name: Temporary listing label fix
+
+on:
+  push:
+    branches:
+      - fix/listing-sale-label
+
+permissions:
+  contents: write
+
+jobs:
+  fix-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/listing-sale-label
+
+      - name: Replace seller-facing sale labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "app/listings/new/wizard.tsx": [
+                  ("sale:{uz:'Sotib olish',ru:'Покупка'}", "sale:{uz:'Sotish',ru:'Продажа'}"),
+              ],
+              "app/listings/new/wizard-video.tsx": [
+                  ("sale:{uz:'Sotib olish',ru:'Покупка'}", "sale:{uz:'Sotish',ru:'Продажа'}"),
+              ],
+          }
+
+          changed = False
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in pairs:
+                  text = text.replace(old, new)
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+                  changed = True
+
+          if not changed:
+              print('No changes needed.')
+          PY
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/listings/new/wizard.tsx app/listings/new/wizard-video.tsx
+          git commit -m "fix: show Sotish when publishing property listings"
+          git push origin fix/listing-sale-label
