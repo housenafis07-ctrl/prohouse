@@ -13,6 +13,7 @@ import MobileMainNavigation from "./components/MobileMainNavigation";
 import PushRegistration from "./components/PushRegistration";
 import PwaServiceWorkerRegistration from "./components/PwaServiceWorkerRegistration";
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
+import ServiceListingDetailPolish from "./components/ServiceListingDetailPolish";
 import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
 import RoyalhouseContactFooter from "./components/RoyalhouseContactFooter";
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <PwaServiceWorkerRegistration />
           <PushRegistration />
           <ListingCardIconStyle />
+          <ServiceListingDetailPolish />
           <TaxCalculatorServiceFix />
           <RoyalhouseMobileHomeRedesign />
           <RoyalhouseMobileHomePolish />
