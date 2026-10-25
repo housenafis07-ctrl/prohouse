@@ -44,7 +44,9 @@ export default function TelegramMiniAppAuth() {
 
     const goToRequestedDestination = () => {
       const params = new URLSearchParams(window.location.search)
-      if (params.get('open') === 'account' && window.location.pathname === '/telegram') {
+      const requestedAccount = params.get('open') === 'account'
+      const launchedFromBot = window.location.pathname === '/' && /Telegram/i.test(navigator.userAgent)
+      if ((requestedAccount || launchedFromBot) && (window.location.pathname === '/telegram' || window.location.pathname === '/')) {
         window.location.replace('/account')
       }
     }
@@ -159,8 +161,6 @@ export default function TelegramMiniAppAuth() {
       return true
     }
 
-    // The /telegram page itself does not inject the SDK. This prevents two
-    // Telegram WebApp SDK instances racing each other during startup.
     if (start()) {
       return () => {
         cancelled = true
