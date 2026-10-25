@@ -14,7 +14,7 @@ begin
     into v_primary_image
   from public.listing_images li
   where li.listing_id = v_listing_id
-  order by li.sort_order asc, li.created_at asc nulls last, li.id asc
+  order by li.sort_order asc, li.id asc
   limit 1;
 
   update public.listings
@@ -42,7 +42,7 @@ from (
     listing_id,
     image_url
   from public.listing_images
-  order by listing_id, sort_order asc, created_at asc nulls last, id asc
+  order by listing_id, sort_order asc, id asc
 ) first_image
 where l.id = first_image.listing_id
   and (l.primary_image_url is null or l.primary_image_url = '');
