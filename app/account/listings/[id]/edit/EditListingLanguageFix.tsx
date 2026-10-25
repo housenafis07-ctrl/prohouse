@@ -98,6 +98,8 @@ const PAIRS: Pair[] = [
   ['Yopiq', 'Закрыто'],
   ['Alohida sana narxi ustun', 'Отдельная цена даты имеет приоритет'],
   ['15% avans', '15% аванс'],
+  ['Sotib olish', 'Sotish'],
+  ['Покупка', 'Продажа'],
 ]
 
 const DUPLICATE_RENTAL_LABELS = [
