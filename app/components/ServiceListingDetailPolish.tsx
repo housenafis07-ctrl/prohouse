@@ -13,13 +13,14 @@ export default function ServiceListingDetailPolish() {
     const hideServiceType = () => {
       const labels = Array.from(document.querySelectorAll<HTMLElement>('div,span,p,dt'))
       for (const label of labels) {
-        const labelText = normalize(label.textContent || '')
-        if (labelText !== 'mulk turi' && labelText !== 'тип недвижимости') continue
+        if (normalize(label.textContent || '') !== 'mulk turi' && normalize(label.textContent || '') !== 'тип недвижимости') continue
 
         let node: HTMLElement | null = label
-        for (let depth = 0; depth < 4 && node; depth += 1) {
-          const text = normalize(node.textContent || '')
-          if (text === 'mulk turi service' || text === 'тип недвижимости service') {
+        for (let depth = 0; depth < 8 && node; depth += 1) {
+          const hasServiceValue = Array.from(node.querySelectorAll<HTMLElement>('div,span,p,dd,dt')).some((item) => normalize(item.textContent || '') === 'service')
+            || normalize(node.textContent || '').includes('mulk turi service')
+            || normalize(node.textContent || '').includes('тип недвижимости service')
+          if (hasServiceValue) {
             node.style.display = 'none'
             break
           }
