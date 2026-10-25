@@ -98,6 +98,7 @@ export default function MyListingsPage() {
         loading: 'Загрузка объявлений...', emptyAll: 'У вас пока нет объявлений', empty: 'Объявлений в этом разделе нет',
         place: 'Разместить объявление', noImage: 'Нет изображения', owner: 'От владельца', mortgage: 'Доступна ипотека',
         trusted: '✓ Надёжный профиль', view: 'Открыть', edit: 'Редактировать', fix: 'Исправить и отправить повторно',
+        deleteListing: 'Удалить объявление', deleteBusy: 'Удаление...', confirmDelete: 'Удалить это объявление навсегда? Это действие нельзя отменить.',
         cancel: 'Отменить', cancelBusy: 'Отмена...', saveBusy: 'Сохранение...', rented: 'Сдано', sold: 'Продано', close: 'Закрыть',
         resubmit: 'Отправить на модерацию', updated: 'Обновлено', room: 'комн.', floor: 'эт.',
         stats: 'Статистика объявления', totalViews: 'Всего просмотров', uniqueViews: 'Уникальные', todayViews: 'Сегодня', shares: 'Поделились', phone: 'Телефон', chat: 'Чат',
@@ -112,6 +113,7 @@ export default function MyListingsPage() {
         loading: 'E’lonlar yuklanmoqda...', emptyAll: 'Hali e’lonlaringiz yo‘q', empty: 'Bu bo‘limda e’lonlar yo‘q',
         place: 'E’lon joylashtirish', noImage: 'Rasm yo‘q', owner: 'Egadan', mortgage: 'Ipotekaga mumkin',
         trusted: '✓ Ishonchli profil', view: 'Ko‘rish', edit: 'Tahrirlash', fix: 'Tuzatish va qayta yuborish',
+        deleteListing: 'E’lonni o‘chirish', deleteBusy: 'O‘chirilmoqda...', confirmDelete: 'Bu e’lon butunlay o‘chiriladi. Davom etishni xohlaysizmi?',
         cancel: 'Bekor qilish', cancelBusy: 'Bekor qilinmoqda...', saveBusy: 'Saqlanmoqda...', rented: 'Ijaraga berildi', sold: 'Sotildi', close: 'Yopish',
         resubmit: 'Qayta moderatsiyaga yuborish', updated: 'Yangilangan', room: 'xona', floor: 'qavat',
         stats: 'E’lon statistikasi', totalViews: 'Jami ko‘rish', uniqueViews: 'Noyob ko‘rish', todayViews: 'Bugun', shares: 'Ulashish', phone: 'Telefon', chat: 'Chat',
@@ -231,14 +233,15 @@ export default function MyListingsPage() {
   }
 
   const cancelListing = async (id: string) => {
+    if (!window.confirm(text.confirmDelete)) return
     setActionId(id); setError('')
     try {
       const r = await fetch('/api/listings/draft?listingId=' + encodeURIComponent(id), { method: 'DELETE' })
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || text.cancel)
+      if (!r.ok) throw new Error(d.error || text.deleteListing)
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : text.cancel)
+      setError(e instanceof Error ? e.message : text.deleteListing)
     } finally { setActionId('') }
   }
 
@@ -325,7 +328,7 @@ export default function MyListingsPage() {
             </div>
           </section>
           {item.moderation_note && <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm"><b>{item.status === 'rejected' ? text.moderationReason : text.moderationNote}</b> {item.moderation_note}</div>}
-          <div className="mt-5 flex flex-wrap gap-2"><Link href={viewHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.view}</Link>{(item.status === 'draft' || item.status === 'moderation' || item.status === 'active' || item.status === 'rejected') && <Link href={editHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{item.status === 'rejected' ? text.fix : text.edit}</Link>}{(item.status === 'draft' || item.status === 'rejected') && <button type="button" disabled={actionId === item.id} onClick={() => void cancelListing(item.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700">{actionId === item.id ? text.cancelBusy : text.cancel}</button>}{item.status === 'active' && <><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, item.listing_type === 'rent' || item.listing_type === 'daily' ? 'rented' : 'sold')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white">{actionId === item.id ? text.saveBusy : item.listing_type === 'rent' || item.listing_type === 'daily' ? text.rented : text.sold}</button><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, 'archived')} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.close}</button></>}{(item.status === 'sold' || item.status === 'rented' || item.status === 'archived') && <button type="button" onClick={() => void reopen(item.id)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold">{text.resubmit}</button>}</div>
+          <div className="mt-5 flex flex-wrap gap-2"><Link href={viewHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.view}</Link>{(item.status === 'draft' || item.status === 'moderation' || item.status === 'active' || item.status === 'rejected') && <Link href={editHref(item.id)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{item.status === 'rejected' ? text.fix : text.edit}</Link>}<button type="button" disabled={actionId === item.id} onClick={() => void cancelListing(item.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700">{actionId === item.id ? text.deleteBusy : text.deleteListing}</button>{item.status === 'active' && <><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, item.listing_type === 'rent' || item.listing_type === 'daily' ? 'rented' : 'sold')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white">{actionId === item.id ? text.saveBusy : item.listing_type === 'rent' || item.listing_type === 'daily' ? text.rented : text.sold}</button><button type="button" disabled={actionId === item.id} onClick={() => void changeStatus(item.id, 'archived')} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{text.close}</button></>}{(item.status === 'sold' || item.status === 'rented' || item.status === 'archived') && <button type="button" onClick={() => void reopen(item.id)} className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold">{text.resubmit}</button>}</div>
           <p className="mt-4 text-xs text-slate-400">{text.updated}: {new Intl.DateTimeFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.updated_at))}</p>
         </div></div></article>
       })}</div>}
