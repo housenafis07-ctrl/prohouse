@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const { data: lead, error: leadError } = await admin
+    let { data: lead, error: leadError } = await admin
       .from('listing_leads')
       .select('id,listing_id,owner_id,visitor_id,status,lead_type,created_at')
       .eq('listing_id', listing.id)
@@ -82,6 +82,25 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
     if (leadError) throw leadError
+
+    // Old service conversations may exist without a lead/service_order because the
+    // service workflow was introduced after those conversations were created.
+    // Backfill the workflow here so opening an existing service chat always starts
+    // at Murojaat instead of failing with an empty transaction panel.
+    if (!lead && isService) {
+      const { data: createdLead, error: createLeadError } = await admin
+        .from('listing_leads')
+        .insert({
+          listing_id: listing.id,
+          owner_id: listing.owner_id,
+          visitor_id: buyerId,
+          lead_type: 'chat',
+        })
+        .select('id,listing_id,owner_id,visitor_id,status,lead_type,created_at')
+        .single()
+      if (createLeadError) throw createLeadError
+      lead = createdLead
+    }
 
     if (!lead) return NextResponse.json({
       kind: isService ? 'service' : 'property',
@@ -96,18 +115,36 @@ export async function GET(request: NextRequest) {
     })
 
     if (isService) {
-      const { data: serviceOrder, error: serviceOrderError } = await admin
+      let { data: serviceOrder, error: serviceOrderError } = await admin
         .from('service_orders')
         .select('id,listing_id,lead_id,buyer_id,seller_id,status,buyer_agreed_at,seller_agreed_at,buyer_completed_at,seller_completed_at,created_at,updated_at')
         .eq('lead_id', lead.id)
         .maybeSingle()
       if (serviceOrderError) throw serviceOrderError
 
+      // Every service chat must have exactly one workflow record. The record is
+      // created at Murojaat and is then advanced only by the two participants.
+      if (!serviceOrder) {
+        const { data: createdOrder, error: createOrderError } = await admin
+          .from('service_orders')
+          .insert({
+            listing_id: listing.id,
+            lead_id: lead.id,
+            buyer_id: buyerId,
+            seller_id: listing.owner_id,
+            status: 'requested',
+          })
+          .select('id,listing_id,lead_id,buyer_id,seller_id,status,buyer_agreed_at,seller_agreed_at,buyer_completed_at,seller_completed_at,created_at,updated_at')
+          .single()
+        if (createOrderError) throw createOrderError
+        serviceOrder = createdOrder
+      }
+
       const role = user.id === listing.owner_id ? 'seller' : 'buyer'
-      const agreedByMe = role === 'seller' ? Boolean(serviceOrder?.seller_agreed_at) : Boolean(serviceOrder?.buyer_agreed_at)
-      const completedByMe = role === 'seller' ? Boolean(serviceOrder?.seller_completed_at) : Boolean(serviceOrder?.buyer_completed_at)
-      const agreedByBoth = Boolean(serviceOrder?.buyer_agreed_at && serviceOrder?.seller_agreed_at)
-      const completedByBoth = Boolean(serviceOrder?.buyer_completed_at && serviceOrder?.seller_completed_at)
+      const agreedByMe = role === 'seller' ? Boolean(serviceOrder.seller_agreed_at) : Boolean(serviceOrder.buyer_agreed_at)
+      const completedByMe = role === 'seller' ? Boolean(serviceOrder.seller_completed_at) : Boolean(serviceOrder.buyer_completed_at)
+      const agreedByBoth = Boolean(serviceOrder.buyer_agreed_at && serviceOrder.seller_agreed_at)
+      const completedByBoth = Boolean(serviceOrder.buyer_completed_at && serviceOrder.seller_completed_at)
 
       return NextResponse.json({
         kind: 'service',
@@ -120,7 +157,7 @@ export async function GET(request: NextRequest) {
         completedByMe,
         agreedByBoth,
         completedByBoth,
-        canAdvance: Boolean(serviceOrder && serviceOrder.status !== 'completed' && serviceOrder.status !== 'cancelled'),
+        canAdvance: serviceOrder.status !== 'completed' && serviceOrder.status !== 'cancelled',
       })
     }
 
