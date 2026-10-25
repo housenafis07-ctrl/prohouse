@@ -5,6 +5,17 @@ import { useEffect } from 'react'
 /** Makes the currently selected listing/service category unmistakably visible. */
 export default function SelectedListingCategoryStyle() {
   useEffect(() => {
+    const markCategoryGrids = () => {
+      document.querySelectorAll('div.grid.gap-3').forEach((grid) => {
+        const buttons = Array.from(grid.children).filter(
+          (node): node is HTMLElement => node instanceof HTMLElement && node.tagName === 'BUTTON',
+        )
+        if (buttons.length < 2) return
+        if (!buttons.every((button) => button.querySelector(':scope > b'))) return
+        grid.classList.add('rh-listing-wizard-category-grid')
+      })
+    }
+
     const style = document.createElement('style')
     style.id = 'rh-selected-listing-category-style'
     style.textContent = `
@@ -38,7 +49,15 @@ export default function SelectedListingCategoryStyle() {
       }
     `
     document.head.appendChild(style)
-    return () => style.remove()
+    markCategoryGrids()
+
+    const observer = new MutationObserver(markCategoryGrids)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => {
+      observer.disconnect()
+      style.remove()
+    }
   }, [])
 
   return null
