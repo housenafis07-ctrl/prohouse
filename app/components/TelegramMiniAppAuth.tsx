@@ -109,6 +109,16 @@ export default function TelegramMiniAppAuth() {
 
         if (error) {
           console.error('[telegram-miniapp-auth] setSession failed', error)
+          return
+        }
+
+        // First-time Telegram users are authenticated by Telegram ID, but the
+        // RoyalHouse account is not complete until the phone number is verified.
+        // Reuse the existing phone-link + SMS + safe-merge flow instead of
+        // creating a second account or exposing the full cabinet too early.
+        if (!data.profile?.hasPhone) {
+          window.location.replace('/account/phone-link?first=1')
+          return
         }
       } catch (error) {
         console.warn('[telegram-miniapp-auth] background authentication skipped', error)
