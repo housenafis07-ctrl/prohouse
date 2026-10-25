@@ -18,7 +18,11 @@ async function getReviewContext(db: Awaited<ReturnType<typeof createClient>>, li
     .eq('code', listing.taxonomy_code || '')
     .maybeSingle()
 
-  const isService = category?.entity_type === 'service' || serviceCode(listing.taxonomy_code)
+  const isService =
+    listing.listing_type === 'service' ||
+    listing.property_type === 'service' ||
+    category?.entity_type === 'service' ||
+    serviceCode(listing.taxonomy_code)
   const isDacha = listing.taxonomy_code === 'rent_dacha'
   let eligible = false
 
