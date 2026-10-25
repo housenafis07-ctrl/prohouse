@@ -15,6 +15,7 @@ import PwaServiceWorkerRegistration from "./components/PwaServiceWorkerRegistrat
 import ListingCardIconStyle from "./components/ListingCardIconStyle";
 import ListingCardRatingFix from "./components/ListingCardRatingFix";
 import HomeRatingBridge from "./components/HomeRatingBridge";
+import ListingDetailReviewsRestore from "./components/ListingDetailReviewsRestore";
 import ServiceListingDetailPolish from "./components/ServiceListingDetailPolish";
 import RoyalhouseBrandFix from "./components/RoyalhouseBrandFix";
 import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <ListingCardIconStyle />
           <ListingCardRatingFix />
           <HomeRatingBridge />
+          <ListingDetailReviewsRestore />
           <ServiceListingDetailPolish />
           <TaxCalculatorServiceFix />
           <RoyalhouseMobileHomeRedesign />
