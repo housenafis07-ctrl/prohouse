@@ -17,7 +17,7 @@ type Attribute = { id:string; category_code:string; code:string; name_uz:string;
 type Img = { file:File; preview:string }
 type VideoState = 'idle' | 'uploading' | 'processing' | 'ready' | 'failed'
 
-const sections:Record<string,{uz:string;ru:string}> = { sale:{uz:'Sotib olish',ru:'Покупка'}, rent:{uz:'Ijara',ru:'Аренда'}, new_building:{uz:'Yangi uylar',ru:'Новостройки'}, services:{uz:'Xizmatlar',ru:'Услуги'} }
+const sections:Record<string,{uz:string;ru:string}> = { sale:{uz:'Sotish',ru:'Продажа'}, rent:{uz:'Ijara',ru:'Аренда'}, new_building:{uz:'Yangi uylar',ru:'Новостройки'}, services:{uz:'Xizmatlar',ru:'Услуги'} }
 const steps:{uz:string;ru:string}[] = [
  {uz:'Bo‘lim',ru:'Раздел'}, {uz:'Tur',ru:'Тип'}, {uz:'Joylashuv',ru:'Расположение'}, {uz:'Xususiyatlar',ru:'Характеристики'}, {uz:'Narx',ru:'Цена'}, {uz:'Rasmlar va video',ru:'Фото и видео'}, {uz:'Tekshirish',ru:'Проверка'}
 ]
