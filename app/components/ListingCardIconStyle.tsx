@@ -25,6 +25,9 @@ export default function ListingCardIconStyle() {
         a[href^="/listings/"] [class*="mt-3"][class*="flex-wrap"][class*="text-xs"] > span:nth-child(4)::before { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2362788f' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4v-4h4v-4h4V8h4'/%3E%3Cpath d='M4 20h16'/%3E%3C/svg%3E"); }
         a[href^="/listings/"] [class*="mt-3"][class*="flex-wrap"][class*="text-xs"] > span[class*="text-emerald"]::before { display:none; }
         a[href^="/listings/"] p[class*="text-slate-500"] { color:#62788f;font-size:.78rem; }
+        a[href^="/listings/"] [data-rh-rating-card] { margin-top:7px;display:flex;align-items:center;gap:5px;width:max-content;max-width:100%;font-size:11px;line-height:1;font-weight:800;color:#b45309;white-space:nowrap; }
+        a[href^="/listings/"] [data-rh-rating-card] .rh-card-rating-star { color:#f59e0b;font-size:13px; }
+        a[href^="/listings/"] [data-rh-rating-card] .rh-card-rating-count { color:#64748b;font-weight:700; }
         [data-rh-reviews] { margin:20px 0 28px;border:1px solid #dbe5e1;border-radius:20px;background:#fff;padding:22px;box-shadow:0 4px 18px rgba(15,23,42,.05); }
         [data-rh-reviews] .rh-review-head { display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap; }
         [data-rh-reviews] .rh-review-score { display:flex;align-items:center;gap:10px;color:#047857;font-size:22px;font-weight:900; }
@@ -135,13 +138,15 @@ export default function ListingCardIconStyle() {
         const id = link.getAttribute('href')?.match(/^\/listings\/([^/?#]+)/)?.[1]
         const rating = id ? ratings[id] : null
         if (!rating || link.querySelector('[data-rh-rating-card]')) continue
-        const title = link.querySelector('h2')
-        if (!title) continue
-        const badge = document.createElement('span')
+
+        const meta = link.querySelector<HTMLElement>('[class*="mt-3"][class*="flex-wrap"][class*="text-xs"]')
+        if (!meta) continue
+
+        const badge = document.createElement('div')
         badge.setAttribute('data-rh-rating-card','true')
-        badge.className = 'ml-2 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-extrabold text-amber-700 align-middle'
-        badge.textContent = `★ ${Number(rating.average / 2).toFixed(1)} · ${Number(rating.count)}`
-        title.appendChild(badge)
+        badge.setAttribute('aria-label',`O‘rtacha baho ${Number(rating.average / 2).toFixed(1)} / 5, ${Number(rating.count)} ta baho`)
+        badge.innerHTML = `<span class="rh-card-rating-star">★</span><span>${Number(rating.average / 2).toFixed(1)}</span><span class="rh-card-rating-count">(${Number(rating.count)})</span>`
+        meta.insertAdjacentElement('afterend', badge)
       }
     }
 
