@@ -132,10 +132,17 @@ export async function PATCH(request: NextRequest) {
     const { data, error: updateError } = await db.from('listings').update(patch).eq('id',id).eq('status','moderation').select('id,listing_code,status,moderation_note,moderation_updated_at,updated_at').single()
     if (updateError) throw updateError
 
+    // The listing status change is the authoritative moderation action. Keep a history
+    // record when possible, but never report the already-completed moderation as failed
+    // because the audit insert has a separate problem.
+    let historySaved = true
     const { error: historyError } = await db.from('listing_moderation_history').insert({ listing_id:id,admin_user_id:admin?.user?.id||null,from_status:current.status,to_status:nextStatus,action,reason:reason||null,created_at:now })
-    if (historyError) throw historyError
+    if (historyError) {
+      historySaved = false
+      console.error('[admin/listings] moderation history insert failed after status update', { listingId:id, action, error:historyError })
+    }
 
-    return NextResponse.json({ listing:data })
+    return NextResponse.json({ listing:data, history_saved:historySaved })
   } catch (e) {
     console.error('[admin/listings] moderation action failed', e)
     return NextResponse.json({ error:e instanceof Error ? e.message : 'Moderatsiya amalini bajarib bo‘lmadi' }, { status:500 })
