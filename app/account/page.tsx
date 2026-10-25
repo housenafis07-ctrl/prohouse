@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 import AppIcon from '@/app/components/AppIcon'
+import PhoneVerificationModal from '@/app/components/PhoneVerificationModal'
 
 type Profile = {
   phone: string | null
@@ -30,7 +31,9 @@ const partnerLabels: Record<string, { uz: string; ru: string }> = {
 type FieldProps = { label: string; value: string | null; form: Profile; field: keyof Profile; editing: boolean; required?: boolean; disabled?: boolean; onChange: (field: keyof Profile, value: string) => void }
 
 function ProfileField({ label, value, form, field, editing, required = false, disabled = false, onChange }: FieldProps) {
-  return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</label>{editing && !disabled ? <input value={String(form[field] ?? '')} onChange={e => onChange(field, e.target.value)} required={required} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-emerald-500" /> : <p className="mt-2 font-bold text-slate-900">{value || '—'}</p>}</div>
+  const { lang } = useI18n()
+  const ru = lang === 'ru'
+  return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</label>{editing && !disabled ? <input value={String(form[field] ?? '')} onChange={e => onChange(field, e.target.value)} required={required} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-emerald-500" /> : <><p className="mt-2 font-bold text-slate-900">{value || '—'}</p>{field === 'phone' && disabled && <PhoneVerificationModal lang={lang} currentPhone={value} />}{field === 'phone' && disabled && !value && <p className="mt-2 text-xs leading-5 text-slate-500">{ru ? 'Добавьте номер телефона и подтвердите его по SMS.' : 'Telefon raqamingizni qo‘shing va SMS orqali tasdiqlang.'}</p>}</>}</div>
 }
 
 function StatusIcon({ type }: { type: 'check' | 'user' | 'home' | 'plus' | 'help' }) {
