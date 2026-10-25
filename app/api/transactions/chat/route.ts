@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
+const serviceCode = (value: string | null | undefined) => Boolean(value && (value === 'services' || value.startsWith('services_')))
+
 export async function GET(request: NextRequest) {
   try {
     const db = await createClient()
@@ -30,15 +32,20 @@ export async function GET(request: NextRequest) {
 
     const { data: listing, error: listingError } = await admin
       .from('listings')
-      .select('id,owner_id,title,price')
+      .select('id,owner_id,title,price,taxonomy_code,listing_type,property_type')
       .eq('id', conversation.listing_id)
       .maybeSingle()
     if (listingError) throw listingError
     if (!listing) return NextResponse.json({ error: 'E’lon topilmadi.' }, { status: 404 })
 
-    // A conversation participant is not automatically a transaction participant.
-    // Only the listing owner (seller) or the lead visitor (buyer) may see transaction data.
     const isSeller = user.id === listing.owner_id
+
+    const { data: category } = await admin
+      .from('listing_categories')
+      .select('entity_type')
+      .eq('code', listing.taxonomy_code || '')
+      .maybeSingle()
+    const isService = category?.entity_type === 'service' || serviceCode(listing.taxonomy_code)
 
     const { data: participantRows, error: participantsError } = await admin
       .from('conversation_participants')
@@ -46,17 +53,22 @@ export async function GET(request: NextRequest) {
       .eq('conversation_id', conversationId)
     if (participantsError) throw participantsError
 
-    const buyerCandidates = (participantRows ?? [])
-      .map(row => row.user_id)
-      .filter(id => id !== listing.owner_id)
-
-    if (!isSeller && !buyerCandidates.includes(user.id)) {
-      return NextResponse.json({ error: 'Bu tranzaksiyaga kirish huquqi yo‘q.' }, { status: 403 })
-    }
-
+    const participantIds = (participantRows ?? []).map(row => row.user_id)
+    const buyerCandidates = participantIds.filter(id => id !== listing.owner_id)
     const buyerId = isSeller ? buyerCandidates[0] : user.id
+
     if (!buyerId || buyerId === listing.owner_id) {
-      return NextResponse.json({ transaction: null, lead: null, listing, role: null, nextStatus: null, nextActor: null, canAdvance: false })
+      return NextResponse.json({
+        kind: isService ? 'service' : 'property',
+        transaction: null,
+        serviceOrder: null,
+        lead: null,
+        listing,
+        role: null,
+        nextStatus: null,
+        nextActor: null,
+        canAdvance: false,
+      })
     }
 
     const { data: lead, error: leadError } = await admin
@@ -71,8 +83,48 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
     if (leadError) throw leadError
 
-    if (!lead) return NextResponse.json({ transaction: null, lead: null, listing, role: isSeller ? 'seller' : 'buyer', nextStatus: null, nextActor: null, canAdvance: false })
+    if (!lead) return NextResponse.json({
+      kind: isService ? 'service' : 'property',
+      transaction: null,
+      serviceOrder: null,
+      lead: null,
+      listing,
+      role: isSeller ? 'seller' : 'buyer',
+      nextStatus: null,
+      nextActor: null,
+      canAdvance: false,
+    })
 
+    if (isService) {
+      const { data: serviceOrder, error: serviceOrderError } = await admin
+        .from('service_orders')
+        .select('id,listing_id,lead_id,buyer_id,seller_id,status,buyer_agreed_at,seller_agreed_at,buyer_completed_at,seller_completed_at,created_at,updated_at')
+        .eq('lead_id', lead.id)
+        .maybeSingle()
+      if (serviceOrderError) throw serviceOrderError
+
+      const role = user.id === listing.owner_id ? 'seller' : 'buyer'
+      const agreedByMe = role === 'seller' ? Boolean(serviceOrder?.seller_agreed_at) : Boolean(serviceOrder?.buyer_agreed_at)
+      const completedByMe = role === 'seller' ? Boolean(serviceOrder?.seller_completed_at) : Boolean(serviceOrder?.buyer_completed_at)
+      const agreedByBoth = Boolean(serviceOrder?.buyer_agreed_at && serviceOrder?.seller_agreed_at)
+      const completedByBoth = Boolean(serviceOrder?.buyer_completed_at && serviceOrder?.seller_completed_at)
+
+      return NextResponse.json({
+        kind: 'service',
+        transaction: null,
+        serviceOrder,
+        lead,
+        listing,
+        role,
+        agreedByMe,
+        completedByMe,
+        agreedByBoth,
+        completedByBoth,
+        canAdvance: Boolean(serviceOrder && serviceOrder.status !== 'completed' && serviceOrder.status !== 'cancelled'),
+      })
+    }
+
+    // Property/dacha flow remains unchanged.
     const { data: transaction, error: transactionError } = await admin
       .from('property_transactions')
       .select('id,listing_id,lead_id,buyer_id,seller_id,status,amount,currency,metadata,created_at,updated_at')
@@ -96,7 +148,9 @@ export async function GET(request: NextRequest) {
     const next = tx ? nextByStatus[tx.status] ?? null : null
 
     return NextResponse.json({
+      kind: 'property',
       transaction: tx,
+      serviceOrder: null,
       lead,
       listing,
       role,

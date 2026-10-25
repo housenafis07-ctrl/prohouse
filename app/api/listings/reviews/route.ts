@@ -37,15 +37,15 @@ async function getReviewContext(db: Awaited<ReturnType<typeof createClient>>, li
         .maybeSingle()
       eligible = Boolean(booking)
     } else if (isService) {
-      const { data: lead } = await db
-        .from('listing_leads')
+      const { data: serviceOrder } = await db
+        .from('service_orders')
         .select('id')
         .eq('listing_id', listingId)
-        .eq('visitor_id', userId)
-        .eq('status', 'closed')
+        .eq('buyer_id', userId)
+        .eq('status', 'completed')
         .limit(1)
         .maybeSingle()
-      eligible = Boolean(lead)
+      eligible = Boolean(serviceOrder)
     }
   }
 
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
   const context = await getReviewContext(db, listingId, user.id)
   if (!context || (!context.isService && !context.isDacha)) return NextResponse.json({ error: 'Bu turdagi e’lonni baholash mumkin emas.' }, { status: 400 })
-  if (!context.eligible) return NextResponse.json({ error: context.isDacha ? 'Baholash uchun avval bronni yakunlang.' : 'Baholash uchun xizmat bo‘yicha murojaat yakunlangan bo‘lishi kerak.' }, { status: 403 })
+  if (!context.eligible) return NextResponse.json({ error: context.isDacha ? 'Baholash uchun avval bronni yakunlang.' : 'Baholash uchun xizmat ikki tomon tomonidan yakunlangan bo‘lishi kerak.' }, { status: 403 })
 
   const { data: existing } = await db
     .from('listing_reviews')

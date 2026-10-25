@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/app/components/I18nProvider'
 
@@ -8,7 +9,33 @@ type Role = 'buyer' | 'seller'
 type Status = 'lead' | 'viewing' | 'offer' | 'deal' | 'payment' | 'contract' | 'cancelled'
 
 type Transaction = { id: string; status: Status; amount: number | null; currency: string; buyer_id: string; seller_id: string }
-type TransactionResponse = { transaction: Transaction | null; role: Role | null; nextStatus: Status | null; nextActor: Role | null; canAdvance: boolean; error?: string }
+type ServiceOrder = {
+  id: string
+  listing_id: string
+  lead_id: string
+  buyer_id: string
+  seller_id: string
+  status: 'requested' | 'agreed' | 'completed' | 'cancelled'
+  buyer_agreed_at: string | null
+  seller_agreed_at: string | null
+  buyer_completed_at: string | null
+  seller_completed_at: string | null
+}
+type TransactionResponse = {
+  kind?: 'property' | 'service'
+  transaction: Transaction | null
+  serviceOrder?: ServiceOrder | null
+  listing?: { id: string; title?: string | null } | null
+  role: Role | null
+  nextStatus?: Status | null
+  nextActor?: Role | null
+  canAdvance: boolean
+  agreedByMe?: boolean
+  completedByMe?: boolean
+  agreedByBoth?: boolean
+  completedByBoth?: boolean
+  error?: string
+}
 
 const STEPS: Status[] = ['lead', 'viewing', 'offer', 'deal', 'payment', 'contract']
 const labels: Record<Lang, Record<Status, string>> = {
@@ -28,7 +55,6 @@ export default function TransactionPanel({ conversationId }: { conversationId: s
   const [loading, setLoading] = useState(false)
   const [transitioning, setTransitioning] = useState(false)
   const [error, setError] = useState('')
-
 
   const load = useCallback(async () => {
     if (!conversationId) { setData(null); return }
@@ -70,8 +96,78 @@ export default function TransactionPanel({ conversationId }: { conversationId: s
     finally { setTransitioning(false) }
   }
 
+  const ensureServiceOrder = async () => {
+    if (!conversationId) throw new Error('Suhbat aniqlanmadi.')
+    if (data?.serviceOrder) return data.serviceOrder
+    const response = await fetch('/api/service-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId }) })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok || !result.serviceOrder) throw new Error(result.error || 'Xizmat kelishuvini boshlashda xatolik.')
+    return result.serviceOrder as ServiceOrder
+  }
+
+  const serviceAction = async (action: 'agree' | 'complete') => {
+    if (!conversationId || transitioning || !data?.kind || data.kind !== 'service') return
+    setTransitioning(true); setError('')
+    try {
+      const order = await ensureServiceOrder()
+      const response = await fetch(`/api/service-orders/${order.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || 'Xizmat bosqichini saqlab bo‘lmadi.')
+      await load()
+    } catch (e) { setError(e instanceof Error ? e.message : 'Xizmat bosqichini saqlab bo‘lmadi.') }
+    finally { setTransitioning(false) }
+  }
+
   if (!conversationId || loading && !data) return null
   if (error && !data) return <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+
+  if (data?.kind === 'service') {
+    const order = data.serviceOrder
+    const status = order?.status ?? 'requested'
+    const agreedByMe = Boolean(data.agreedByMe)
+    const agreedByBoth = Boolean(data.agreedByBoth)
+    const completedByMe = Boolean(data.completedByMe)
+    const completedByBoth = Boolean(data.completedByBoth)
+    const serviceStep = status === 'completed' || completedByBoth ? 3 : status === 'agreed' || agreedByBoth ? 2 : 1
+    const serviceLabels = lang === 'ru'
+      ? ['Заявка', 'Договорились', 'Услуга выполнена', 'Оценка']
+      : ['Murojaat', 'Kelishildi', 'Xizmat yakunlandi', 'Baholash']
+    const currentLabel = serviceLabels[serviceStep - 1]
+
+    return <div className="border-b border-emerald-100 bg-emerald-50/60 p-4 sm:p-5">
+      <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider text-emerald-600">{lang === 'ru' ? 'УСЛУГА' : 'XIZMAT'}</p>
+            <h2 className="mt-1 text-sm font-extrabold text-slate-900">{lang === 'ru' ? 'Статус оказания услуги' : 'Xizmat ko‘rsatish jarayoni'}</h2>
+            <p className="mt-1 text-xs text-slate-500">{lang === 'ru' ? 'Статус подтверждается обеими сторонами.' : 'Bosqichlar mijoz va xizmat ko‘rsatuvchi tomonidan tasdiqlanadi.'}</p>
+          </div>
+          {data.role && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{roleLabels[lang][data.role]}</span>}
+        </div>
+
+        <div className="mt-5 grid grid-cols-4 gap-1">
+          {serviceLabels.map((step, index) => <div key={step} className="min-w-0 text-center">
+            <div className={`mx-auto h-3 w-3 rounded-full ${serviceStep >= index + 1 ? 'bg-emerald-600' : 'bg-slate-200'}`} />
+            <p className={`mt-2 truncate text-[10px] font-bold ${serviceStep === index + 1 ? 'text-emerald-700' : 'text-slate-500'}`}>{step}</p>
+          </div>)}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-3">
+          <span className="text-xs text-slate-500">{lang === 'ru' ? 'Текущий статус:' : 'Hozirgi holat:'}</span>
+          <strong className="text-sm text-slate-900">{currentLabel}</strong>
+          <div className="ml-auto flex flex-wrap gap-2">
+            {status === 'requested' && !agreedByMe && <button type="button" onClick={() => void serviceAction('agree')} disabled={transitioning} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-60">{transitioning ? (lang === 'ru' ? 'Сохраняем...' : 'Saqlanmoqda...') : (lang === 'ru' ? 'Договорились' : 'Kelishildi')}</button>}
+            {status === 'requested' && agreedByMe && !agreedByBoth && <span className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500">{lang === 'ru' ? 'Ждём подтверждение второй стороны' : 'Ikkinchi tomon tasdig‘i kutilmoqda'}</span>}
+            {status === 'agreed' && !completedByMe && <button type="button" onClick={() => void serviceAction('complete')} disabled={transitioning} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-60">{transitioning ? (lang === 'ru' ? 'Сохраняем...' : 'Saqlanmoqda...') : (lang === 'ru' ? 'Услуга выполнена' : 'Xizmat yakunlandi')}</button>}
+            {status === 'agreed' && completedByMe && !completedByBoth && <span className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500">{lang === 'ru' ? 'Ждём подтверждение выполнения' : 'Xizmat bajarilgani bo‘yicha ikkinchi tomon tasdig‘i kutilmoqda'}</span>}
+            {status === 'completed' && data.listing?.id && <Link href={`/listings/${data.listing.id}#reviews`} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-emerald-700">{lang === 'ru' ? 'Оценить услугу' : 'Xizmatni baholash'}</Link>}
+          </div>
+        </div>
+        {error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}
+      </div>
+    </div>
+  }
+
   if (!data?.transaction) return (
     <div className="border-b border-emerald-100 bg-emerald-50/60 p-4 sm:p-5"><div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[11px] font-black uppercase tracking-wider text-emerald-600">{lang === 'uz' ? 'BITIM' : 'СДЕЛКА'}</p><p className="mt-1 text-sm font-extrabold text-slate-900">{lang === 'uz' ? 'E’lon bo‘yicha bitim' : 'Сделка по объявлению'}</p><p className="mt-1 text-xs text-slate-500">{lang === 'uz' ? 'Murojaat asosida bitimni boshlashingiz mumkin.' : 'Начните сделку на основе заявки.'}</p></div><button type="button" onClick={() => void createTransaction()} disabled={transitioning} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white hover:bg-emerald-700 disabled:opacity-60">{transitioning ? (lang === 'uz' ? 'Ochilyapti...' : 'Открытие...') : (lang === 'uz' ? 'Bitimni boshlash' : 'Начать сделку')}</button></div>{error && <p className="mt-2 text-xs font-medium text-red-600">{error}</p>}</div></div>
   )
