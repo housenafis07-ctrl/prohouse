@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
       .select('user_id')
       .eq('conversation_id', conversationId)
     if (participantsError) throw participantsError
-    if (!(participants ?? []).some(row => row.user_id === user.id)) return NextResponse.json({ error: 'Bu suhbatga kirish huquqi yo‘q.' }, { status: 403 })
+    const participantIds = (participants ?? []).map(row => row.user_id)
+    if (!participantIds.includes(user.id)) return NextResponse.json({ error: 'Bu suhbatga kirish huquqi yo‘q.' }, { status: 403 })
 
     const { data: listing, error: listingError } = await admin
       .from('listings')
@@ -37,7 +38,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (listingError) throw listingError
     if (!listing) return NextResponse.json({ error: 'E’lon topilmadi.' }, { status: 404 })
-    if (listing.owner_id === user.id) return NextResponse.json({ error: 'Xizmat buyurtmasi uchun mijoz aniqlanmagan.' }, { status: 400 })
 
     const { data: category } = await admin
       .from('listing_categories')
@@ -48,12 +48,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bu oqim faqat xizmat e’lonlari uchun.' }, { status: 400 })
     }
 
+    const buyerId = user.id === listing.owner_id
+      ? participantIds.find(id => id !== listing.owner_id) || null
+      : user.id
+    if (!buyerId || buyerId === listing.owner_id) return NextResponse.json({ error: 'Xizmat mijozini aniqlab bo‘lmadi.' }, { status: 400 })
+
     const { data: lead, error: leadError } = await admin
       .from('listing_leads')
       .select('id,listing_id,owner_id,visitor_id,lead_type,status')
       .eq('listing_id', listing.id)
       .eq('owner_id', listing.owner_id)
-      .eq('visitor_id', user.id)
+      .eq('visitor_id', buyerId)
       .eq('lead_type', 'chat')
       .order('created_at', { ascending: false })
       .limit(1)
