@@ -21,9 +21,13 @@ declare global {
 }
 
 /**
- * Telegram authentication is strictly background-only.
- * The Mini App must render and remain usable even when auth/network is slow
- * or unavailable. We also avoid loading Telegram's SDK on ordinary web visits.
+ * Owns the complete browser-side Telegram Mini App bootstrap:
+ * Telegram SDK -> validated initData -> RoyalHouse auth endpoint ->
+ * Supabase browser session.
+ *
+ * Authentication is intentionally non-blocking for normal web visits, but
+ * Telegram WebViews get a short retry window so a slow SDK/initData race does
+ * not leave the user permanently unauthenticated.
  */
 export default function TelegramMiniAppAuth() {
   const started = useRef(false)
@@ -33,19 +37,24 @@ export default function TelegramMiniAppAuth() {
     started.current = true
 
     let cancelled = false
-    let timer: number | undefined
+    let authTimer: number | undefined
+    let sdkPoll: number | undefined
+
+    const clearTimers = () => {
+      if (authTimer) window.clearTimeout(authTimer)
+      if (sdkPoll) window.clearInterval(sdkPoll)
+    }
 
     const authenticate = async (webApp: TelegramWebApp) => {
-      if (cancelled || !webApp.initData) return
+      if (cancelled) return
 
-      // Release the Mini App immediately. Nothing below is allowed to gate UI.
       webApp.ready()
       webApp.expand()
 
-      // Fast path: if this Telegram account already has the same browser
-      // session, there is no reason to call the auth API again. getSession()
-      // reads the existing Supabase session locally and avoids a network round
-      // trip on repeat Mini App opens.
+      // Telegram can expose the WebApp object before initData is populated.
+      // Do not abandon authentication in that race; wait briefly for it.
+      if (!webApp.initData) return
+
       try {
         const supabase = createClient()
         const { data: sessionData } = await supabase.auth.getSession()
@@ -57,16 +66,15 @@ export default function TelegramMiniAppAuth() {
           telegramUserId != null &&
           String(sessionUser.user_metadata.telegram_user_id) === String(telegramUserId)
         ) {
+          window.dispatchEvent(new CustomEvent('royalhouse:telegram-authenticated'))
           return
         }
       } catch (error) {
-        // Local session inspection is an optimization only. If it fails,
-        // continue with the normal background authentication path.
         console.warn('[telegram-miniapp-auth] session fast-path skipped', error)
       }
 
       const controller = new AbortController()
-      timer = window.setTimeout(() => controller.abort(), 4000)
+      authTimer = window.setTimeout(() => controller.abort(), 10000)
 
       try {
         const response = await fetch('/api/auth/telegram', {
@@ -80,68 +88,100 @@ export default function TelegramMiniAppAuth() {
 
         const data = await response.json().catch(() => null)
         if (cancelled || !response.ok) {
-          console.warn('[telegram-miniapp-auth] background auth failed', data?.error || response.status)
+          console.error('[telegram-miniapp-auth] authentication failed', data?.error || response.status)
           return
         }
 
         if (!data?.session?.access_token || !data?.session?.refresh_token) {
-          console.warn('[telegram-miniapp-auth] background auth returned no session')
+          console.error('[telegram-miniapp-auth] authentication returned no session')
           return
         }
 
-        // Hydrate the browser session silently. Do NOT refresh the route here:
-        // router.refresh() caused the whole Mini App tree to re-render after
-        // opening and made Telegram startup feel slow.
-        const { error } = await createClient().auth.setSession({
+        const supabase = createClient()
+        const { error } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         })
 
         if (error) {
           console.error('[telegram-miniapp-auth] setSession failed', error)
+          return
+        }
+
+        const { data: verifiedSession } = await supabase.auth.getSession()
+        if (!verifiedSession.session?.user) {
+          console.error('[telegram-miniapp-auth] session was not persisted')
+          return
+        }
+
+        window.dispatchEvent(new CustomEvent('royalhouse:telegram-authenticated'))
+
+        // The bot opens the Mini App with ?open=account when the user wants
+        // the authenticated cabinet. This redirect happens only after the
+        // browser session is confirmed, so /account never races the login.
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('open') === 'account' && window.location.pathname === '/telegram') {
+          window.location.replace('/account')
         }
       } catch (error) {
-        // Auth is optional at startup. A timeout/network error must never block
-        // or redirect the Mini App.
-        console.warn('[telegram-miniapp-auth] background authentication skipped', error)
+        if (!cancelled) console.error('[telegram-miniapp-auth] authentication error', error)
       } finally {
-        if (timer) window.clearTimeout(timer)
+        if (authTimer) window.clearTimeout(authTimer)
+        authTimer = undefined
       }
     }
 
     const start = () => {
-      if (cancelled) return true
+      if (cancelled) return false
       const webApp = window.Telegram?.WebApp
       if (!webApp) return false
 
-      // ready()/expand() happen before any network request.
-      if (webApp.initData) void authenticate(webApp)
-      else {
-        webApp.ready()
-        webApp.expand()
-      }
+      webApp.ready()
+      webApp.expand()
+      void authenticate(webApp)
       return true
     }
 
-    // If another component/page already loaded the SDK, use it immediately.
+    // The /telegram page no longer injects a second SDK instance. Still support
+    // pages where Telegram's SDK is supplied by another component.
     if (start()) {
+      sdkPoll = window.setInterval(() => {
+        const webApp = window.Telegram?.WebApp
+        if (webApp?.initData) {
+          if (sdkPoll) window.clearInterval(sdkPoll)
+          sdkPoll = undefined
+          void authenticate(webApp)
+        }
+      }, 150)
+
+      window.setTimeout(() => {
+        if (sdkPoll) {
+          window.clearInterval(sdkPoll)
+          sdkPoll = undefined
+        }
+      }, 8000)
+
       return () => {
         cancelled = true
-        if (timer) window.clearTimeout(timer)
+        clearTimers()
       }
     }
 
-    // Telegram's WebView user agents contain "Telegram". Do not inject the
-    // SDK on ordinary royalhouse.uz visits; this keeps normal page startup clean.
     const isTelegramWebView = /Telegram/i.test(navigator.userAgent)
     if (!isTelegramWebView) return
 
-    const existing = document.querySelector('script[data-telegram-web-app]') as HTMLScriptElement | null
+    const existing = document.querySelector('script[src*="telegram.org/js/telegram-web-app.js"]') as HTMLScriptElement | null
     if (existing) {
       existing.addEventListener('load', start, { once: true })
+      sdkPoll = window.setInterval(() => {
+        if (start()) {
+          if (sdkPoll) window.clearInterval(sdkPoll)
+          sdkPoll = undefined
+        }
+      }, 150)
       return () => {
         cancelled = true
-        if (timer) window.clearTimeout(timer)
+        clearTimers()
         existing.removeEventListener('load', start)
       }
     }
@@ -153,9 +193,16 @@ export default function TelegramMiniAppAuth() {
     script.onload = start
     document.head.appendChild(script)
 
+    sdkPoll = window.setInterval(() => {
+      if (start()) {
+        if (sdkPoll) window.clearInterval(sdkPoll)
+        sdkPoll = undefined
+      }
+    }, 150)
+
     return () => {
       cancelled = true
-      if (timer) window.clearTimeout(timer)
+      clearTimers()
       script.onload = null
     }
   }, [])
