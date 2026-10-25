@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 
 function escapeHtml(value: unknown) {
-  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
 function formatReviewDate(value: string) {
@@ -54,7 +54,10 @@ export default function ListingCardIconStyle() {
     if (!/^\/listings(?:\/|$)/.test(window.location.pathname)) return
 
     let disposed = false
+    let detailRetryTimer: number | null = null
+    let detailAttempts = 0
     const run = async () => {
+      if (disposed) return
       const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/listings/"]'))
       const ids = [...new Set(links.map((link) => link.getAttribute('href')?.match(/^\/listings\/([^/?#]+)/)?.[1]).filter(Boolean) as string[])]
       const currentId = window.location.pathname.match(/^\/listings\/([^/]+)\/?$/)?.[1]
@@ -66,7 +69,14 @@ export default function ListingCardIconStyle() {
         const data = await response.json().catch(() => null)
         if (!data?.reviewable || document.querySelector('[data-rh-reviews]')) return
         const heading = document.querySelector('h1[data-no-global-i18n]') || document.querySelector('h1')
-        if (!heading) return
+        if (!heading) {
+          if (detailAttempts < 20) {
+            detailAttempts += 1
+            detailRetryTimer = window.setTimeout(() => { detailRetryTimer = null; void run().catch(() => {}) }, 250)
+          }
+          return
+        }
+        detailAttempts = 0
 
         const box = document.createElement('section')
         box.setAttribute('data-rh-reviews','true')
@@ -138,20 +148,26 @@ export default function ListingCardIconStyle() {
         const id = link.getAttribute('href')?.match(/^\/listings\/([^/?#]+)/)?.[1]
         const rating = id ? ratings[id] : null
         if (!rating || link.querySelector('[data-rh-rating-card]')) continue
-
         const meta = link.querySelector<HTMLElement>('[class*="mt-3"][class*="flex-wrap"][class*="text-xs"]')
-        if (!meta) continue
-
+        const location = link.querySelector<HTMLElement>('p[class*="text-slate-500"], p[class*="text-slate-400"], [data-listing-location]')
+        const anchor = meta || location || (link.lastElementChild as HTMLElement | null)
+        if (!anchor) continue
         const badge = document.createElement('div')
         badge.setAttribute('data-rh-rating-card','true')
-        badge.setAttribute('aria-label',`O‘rtacha baho ${Number(rating.average / 2).toFixed(1)} / 5, ${Number(rating.count)} ta baho`)
-        badge.innerHTML = `<span class="rh-card-rating-star">★</span><span>${Number(rating.average / 2).toFixed(1)}</span><span class="rh-card-rating-count">(${Number(rating.count)})</span>`
-        meta.insertAdjacentElement('afterend', badge)
+        const score = Number(rating.average) / 2
+        const count = Number(rating.count) || 0
+        badge.setAttribute('aria-label',`O‘rtacha baho ${score.toFixed(1)} / 5, ${count} ta baho`)
+        badge.innerHTML = `<span class="rh-card-rating-star">★</span><span>${score.toFixed(1)}</span><span class="rh-card-rating-count">(${count})</span>`
+        if (meta || location) anchor.insertAdjacentElement('afterend', badge)
+        else anchor.appendChild(badge)
       }
     }
 
     void run().catch(() => {})
-    return () => { disposed = true }
+    return () => {
+      disposed = true
+      if (detailRetryTimer !== null) window.clearTimeout(detailRetryTimer)
+    }
   }, [])
 
   return null
