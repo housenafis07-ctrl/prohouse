@@ -52,11 +52,15 @@ export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }
   const [active, setActive] = useState<ViewKey>('grid')
 
   const selectView = (view: ViewKey) => {
+    if (view === 'table') {
+      window.location.assign('/listings?tab=sale&view=table')
+      return
+    }
+
     setActive(view)
     window.dispatchEvent(new CustomEvent('royalhouse-home-view-change', { detail: { view } }))
 
-    // Never navigate away from the home page on mobile/PWA. Keep the AI search
-    // and the rest of the home screen in place while the selected view changes.
+    // Keep the AI search and the rest of the home screen in place on mobile/PWA.
     if (window.matchMedia('(max-width: 767px), (pointer: coarse)').matches) {
       const search = document.querySelector('[data-royalhouse-mobile-search]') as HTMLElement | null
       search?.scrollIntoView({ behavior: 'smooth', block: 'center' })
