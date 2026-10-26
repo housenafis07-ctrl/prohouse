@@ -74,17 +74,27 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
     markersRef.current.forEach(marker => marker.remove())
     markersRef.current = []
     const points = listings.filter(x => x.latitude != null && x.longitude != null)
+    const formatMapPrice = (price: number, currency: string) => {
+      const normalizedCurrency = String(currency || '').trim().toUpperCase()
+      if (normalizedCurrency === 'UZS' || normalizedCurrency === 'SUM' || normalizedCurrency === "SO'M" || normalizedCurrency === 'SOM') {
+        const millions = price / 1_000_000
+        const formattedMillions = new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: millions % 1 === 0 ? 0 : 1 }).format(millions)
+        return `${formattedMillions} mln so‘m`
+      }
+      return formatMoney(price, currency, lang)
+    }
     points.forEach(item => {
+      const mapPrice = formatMapPrice(item.price, item.currency)
       const marker = window.L.marker([Number(item.latitude), Number(item.longitude)], {
         icon: window.L.divIcon({
           className: 'royalhouse-home-price-marker',
-          html: `<span style="display:inline-block;background:#059669;color:#fff;border:2px solid #fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 10px rgba(0,0,0,.22);font-size:11px;font-weight:900;line-height:1;white-space:nowrap">${formatMoney(item.price, item.currency, lang)}</span>`,
+          html: `<span style="display:inline-block;background:#059669;color:#fff;border:2px solid #fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 10px rgba(0,0,0,.22);font-size:11px;font-weight:900;line-height:1;white-space:nowrap">${mapPrice}</span>`,
           iconAnchor: [0, 12],
         }),
       }).addTo(mapRef.current)
       const title = String(item.title).replace(/</g, '&lt;').replace(/>/g, '&gt;')
       const detailsLabel = lang === 'ru' ? 'Подробнее →' : 'Batafsil →'
-      marker.bindPopup(`<div style="min-width:180px"><b>${formatMoney(item.price, item.currency, lang)}</b><br/><span>${title}</span><br/><a href="/listings/${item.id}" style="display:inline-block;margin-top:8px;color:#059669;font-weight:700">${detailsLabel}</a></div>`)
+      marker.bindPopup(`<div style="min-width:180px"><b>${mapPrice}</b><br/><span>${title}</span><br/><a href="/listings/${item.id}" style="display:inline-block;margin-top:8px;color:#059669;font-weight:700">${detailsLabel}</a></div>`)
       markersRef.current.push(marker)
     })
     if (points.length > 1) mapRef.current.fitBounds(window.L.latLngBounds(points.map(x => [Number(x.latitude), Number(x.longitude)])).pad(0.12))
@@ -146,7 +156,7 @@ export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }
         html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(1) { grid-column: 2 !important; grid-row: 3 !important; padding: 0 14px 10px !important; }
         html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(2) { display: none !important; }
         html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/'])::before { content: 'E’lon / Narx / Manzil'; padding-left: 122px; white-space: nowrap; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/']::before { display: none; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/']::before { display: none !important; }
       }
     `}</style>
     <div className="rh-home-view-switcher mx-auto max-w-[1400px] px-4 pt-7 sm:pt-8">
