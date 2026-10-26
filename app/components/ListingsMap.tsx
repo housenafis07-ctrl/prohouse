@@ -59,6 +59,12 @@ const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
 
 type Lang = 'uz' | 'ru'
 
+function getMapLang(fallback: Lang): Lang {
+  if (typeof window === 'undefined') return fallback
+  const stored = window.localStorage.getItem('royalhouse-lang')
+  return stored === 'ru' || stored === 'uz' ? stored : fallback
+}
+
 function formatMoney(value: number, currency: string, lang: Lang) {
   if (currency === 'USD') {
     return `${new Intl.NumberFormat('ru-RU').format(Number(value))} $`
@@ -69,9 +75,7 @@ function formatMoney(value: number, currency: string, lang: Lang) {
     maximumFractionDigits: millions % 1 === 0 ? 0 : 1,
   }).format(millions)
 
-  // Russian map labels must always use the Cyrillic abbreviation.
-  // Keep the Uzbek label unchanged when the UI language is Uzbek.
-  return lang === 'ru' ? `${formatted} млн сум` : `${formatted} mln so‘m`
+  return lang === 'ru' ? `${formatted} млн сум` : `${formatted} mln so‘m`
 }
 
 function listingQuery(searchParams: string, bounds?: { getSouth: () => number; getNorth: () => number; getWest: () => number; getEast: () => number }) {
@@ -91,7 +95,7 @@ function listingQuery(searchParams: string, bounds?: { getSouth: () => number; g
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
+  return value.replace(/[&<>\"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
 }
 
 function popupHtml(item: MapListing, lang: Lang) {
@@ -178,15 +182,16 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
 
         const map = mapRef.current
         const leaflet = window.L
+        const mapLang = getMapLang(lang)
         const markers = rows.map((item) => {
           const marker = leaflet.marker([item.latitude, item.longitude], {
             icon: leaflet.divIcon({
               className: 'prohouse-price-marker',
-              html: `<span style="display:inline-block;background:${item.is_trusted_seller ? '#059669' : '#ffd51a'};color:${item.is_trusted_seller ? '#fff' : '#111827'};border:2px solid #fff;border-radius:999px;padding:6px 9px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-size:11px;font-weight:900;white-space:nowrap">${formatMoney(item.price, item.currency, lang)}</span>`,
+              html: `<span style="display:inline-block;background:${item.is_trusted_seller ? '#059669' : '#ffd51a'};color:${item.is_trusted_seller ? '#fff' : '#111827'};border:2px solid #fff;border-radius:999px;padding:6px 9px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-size:11px;font-weight:900;white-space:nowrap">${formatMoney(item.price, item.currency, mapLang)}</span>`,
               iconAnchor: [0, 16],
             }),
           }).addTo(map)
-          marker.bindPopup(popupHtml(item, lang), { maxWidth: 280 })
+          marker.bindPopup(popupHtml(item, mapLang), { maxWidth: 280 })
           return marker
         })
         markerLayerRef.current = markers
