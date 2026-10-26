@@ -119,10 +119,13 @@ export async function POST(request: NextRequest) {
 
   const { data: created, error } = await db
     .from('listing_reviews')
-    .insert({ listing_id: listingId, author_id: user.id, rating, body: review || null, status: 'published' })
+    .insert({ listing_id: listingId, reviewed_user_id: context.listing.owner_id, author_id: user.id, rating, body: review || null, status: 'published' })
     .select('id,rating,body,created_at')
     .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Siz bu e’lonni allaqachon baholagansiz.' }, { status: 409 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ review: created }, { status: 201 })
 }
