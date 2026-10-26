@@ -8,18 +8,6 @@ if (typeof document !== 'undefined' && !document.getElementById('prohouse-listin
   const style = document.createElement('style')
   style.id = 'prohouse-listing-view-controls'
   style.textContent = `
-    button[title="Jadval"], button[title="Ro‘yxat"], button[title="Znachki"],
-    button[title="Таблица"], button[title="Список"], button[title="Карточки"] {
-      font-size: 0 !important;
-      width: 44px;
-      min-width: 44px;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
-      justify-content: center;
-    }
-    button[title="Jadval"]::before, button[title="Таблица"]::before { content: '▦'; font-size: 20px; line-height: 1; }
-    button[title="Ro‘yxat"]::before, button[title="Список"]::before { content: '☰'; font-size: 19px; line-height: 1; }
-    button[title="Znachki"]::before, button[title="Карточки"]::before { content: '▥'; font-size: 20px; line-height: 1; }
     @keyframes prohouse-map-marker-reveal {
       from { opacity: .35; transform: scale(.86); }
       to { opacity: 1; transform: scale(1); }
@@ -119,8 +107,8 @@ function priceBandColor(band: PriceBand) {
 
 function markerIcon(item: MapListing, band: PriceBand, lang: Lang, zoom: number) {
   const colors = priceBandColor(band)
-  const showPrice = zoom >= 12
-  const fullPrice = zoom >= 13
+  const showPrice = zoom >= 13
+  const fullPrice = zoom >= 14
   const price = escapeHtml(formatMoney(item.price, item.currency, lang))
 
   if (!showPrice) {
@@ -156,7 +144,7 @@ function listingQuery(searchParams: string, bounds?: { getSouth: () => number; g
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
+  return value.replace(/[&<>\"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
 }
 
 function popupHtml(item: MapListing, lang: Lang) {
