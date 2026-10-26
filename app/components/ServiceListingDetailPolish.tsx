@@ -2,81 +2,60 @@
 
 import { useEffect } from 'react'
 
-function normalize(value: string) {
-  return value.replace(/\s+/g, ' ').trim().toLowerCase()
-}
-
-function isServiceListingPage() {
-  return /^\/listings\/[^/]+\/?$/.test(window.location.pathname)
-}
+const normalize = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase()
 
 export default function ServiceListingDetailPolish() {
   useEffect(() => {
-    if (!isServiceListingPage()) return
+    if (!/^\/listings\/[^/]+\/?$/.test(window.location.pathname)) return
 
-    const hideServiceTypeRow = () => {
-      // The detail card is rendered by ListingDetailClient. For service
-      // listings its property-type field is a small card containing:
-      //   <span>Mulk turi</span><b>service</b>
-      // (or the Russian equivalent for the label). Target the VALUE first;
-      // this is much more reliable than guessing a parent from text selectors.
-      const serviceValues = Array.from(document.querySelectorAll<HTMLElement>('b')).filter(
-        (element) => normalize(element.textContent || '') === 'service',
-      )
+    const hideServicePropertyTypeCard = () => {
+      // ListingDetailClient renders the metadata area as:
+      // .mt-6.grid.grid-cols-2.gap-3 > .rounded-xl.bg-slate-50.p-3
+      // A service listing has property_type="service" and its card is the
+      // card containing <span>Mulk turi</span><b>service</b>.
+      const grids = Array.from(document.querySelectorAll<HTMLElement>('.mt-6.grid.grid-cols-2.gap-3'))
 
-      for (const value of serviceValues) {
-        // The field card is the closest ancestor that contains the label and
-        // the service value but is still small enough not to hide the entire
-        // listing panel.
-        let node: HTMLElement | null = value.parentElement
+      for (const grid of grids) {
+        const cards = Array.from(grid.children).filter(
+          (child): child is HTMLElement => child instanceof HTMLElement,
+        )
 
-        for (let depth = 0; depth < 5 && node; depth += 1) {
-          const text = normalize(node.textContent || '')
-          const hasUzLabel = text.includes('mulk turi')
-          const hasRuLabel = text.includes('тип недвижимости')
-          const hasOnlyServiceField =
-            (hasUzLabel || hasRuLabel) &&
-            text.includes('service') &&
-            text.length <= 80
+        for (const card of cards) {
+          const label = card.querySelector<HTMLElement>('span')
+          const value = card.querySelector<HTMLElement>('b')
+          if (!label || !value) continue
 
-          if (hasOnlyServiceField) {
-            node.style.setProperty('display', 'none', 'important')
-            node.setAttribute('data-rh-service-type-hidden', 'true')
-            break
+          const labelText = normalize(label.textContent || '')
+          const valueText = normalize(value.textContent || '')
+          const isPropertyType = labelText === 'mulk turi' || labelText === 'тип недвижимости'
+
+          if (isPropertyType && valueText === 'service') {
+            card.style.setProperty('display', 'none', 'important')
+            card.setAttribute('data-rh-service-property-type-hidden', 'true')
           }
-
-          node = node.parentElement
-        }
-      }
-
-      // Fallback for a future markup variant where the value is not a <b>.
-      const labels = Array.from(document.querySelectorAll<HTMLElement>('span,div,p,dt,dd')).filter((element) => {
-        const text = normalize(element.textContent || '')
-        return text === 'mulk turi' || text === 'тип недвижимости'
-      })
-
-      for (const label of labels) {
-        let node: HTMLElement | null = label.parentElement
-        for (let depth = 0; depth < 4 && node; depth += 1) {
-          const text = normalize(node.textContent || '')
-          if ((text === 'mulk turi service' || text === 'тип недвижимости service') && text.length < 80) {
-            node.style.setProperty('display', 'none', 'important')
-            node.setAttribute('data-rh-service-type-hidden', 'true')
-            break
-          }
-          node = node.parentElement
         }
       }
     }
 
-    hideServiceTypeRow()
+    const run = () => {
+      hideServicePropertyTypeCard()
+      window.requestAnimationFrame(hideServicePropertyTypeCard)
+    }
 
-    // The detail UI can be hydrated/translated after this component mounts.
-    // Re-run when React or the language runtime changes the DOM.
-    const observer = new MutationObserver(hideServiceTypeRow)
+    run()
+    const t0 = window.setTimeout(run, 0)
+    const t1 = window.setTimeout(run, 250)
+    const t2 = window.setTimeout(run, 1000)
+
+    const observer = new MutationObserver(hideServicePropertyTypeCard)
     observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
-    return () => observer.disconnect()
+    return () => {
+      window.clearTimeout(t0)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      observer.disconnect()
+    }
   }, [])
 
   return null
