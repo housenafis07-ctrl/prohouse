@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useI18n } from './I18nProvider'
 
 if (typeof document !== 'undefined' && !document.getElementById('prohouse-listing-view-controls')) {
   const style = document.createElement('style')
@@ -68,7 +67,6 @@ function formatMoney(value: number, currency: string, lang: Lang) {
   const formatted = new Intl.NumberFormat('ru-RU', {
     maximumFractionDigits: millions % 1 === 0 ? 0 : 1,
   }).format(millions)
-
   return lang === 'ru' ? `${formatted} млн сум` : `${formatted} mln so‘m`
 }
 
@@ -111,27 +109,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [apiReady, setApiReady] = useState(false)
-  const { lang } = useI18n()
-  const [mapLang, setMapLang] = useState<Lang>(lang)
-  const [mapLangReady, setMapLangReady] = useState(false)
-
-  useEffect(() => {
-    const syncMapLang = () => {
-      const stored = window.localStorage.getItem('royalhouse-lang')
-      const next: Lang = stored === 'ru' || stored === 'uz' ? stored : lang
-      setMapLang(next)
-      setMapLangReady(true)
-    }
-
-    syncMapLang()
-    window.addEventListener('royalhouse-language-change', syncMapLang)
-    window.addEventListener('storage', syncMapLang)
-
-    return () => {
-      window.removeEventListener('royalhouse-language-change', syncMapLang)
-      window.removeEventListener('storage', syncMapLang)
-    }
-  }, [lang])
+  const lang: Lang = typeof window !== 'undefined' && localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
 
   useEffect(() => {
     if (window.L) {
@@ -175,7 +153,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   }, [apiReady])
 
   useEffect(() => {
-    if (!apiReady || !mapRef.current || !window.L || !mapLangReady) return
+    if (!apiReady || !mapRef.current || !window.L) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -185,7 +163,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
       try {
         const response = await fetch(`/api/listings/map?${listingQuery(searchParams, bounds)}`, { cache: 'no-store' })
         const result = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(result.error || (mapLang === 'ru' ? 'Не удалось загрузить объявления на карте.' : 'Xaritadagi e’lonlarni yuklab bo‘lmadi.'))
+        if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Не удалось загрузить объявления на карте.' : 'Xaritadagi e’lonlarni yuklab bo‘lmadi.'))
         if (cancelled || !window.L || !mapRef.current) return
 
         const rows = (result.data || []) as MapListing[]
@@ -200,16 +178,16 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
           const marker = leaflet.marker([item.latitude, item.longitude], {
             icon: leaflet.divIcon({
               className: 'prohouse-price-marker',
-              html: `<span style="display:inline-block;background:${item.is_trusted_seller ? '#059669' : '#ffd51a'};color:${item.is_trusted_seller ? '#fff' : '#111827'};border:2px solid #fff;border-radius:999px;padding:6px 9px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-size:11px;font-weight:900;white-space:nowrap">${formatMoney(item.price, item.currency, mapLang)}</span>`,
+              html: `<span style="display:inline-block;background:${item.is_trusted_seller ? '#059669' : '#ffd51a'};color:${item.is_trusted_seller ? '#fff' : '#111827'};border:2px solid #fff;border-radius:999px;padding:6px 9px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-size:11px;font-weight:900;white-space:nowrap">${formatMoney(item.price, item.currency, lang)}</span>`,
               iconAnchor: [0, 16],
             }),
           }).addTo(map)
-          marker.bindPopup(popupHtml(item, mapLang), { maxWidth: 280 })
+          marker.bindPopup(popupHtml(item, lang), { maxWidth: 280 })
           return marker
         })
         markerLayerRef.current = markers
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : (mapLang === 'ru' ? 'Карта не загрузилась.' : 'Xarita yuklanmadi.'))
+        if (!cancelled) setError(e instanceof Error ? e.message : (lang === 'ru' ? 'Карта не загрузилась.' : 'Xarita yuklanmadi.'))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -234,14 +212,14 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
       mapRef.current?.off('moveend', handler)
       boundsHandlerRef.current = null
     }
-  }, [apiReady, searchParams, mapLang, mapLangReady])
+  }, [apiReady, searchParams])
 
   if (error && !apiReady) {
     return (
       <div className="flex min-h-[520px] items-center justify-center rounded-3xl border bg-white p-8 text-center">
         <div className="max-w-md">
           <div className="text-4xl">⌖</div>
-          <h2 className="mt-3 text-lg font-black">{mapLang === 'ru' ? 'Карта не загрузилась' : 'Xarita yuklanmadi'}</h2>
+          <h2 className="mt-3 text-lg font-black">{lang === 'ru' ? 'Карта не загрузилась' : 'Xarita yuklanmadi'}</h2>
           <p className="mt-2 text-sm text-slate-500">{error}</p>
         </div>
       </div>
@@ -253,10 +231,10 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
       <div ref={containerRef} className="h-[62vh] min-h-[520px] w-full md:h-[680px]" />
       <div className="absolute left-4 top-4 flex max-w-[calc(100%-2rem)] flex-wrap gap-2">
         <div className="rounded-full bg-white/95 px-4 py-2 text-xs font-black shadow-lg backdrop-blur">
-          {loading ? (mapLang === 'ru' ? 'Загрузка…' : 'Yuklanmoqda…') : `${listings.length}${listings.length >= 500 ? '+' : ''} ${mapLang === 'ru' ? 'объявлений на карте' : 'ta e’lon xaritada'}`}
+          {loading ? (lang === 'ru' ? 'Загрузка…' : 'Yuklanmoqda…') : `${listings.length}${listings.length >= 500 ? '+' : ''} ${lang === 'ru' ? 'объявлений на карте' : 'ta e’lon xaritada'}`}
         </div>
         <button onClick={() => router.push(`/listings?${searchParams}`)} className="rounded-full bg-white/95 px-4 py-2 text-xs font-black shadow-lg backdrop-blur">
-          {mapLang === 'ru' ? 'Вернуться к списку' : 'Ro‘yxatga qaytish'}
+          {lang === 'ru' ? 'Вернуться к списку' : 'Ro‘yxatga qaytish'}
         </button>
       </div>
       {error && apiReady && <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-lg">{error}</div>}
