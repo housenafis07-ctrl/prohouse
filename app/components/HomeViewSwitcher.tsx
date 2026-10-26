@@ -124,7 +124,7 @@ export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }
     if (key === 'list') return lang === 'ru' ? 'Список' : 'Ro‘yxat'
     if (key === 'grid') return lang === 'ru' ? 'Сетка' : 'Znachki'
     if (key === 'table') return lang === 'ru' ? 'Таблица' : 'Jadval'
-    return lang === 'ru' ? 'В карте' : 'Xaritada'
+    return lang === 'ru' ? 'На карте' : 'Xaritada'
   }
 
   return <>
