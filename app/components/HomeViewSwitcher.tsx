@@ -37,6 +37,7 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
   const mapRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
   const [listings, setListings] = useState<MapListing[]>([])
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -48,62 +49,166 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
     return () => { cancelled = true }
   }, [])
 
+  // Create Leaflet exactly once. Listing refreshes only update markers.
   useEffect(() => {
     const init = () => {
       if (!ref.current || !window.L || mapRef.current) return
-      const points = listings.filter(x => x.latitude != null && x.longitude != null)
-      const center: [number, number] = points.length ? [Number(points[0].latitude), Number(points[0].longitude)] : [41.2995, 69.2401]
-      const map = window.L.map(ref.current, { scrollWheelZoom: true }).setView(center, points.length ? 12 : 11)
+      const map = window.L.map(ref.current, { scrollWheelZoom: true, zoomControl: false }).setView([41.2995, 69.2401], 7)
+      window.L.control.zoom({ position: 'topleft' }).addTo(map)
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
       mapRef.current = map
+      setMapReady(true)
       setTimeout(() => map.invalidateSize(), 100)
     }
+
     const cssId = 'leaflet-css-home-view'
-    if (!document.getElementById(cssId)) { const link = document.createElement('link'); link.id = cssId; link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(link) }
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement('link')
+      link.id = cssId
+      link.rel = 'stylesheet'
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+      document.head.appendChild(link)
+    }
+
     if (window.L) init()
     else {
       const existing = document.getElementById('leaflet-js-home-view') as HTMLScriptElement | null
       if (existing) existing.addEventListener('load', init)
-      else { const script = document.createElement('script'); script.id = 'leaflet-js-home-view'; script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.async = true; script.onload = init; document.body.appendChild(script) }
+      else {
+        const script = document.createElement('script')
+        script.id = 'leaflet-js-home-view'
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        script.async = true
+        script.onload = init
+        document.body.appendChild(script)
+      }
     }
-    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
-  }, [listings])
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+      }
+      setMapReady(false)
+    }
+  }, [])
 
   useEffect(() => {
-    if (!mapRef.current || !window.L) return
+    if (!mapReady || !mapRef.current || !window.L) return
+
+    const map = mapRef.current
     markersRef.current.forEach(marker => marker.remove())
     markersRef.current = []
-    const points = listings.filter(x => x.latitude != null && x.longitude != null)
-    const formatMapPrice = (price: number, currency: string) => {
-      const normalizedCurrency = String(currency || '').trim().toUpperCase()
-      if (normalizedCurrency === 'UZS' || normalizedCurrency === 'SUM' || normalizedCurrency === "SO'M" || normalizedCurrency === 'SOM') {
-        const millions = price / 1_000_000
-        const formattedMillions = new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { maximumFractionDigits: millions % 1 === 0 ? 0 : 1 }).format(millions)
-        return `${formattedMillions} ${lang === 'ru' ? 'млн сум' : 'mln so‘m'}`
-      }
-      return formatMoney(price, currency, lang)
+
+    const points = listings.filter(item =>
+      item.latitude != null &&
+      item.longitude != null &&
+      Number.isFinite(Number(item.latitude)) &&
+      Number.isFinite(Number(item.longitude))
+    )
+
+    const currencyKey = (currency: string) => {
+      const value = String(currency || '').trim().toUpperCase()
+      if (value === 'UZS' || value === 'SUM' || value === 'SOM' || value === "SO'M") return 'UZS'
+      if (value === 'USD' || value === '$') return 'USD'
+      return value || 'OTHER'
     }
+
+    const grouped = new Map<string, number[]>()
     points.forEach(item => {
-      const mapPrice = formatMapPrice(item.price, item.currency)
+      const key = currencyKey(item.currency)
+      const value = Number(item.price)
+      if (!Number.isFinite(value)) return
+      const values = grouped.get(key) || []
+      values.push(value)
+      grouped.set(key, values)
+    })
+
+    const thresholds = new Map<string, { low: number; high: number }>()
+    grouped.forEach((values, key) => {
+      values.sort((a, b) => a - b)
+      const at = (ratio: number) => values[Math.max(0, Math.min(values.length - 1, Math.round((values.length - 1) * ratio)))]
+      thresholds.set(key, { low: at(1 / 3), high: at(2 / 3) })
+    })
+
+    const markerColor = (item: MapListing) => {
+      const threshold = thresholds.get(currencyKey(item.currency))
+      if (!threshold) return '#eab308'
+      const value = Number(item.price)
+      if (value <= threshold.low) return '#22c55e'
+      if (value >= threshold.high) return '#ef4444'
+      return '#eab308'
+    }
+
+    const escapeHtml = (value: string) => value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+
+    const formatMapPrice = (item: MapListing) => {
+      const normalized = currencyKey(item.currency)
+      if (normalized === 'UZS') {
+        const millions = Number(item.price) / 1_000_000
+        const maximumFractionDigits = millions < 1 ? 1 : millions % 1 === 0 ? 0 : 1
+        const formatted = new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { maximumFractionDigits }).format(millions)
+        return `${formatted} ${lang === 'ru' ? 'млн сум' : 'mln so‘m'}`
+      }
+      return formatMoney(Number(item.price), item.currency, lang)
+    }
+
+    points.forEach(item => {
+      const color = markerColor(item)
+      const priceLabel = formatMapPrice(item)
+      const title = escapeHtml(String(item.title || ''))
+      const detailsLabel = lang === 'ru' ? 'Подробнее →' : 'Batafsil →'
+
       const marker = window.L.marker([Number(item.latitude), Number(item.longitude)], {
         icon: window.L.divIcon({
-          className: 'royalhouse-home-price-marker',
-          html: `<span style="display:inline-block;background:#059669;color:#fff;border:2px solid #fff;border-radius:999px;padding:5px 8px;box-shadow:0 2px 10px rgba(0,0,0,.22);font-size:11px;font-weight:900;line-height:1;white-space:nowrap">${mapPrice}</span>`,
-          iconAnchor: [0, 12],
+          className: 'royalhouse-home-map-marker',
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+          html: `<span data-rh-dot="true" style="position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:999px;background:${color};border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.28);transition:transform .25s ease"></span><span data-rh-price="true" style="position:absolute;left:9px;top:-13px;opacity:0;transform:translateX(-4px) scale(.96);transition:opacity .35s ease,transform .35s ease;background:${color};color:#fff;border:2px solid #fff;border-radius:999px;padding:4px 8px;box-shadow:0 2px 9px rgba(0,0,0,.2);font-size:11px;font-weight:900;line-height:1;white-space:nowrap">${priceLabel}</span>`,
         }),
-      }).addTo(mapRef.current)
-      const title = String(item.title).replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const detailsLabel = lang === 'ru' ? 'Подробнее →' : 'Batafsil →'
-      marker.bindPopup(`<div style="min-width:180px"><b>${mapPrice}</b><br/><span>${title}</span><br/><a href="/listings/${item.id}" style="display:inline-block;margin-top:8px;color:#059669;font-weight:700">${detailsLabel}</a></div>`)
+      }).addTo(map)
+
+      marker.bindPopup(`<div style="min-width:180px"><b>${escapeHtml(priceLabel)}</b><br/><span>${title}</span><br/><a href="/listings/${encodeURIComponent(item.id)}" style="display:inline-block;margin-top:8px;color:#059669;font-weight:700">${detailsLabel}</a></div>`)
       markersRef.current.push(marker)
     })
-    if (points.length > 1) mapRef.current.fitBounds(window.L.latLngBounds(points.map(x => [Number(x.latitude), Number(x.longitude)])).pad(0.12))
-    else if (points.length === 1) mapRef.current.setView([Number(points[0].latitude), Number(points[0].longitude)], 15)
-    setTimeout(() => mapRef.current?.invalidateSize(), 100)
-  }, [listings, lang])
 
-  const count = listings.filter(x => x.latitude != null && x.longitude != null).length
-  return <div className="relative mt-5 h-[520px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm sm:h-[620px]"><div ref={ref} className="absolute inset-0" />{count === 0 && <div className="absolute left-4 right-4 top-4 z-[500] rounded-xl bg-white/95 px-4 py-3 text-sm font-semibold text-slate-600 shadow">{lang === 'ru' ? 'Для активных объявлений нет координат для карты.' : 'Faol e’lonlarda xarita koordinatasi mavjud emas.'}</div>}<div className="absolute bottom-4 left-4 z-[500] rounded-xl bg-white/95 px-4 py-3 shadow"><p className="text-xs font-semibold text-slate-500">{count} ta e’lon xaritada</p></div></div>
+    const updateLabelVisibility = () => {
+      const opacity = Math.max(0, Math.min(1, (map.getZoom() - 9.5) / 3.5))
+      markersRef.current.forEach(marker => {
+        const element = marker.getElement?.()
+        if (!element) return
+        const price = element.querySelector('[data-rh-price]') as HTMLElement | null
+        const dot = element.querySelector('[data-rh-dot]') as HTMLElement | null
+        if (price) {
+          price.style.opacity = String(opacity)
+          price.style.transform = `translateX(${opacity > 0 ? '0' : '-4px'}) scale(${0.96 + opacity * 0.04})`
+          price.style.pointerEvents = opacity > 0.25 ? 'auto' : 'none'
+        }
+        if (dot) dot.style.transform = `scale(${0.95 + opacity * 0.15})`
+      })
+    }
+
+    map.on('zoom zoomend', updateLabelVisibility)
+    setTimeout(updateLabelVisibility, 50)
+
+    if (points.length === 1) {
+      map.setView([Number(points[0].latitude), Number(points[0].longitude)], 14)
+    } else {
+      const currentZoom = map.getZoom()
+      if (currentZoom < 6 || currentZoom > 12) map.setView([41.2995, 69.2401], 7)
+    }
+
+    setTimeout(() => map.invalidateSize(), 100)
+    return () => map.off('zoom zoomend', updateLabelVisibility)
+  }, [listings, lang, mapReady])
+
+  const count = listings.filter(item => item.latitude != null && item.longitude != null).length
+  return <div className="relative mt-5 h-[520px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm sm:h-[620px]"><div ref={ref} className="absolute inset-0" /><style>{`.royalhouse-home-map-marker{background:transparent!important;border:0!important;}`}</style>{count === 0 && <div className="absolute left-4 right-4 top-4 z-[500] rounded-xl bg-white/95 px-4 py-3 text-sm font-semibold text-slate-600 shadow">{lang === 'ru' ? 'Для активных объявлений нет координат для карты.' : 'Faol e’lonlarda xarita koordinatasi mavjud emas.'}</div>}<div className="absolute bottom-4 left-4 z-[500] rounded-xl bg-white/95 px-4 py-3 shadow"><p className="text-xs font-semibold text-slate-500">{lang === 'ru' ? `${count} объявлений на карте` : `${count} ta e’lon xaritada`}</p></div></div>
 }
 
 export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }) {
