@@ -79,7 +79,18 @@ export async function GET(request: NextRequest) {
 
   const rows = reviews || []
   const average = rows.length ? Math.round((rows.reduce((sum, row) => sum + Number(row.rating || 0), 0) / rows.length) * 10) / 10 : null
-  const mine = user ? rows.find((row) => row.author_id === user.id) : null
+  let mine: { id: string; rating: number; body: string | null } | null = null
+
+  if (user) {
+    const { data: mineRow } = await db
+      .from('listing_reviews')
+      .select('id,rating,body')
+      .eq('listing_id', listingId)
+      .eq('author_id', user.id)
+      .eq('status', 'published')
+      .maybeSingle()
+    if (mineRow) mine = mineRow
+  }
 
   return NextResponse.json({
     reviewable: true,
@@ -87,7 +98,7 @@ export async function GET(request: NextRequest) {
     average,
     count: rows.length,
     reviews: rows.map(({ author_id: _authorId, ...row }) => row),
-    mine: mine ? { id: mine.id, rating: mine.rating, body: mine.body } : null,
+    mine,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -119,10 +130,13 @@ export async function POST(request: NextRequest) {
 
   const { data: created, error } = await db
     .from('listing_reviews')
-    .insert({ listing_id: listingId, author_id: user.id, rating, body: review || null, status: 'published' })
+    .insert({ listing_id: listingId, reviewed_user_id: context.listing.owner_id, author_id: user.id, rating, body: review || null, status: 'published' })
     .select('id,rating,body,created_at')
     .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Siz bu e’lonni allaqachon baholagansiz.' }, { status: 409 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   return NextResponse.json({ review: created }, { status: 201 })
 }
