@@ -1,7 +1,6 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import type { Lang } from '@/lib/i18n'
 
 type ReviewRow = { id: string; rating: number; body: string | null; created_at: string }
@@ -35,39 +34,38 @@ export default function ListingDetailReviews({ listingId, lang }: { listingId: s
       try {
         const response = await fetch(`/api/listings/reviews?listingId=${encodeURIComponent(listingId)}`, { cache: 'no-store' })
         const payload = await response.json().catch(() => null)
-        if (response.ok && payload && Array.isArray(payload.reviews)) {
-          if (!disposed) {
-            setData({
-              average: payload.average == null ? null : Number(payload.average),
-              count: Number(payload.count || payload.reviews.length),
-              reviews: payload.reviews,
-              eligible: Boolean(payload.eligible),
-            })
-            setLoading(false)
-          }
+
+        if (disposed) return
+
+        // The reviews API is the single source of truth for reviewability.
+        // Never fall back to listing_reviews directly: non-reviewable listings
+        // must not render a review section even when old reviews exist.
+        if (!response.ok || !payload || !Array.isArray(payload.reviews)) {
+          setData(null)
+          setError(lang === 'ru' ? 'Не удалось загрузить отзывы.' : 'Otzivlarni yuklab bo‘lmadi.')
+          setLoading(false)
           return
         }
-      } catch {}
 
-      try {
-        const db = createClient()
-        const { data: rows, error: dbError } = await db
-          .from('listing_reviews')
-          .select('id,rating,body,created_at')
-          .eq('listing_id', listingId)
-          .eq('status', 'published')
-          .order('created_at', { ascending: false })
-          .limit(50)
-        if (dbError) throw dbError
-        const reviews = (rows || []) as ReviewRow[]
-        const average = reviews.length
-          ? Math.round((reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length) * 10) / 10
-          : null
-        if (!disposed) setData({ average, count: reviews.length, reviews, eligible: false })
+        if (payload.reviewable !== true) {
+          setData(null)
+          setLoading(false)
+          return
+        }
+
+        setData({
+          average: payload.average == null ? null : Number(payload.average),
+          count: Number(payload.count || payload.reviews.length),
+          reviews: payload.reviews,
+          eligible: Boolean(payload.eligible),
+        })
+        setLoading(false)
       } catch {
-        if (!disposed) setError(lang === 'ru' ? 'Не удалось загрузить отзывы.' : 'Otzivlarni yuklab bo‘lmadi.')
-      } finally {
-        if (!disposed) setLoading(false)
+        if (!disposed) {
+          setData(null)
+          setError(lang === 'ru' ? 'Не удалось загрузить отзывы.' : 'Otzivlarni yuklab bo‘lmadi.')
+          setLoading(false)
+        }
       }
     }
 
@@ -95,10 +93,9 @@ export default function ListingDetailReviews({ listingId, lang }: { listingId: s
       if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Не удалось отправить оценку.' : 'Bahoni yuborib bo‘lmadi.'))
       const created = result.review as ReviewRow
       setData((current) => {
-        const reviews = current ? [created, ...current.reviews] : [created]
-        const average = reviews.length
-          ? Math.round((reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length) * 10) / 10
-          : null
+        if (!current) return current
+        const reviews = [created, ...current.reviews]
+        const average = Math.round((reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length) * 10) / 10
         return { average, count: reviews.length, reviews, eligible: false }
       })
       setSelectedRating(0)
