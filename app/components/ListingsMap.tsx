@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useI18n } from './I18nProvider'
 
 if (typeof document !== 'undefined' && !document.getElementById('prohouse-listing-view-controls')) {
   const style = document.createElement('style')
@@ -88,7 +87,7 @@ function listingQuery(searchParams: string, bounds?: { getSouth: () => number; g
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
+  return value.replace(/[&<>\"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
 }
 
 function popupHtml(item: MapListing, lang: Lang) {
@@ -110,7 +109,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [apiReady, setApiReady] = useState(false)
-  const { lang } = useI18n()
+  const lang: Lang = typeof window !== 'undefined' && localStorage.getItem('prohouse-lang') === 'ru' ? 'ru' : 'uz'
 
   useEffect(() => {
     if (window.L) {
@@ -213,7 +212,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
       mapRef.current?.off('moveend', handler)
       boundsHandlerRef.current = null
     }
-  }, [apiReady, searchParams, lang])
+  }, [apiReady, searchParams])
 
   if (error && !apiReady) {
     return (
