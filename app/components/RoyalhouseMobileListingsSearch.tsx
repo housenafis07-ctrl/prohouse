@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 
 function SearchIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-5 w-5"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
@@ -30,7 +30,7 @@ function buildUrl(filters: Filters, fallbackTab: string) {
 
 export default function RoyalhouseMobileListingsSearch() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const [tab, setTab] = useState('sale')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Result[]>([])
   const [filters, setFilters] = useState<Filters | null>(null)
@@ -38,13 +38,14 @@ export default function RoyalhouseMobileListingsSearch() {
 
   useEffect(() => {
     if (pathname !== '/listings') return
+    const currentTab = new URLSearchParams(window.location.search).get('tab') || 'sale'
+    setTab(currentTab)
     document.body.classList.add('rh-mobile-listings')
     return () => document.body.classList.remove('rh-mobile-listings')
   }, [pathname])
 
   if (pathname !== '/listings') return null
 
-  const tab = searchParams.get('tab') || 'sale'
   const localeRu = typeof document !== 'undefined' && document.documentElement.lang === 'ru'
 
   const search = async (submit = false) => {
