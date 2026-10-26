@@ -1,11 +1,10 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import type { Lang } from '@/lib/i18n'
 
 type ReviewRow = { id: string; rating: number; body: string | null; created_at: string }
-type ReviewData = { average: number | null; count: number; reviews: ReviewRow[]; eligible: boolean }
+type ReviewData = { average: number | null; count: number; reviews: ReviewRow[]; eligible: boolean; reviewable: boolean }
 
 function formatReviewDate(value: string) {
   try {
@@ -35,39 +34,37 @@ export default function ListingDetailReviews({ listingId, lang }: { listingId: s
       try {
         const response = await fetch(`/api/listings/reviews?listingId=${encodeURIComponent(listingId)}`, { cache: 'no-store' })
         const payload = await response.json().catch(() => null)
+
         if (response.ok && payload && Array.isArray(payload.reviews)) {
           if (!disposed) {
+            const reviewable = Boolean(payload.reviewable)
             setData({
               average: payload.average == null ? null : Number(payload.average),
               count: Number(payload.count || payload.reviews.length),
               reviews: payload.reviews,
               eligible: Boolean(payload.eligible),
+              reviewable,
             })
             setLoading(false)
           }
           return
         }
-      } catch {}
 
-      try {
-        const db = createClient()
-        const { data: rows, error: dbError } = await db
-          .from('listing_reviews')
-          .select('id,rating,body,created_at')
-          .eq('listing_id', listingId)
-          .eq('status', 'published')
-          .order('created_at', { ascending: false })
-          .limit(50)
-        if (dbError) throw dbError
-        const reviews = (rows || []) as ReviewRow[]
-        const average = reviews.length
-          ? Math.round((reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length) * 10) / 10
-          : null
-        if (!disposed) setData({ average, count: reviews.length, reviews, eligible: false })
+        // Do not fall back to a direct listing_reviews query here.
+        // The API is the single source of truth for whether this listing type
+        // is allowed to display or accept reviews. A direct table fallback used
+        // to make reviews appear on apartments/houses when the API returned a
+        // non-reviewable response.
+        if (!disposed) {
+          setData({ average: null, count: 0, reviews: [], eligible: false, reviewable: false })
+          setLoading(false)
+        }
       } catch {
-        if (!disposed) setError(lang === 'ru' ? 'Не удалось загрузить отзывы.' : 'Otzivlarni yuklab bo‘lmadi.')
-      } finally {
-        if (!disposed) setLoading(false)
+        if (!disposed) {
+          setData({ average: null, count: 0, reviews: [], eligible: false, reviewable: false })
+          setError(lang === 'ru' ? 'Не удалось загрузить отзывы.' : 'Otzivlarni yuklab bo‘lmadi.')
+          setLoading(false)
+        }
       }
     }
 
@@ -77,7 +74,7 @@ export default function ListingDetailReviews({ listingId, lang }: { listingId: s
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (selectedRating < 1 || submitting) return
+    if (!data?.reviewable || selectedRating < 1 || submitting) return
 
     setSubmitting(true)
     setError('')
@@ -95,11 +92,10 @@ export default function ListingDetailReviews({ listingId, lang }: { listingId: s
       if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Не удалось отправить оценку.' : 'Bahoni yuborib bo‘lmadi.'))
       const created = result.review as ReviewRow
       setData((current) => {
-        const reviews = current ? [created, ...current.reviews] : [created]
-        const average = reviews.length
-          ? Math.round((reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length) * 10) / 10
-          : null
-        return { average, count: reviews.length, reviews, eligible: false }
+        if (!current?.reviewable) return current
+        const reviews = [created, ...current.reviews]
+        const average = Math.round((reviews.reduce((sum, row) => sum + Number(row.rating || 0), 0) / reviews.length) * 10) / 10
+        return { ...current, average, count: reviews.length, reviews, eligible: false }
       })
       setSelectedRating(0)
       setReviewText('')
@@ -110,7 +106,7 @@ export default function ListingDetailReviews({ listingId, lang }: { listingId: s
     }
   }
 
-  if (loading || !data) return null
+  if (loading || !data || !data.reviewable) return null
 
   const average = data.average == null ? '—' : data.average.toFixed(1)
   const count = Number(data.count || 0)
