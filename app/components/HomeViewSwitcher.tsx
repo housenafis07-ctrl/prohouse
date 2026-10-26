@@ -1,10 +1,14 @@
-import Link from 'next/link'
+'use client'
+
+import { useState } from 'react'
 
 const views = [
-  { key: 'list', href: '/listings?tab=sale&view=list', icon: 'list' },
-  { key: 'grid', href: '/listings?tab=sale&view=grid', icon: 'grid' },
-  { key: 'table', href: '/listings?tab=sale&view=table', icon: 'table' },
+  { key: 'list', icon: 'list' },
+  { key: 'grid', icon: 'grid' },
+  { key: 'table', icon: 'table' },
 ] as const
+
+type ViewKey = (typeof views)[number]['key'] | 'map'
 
 function Icon({ type }: { type: (typeof views)[number]['icon'] }) {
   if (type === 'list') {
@@ -45,32 +49,59 @@ function MapIcon() {
 }
 
 export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }) {
+  const [active, setActive] = useState<ViewKey>('grid')
+
+  const selectView = (view: ViewKey) => {
+    setActive(view)
+    window.dispatchEvent(new CustomEvent('royalhouse-home-view-change', { detail: { view } }))
+
+    // Never navigate away from the home page on mobile/PWA. Keep the AI search
+    // and the rest of the home screen in place while the selected view changes.
+    if (window.matchMedia('(max-width: 767px), (pointer: coarse)').matches) {
+      const search = document.querySelector('[data-royalhouse-mobile-search]') as HTMLElement | null
+      search?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const input = search?.querySelector('input[aria-label="Aqlli qidiruv"], input[aria-label="Умный поиск"]') as HTMLInputElement | null
+      input?.focus({ preventScroll: true })
+    }
+  }
+
+  const label = (key: ViewKey) => {
+    if (key === 'list') return lang === 'ru' ? 'Список' : 'Ro‘yxat'
+    if (key === 'grid') return lang === 'ru' ? 'Сетка' : 'Znachki'
+    if (key === 'table') return lang === 'ru' ? 'Таблица' : 'Jadval'
+    return lang === 'ru' ? 'В карте' : 'Xaritada'
+  }
+
   return (
     <div className="mx-auto max-w-[1400px] px-4 pt-7 sm:pt-8">
       <div className="flex w-fit items-center rounded-2xl bg-[#ffd51a] p-1.5 shadow-sm sm:rounded-full">
         <div className="flex items-center gap-1">
           {views.map((view) => (
-            <Link
+            <button
               key={view.key}
-              href={view.href}
-              aria-label={view.key === 'list' ? 'Ro‘yxat' : view.key === 'grid' ? 'Znachki' : 'Jadval'}
-              title={view.key === 'list' ? 'Ro‘yxat' : view.key === 'grid' ? 'Znachki' : 'Jadval'}
-              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-900/80 transition hover:bg-white/50 sm:h-10 sm:w-10 sm:rounded-full"
+              type="button"
+              onClick={() => selectView(view.key)}
+              aria-label={label(view.key)}
+              title={label(view.key)}
+              aria-pressed={active === view.key}
+              className={`flex h-11 w-11 items-center justify-center rounded-xl text-slate-900/80 transition hover:bg-white/50 sm:h-10 sm:w-10 sm:rounded-full ${active === view.key ? 'bg-white/55' : ''}`}
             >
               <Icon type={view.icon} />
-            </Link>
+            </button>
           ))}
         </div>
         <div className="ml-1 border-l border-slate-900/20 pl-1">
-          <Link
-            href="/listings?tab=sale&view=map"
-            aria-label={lang === 'ru' ? 'В карте' : 'Xaritada'}
-            title={lang === 'ru' ? 'В карте' : 'Xaritada'}
-            className="flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-black text-slate-900 transition hover:bg-white/50 sm:h-10 sm:rounded-full sm:px-4"
+          <button
+            type="button"
+            onClick={() => selectView('map')}
+            aria-label={label('map')}
+            title={label('map')}
+            aria-pressed={active === 'map'}
+            className={`flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-black text-slate-900 transition hover:bg-white/50 sm:h-10 sm:rounded-full sm:px-4 ${active === 'map' ? 'bg-white/55' : ''}`}
           >
             <MapIcon />
-            <span>{lang === 'ru' ? 'В карте' : 'Xaritada'}</span>
-          </Link>
+            <span>{label('map')}</span>
+          </button>
         </div>
       </div>
     </div>
