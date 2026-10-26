@@ -2,23 +2,29 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import ListingResultsMap from '@/app/components/ListingResultsMap'
 import { formatMoney } from '@/lib/money'
-
-type ViewKey = 'list' | 'grid' | 'table' | 'map'
-type MapListing = {
-  id: string
-  title: string
-  price: number
-  currency: string
-  latitude: number | null
-  longitude: number | null
-}
 
 const views = [
   { key: 'list', icon: 'list' },
   { key: 'grid', icon: 'grid' },
   { key: 'table', icon: 'table' },
 ] as const
+
+type ViewKey = (typeof views)[number]['key'] | 'map'
+type HomeListing = {
+  id: string
+  title: string
+  title_ru?: string | null
+  price: number
+  currency: string
+  city: string | null
+  district: string | null
+  area_m2: number | null
+  rooms: number | null
+  latitude: number | null
+  longitude: number | null
+}
 
 function Icon({ type }: { type: (typeof views)[number]['icon'] }) {
   if (type === 'list') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="h-5 w-5"><path d="M8 6h13M8 12h13M8 18h13" strokeLinecap="round" /><path d="M3 6h.01M3 12h.01M3 18h.01" strokeLinecap="round" strokeWidth="3" /></svg>
@@ -30,79 +36,67 @@ function MapIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="h-5 w-5"><path d="M12 21s7-6.1 7-12A7 7 0 1 0 5 9c0 5.9 7 12 7 12Z" /><circle cx="12" cy="9" r="2.2" /></svg>
 }
 
-declare global { interface Window { L?: any } }
-
-function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
-  const [listings, setListings] = useState<MapListing[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const db = createClient()
-      const { data } = await db.from('listing_search').select('id,title,price,currency,latitude,longitude').eq('status', 'active').order('published_at', { ascending: false }).limit(100)
-      if (!cancelled) setListings((data || []) as MapListing[])
-    })()
-    return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    const init = () => {
-      if (!ref.current || !window.L || mapRef.current) return
-      const points = listings.filter(x => x.latitude != null && x.longitude != null)
-      const center: [number, number] = points.length ? [Number(points[0].latitude), Number(points[0].longitude)] : [41.2995, 69.2401]
-      const map = window.L.map(ref.current, { scrollWheelZoom: true }).setView(center, points.length ? 12 : 11)
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
-      mapRef.current = map
-      setTimeout(() => map.invalidateSize(), 100)
-    }
-    const cssId = 'leaflet-css-home-view'
-    if (!document.getElementById(cssId)) { const link = document.createElement('link'); link.id = cssId; link.rel = 'stylesheet'; link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(link) }
-    if (window.L) init()
-    else {
-      const existing = document.getElementById('leaflet-js-home-view') as HTMLScriptElement | null
-      if (existing) existing.addEventListener('load', init)
-      else { const script = document.createElement('script'); script.id = 'leaflet-js-home-view'; script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.async = true; script.onload = init; document.body.appendChild(script) }
-    }
-    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
-  }, [listings])
-
-  useEffect(() => {
-    if (!mapRef.current || !window.L) return
-    markersRef.current.forEach(marker => marker.remove())
-    markersRef.current = []
-    const points = listings.filter(x => x.latitude != null && x.longitude != null)
-    points.forEach(item => {
-      const marker = window.L.marker([Number(item.latitude), Number(item.longitude)]).addTo(mapRef.current)
-      const title = String(item.title).replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const detailsLabel = lang === 'ru' ? 'Подробнее →' : 'Batafsil →'
-      marker.bindPopup(`<div style="min-width:180px"><b>${formatMoney(item.price, item.currency, lang)}</b><br/><span>${title}</span><br/><a href="/listings/${item.id}" style="display:inline-block;margin-top:8px;color:#059669;font-weight:700">${detailsLabel}</a></div>`)
-      markersRef.current.push(marker)
-    })
-    if (points.length > 1) mapRef.current.fitBounds(window.L.latLngBounds(points.map(x => [Number(x.latitude), Number(x.longitude)])).pad(0.12))
-    else if (points.length === 1) mapRef.current.setView([Number(points[0].latitude), Number(points[0].longitude)], 15)
-    setTimeout(() => mapRef.current?.invalidateSize(), 100)
-  }, [listings, lang])
-
-  const count = listings.filter(x => x.latitude != null && x.longitude != null).length
-  return <div className="relative mt-5 h-[520px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm sm:h-[620px]"><div ref={ref} className="absolute inset-0" />{count === 0 && <div className="absolute left-4 right-4 top-4 z-[500] rounded-xl bg-white/95 px-4 py-3 text-sm font-semibold text-slate-600 shadow">{lang === 'ru' ? 'Для активных объявлений нет координат для карты.' : 'Faol e’lonlarda xarita koordinatasi mavjud emas.'}</div>}<div className="absolute bottom-4 left-4 z-[500] rounded-xl bg-white/95 px-4 py-3 shadow"><p className="text-xs font-semibold text-slate-500">{count} ta e’lon xaritada</p></div></div>
-}
-
 export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }) {
   const [active, setActive] = useState<ViewKey>('grid')
+  const [listings, setListings] = useState<HomeListing[]>([])
+  const [loading, setLoading] = useState(false)
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const hiddenNodesRef = useRef<HTMLElement[]>([])
 
-  useEffect(() => {
-    document.documentElement.dataset.royalhouseHomeView = active
-    return () => { delete document.documentElement.dataset.royalhouseHomeView }
-  }, [active])
+  const restoreHomeContent = () => {
+    hiddenNodesRef.current.forEach((node) => {
+      node.style.removeProperty('display')
+      node.removeAttribute('aria-hidden')
+    })
+    hiddenNodesRef.current = []
+  }
+
+  const isolateHomeView = (view: ViewKey) => {
+    restoreHomeContent()
+    if (view === 'grid' || !hostRef.current) return
+    const main = hostRef.current.closest('main')
+    if (!main) return
+
+    let branch: HTMLElement = hostRef.current
+    while (branch.parentElement && branch.parentElement !== main) branch = branch.parentElement
+    if (branch.parentElement !== main) return
+
+    let next = branch.nextElementSibling as HTMLElement | null
+    while (next) {
+      hiddenNodesRef.current.push(next)
+      next.style.setProperty('display', 'none', 'important')
+      next.setAttribute('aria-hidden', 'true')
+      next = next.nextElementSibling as HTMLElement | null
+    }
+  }
+
+  const loadListings = async () => {
+    setLoading(true)
+    try {
+      const db = createClient()
+      const { data, error } = await db
+        .from('listing_search')
+        .select('id,title,title_ru,price,currency,city,district,area_m2,rooms,latitude,longitude')
+        .eq('status', 'active')
+        .order('published_at', { ascending: false })
+        .limit(100)
+      if (error) throw error
+      setListings((data || []) as HomeListing[])
+    } catch {
+      setListings([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const selectView = (view: ViewKey) => {
     setActive(view)
-    document.documentElement.dataset.royalhouseHomeView = view
     window.dispatchEvent(new CustomEvent('royalhouse-home-view-change', { detail: { view } }))
+    isolateHomeView(view)
+    if (view !== 'grid' && listings.length === 0 && !loading) void loadListings()
   }
+
+  useEffect(() => () => restoreHomeContent(), [])
 
   const label = (key: ViewKey) => {
     if (key === 'list') return lang === 'ru' ? 'Список' : 'Ro‘yxat'
@@ -111,39 +105,11 @@ export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }
     return lang === 'ru' ? 'В карте' : 'Xaritada'
   }
 
-  return <>
-    <style>{`
-      html[data-royalhouse-home-view='list'] section:has(a[href^='/listings/']) > div:has(> a[href^='/listings/']) { grid-template-columns: minmax(0, 1fr) !important; }
-      html[data-royalhouse-home-view='list'] a[href^='/listings/'] { display: grid !important; grid-template-columns: 150px minmax(0, 1fr) !important; min-height: 150px !important; }
-      html[data-royalhouse-home-view='list'] a[href^='/listings/'] > div:first-child { aspect-ratio: auto !important; height: 100% !important; }
+  const title = (item: HomeListing) => lang === 'ru' ? (item.title_ru || item.title) : item.title
+  const location = (item: HomeListing) => [item.city, item.district].filter(Boolean).join(', ')
 
-      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/']) > div:has(> a[href^='/listings/']) { display: block !important; overflow: hidden !important; border: 1px solid rgb(226 232 240) !important; border-radius: 1rem !important; background: white !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] { display: grid !important; grid-template-columns: 112px minmax(220px, 2fr) minmax(180px, 1.25fr) minmax(150px, 1fr) !important; grid-template-rows: minmax(52px, auto) minmax(38px, auto) !important; align-items: center !important; min-height: 118px !important; border-radius: 0 !important; border: 0 !important; border-bottom: 1px solid rgb(226 232 240) !important; box-shadow: none !important; transform: none !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/']:last-child { border-bottom: 0 !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:first-child { grid-column: 1 !important; grid-row: 1 / 3 !important; align-self: stretch !important; aspect-ratio: auto !important; height: auto !important; min-height: 118px !important; border-radius: 0 !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child { display: contents !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] h3 { grid-column: 4 !important; grid-row: 1 / 3 !important; margin: 0 !important; padding: 0 18px !important; font-size: 16px !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > p { grid-column: 2 !important; grid-row: 1 !important; margin: 0 !important; padding: 0 12px !important; font-size: 14px !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(1) { grid-column: 3 !important; grid-row: 1 !important; margin: 0 !important; padding: 0 12px !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(2) { grid-column: 3 !important; grid-row: 2 !important; margin: 0 !important; padding: 0 12px !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(3) { display: none !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/']::before { content: 'Rasm'; position: absolute; top: -42px; left: 0; width: 112px; padding: 12px; font-size: 11px; font-weight: 800; color: rgb(100 116 139); }
-      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/']) { padding-top: 52px !important; }
-      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/'])::before { content: 'E’lon                                      Manzil                                  Narx'; display: block; position: absolute; z-index: 2; height: 42px; margin-top: -52px; left: 0; right: 0; padding: 13px 18px 11px 124px; background: rgb(248 250 252); border: 1px solid rgb(226 232 240); border-bottom: 0; border-radius: 1rem 1rem 0 0; white-space: pre; font-size: 11px; font-weight: 800; color: rgb(100 116 139); }
-
-      html[data-royalhouse-home-view='map'] section:has(a[href^='/listings/']) { display: none !important; }
-      @media (max-width: 767px), (pointer: coarse) {
-        html[data-royalhouse-home-view='list'] a[href^='/listings/'], html[data-royalhouse-home-view='table'] a[href^='/listings/'] { grid-template-columns: 108px minmax(0, 1fr) !important; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/'] { grid-template-rows: auto auto auto !important; min-height: 128px !important; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/'] h3 { grid-column: 2 !important; grid-row: 1 !important; padding: 10px 14px 0 !important; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > p { grid-column: 2 !important; grid-row: 2 !important; padding: 0 14px !important; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(1) { grid-column: 2 !important; grid-row: 3 !important; padding: 0 14px 10px !important; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(2) { display: none !important; }
-        html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/'])::before { content: 'E’lon / Narx / Manzil'; padding-left: 122px; white-space: nowrap; }
-        html[data-royalhouse-home-view='table'] a[href^='/listings/']::before { display: none; }
-      }
-    `}</style>
-    <div className="rh-home-view-switcher mx-auto max-w-[1400px] px-4 pt-7 sm:pt-8">
+  return (
+    <div ref={hostRef} data-royalhouse-view-switcher className="mx-auto max-w-[1400px] px-4 pt-7 sm:pt-8">
       <div className="flex w-fit items-center rounded-2xl bg-[#ffd51a] p-1.5 shadow-sm sm:rounded-full">
         <div className="flex items-center gap-1">
           {views.map((view) => <button key={view.key} type="button" onClick={() => selectView(view.key)} aria-label={label(view.key)} title={label(view.key)} aria-pressed={active === view.key} className={`flex h-11 w-11 items-center justify-center rounded-xl text-slate-900/80 transition hover:bg-white/50 sm:h-10 sm:w-10 sm:rounded-full ${active === view.key ? 'bg-white/55' : ''}`}><Icon type={view.icon} /></button>)}
@@ -152,7 +118,25 @@ export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }
           <button type="button" onClick={() => selectView('map')} aria-label={label('map')} title={label('map')} aria-pressed={active === 'map'} className={`flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-black text-slate-900 transition hover:bg-white/50 sm:h-10 sm:rounded-full sm:px-4 ${active === 'map' ? 'bg-white/55' : ''}`}><MapIcon /><span>{label('map')}</span></button>
         </div>
       </div>
-      {active === 'map' && <HomeMap lang={lang} />}
+
+      {active !== 'grid' && (
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {active === 'map' ? (
+            <div className="h-[620px]"><ListingResultsMap listings={listings.map((item) => ({ id: item.id, title: title(item), price: item.price, currency: item.currency, latitude: item.latitude, longitude: item.longitude }))} /></div>
+          ) : active === 'table' ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left">
+                <thead className="bg-slate-50 text-xs font-black uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4">{lang === 'ru' ? 'Объявление' : 'E’lon'}</th><th className="px-5 py-4">{lang === 'ru' ? 'Цена' : 'Narx'}</th><th className="px-5 py-4">{lang === 'ru' ? 'Расположение' : 'Joylashuv'}</th><th className="px-5 py-4">{lang === 'ru' ? 'Площадь' : 'Maydon'}</th><th className="px-5 py-4">{lang === 'ru' ? 'Комнаты' : 'Xonalar'}</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">{listings.map((item) => <tr key={item.id} className="hover:bg-slate-50"><td className="px-5 py-4 font-bold text-slate-900"><a href={`/listings/${item.id}`} className="hover:text-emerald-600">{title(item)}</a></td><td className="whitespace-nowrap px-5 py-4 font-black text-emerald-600">{formatMoney(item.price, item.currency, lang)}</td><td className="px-5 py-4 text-sm text-slate-600">{location(item) || '—'}</td><td className="px-5 py-4 text-sm text-slate-600">{item.area_m2 ? `${item.area_m2} m²` : '—'}</td><td className="px-5 py-4 text-sm text-slate-600">{item.rooms ?? '—'}</td></tr>)}</tbody>
+              </table>
+              {loading && <p className="px-5 py-6 text-sm text-slate-500">{lang === 'ru' ? 'Загрузка объявлений…' : 'E’lonlar yuklanmoqda…'}</p>}
+              {!loading && listings.length === 0 && <p className="px-5 py-8 text-sm text-slate-500">{lang === 'ru' ? 'Объявления не найдены.' : 'E’lonlar topilmadi.'}</p>}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">{listings.map((item) => <a key={item.id} href={`/listings/${item.id}`} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-slate-50"><div className="min-w-0"><p className="truncate font-bold">{title(item)}</p><p className="mt-1 text-sm text-slate-500">{location(item) || '—'}</p></div><p className="shrink-0 font-black text-emerald-600">{formatMoney(item.price, item.currency, lang)}</p></a>)}{loading && <p className="px-5 py-6 text-sm text-slate-500">{lang === 'ru' ? 'Загрузка объявлений…' : 'E’lonlar yuklanmoqda…'}</p>}</div>
+          )}
+        </div>
+      )}
     </div>
-  </>
+  )
 }
