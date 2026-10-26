@@ -37,6 +37,7 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
   const mapRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
   const [listings, setListings] = useState<MapListing[]>([])
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -48,8 +49,7 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
     return () => { cancelled = true }
   }, [])
 
-  // The Leaflet instance is created once. Listing updates must never recreate the
-  // map, because that was causing zoom/position instability after refresh.
+  // Create Leaflet exactly once. Listing refreshes only update markers.
   useEffect(() => {
     const init = () => {
       if (!ref.current || !window.L || mapRef.current) return
@@ -57,6 +57,7 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
       window.L.control.zoom({ position: 'topleft' }).addTo(map)
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
       mapRef.current = map
+      setMapReady(true)
       setTimeout(() => map.invalidateSize(), 100)
     }
 
@@ -88,11 +89,12 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
         mapRef.current.remove()
         mapRef.current = null
       }
+      setMapReady(false)
     }
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current || !window.L) return
+    if (!mapReady || !mapRef.current || !window.L) return
 
     const map = mapRef.current
     markersRef.current.forEach(marker => marker.remove())
@@ -112,8 +114,6 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
       return value || 'OTHER'
     }
 
-    // Price colours are calculated separately for each currency so USD and UZS
-    // values are never compared against each other.
     const grouped = new Map<string, number[]>()
     points.forEach(item => {
       const key = currencyKey(item.currency)
@@ -177,8 +177,6 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
       markersRef.current.push(marker)
     })
 
-    // At a country/region view only the coloured dots are visible. As the user
-    // zooms in, the price pills fade in smoothly instead of appearing abruptly.
     const updateLabelVisibility = () => {
       const opacity = Math.max(0, Math.min(1, (map.getZoom() - 9.5) / 3.5))
       markersRef.current.forEach(marker => {
@@ -198,8 +196,6 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
     map.on('zoom zoomend', updateLabelVisibility)
     setTimeout(updateLabelVisibility, 50)
 
-    // Keep the familiar Uzbekistan overview instead of fitting to an outlier
-    // coordinate, which previously pushed the map out to Central Asia.
     if (points.length === 1) {
       map.setView([Number(points[0].latitude), Number(points[0].longitude)], 14)
     } else {
@@ -209,10 +205,9 @@ function HomeMap({ lang }: { lang: 'uz' | 'ru' }) {
 
     setTimeout(() => map.invalidateSize(), 100)
     return () => map.off('zoom zoomend', updateLabelVisibility)
-  }, [listings, lang])
+  }, [listings, lang, mapReady])
 
   const count = listings.filter(item => item.latitude != null && item.longitude != null).length
-
   return <div className="relative mt-5 h-[520px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm sm:h-[620px]"><div ref={ref} className="absolute inset-0" /><style>{`.royalhouse-home-map-marker{background:transparent!important;border:0!important;}`}</style>{count === 0 && <div className="absolute left-4 right-4 top-4 z-[500] rounded-xl bg-white/95 px-4 py-3 text-sm font-semibold text-slate-600 shadow">{lang === 'ru' ? 'Для активных объявлений нет координат для карты.' : 'Faol e’lonlarda xarita koordinatasi mavjud emas.'}</div>}<div className="absolute bottom-4 left-4 z-[500] rounded-xl bg-white/95 px-4 py-3 shadow"><p className="text-xs font-semibold text-slate-500">{lang === 'ru' ? `${count} объявлений на карте` : `${count} ta e’lon xaritada`}</p></div></div>
 }
 
