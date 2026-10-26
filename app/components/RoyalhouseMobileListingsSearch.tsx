@@ -68,7 +68,7 @@ export default function RoyalhouseMobileListingsSearch() {
   }
 
   return <>
-    <style>{`@media (max-width:767px){body.rh-mobile-listings .rh-desktop-listing-filters{display:none!important}}@media (min-width:768px){.rh-mobile-listings-search{display:none!important}}`}</style>
+    <style>{`@media (max-width:767px){body.rh-mobile-listings aside{display:none!important}}@media (min-width:768px){.rh-mobile-listings-search{display:none!important}}`}</style>
     <div className="rh-mobile-listings-search mx-auto w-full max-w-[1440px] px-3 pt-2 sm:px-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         <div className="flex items-center gap-2">
