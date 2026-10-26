@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useI18n } from './I18nProvider'
+import { LANG_EVENT, getStoredLang, type Lang } from '@/lib/i18n'
 
 if (typeof document !== 'undefined' && !document.getElementById('prohouse-listing-view-controls')) {
   const style = document.createElement('style')
@@ -57,8 +57,6 @@ const TASHKENT: [number, number] = [41.2995, 69.2401]
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
 
-type Lang = 'uz' | 'ru'
-
 function formatMoney(value: number, currency: string, lang: Lang) {
   if (currency === 'USD') {
     return `${new Intl.NumberFormat('ru-RU').format(Number(value))} $`
@@ -106,11 +104,23 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   const mapRef = useRef<LeafletMap | null>(null)
   const boundsHandlerRef = useRef<(() => void) | null>(null)
   const markerLayerRef = useRef<LeafletMarker[]>([])
+  const requestIdRef = useRef(0)
   const [listings, setListings] = useState<MapListing[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [apiReady, setApiReady] = useState(false)
-  const { lang } = useI18n()
+  const [lang, setLang] = useState<Lang>(() => getStoredLang())
+
+  useEffect(() => {
+    const syncLanguage = () => setLang(getStoredLang())
+    window.addEventListener(LANG_EVENT, syncLanguage)
+    window.addEventListener('storage', syncLanguage)
+    syncLanguage()
+    return () => {
+      window.removeEventListener(LANG_EVENT, syncLanguage)
+      window.removeEventListener('storage', syncLanguage)
+    }
+  }, [])
 
   useEffect(() => {
     if (window.L) {
@@ -157,6 +167,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
     if (!apiReady || !mapRef.current || !window.L) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
+    const requestId = ++requestIdRef.current
 
     const loadMarkers = async (bounds: ReturnType<LeafletMap['getBounds']>) => {
       setLoading(true)
@@ -165,7 +176,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
         const response = await fetch(`/api/listings/map?${listingQuery(searchParams, bounds)}`, { cache: 'no-store' })
         const result = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Не удалось загрузить объявления на карте.' : 'Xaritadagi e’lonlarni yuklab bo‘lmadi.'))
-        if (cancelled || !window.L || !mapRef.current) return
+        if (cancelled || requestId !== requestIdRef.current || !window.L || !mapRef.current) return
 
         const rows = (result.data || []) as MapListing[]
         setListings(rows)
@@ -188,9 +199,9 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
         })
         markerLayerRef.current = markers
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : (lang === 'ru' ? 'Карта не загрузилась.' : 'Xarita yuklanmadi.'))
+        if (!cancelled && requestId === requestIdRef.current) setError(e instanceof Error ? e.message : (lang === 'ru' ? 'Карта не загрузилась.' : 'Xarita yuklanmadi.'))
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled && requestId === requestIdRef.current) setLoading(false)
       }
     }
 
