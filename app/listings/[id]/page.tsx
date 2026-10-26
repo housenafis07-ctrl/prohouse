@@ -5,6 +5,7 @@ import ListingDetailReviewsMount from './ListingDetailReviewsMount'
 import ListingViewTracker from './ListingViewTracker'
 import ListingOwnerStats from './ListingOwnerStats'
 import ListingIdentityBar from './ListingIdentityBar'
+import ServiceListingDetailPolish from '@/app/components/ServiceListingDetailPolish'
 import { createClient } from '@/utils/supabase/server'
 import { getListingCardImageUrl } from '@/lib/listing-image'
 
@@ -71,6 +72,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     <ListingIdentityBar listingCode={listing.listing_code || null} partnerCode={ownerProfile?.profile_code || null} ownerId={listing.owner_id} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
     <ListingDetailReviewsMount listingId={listing.id} />
+    <ServiceListingDetailPolish />
     {isOwner && <ListingOwnerStats listingId={listing.id} />}
   </>
 }
