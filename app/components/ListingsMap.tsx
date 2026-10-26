@@ -68,7 +68,10 @@ function formatMoney(value: number, currency: string, lang: Lang) {
   const formatted = new Intl.NumberFormat('ru-RU', {
     maximumFractionDigits: millions % 1 === 0 ? 0 : 1,
   }).format(millions)
-  return lang === 'ru' ? `${formatted} млн сум` : `${formatted} mln so‘m`
+
+  // Russian map labels must always use the Cyrillic abbreviation.
+  // Keep the Uzbek label unchanged when the UI language is Uzbek.
+  return lang === 'ru' ? `${formatted} млн сум` : `${formatted} mln so‘m`
 }
 
 function listingQuery(searchParams: string, bounds?: { getSouth: () => number; getNorth: () => number; getWest: () => number; getEast: () => number }) {
