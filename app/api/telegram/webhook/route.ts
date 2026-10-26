@@ -18,6 +18,8 @@ type ListingImage = { image_url: string; sort_order: number | null }
 type ListingVideo = { provider: string; processed_storage_path: string | null; playback_url: string | null; thumbnail_storage_path: string | null; sort_order: number }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'
+const TELEGRAM_APP_URL = `${SITE_URL.replace(/\/$/, '')}/telegram`
+const TELEGRAM_PRIVACY_URL = `${SITE_URL.replace(/\/$/, '')}/privacy`
 
 async function telegramApi(method: string, body: Record<string, unknown>) {
   const token = process.env.TELEGRAM_BOT_TOKEN
@@ -30,8 +32,47 @@ async function telegramApi(method: string, body: Record<string, unknown>) {
 
 async function sendTelegramMessage(chatId: string | number, text: string, includeMiniApp = false) {
   const body: Record<string, unknown> = { chat_id: chatId, text, disable_web_page_preview: true }
-  if (includeMiniApp) body.reply_markup = { inline_keyboard: [[{ text: '🚀 Royalhouse’ni ochish', web_app: { url: SITE_URL } }]] }
+  if (includeMiniApp) body.reply_markup = { inline_keyboard: [[{ text: '🚀 Royalhouse’ni ochish', web_app: { url: TELEGRAM_APP_URL } }]] }
   await telegramApi('sendMessage', body)
+}
+
+async function sendTelegramOnboarding(chatId: string | number, languageCode?: string | null) {
+  const isRussian = String(languageCode || '').toLowerCase().startsWith('ru')
+  const text = isRussian
+    ? `🏠 Добро пожаловать в RoyalHouse!
+
+RoyalHouse — платформа недвижимости, где можно искать квартиры, дома, дачи и участки, размещать объявления и управлять своими объектами.
+
+📱 Как пользоваться:
+1. Нажмите «🚀 Открыть RoyalHouse» и войдите автоматически через Telegram.
+2. Выберите нужный раздел: найти жильё, найти дачу, разместить объявление или ипотечный скоринг.
+3. Для публикации объявления телефон понадобится только на этапе размещения.
+
+🔐 Мы бережно относимся к вашим данным. Ознакомиться с Политикой конфиденциальности можно по кнопке ниже.`
+    : `🏠 RoyalHouse’ga xush kelibsiz!
+
+RoyalHouse — ko‘chmas mulk platformasi. Bu yerda uy, kvartira, hovli, dacha va yer uchastkalarini topish, e’lon joylash va o‘z e’lonlaringizni boshqarish mumkin.
+
+📱 Qanday foydalaniladi:
+1. «🚀 Royalhouse’ni ochish» tugmasini bosing va Telegram orqali avtomatik kiring.
+2. Kerakli bo‘limni tanlang: uy topish, dacha topish, e’lon joylashtirish yoki ipoteka krediti skoringi.
+3. E’lon joylashda telefon raqami faqat kerak bo‘lgan bosqichda so‘raladi.
+
+🔐 Ma’lumotlaringizga ehtiyotkorlik bilan munosabatda bo‘lamiz. Maxfiylik siyosati bilan quyidagi tugma orqali tanishishingiz mumkin.`
+
+  const openLabel = isRussian ? '🚀 Открыть RoyalHouse' : '🚀 Royalhouse’ni ochish'
+  const privacyLabel = isRussian ? '🔐 Политика конфиденциальности' : '🔐 Maxfiylik siyosati'
+  await telegramApi('sendMessage', {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true,
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: openLabel, web_app: { url: TELEGRAM_APP_URL } }],
+        [{ text: privacyLabel, url: TELEGRAM_PRIVACY_URL }],
+      ],
+    },
+  })
 }
 
 async function requestTelegramPhone(chatId: string | number) {
@@ -143,7 +184,18 @@ export async function POST(request: NextRequest) {
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (payload.startsWith('share_')) { const listingId = payload.slice(6); if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(listingId)) { await sendTelegramMessage(chatId, 'E’lon ulashish havolasi noto‘g‘ri.'); return NextResponse.json({ ok: true }) }; await sendListingShare(chatId, listingId); return NextResponse.json({ ok: true }) }
-      if (!payload.startsWith('link_')) { await sendTelegramMessage(chatId, 'Assalomu alaykum! Royalhouse’da uy qidiring, e’lon joylang va bronlarni boshqaring. Telegram orqali avtomatik kirish mumkin — SMS kod kerak emas.', true); return NextResponse.json({ ok: true }) }
+      if (!payload.startsWith('link_')) {
+        const { data: botUser, error: botUserLookupError } = await admin.from('telegram_bot_users').select('onboarding_version,language_code').eq('telegram_user_id', telegramUserId).maybeSingle()
+        if (botUserLookupError) throw botUserLookupError
+        if (!botUser || Number(botUser.onboarding_version || 0) < 1) {
+          await sendTelegramOnboarding(chatId, botUser?.language_code || from?.language_code)
+          const { error: onboardingUpdateError } = await admin.from('telegram_bot_users').update({ onboarding_version: 1, last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('telegram_user_id', telegramUserId)
+          if (onboardingUpdateError) throw onboardingUpdateError
+        } else {
+          await sendTelegramMessage(chatId, 'Assalomu alaykum! Royalhouse’ni ochish uchun quyidagi tugmani bosing.', true)
+        }
+        return NextResponse.json({ ok: true })
+      }
       if (!from?.id) { await sendTelegramMessage(chatId, 'Telegram foydalanuvchisi aniqlanmadi. Saytdan yangi ulash havolasini oling.'); return NextResponse.json({ ok: true }) }
       const rawToken = payload.slice(5); if (!/^[a-f0-9]{48}$/i.test(rawToken)) { await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Royalhouse shaxsiy kabinetidan yangi ulash havolasi oling.'); return NextResponse.json({ ok: true }) }
       const tokenHash = createHash('sha256').update(rawToken).digest('hex')
