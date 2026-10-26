@@ -12,14 +12,12 @@ const isReviewable = (row: any) =>
 export default function ListingCardRatingFix() {
   useEffect(() => {
     let disposed = false
-    let timer: number | null = null
-    let observer: MutationObserver | null = null
     let running = false
+    const timers: number[] = []
+    let observer: MutationObserver | null = null
 
     const run = async () => {
       if (disposed || running) return
-      const path = window.location.pathname
-      if (path !== '/' && !path.startsWith('/listings')) return
 
       const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/listings/"]'))
       const ids = [...new Set(
@@ -33,12 +31,12 @@ export default function ListingCardRatingFix() {
       try {
         const db = createClient()
 
-        // Do not depend on rating_average/rating_count columns in listing_search.
-        // Those columns were the reason the homepage badge silently disappeared
-        // when the view was recreated by another migration. Read the source of
-        // truth (published listing_reviews) directly instead.
+        // listing_search deliberately is not used here. Its schema is a read
+        // model and has changed during previous migrations. The listings table
+        // is the authoritative source for the listing type, while
+        // listing_reviews is the authoritative source for the rating itself.
         const { data: listingRows, error: listingError } = await db
-          .from('listing_search')
+          .from('listings')
           .select('id,listing_type,property_type,taxonomy_code')
           .in('id', ids)
 
@@ -46,7 +44,7 @@ export default function ListingCardRatingFix() {
 
         const reviewableIds = (listingRows || [])
           .filter(isReviewable)
-          .map((row: any) => row.id)
+          .map((row: any) => String(row.id))
 
         if (!reviewableIds.length) return
 
@@ -60,8 +58,8 @@ export default function ListingCardRatingFix() {
 
         const grouped = new Map<string, number[]>()
         for (const row of reviews || []) {
-          const rating = Number((row as any).rating)
           const listingId = String((row as any).listing_id || '')
+          const rating = Number((row as any).rating)
           if (!listingId || !Number.isFinite(rating) || rating < 1 || rating > 5) continue
           const values = grouped.get(listingId) || []
           values.push(rating)
@@ -83,24 +81,27 @@ export default function ListingCardRatingFix() {
           if (!listing || !isReviewable(listing)) continue
 
           const rating = ratings.get(id)
-          if (!rating || rating.count < 1 || !Number.isFinite(rating.score) || rating.score <= 0) continue
+          if (!rating || rating.count < 1 || !Number.isFinite(rating.score)) continue
 
-          // The homepage cards place the location row before the divider/seller.
-          // Insert immediately after that row so the rating has a stable visual
-          // position without changing the existing card layout.
-          const location = link.querySelector<HTMLElement>(
-            '[data-listing-location], p[class*="text-slate-500"], p[class*="text-slate-400"]'
-          )
-          const meta = link.querySelector<HTMLElement>('[class*="mt-3"][class*="flex-wrap"][class*="text-xs"]')
+          // PropertyCard has a stable .p-4 body. Render inside that body and
+          // directly after the location/meta block instead of depending on
+          // seller/border class names that can change with unrelated UI work.
+          const cardBody = link.querySelector<HTMLElement>('.p-4')
+          if (!cardBody) continue
+
+          const existing = cardBody.querySelector('[data-rh-rating-card]')
+          if (existing) continue
+
+          const location = cardBody.querySelector<HTMLElement>('.mt-2.flex.items-center')
+          const meta = cardBody.querySelector<HTMLElement>('.mt-3.flex.flex-wrap')
           const anchor = location || meta
           if (!anchor) continue
 
           const badge = document.createElement('div')
           badge.setAttribute('data-rh-rating-card', 'true')
           badge.setAttribute('aria-label', `O‘rtacha baho ${rating.score.toFixed(1)} / 5, ${rating.count} ta otziv`)
-          badge.style.cssText = 'margin-top:7px;display:inline-flex;align-items:center;gap:5px;width:max-content;max-width:100%;font-size:12px;line-height:1;font-weight:800;white-space:nowrap;'
+          badge.style.cssText = 'margin-top:8px;display:inline-flex;align-items:center;gap:5px;width:max-content;max-width:100%;font-size:12px;line-height:1;font-weight:800;white-space:nowrap;'
           badge.innerHTML = `<span style="color:#f59e0b;font-size:14px">★</span><span style="color:#b45309">${rating.score.toFixed(1)}</span><span style="color:#64748b;font-weight:700">(${rating.count})</span>`
-
           anchor.insertAdjacentElement('afterend', badge)
         }
       } finally {
@@ -109,20 +110,22 @@ export default function ListingCardRatingFix() {
     }
 
     const schedule = () => {
-      if (disposed || timer !== null) return
-      timer = window.setTimeout(() => {
-        timer = null
-        void run().catch(() => {})
-      }, 150)
+      if (disposed) return
+      window.setTimeout(() => void run().catch(() => {}), 50)
     }
 
-    observer = new MutationObserver(schedule)
+    // The homepage cards are rendered by HomeClient after the root layout
+    // mounts. Retry a few times and also observe later client-side renders.
+    timers.push(window.setTimeout(() => void run().catch(() => {}), 100))
+    timers.push(window.setTimeout(() => void run().catch(() => {}), 500))
+    timers.push(window.setTimeout(() => void run().catch(() => {}), 1200))
+
+    observer = new MutationObserver(() => schedule())
     observer.observe(document.body, { childList: true, subtree: true })
-    schedule()
 
     return () => {
       disposed = true
-      if (timer !== null) window.clearTimeout(timer)
+      timers.forEach((timer) => window.clearTimeout(timer))
       observer?.disconnect()
     }
   }, [])
