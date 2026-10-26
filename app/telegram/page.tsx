@@ -20,6 +20,8 @@ const copy = {
     findHomeText: 'Sotuvdagi uylar, kvartiralar va hovlilarni toping.',
     findDacha: 'Dacha topish',
     findDachaText: 'Dam olish uchun dacha va kunlik ijara e’lonlarini toping.',
+    mortgageScoring: 'Ipoteka krediti skoringi',
+    mortgageScoringText: 'Ipoteka imkoniyatingizni baholang va kalkulyatorga o‘ting.',
     placeAd: 'E’lon joylashtirish',
     placeAdText: 'Mulkni sotish yoki ijaraga berish uchun e’lon yarating.',
     searchPlaceholder: 'Dacha, kvartira, hovli, Toshkent...',
@@ -40,6 +42,8 @@ const copy = {
     findHomeText: 'Найдите дома, квартиры и участки в продаже.',
     findDacha: 'Найти дачу',
     findDachaText: 'Найдите дачи и объявления посуточной аренды.',
+    mortgageScoring: 'Ипотечный кредитный скоринг',
+    mortgageScoringText: 'Оцените свои ипотечные возможности и перейдите к калькулятору.',
     placeAd: 'Разместить объявление',
     placeAdText: 'Создайте объявление о продаже или аренде недвижимости.',
     searchPlaceholder: 'Дача, квартира, дом, Ташкент...',
@@ -159,6 +163,17 @@ export default function TelegramMiniApp() {
                 <div className="min-w-0 flex-1">
                   <h3 className="font-black">{t.findDacha}</h3>
                   <p className="mt-1 text-xs leading-4 text-slate-400">{t.findDachaText}</p>
+                </div>
+                <span className="text-xl text-slate-300">›</span>
+              </div>
+            </button>
+
+            <button type="button" onClick={() => openPath('/ipoteka/kalkulyator')} className="w-full rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition active:scale-[.99]">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500 text-2xl text-white">%</div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-black">{t.mortgageScoring}</h3>
+                  <p className="mt-1 text-xs leading-4 text-slate-400">{t.mortgageScoringText}</p>
                 </div>
                 <span className="text-xl text-slate-300">›</span>
               </div>
