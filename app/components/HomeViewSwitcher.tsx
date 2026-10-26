@@ -116,12 +116,32 @@ export default function HomeViewSwitcher({ lang = 'uz' }: { lang?: 'uz' | 'ru' }
       html[data-royalhouse-home-view='list'] section:has(a[href^='/listings/']) > div:has(> a[href^='/listings/']) { grid-template-columns: minmax(0, 1fr) !important; }
       html[data-royalhouse-home-view='list'] a[href^='/listings/'] { display: grid !important; grid-template-columns: 150px minmax(0, 1fr) !important; min-height: 150px !important; }
       html[data-royalhouse-home-view='list'] a[href^='/listings/'] > div:first-child { aspect-ratio: auto !important; height: 100% !important; }
-      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/']) > div:has(> a[href^='/listings/']) { grid-template-columns: minmax(0, 1fr) !important; gap: 0 !important; overflow: hidden !important; border: 1px solid rgb(226 232 240) !important; border-radius: 1rem !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] { display: grid !important; grid-template-columns: 96px minmax(0, 1fr) !important; min-height: 108px !important; border-radius: 0 !important; border-width: 0 0 1px 0 !important; box-shadow: none !important; transform: none !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:first-child { aspect-ratio: auto !important; height: 100% !important; }
-      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child { display: flex !important; flex-direction: row !important; align-items: center !important; gap: 18px !important; }
+
+      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/']) > div:has(> a[href^='/listings/']) { display: block !important; overflow: hidden !important; border: 1px solid rgb(226 232 240) !important; border-radius: 1rem !important; background: white !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] { display: grid !important; grid-template-columns: 112px minmax(220px, 2fr) minmax(180px, 1.25fr) minmax(150px, 1fr) !important; grid-template-rows: minmax(52px, auto) minmax(38px, auto) !important; align-items: center !important; min-height: 118px !important; border-radius: 0 !important; border: 0 !important; border-bottom: 1px solid rgb(226 232 240) !important; box-shadow: none !important; transform: none !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/']:last-child { border-bottom: 0 !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:first-child { grid-column: 1 !important; grid-row: 1 / 3 !important; align-self: stretch !important; aspect-ratio: auto !important; height: auto !important; min-height: 118px !important; border-radius: 0 !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child { display: contents !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] h3 { grid-column: 4 !important; grid-row: 1 / 3 !important; margin: 0 !important; padding: 0 18px !important; font-size: 16px !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > p { grid-column: 2 !important; grid-row: 1 !important; margin: 0 !important; padding: 0 12px !important; font-size: 14px !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(1) { grid-column: 3 !important; grid-row: 1 !important; margin: 0 !important; padding: 0 12px !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(2) { grid-column: 3 !important; grid-row: 2 !important; margin: 0 !important; padding: 0 12px !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(3) { display: none !important; }
+      html[data-royalhouse-home-view='table'] a[href^='/listings/']::before { content: 'Rasm'; position: absolute; top: -42px; left: 0; width: 112px; padding: 12px; font-size: 11px; font-weight: 800; color: rgb(100 116 139); }
+      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/']) { padding-top: 52px !important; }
+      html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/'])::before { content: 'E’lon                                      Manzil                                  Narx'; display: block; position: absolute; z-index: 2; height: 42px; margin-top: -52px; left: 0; right: 0; padding: 13px 18px 11px 124px; background: rgb(248 250 252); border: 1px solid rgb(226 232 240); border-bottom: 0; border-radius: 1rem 1rem 0 0; white-space: pre; font-size: 11px; font-weight: 800; color: rgb(100 116 139); }
+
       html[data-royalhouse-home-view='map'] section:has(a[href^='/listings/']) { display: none !important; }
-      @media (max-width: 767px), (pointer: coarse) { html[data-royalhouse-home-view='list'] a[href^='/listings/'], html[data-royalhouse-home-view='table'] a[href^='/listings/'] { grid-template-columns: 108px minmax(0, 1fr) !important; } }
+      @media (max-width: 767px), (pointer: coarse) {
+        html[data-royalhouse-home-view='list'] a[href^='/listings/'], html[data-royalhouse-home-view='table'] a[href^='/listings/'] { grid-template-columns: 108px minmax(0, 1fr) !important; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/'] { grid-template-rows: auto auto auto !important; min-height: 128px !important; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/'] h3 { grid-column: 2 !important; grid-row: 1 !important; padding: 10px 14px 0 !important; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > p { grid-column: 2 !important; grid-row: 2 !important; padding: 0 14px !important; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(1) { grid-column: 2 !important; grid-row: 3 !important; padding: 0 14px 10px !important; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/'] > div:last-child > div:nth-of-type(2) { display: none !important; }
+        html[data-royalhouse-home-view='table'] section:has(a[href^='/listings/'])::before { content: 'E’lon / Narx / Manzil'; padding-left: 122px; white-space: nowrap; }
+        html[data-royalhouse-home-view='table'] a[href^='/listings/']::before { display: none; }
+      }
     `}</style>
     <div className="rh-home-view-switcher mx-auto max-w-[1400px] px-4 pt-7 sm:pt-8">
       <div className="flex w-fit items-center rounded-2xl bg-[#ffd51a] p-1.5 shadow-sm sm:rounded-full">
