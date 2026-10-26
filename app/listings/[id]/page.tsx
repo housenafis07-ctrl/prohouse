@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import ListingDetailClient from './ListingDetailClient'
+import ListingDetailReviewsMount from './ListingDetailReviewsMount'
 import ListingViewTracker from './ListingViewTracker'
 import ListingOwnerStats from './ListingOwnerStats'
 import ListingIdentityBar from './ListingIdentityBar'
@@ -69,6 +70,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbData) }} />
     <ListingIdentityBar listingCode={listing.listing_code || null} partnerCode={ownerProfile?.profile_code || null} ownerId={listing.owner_id} />
     <ListingDetailClient listing={{ ...listing, listing_images: images }} />
+    <ListingDetailReviewsMount listingId={listing.id} />
     {isOwner && <ListingOwnerStats listingId={listing.id} />}
   </>
 }
