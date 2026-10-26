@@ -1,4 +1,4 @@
-const CACHE_NAME = 'royalhouse-shell-v5'
+const CACHE_NAME = 'royalhouse-shell-v6'
 const OFFLINE_URL = '/offline.html'
 const START_URL = '/'
 const SHELL_ASSETS = [OFFLINE_URL, START_URL, '/royalhouse-icon.svg']
@@ -33,6 +33,10 @@ self.addEventListener('fetch', event => {
   if (url.pathname.startsWith('/chat')) return
   if (url.pathname.startsWith('/bookings')) return
   if (url.pathname.startsWith('/payments')) return
+
+  // Telegram Mini App must always load the current page version.
+  // Never serve /telegram from the PWA navigation cache.
+  if (url.pathname === '/telegram' || url.pathname.startsWith('/telegram/')) return
 
   if (request.mode === 'navigate') {
     event.respondWith(
