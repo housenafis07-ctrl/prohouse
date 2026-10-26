@@ -15,37 +15,51 @@ export default function ServiceListingDetailPolish() {
     if (!isServiceListingPage()) return
 
     const hideServiceTypeRow = () => {
-      const all = Array.from(document.querySelectorAll<HTMLElement>('div, span, p, dt, dd'))
+      // The detail card is rendered by ListingDetailClient. For service
+      // listings its property-type field is a small card containing:
+      //   <span>Mulk turi</span><b>service</b>
+      // (or the Russian equivalent for the label). Target the VALUE first;
+      // this is much more reliable than guessing a parent from text selectors.
+      const serviceValues = Array.from(document.querySelectorAll<HTMLElement>('b')).filter(
+        (element) => normalize(element.textContent || '') === 'service',
+      )
 
-      // The service detail card renders the property-type field as a label/value
-      // pair. Hide the whole row only when its value is exactly `service`.
-      for (const label of all) {
-        const labelText = normalize(label.textContent || '')
-        if (labelText !== 'mulk turi' && labelText !== 'тип недвижимости') continue
+      for (const value of serviceValues) {
+        // The field card is the closest ancestor that contains the label and
+        // the service value but is still small enough not to hide the entire
+        // listing panel.
+        let node: HTMLElement | null = value.parentElement
 
-        // Most importantly, do not hide the label alone. Hide its containing
-        // row so neither "Mulk turi" nor the value "service" remains visible.
-        const directParent = label.parentElement
-        if (directParent) {
-          const parentText = normalize(directParent.textContent || '')
-          const hasServiceValue = Array.from(directParent.querySelectorAll<HTMLElement>('div, span, p, dt, dd'))
-            .some((item) => item !== label && normalize(item.textContent || '') === 'service')
-          if (hasServiceValue || parentText === 'mulk turi service' || parentText === 'тип недвижимости service') {
-            directParent.style.setProperty('display', 'none', 'important')
-            directParent.setAttribute('data-rh-service-type-hidden', 'true')
-            continue
-          }
-        }
-
-        // Fallback for layouts where the label and value are wrapped in
-        // different elements: locate the nearest small ancestor containing
-        // both exact strings, rather than hiding a large page section.
-        let node = directParent
-        for (let depth = 0; depth < 6 && node; depth += 1) {
+        for (let depth = 0; depth < 5 && node; depth += 1) {
           const text = normalize(node.textContent || '')
-          const hasLabel = text.includes('mulk turi') || text.includes('тип недвижимости')
-          const hasService = text.includes('service')
-          if (hasLabel && hasService && text.length < 300) {
+          const hasUzLabel = text.includes('mulk turi')
+          const hasRuLabel = text.includes('тип недвижимости')
+          const hasOnlyServiceField =
+            (hasUzLabel || hasRuLabel) &&
+            text.includes('service') &&
+            text.length <= 80
+
+          if (hasOnlyServiceField) {
+            node.style.setProperty('display', 'none', 'important')
+            node.setAttribute('data-rh-service-type-hidden', 'true')
+            break
+          }
+
+          node = node.parentElement
+        }
+      }
+
+      // Fallback for a future markup variant where the value is not a <b>.
+      const labels = Array.from(document.querySelectorAll<HTMLElement>('span,div,p,dt,dd')).filter((element) => {
+        const text = normalize(element.textContent || '')
+        return text === 'mulk turi' || text === 'тип недвижимости'
+      })
+
+      for (const label of labels) {
+        let node: HTMLElement | null = label.parentElement
+        for (let depth = 0; depth < 4 && node; depth += 1) {
+          const text = normalize(node.textContent || '')
+          if ((text === 'mulk turi service' || text === 'тип недвижимости service') && text.length < 80) {
             node.style.setProperty('display', 'none', 'important')
             node.setAttribute('data-rh-service-type-hidden', 'true')
             break
@@ -57,8 +71,10 @@ export default function ServiceListingDetailPolish() {
 
     hideServiceTypeRow()
 
+    // The detail UI can be hydrated/translated after this component mounts.
+    // Re-run when React or the language runtime changes the DOM.
     const observer = new MutationObserver(hideServiceTypeRow)
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
 
     return () => observer.disconnect()
   }, [])
