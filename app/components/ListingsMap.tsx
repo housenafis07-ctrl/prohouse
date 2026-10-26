@@ -8,18 +8,11 @@ if (typeof document !== 'undefined' && !document.getElementById('prohouse-listin
   const style = document.createElement('style')
   style.id = 'prohouse-listing-view-controls'
   style.textContent = `
-    button[title="Jadval"], button[title="Ro‘yxat"], button[title="Znachki"],
-    button[title="Таблица"], button[title="Список"], button[title="Карточки"] {
-      font-size: 0 !important;
-      width: 44px;
-      min-width: 44px;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
-      justify-content: center;
+    @keyframes prohouse-map-marker-reveal {
+      from { opacity: .35; transform: scale(.86); }
+      to { opacity: 1; transform: scale(1); }
     }
-    button[title="Jadval"]::before, button[title="Таблица"]::before { content: '▦'; font-size: 20px; line-height: 1; }
-    button[title="Ro‘yxat"]::before, button[title="Список"]::before { content: '☰'; font-size: 19px; line-height: 1; }
-    button[title="Znachki"]::before, button[title="Карточки"]::before { content: '▥'; font-size: 20px; line-height: 1; }
+    .prohouse-map-marker-reveal { animation: prohouse-map-marker-reveal .18s ease-out; }
   `
   document.head.appendChild(style)
 }
@@ -42,6 +35,7 @@ type MapListing = {
 type LeafletMap = {
   setView: (center: [number, number], zoom: number) => LeafletMap
   getBounds: () => { getSouth: () => number; getNorth: () => number; getWest: () => number; getEast: () => number }
+  getZoom: () => number
   on: (event: string, handler: () => void) => LeafletMap
   off: (event: string, handler: () => void) => LeafletMap
   remove: () => void
@@ -50,14 +44,17 @@ type LeafletMap = {
 type LeafletMarker = {
   addTo: (map: LeafletMap) => LeafletMarker
   bindPopup: (content: string, options?: Record<string, unknown>) => LeafletMarker
+  setIcon: (icon: unknown) => LeafletMarker
   remove?: () => void
 }
 
 const TASHKENT: [number, number] = [41.2995, 69.2401]
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+const USD_TO_UZS_FOR_MAP = 12500
 
 type Lang = 'uz' | 'ru'
+type PriceBand = 'low' | 'mid' | 'high'
 
 function formatMoney(value: number, currency: string, lang: Lang) {
   if (currency === 'USD') {
@@ -69,6 +66,65 @@ function formatMoney(value: number, currency: string, lang: Lang) {
     maximumFractionDigits: millions % 1 === 0 ? 0 : 1,
   }).format(millions)
   return lang === 'ru' ? `${formatted} млн сум` : `${formatted} mln so‘m`
+}
+
+function mapComparablePrice(item: MapListing) {
+  const value = Number(item.price)
+  if (!Number.isFinite(value)) return null
+  return item.currency === 'USD' ? value * USD_TO_UZS_FOR_MAP : value
+}
+
+function getPriceBands(rows: MapListing[]) {
+  const values = rows
+    .map((item) => mapComparablePrice(item))
+    .filter((value): value is number => value !== null && value > 0)
+    .sort((a, b) => a - b)
+
+  if (values.length < 3) {
+    return new Map(rows.map((item) => [item.id, 'mid' as PriceBand]))
+  }
+
+  const lowCut = values[Math.max(0, Math.floor((values.length - 1) * 0.33))]
+  const highCut = values[Math.max(0, Math.floor((values.length - 1) * 0.66))]
+  const bands = new Map<string, PriceBand>()
+
+  rows.forEach((item) => {
+    const value = mapComparablePrice(item)
+    if (value === null) bands.set(item.id, 'mid')
+    else if (value <= lowCut) bands.set(item.id, 'low')
+    else if (value >= highCut) bands.set(item.id, 'high')
+    else bands.set(item.id, 'mid')
+  })
+
+  return bands
+}
+
+function priceBandColor(band: PriceBand) {
+  if (band === 'low') return { background: '#16a34a', border: '#15803d' }
+  if (band === 'high') return { background: '#dc2626', border: '#b91c1c' }
+  return { background: '#eab308', border: '#ca8a04' }
+}
+
+function markerIcon(item: MapListing, band: PriceBand, lang: Lang, zoom: number) {
+  const colors = priceBandColor(band)
+  const showPrice = zoom >= 13
+  const fullPrice = zoom >= 14
+  const price = escapeHtml(formatMoney(item.price, item.currency, lang))
+
+  if (!showPrice) {
+    return window.L.divIcon({
+      className: 'prohouse-map-marker-reveal',
+      html: `<span aria-label="${price}" style="display:block;width:${zoom <= 9 ? 14 : 18}px;height:${zoom <= 9 ? 14 : 18}px;background:${colors.background};border:2px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.22)"></span>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    })
+  }
+
+  return window.L.divIcon({
+    className: 'prohouse-map-marker-reveal',
+    html: `<span style="display:inline-flex;align-items:center;justify-content:center;background:${colors.background};border:2px solid ${colors.border};color:#fff;border-radius:999px;padding:${fullPrice ? '5px 9px' : '4px 7px'};box-shadow:0 3px 12px rgba(0,0,0,.18);font-size:${fullPrice ? 11 : 10}px;font-weight:900;line-height:1;white-space:nowrap">${price}</span>`,
+    iconAnchor: [0, 10],
+  })
 }
 
 function listingQuery(searchParams: string, bounds?: { getSouth: () => number; getNorth: () => number; getWest: () => number; getEast: () => number }) {
@@ -88,7 +144,7 @@ function listingQuery(searchParams: string, bounds?: { getSouth: () => number; g
 }
 
 function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char))
+  return value.replace(/[&<>\"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[char] || char))
 }
 
 function popupHtml(item: MapListing, lang: Lang) {
@@ -105,7 +161,10 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const boundsHandlerRef = useRef<(() => void) | null>(null)
+  const zoomHandlerRef = useRef<(() => void) | null>(null)
   const markerLayerRef = useRef<LeafletMarker[]>([])
+  const markerItemsRef = useRef<MapListing[]>([])
+  const markerBandsRef = useRef<Map<string, PriceBand>>(new Map())
   const [listings, setListings] = useState<MapListing[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -148,6 +207,7 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
 
     return () => {
       if (boundsHandlerRef.current) map.off('moveend', boundsHandlerRef.current)
+      if (zoomHandlerRef.current) map.off('zoomend', zoomHandlerRef.current)
       map.remove()
       mapRef.current = null
     }
@@ -157,6 +217,18 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
     if (!apiReady || !mapRef.current || !window.L) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
+
+    const updateMarkerIcons = () => {
+      const map = mapRef.current
+      if (!map || cancelled) return
+      const zoom = map.getZoom()
+      markerLayerRef.current.forEach((marker, index) => {
+        const item = markerItemsRef.current[index]
+        if (!item) return
+        const band = markerBandsRef.current.get(item.id) || 'mid'
+        marker.setIcon(markerIcon(item, band, lang, zoom))
+      })
+    }
 
     const loadMarkers = async (bounds: ReturnType<LeafletMap['getBounds']>) => {
       setLoading(true)
@@ -169,19 +241,19 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
 
         const rows = (result.data || []) as MapListing[]
         setListings(rows)
+        markerItemsRef.current = rows
+        markerBandsRef.current = getPriceBands(rows)
 
         markerLayerRef.current.forEach((marker) => marker.remove?.())
         markerLayerRef.current = []
 
         const map = mapRef.current
         const leaflet = window.L
+        const zoom = map.getZoom()
         const markers = rows.map((item) => {
+          const band = markerBandsRef.current.get(item.id) || 'mid'
           const marker = leaflet.marker([item.latitude, item.longitude], {
-            icon: leaflet.divIcon({
-              className: 'prohouse-price-marker',
-              html: `<span style="display:inline-block;background:${item.is_trusted_seller ? '#059669' : '#ffd51a'};color:${item.is_trusted_seller ? '#fff' : '#111827'};border:2px solid #fff;border-radius:999px;padding:6px 9px;box-shadow:0 3px 12px rgba(0,0,0,.18);font-size:11px;font-weight:900;white-space:nowrap">${formatMoney(item.price, item.currency, lang)}</span>`,
-              iconAnchor: [0, 16],
-            }),
+            icon: markerIcon(item, band, lang, zoom),
           }).addTo(map)
           marker.bindPopup(popupHtml(item, lang), { maxWidth: 280 })
           return marker
@@ -203,15 +275,20 @@ export default function ListingsMap({ searchParams }: { searchParams: string }) 
     }
 
     const handler = scheduleBoundsLoad
+    const zoomHandler = updateMarkerIcons
     boundsHandlerRef.current = handler
+    zoomHandlerRef.current = zoomHandler
     mapRef.current.on('moveend', handler)
+    mapRef.current.on('zoomend', zoomHandler)
     void loadMarkers(mapRef.current.getBounds())
 
     return () => {
       cancelled = true
       if (timer) clearTimeout(timer)
       mapRef.current?.off('moveend', handler)
+      mapRef.current?.off('zoomend', zoomHandler)
       boundsHandlerRef.current = null
+      zoomHandlerRef.current = null
     }
   }, [apiReady, searchParams, lang])
 
