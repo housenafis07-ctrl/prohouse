@@ -143,13 +143,8 @@ export async function POST(request: NextRequest) {
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (!payload) {
-        const ru = (from?.language_code || '').toLowerCase().startsWith('ru')
-        const intro = ru
-          ? '🏠 Добро пожаловать в RoyalHouse!\n\nRoyalHouse — платформа недвижимости, где можно находить дома, квартиры и дачи, размещать объявления, управлять своими объявлениями и пользоваться ипотечными сервисами прямо в Telegram.'
-          : '🏠 RoyalHouse’ga xush kelibsiz!\n\nRoyalHouse — uy-joy platformasi. Bu yerda uy, kvartira va dachalarni topish, e’lon joylashtirish, e’lonlaringizni boshqarish va ipoteka xizmatlaridan foydalanish mumkin — barchasi Telegram ichida.'
-        const guide = ru
-          ? '📱 Как пользоваться RoyalHouse?\n\n1. Нажмите «Royalhouse’ni ochish», чтобы открыть мини-приложение.\n2. Выберите поиск дома/квартиры, поиск дачи или размещение объявления.\n3. Для ипотеки откройте «Ипотека кредитного скоринга» и перейдите к калькулятору.\n4. Войдите через Telegram — SMS-код не требуется.\n\n🔐 Политика конфиденциальности доступна по кнопке ниже.'
-          : '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1. «Royalhouse’ni ochish» tugmasini bosing — Mini App ochiladi.\n2. Uy/kvartira topish, dacha topish yoki e’lon joylashtirish bo‘limini tanlang.\n3. Ipoteka uchun «Ipoteka krediti skoringi» bo‘limiga kirib, kalkulyatorga o‘ting.\n4. Telegram orqali kiring — SMS kod talab qilinmaydi.\n\n🔐 Maxfiylik siyosati quyidagi tugma orqali mavjud.'
+        const intro = '🏠 RoyalHouse’ga xush kelibsiz!\n\nRoyalHouse — uy-joy platformasi. Bu yerda uy, kvartira va dachalarni topish, e’lon joylashtirish, e’lonlaringizni boshqarish va ipoteka xizmatlaridan foydalanish mumkin — barchasi Telegram ichida.'
+        const guide = '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing va Mini App’ni oching.\n\n2️⃣ Kerakli bo‘limni tanlang:\n• 🏠 Uy / kvartira / hovli topish\n• 🏡 Dacha topish\n• ➕ E’lon joylashtirish\n• 📊 Ipoteka krediti skoringi\n\n3️⃣ Telegram orqali RoyalHouse’ga kiring va e’lonlarni ko‘ring, saqlang yoki o‘zingizning e’loningizni boshqaring.\n\n4️⃣ «Ipoteka krediti skoringi» bo‘limi orqali ipoteka olish imkoniyatingizni dastlabki baholang va kalkulyatorga o‘ting.\n\n🔐 Maxfiylik siyosati bilan tanishish uchun quyidagi tugmani bosing.'
         await sendTelegramMessage(chatId, intro)
         await telegramApi('sendMessage', {
           chat_id: chatId,
@@ -158,7 +153,7 @@ export async function POST(request: NextRequest) {
           reply_markup: {
             inline_keyboard: [
               [{ text: '🚀 Royalhouse’ni ochish', web_app: { url: `${SITE_URL}/telegram` } }],
-              [{ text: ru ? '🔐 Политика конфиденциальности' : '🔐 Maxfiylik siyosati', url: `${SITE_URL}/privacy` }],
+              [{ text: '🔐 Maxfiylik siyosati', url: `${SITE_URL}/privacy` }],
             ],
           },
         })
@@ -171,7 +166,7 @@ export async function POST(request: NextRequest) {
       const { data: token, error: tokenError } = await admin.from('telegram_link_tokens').select('profile_id,auth_user_id,expires_at,used_at,telegram_user_id').eq('token_hash', tokenHash).maybeSingle(); if (tokenError) throw tokenError
       if (!token || token.used_at || new Date(token.expires_at).getTime() <= Date.now()) { await sendTelegramMessage(chatId, 'Ulash havolasi eskirgan yoki ishlatilgan. Royalhouse shaxsiy kabinetidan yangi havola yarating.'); return NextResponse.json({ ok: true }) }
       if (token.telegram_user_id && token.telegram_user_id !== telegramUserId) { await sendTelegramMessage(chatId, '❌ Bu ulash havolasi boshqa Telegram akkauntida boshlangan. Royalhouse shaxsiy kabinetidan yangi ulash havolasini oling.'); return NextResponse.json({ ok: true }) }
-      if (!token.telegram_user_id) { const { data: claimedToken, error: claimError } = await admin.from('telegram_link_tokens').update({ telegram_user_id: telegramUserId }).eq('token_hash', tokenHash).is('telegram_user_id', null).is('used_at', null).select('token_hash').maybeSingle(); if (claimError) throw claimError; if (!claimedToken) { await sendTelegramMessage(chatId, '❌ Ulash havolasi boshqa Telegram akkauntida boshlangan. Royalhouse shaxsiy kabinetidan yangi ulash havolasi oling.'); return NextResponse.json({ ok: true }) } }
+      if (!token.telegram_user_id) { const { data: claimedToken, error: claimError } = await admin.from('telegram_link_tokens').update({ telegram_user_id: telegramUserId }).eq('token_hash', tokenHash).is('telegram_user_id', null).is('used_at', null).select('token_hash').maybeSingle(); if (claimError) throw claimError; if (!claimedToken) { await sendTelegramMessage(chatId, '❌ Ulash havolasi boshqa Telegram akkauntida boshlangan. Royalhouse shaxsiy kabinetidan yangi havola oling.'); return NextResponse.json({ ok: true }) } }
       await requestTelegramPhone(chatId); return NextResponse.json({ ok: true })
     }
 
