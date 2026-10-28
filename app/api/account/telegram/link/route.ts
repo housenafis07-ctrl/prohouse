@@ -8,13 +8,17 @@ export async function GET() {
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
-
     const db = serviceClient()
+
+    // The bot can complete the link before auth_user_id is backfilled. In that
+    // case the old check returned linked=false even though Telegram said "linked".
     const { data: botUser, error: botUserError } = await db
       .from('telegram_bot_users')
-      .select('telegram_user_id,username,linked_at,profile_id')
-      .eq('auth_user_id', user.id)
+      .select('telegram_user_id,username,linked_at,profile_id,auth_user_id')
       .eq('is_active', true)
+      .or(`auth_user_id.eq.${user.id},profile_id.eq.${user.id}`)
+      .order('linked_at', { ascending: false, nullsFirst: false })
+      .limit(1)
       .maybeSingle()
     if (botUserError) throw botUserError
 
@@ -40,7 +44,6 @@ export async function POST() {
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
-
     const token = randomBytes(24).toString('hex')
     const tokenHash = createHash('sha256').update(token).digest('hex')
     const db = serviceClient()
@@ -50,7 +53,6 @@ export async function POST() {
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     })
     if (error) throw error
-
     return NextResponse.json({ url: `https://t.me/RoyalHouseUz_bot?start=link_${token}`, expiresInSeconds: 600 })
   } catch (error) {
     console.error('[Telegram link] Failed to create link', error)
