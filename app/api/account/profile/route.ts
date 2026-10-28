@@ -12,17 +12,23 @@ const cleanUrl = (value: unknown) => {
   return trimmed
 }
 
+async function getPhoneBackedUserId() {
+  const auth = await createClient()
+  const { data, error } = await auth.auth.getClaims()
+  if (error || !data?.claims?.sub) return null
+  return String(data.claims.sub)
+}
+
 export async function GET() {
   try {
-    const auth = await createClient()
-    const { data: { user } } = await auth.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+    const userId = await getPhoneBackedUserId()
+    if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
     // Cabinet access is phone/SMS-only. Telegram may still be linked for
     // notifications, but a profile without a real phone-backed profile must
     // never be allowed to load the cabinet.
     const db = serviceClient()
-    const { data: profile, error } = await db.from('profiles').select(profileSelect).eq('id', user.id).maybeSingle()
+    const { data: profile, error } = await db.from('profiles').select(profileSelect).eq('id', userId).maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     if (!profile?.phone) return NextResponse.json({ error: 'PHONE_AUTH_REQUIRED' }, { status: 401 })
 
@@ -33,9 +39,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await createClient()
-  const { data: { user } } = await auth.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+  const userId = await getPhoneBackedUserId()
+  if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
@@ -78,15 +83,15 @@ export async function POST(request: Request) {
     linkedin_url: linkedinUrl,
     telegram_url: telegramUrl,
   }
-  const { error: updateError } = await db.from('profiles').update(profilePatch).eq('id', user.id)
+  const { error: updateError } = await db.from('profiles').update(profilePatch).eq('id', userId)
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
 
   if (accountType === 'partner') {
-    const { data: existingPartner, error: existingError } = await db.from('partner_profiles').select('id,verification_status').eq('user_id', user.id).maybeSingle()
+    const { data: existingPartner, error: existingError } = await db.from('partner_profiles').select('id,verification_status').eq('user_id', userId).maybeSingle()
     if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
     const { error: partnerError } = await db.from('partner_profiles').upsert({
       ...(existingPartner?.id ? { id: existingPartner.id } : {}),
-      user_id: user.id,
+      user_id: userId,
       partner_type: 'service_provider',
       legal_form: legalForm,
       display_name: companyName || fullName,
@@ -97,11 +102,11 @@ export async function POST(request: Request) {
     }, { onConflict: 'user_id' })
     if (partnerError) return NextResponse.json({ error: partnerError.message }, { status: 400 })
   } else {
-    const { error: deleteError } = await db.from('partner_profiles').delete().eq('user_id', user.id)
+    const { error: deleteError } = await db.from('partner_profiles').delete().eq('user_id', userId)
     if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
   }
 
-  const { data: updated, error: readError } = await db.from('profiles').select(profileSelect).eq('id', user.id).single()
+  const { data: updated, error: readError } = await db.from('profiles').select(profileSelect).eq('id', userId).single()
   if (readError) return NextResponse.json({ error: readError.message }, { status: 400 })
   return NextResponse.json({ profile: updated })
 }
