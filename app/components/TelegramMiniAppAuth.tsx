@@ -5,25 +5,18 @@ import { createClient } from '@/utils/supabase/client'
 
 type TelegramWebApp = {
   initData: string
-  initDataUnsafe?: {
-    user?: {
-      id?: number | string
-    }
-  }
+  initDataUnsafe?: { user?: { id?: number | string } }
   ready: () => void
   expand: () => void
 }
 
 declare global {
-  interface Window {
-    Telegram?: { WebApp?: TelegramWebApp }
-  }
+  interface Window { Telegram?: { WebApp?: TelegramWebApp } }
 }
 
 /**
- * Telegram authentication is strictly background-only.
- * The Mini App must render and remain usable even when auth/network is slow
- * or unavailable. We also avoid loading Telegram's SDK on ordinary web visits.
+ * Telegram authentication stays in the background. A Telegram-only profile
+ * is never allowed to silently enter the cabinet before its phone is verified.
  */
 export default function TelegramMiniAppAuth() {
   const started = useRef(false)
@@ -34,6 +27,30 @@ export default function TelegramMiniAppAuth() {
 
     let cancelled = false
     let timer: number | undefined
+
+    const redirectToPhoneLinkIfNeeded = async () => {
+      if (cancelled) return false
+      try {
+        const supabase = createClient()
+        const { data } = await supabase.auth.getUser()
+        if (!data.user) return false
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', data.user.id)
+          .maybeSingle()
+
+        if (!cancelled && !profile?.phone) {
+          const next = encodeURIComponent(window.location.pathname + window.location.search)
+          window.location.replace(`/account/phone-link?first=1&next=${next}`)
+          return true
+        }
+      } catch (error) {
+        console.warn('[telegram-miniapp-auth] phone status check skipped', error)
+      }
+      return false
+    }
 
     const authenticate = async (webApp: TelegramWebApp) => {
       if (cancelled || !webApp.initData) return
@@ -52,13 +69,12 @@ export default function TelegramMiniAppAuth() {
           telegramUserId != null &&
           String(sessionUser.user_metadata.telegram_user_id) === String(telegramUserId)
         ) {
+          await redirectToPhoneLinkIfNeeded()
           return
         }
 
-        // A phone/email-authenticated user opening the Mini App keeps the
-        // existing RoyalHouse session. Do not silently switch to a separate
-        // Telegram auth account. Attach the Telegram identity to this profile
-        // so listings, chats and Telegram notifications use one profile.
+        // A phone/email-authenticated RoyalHouse user keeps the same profile.
+        // Telegram is linked as an additional identity/notification channel.
         if (sessionUser && sessionUser.user_metadata?.auth_provider !== 'telegram') {
           const linkResponse = await fetch('/api/account/telegram/auto-link', {
             method: 'POST',
@@ -112,10 +128,9 @@ export default function TelegramMiniAppAuth() {
           return
         }
 
-        // First-time Telegram users are authenticated by Telegram ID, but the
-        // RoyalHouse account is not complete until the phone number is verified.
-        // Reuse the existing phone-link + SMS + safe-merge flow instead of
-        // creating a second account or exposing the full cabinet too early.
+        // Telegram ID authenticates the identity, but the RoyalHouse account is
+        // complete only after the phone is verified. This is also the safe path
+        // that can merge a Telegram-only profile into an existing phone profile.
         if (!data.profile?.hasPhone) {
           window.location.replace('/account/phone-link?first=1')
           return
