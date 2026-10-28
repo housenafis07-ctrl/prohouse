@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
-const INTERNAL_USER_HEADER = 'x-royalhouse-user-id'
 const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
 const profileSelect = 'phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url'
 const cleanUrl = (value: unknown) => {
@@ -12,17 +13,14 @@ const cleanUrl = (value: unknown) => {
   return trimmed
 }
 
-function getVerifiedUserId(request: Request) {
-  const value = request.headers.get(INTERNAL_USER_HEADER)?.trim()
-  return value && /^[0-9a-f-]{20,}$/i.test(value) ? value : null
+async function getPhoneBackedUserId() {
+  const cookieStore = await cookies()
+  return readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // proxy.ts has already verified the Supabase JWT and injects this header.
-    // Do not perform a second Auth lookup here: that duplicate getClaims/getUser
-    // path was the remaining source of the OTP -> /account loading stall.
-    const userId = getVerifiedUserId(request)
+    const userId = await getPhoneBackedUserId()
     if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
     const db = serviceClient()
@@ -30,14 +28,14 @@ export async function GET(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     if (!profile?.phone) return NextResponse.json({ error: 'PHONE_AUTH_REQUIRED' }, { status: 401 })
 
-    return NextResponse.json({ profile })
+    return NextResponse.json({ profile }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'PROFILE_LOAD_FAILED' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
-  const userId = getVerifiedUserId(request)
+  const userId = await getPhoneBackedUserId()
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
