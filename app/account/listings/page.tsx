@@ -1,3 +1,13 @@
-import MyListingsPage from './MyListingsPage'
+'use client'
 
-export default MyListingsPage
+import MyListingsPage from './MyListingsPage'
+import PromotionButtonInjector from './PromotionButtonInjector'
+
+export default function MyListingsRoute() {
+  return (
+    <>
+      <MyListingsPage />
+      <PromotionButtonInjector />
+    </>
+  )
+}
