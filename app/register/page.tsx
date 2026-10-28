@@ -66,16 +66,13 @@ export default function RegisterPage() {
       const response=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone,code:otpCode})})
       const data=await response.json()
       if(!response.ok) throw new Error(data.error||t('Kod noto‘g‘ri','Неверный код'))
-      const supabase=createClient()
-      if(!data.session?.access_token||!data.session?.refresh_token) throw new Error(t('Sessiya ma’lumotlari qaytmadi.','Данные сессии не получены.'))
-      const {error:sessionError}=await supabase.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token})
-      if(sessionError) throw sessionError
-      const {data:sessionData}=await supabase.auth.getSession()
-      const userId=sessionData.session?.user?.id
-      if(!userId) throw new Error(t('Foydalanuvchi sessiyasi topilmadi.','Сессия пользователя не найдена.'))
-      const {data:profile,error:profileError}=await supabase.from('profiles').select('*').eq('id',userId).maybeSingle()
-      if(profileError) throw profileError
-      if(profile){ router.replace(getRedirectTo()); return }
+
+      // The API now stores the verified Supabase session in the SSR cookie.
+      // Do not call browser setSession()/getSession()/profiles here: those
+      // calls can contend with the WebView/browser auth lock immediately after
+      // OTP and were the source of the login -> loading deadlock.
+      if(data.profileExists){ router.replace(getRedirectTo()); return }
+
       setCode(otpCode)
       setVerified(true)
       stopOtpRef.current?.(); stopOtpRef.current=null
@@ -160,7 +157,7 @@ export default function RegisterPage() {
       console.error('[registration] finish failed', { stage: registrationStage, code, message: detail, details: err?.details, hint: err?.hint })
       const stageLabel: Record<string, string> = { session: t('sessiyani olish', 'получение сессии'), profile_lookup: t('mavjud profilni tekshirish', 'проверка существующего профиля'), profile_upsert: t('profilni bazaga yozish', 'сохранение профиля в базе'), consent_lookup: t('oferta roziligini tekshirish', 'проверка согласия с офертой'), consent_insert: t('oferta roziligini saqlash', 'сохранение согласия с офертой') }
       if(code === '23505' && /phone/i.test(detail + ' ' + String(err?.details || ''))){ setMessage(t('Bu telefon raqami avval boshqa profilga biriktirilgan. Eski akkaunt orqali kiring yoki yordam xizmatiga murojaat qiling.','Этот телефонный номер уже привязан к другому профилю. Войдите в прежний аккаунт или обратитесь в поддержку.'))
-      } else if(code === '23505'){ setMessage(t('Bu ma’lumot bilan profil avval ro‘yxatdan o‘tgan. Sahifani yangilang va qayta kiring.','Профиль с такими данными уже зарегистрирован. Обновите страницу и qayta urinib ko‘ring.'))
+      } else if(code === '23505'){ setMessage(t('Bu ma’lumot bilan profil avval ro‘yxatdan o‘tgan. Sahifani yangilang va qayta kiring.','Профиль с такими данными уже зарегистрирован. Обновите страницу va qayta urinib ko‘ring.'))
       } else if(code === '42501' || /row-level security|permission denied/i.test(detail)){ setMessage(t(`Ruxsat xatosi: ${stageLabel[registrationStage] || registrationStage}. ${detail || code}`, `Ошибка доступа: ${stageLabel[registrationStage] || registrationStage}. ${detail || code}`))
       } else if(detail){ setMessage(detail) } else { setMessage(t('Ro‘yxatdan o‘tishda xatolik. Sahifani yangilang va qayta urinib ko‘ring.','Ошибка регистрации. Sahifani yangilang va qayta urinib ko‘ring.')) }
     } finally { setLoading(false) }
