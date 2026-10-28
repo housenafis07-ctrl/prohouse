@@ -1,0 +1,107 @@
+name: Patch account loading
+
+on:
+  push:
+    branches: [fix/account-loading-final]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch account page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/account/page.tsx')
+          s = p.read_text()
+
+          old = '''      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.replace('/register')
+          return
+        }
+
+        const { data, error: profileError } = await supabase
+          .from('profiles')
+          .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (!mounted) return
+        if (profileError) {
+          setError(ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.')
+          setLoading(false)
+          return
+        }
+        if (!data) {
+          router.replace('/register?next=%2Faccount')
+          return
+        }
+'''
+
+          new = '''      try {
+        // Auth/profile requests must never leave the whole cabinet on an
+        // infinite loading screen. Use the browser session first and put a
+        // hard deadline around the profile query.
+        const authResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 8000)
+          ),
+        ])
+        const user = authResult.data.session?.user ?? null
+
+        if (!user) {
+          router.replace('/account/login?next=%2Faccount')
+          return
+        }
+
+        const profileResult = await Promise.race([
+          supabase
+            .from('profiles')
+            .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
+            .eq('id', user.id)
+            .maybeSingle(),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error('PROFILE_TIMEOUT')), 8000)
+          ),
+        ])
+
+        if (!mounted) return
+        const { data, error: profileError } = profileResult
+        if (profileError) {
+          setError(ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.')
+          setLoading(false)
+          return
+        }
+        if (!data) {
+          setError(ru ? 'Профиль не найден.' : 'Profil topilmadi.')
+          setLoading(false)
+          return
+        }
+'''
+
+          if old not in s:
+              raise SystemExit('Expected account loading block was not found')
+
+          p.write_text(s.replace(old, new, 1))
+          PY
+
+          git diff --check
+          git diff -- app/account/page.tsx
+
+      - name: Commit patched code and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/patch-account-loading.yml
+          git add app/account/page.tsx .github/workflows/patch-account-loading.yml
+          git commit -m 'fix: prevent account page infinite loading'
+          git push
