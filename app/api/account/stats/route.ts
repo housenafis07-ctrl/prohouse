@@ -8,23 +8,20 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
     const statuses = ['active', 'moderation', 'rejected', 'sold', 'rented', 'archived'] as const
-    const results = await Promise.all(
-      statuses.map(async status => {
-        const { count, error } = await supabase
-          .from('listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('owner_id', user.id)
-          .eq('status', status)
-        if (error) throw error
-        return [status, count ?? 0] as const
-      })
-    )
-
-    const counts = Object.fromEntries(results)
-    const total = Object.values(counts).reduce((sum, value) => sum + value, 0)
+    const [{ count: total, error: totalError }, ...statusResults] = await Promise.all([
+      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', user.id),
+      ...statuses.map(async status => {
+        const { count, error } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).eq('status', status)
+        return { status, count: count ?? 0, error }
+      }),
+    ])
+    if (totalError) throw totalError
+    const failed = statusResults.find(item => item.error)
+    if (failed?.error) throw failed.error
+    const counts = Object.fromEntries(statusResults.map(item => [item.status, item.count]))
 
     return NextResponse.json({
-      total,
+      total: total ?? 0,
       active: counts.active ?? 0,
       moderation: counts.moderation ?? 0,
       rejected: counts.rejected ?? 0,
