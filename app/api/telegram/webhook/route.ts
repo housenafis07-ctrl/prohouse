@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     if (!message || !chatId) return NextResponse.json({ ok: true })
     const from = message.from; const admin = serviceClient(); const telegramUserId = from?.id ? String(from.id) : ''
 
-    // Register every private Telegram bot user immediately. This registry is the source for broadcasts.
+    // Register the Telegram chat for bot notifications only. This does not create or authenticate a RoyalHouse account.
     if (from?.id && message.chat?.type === 'private') {
       const { data: existingLink, error: linkLookupError } = await admin.from('telegram_user_links').select('profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
       if (linkLookupError) throw linkLookupError
@@ -143,8 +143,13 @@ export async function POST(request: NextRequest) {
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (!payload) {
-        const intro = '🏠 RoyalHouse’ga xush kelibsiz!\n\nRoyalHouse — uy-joy platformasi. Bu yerda uy, kvartira va dachalarni topish, e’lon joylashtirish, e’lonlaringizni boshqarish va ipoteka xizmatlaridan foydalanish mumkin — barchasi Telegram ichida.'
-        const guide = '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing va Mini App’ni oching.\n\n2️⃣ Kerakli bo‘limni tanlang:\n• 🏠 Uy / kvartira / hovli topish\n• 🏡 Dacha topish\n• ➕ E’lon joylashtirish\n• 📊 Ipoteka krediti skoringi\n\n3️⃣ Telegram orqali RoyalHouse’ga kiring va e’lonlarni ko‘ring, saqlang yoki o‘zingizning e’loningizni boshqaring.\n\n4️⃣ «Ipoteka krediti skoringi» bo‘limi orqali ipoteka olish imkoniyatingizni dastlabki baholang va kalkulyatorga o‘ting.\n\n🔐 Maxfiylik siyosati bilan tanishish uchun quyidagi tugmani bosing.'
+        const ru = (from?.language_code || '').toLowerCase().startsWith('ru')
+        const intro = ru
+          ? '🏠 Добро пожаловать в RoyalHouse!\n\nRoyalHouse — платформа недвижимости для поиска жилья, размещения объявлений, управления своими объявлениями и ипотечных сервисов.'
+          : '🏠 RoyalHouse’ga xush kelibsiz!\n\nRoyalHouse — uy-joy platformasi: uy, kvartira va dachalarni topish, e’lon joylashtirish, e’lonlarni boshqarish va ipoteka xizmatlaridan foydalanish mumkin.'
+        const guide = ru
+          ? '📱 Как пользоваться RoyalHouse?\n\n1️⃣ Нажмите «Royalhouse’ni ochish», чтобы открыть мини-приложение.\n\n2️⃣ Найдите нужный дом, квартиру или дачу.\n\n3️⃣ Чтобы разместить объявление, выберите «E’lon joylashtirish».\n\n4️⃣ В личном кабинете можно управлять объявлениями, смотреть статистику, продвигать объявления и настраивать профиль.\n\n5️⃣ Telegram не создаёт аккаунт RoyalHouse автоматически. Для входа через Telegram сначала зарегистрируйтесь на RoyalHouse и привяжите Telegram в личном кабинете.\n\n🔐 Политика конфиденциальности — по кнопке ниже.'
+          : '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing — Mini App ochiladi.\n\n2️⃣ Kerakli uy, kvartira yoki dachani qidiring.\n\n3️⃣ E’lon joylashtirish uchun «E’lon joylashtirish» bo‘limini tanlang.\n\n4️⃣ Shaxsiy kabinetda e’lonlarni boshqaring, statistika ko‘rsatkichlarini ko‘ring, e’lonlarni ilgari suring va profilingizni sozlang.\n\n5️⃣ Telegram orqali avtomatik RoyalHouse akkaunti yaratilmaydi. Telegram orqali kirish uchun avval RoyalHouse’da ro‘yxatdan o‘ting va shaxsiy kabinetdan Telegramni ulang.\n\n🔐 Maxfiylik siyosati bilan quyidagi tugma orqali tanishishingiz mumkin.'
         await sendTelegramMessage(chatId, intro)
         await telegramApi('sendMessage', {
           chat_id: chatId,
@@ -153,7 +158,7 @@ export async function POST(request: NextRequest) {
           reply_markup: {
             inline_keyboard: [
               [{ text: '🚀 Royalhouse’ni ochish', web_app: { url: `${SITE_URL}/telegram` } }],
-              [{ text: '🔐 Maxfiylik siyosati', url: `${SITE_URL}/privacy` }],
+              [{ text: ru ? '🔐 Политика конфиденциальности' : '🔐 Maxfiylik siyosati', url: `${SITE_URL}/privacy` }],
             ],
           },
         })
