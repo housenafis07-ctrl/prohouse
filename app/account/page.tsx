@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
+import ProfileStatusChecklist from './ProfileStatusChecklist'
 
 type Profile = {
   phone: string | null
@@ -19,6 +20,11 @@ type Profile = {
   mfo: string | null
   oked: string | null
   director_full_name: string | null
+  email: string | null
+  instagram_url: string | null
+  facebook_url: string | null
+  linkedin_url: string | null
+  telegram_url: string | null
 }
 
 type Stats = {
@@ -134,7 +140,7 @@ export default function AccountPage() {
 
       const { data, error: profileError } = await supabase
         .from('profiles')
-        .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name')
+        .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
         .eq('id', user.id)
         .maybeSingle()
 
@@ -202,6 +208,11 @@ export default function AccountPage() {
           mfo: form.mfo?.trim() || '',
           oked: form.oked?.trim() || '',
           director_full_name: form.director_full_name?.trim() || '',
+          email: form.email?.trim() || '',
+          instagram_url: form.instagram_url?.trim() || '',
+          facebook_url: form.facebook_url?.trim() || '',
+          linkedin_url: form.linkedin_url?.trim() || '',
+          telegram_url: form.telegram_url?.trim() || '',
         }),
       })
       const result = await response.json()
@@ -347,31 +358,28 @@ export default function AccountPage() {
                   </div>
                 </section>
 
-                <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">{ru ? 'Профиль' : 'Profil'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Проверьте и обновите данные.' : 'Ma’lumotlarni tekshiring va yangilang.'}</p></div>{!editing && <button type="button" onClick={() => setEditing(true)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black hover:bg-slate-50">{ru ? 'Изменить' : 'Tahrirlash'}</button>}</div>
-                  <form onSubmit={saveProfile} className="mt-4"><div className="grid gap-3 sm:grid-cols-2">
-                    <ProfileField label={ru ? 'Ф.И.О.' : 'F.I.O.'} value={display.full_name} form={form} field="full_name" editing={editing} required onChange={setField} />
-                    <ProfileField label={ru ? 'Телефон' : 'Telefon'} value={display.phone} form={form} field="phone" editing={false} disabled onChange={setField} />
-                    <ProfileField label={ru ? 'Тип аккаунта' : 'Akkaunt turi'} value={display.account_type === 'partner' ? (ru ? 'Партнёр' : 'Hamkor') : ru ? 'Физическое лицо' : 'Jismoniy shaxs'} form={form} field="account_type" editing={false} disabled onChange={setField} />
-                    {showPartnerFields && <><ProfileField label="ИНН" value={display.inn} form={form} field="inn" editing={editing} required onChange={setField} /><ProfileField label={ru ? 'Компания' : 'Firma nomi'} value={display.company_name} form={form} field="company_name" editing={editing} onChange={setField} /><ProfileField label={ru ? 'Банк' : 'Bank'} value={display.bank_name} form={form} field="bank_name" editing={editing} onChange={setField} /><ProfileField label={ru ? 'Расчётный счёт' : 'Hisob raqami'} value={display.bank_account} form={form} field="bank_account" editing={editing} onChange={setField} /></>}
-                  </div>{editing && <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => { setForm(profile); setEditing(false); setError('') }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{ru ? 'Отмена' : 'Bekor qilish'}</button><button disabled={saving} type="submit" className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-60">{saving ? (ru ? 'Сохранение...' : 'Saqlanmoqda...') : (ru ? 'Сохранить' : 'Saqlash')}</button></div>}</form>
+                <section id="profile-data" className="scroll-mt-24 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">{ru ? 'Профиль и публичные данные' : 'Profil va ochiq ma’lumotlar'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Эти данные помогут покупателям познакомиться с продавцом.' : 'Bu ma’lumotlar xaridorlarga sotuvchi bilan tanishish va ishonch hosil qilishga yordam beradi.'}</p></div>{!editing && <button type="button" onClick={() => setEditing(true)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black hover:bg-slate-50">{ru ? 'Изменить' : 'Tahrirlash'}</button>}</div>
+                  <form onSubmit={saveProfile} className="mt-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ProfileField label={ru ? 'Ф.И.О.' : 'F.I.O.'} value={display.full_name} form={form} field="full_name" editing={editing} required onChange={setField} />
+                      <ProfileField label={ru ? 'Телефон' : 'Telefon'} value={display.phone} form={form} field="phone" editing={false} disabled onChange={setField} />
+                      <ProfileField label={ru ? 'Тип аккаунта' : 'Akkaunt turi'} value={display.account_type === 'partner' ? (ru ? 'Партнёр' : 'Hamkor') : ru ? 'Физическое лицо' : 'Jismoniy shaxs'} form={form} field="account_type" editing={false} disabled onChange={setField} />
+                      <ProfileField label="Email" value={display.email} form={form} field="email" editing={editing} onChange={setField} />
+                      <ProfileField label="Instagram" value={display.instagram_url} form={form} field="instagram_url" editing={editing} onChange={setField} />
+                      <ProfileField label="Facebook" value={display.facebook_url} form={form} field="facebook_url" editing={editing} onChange={setField} />
+                      <ProfileField label="LinkedIn" value={display.linkedin_url} form={form} field="linkedin_url" editing={editing} onChange={setField} />
+                      <ProfileField label={ru ? 'Telegram (публичная ссылка)' : 'Telegram (ochiq profil)'} value={display.telegram_url} form={form} field="telegram_url" editing={editing} onChange={setField} />
+                      {showPartnerFields && <><ProfileField label="ИНН" value={display.inn} form={form} field="inn" editing={editing} required onChange={setField} /><ProfileField label={ru ? 'Компания' : 'Firma nomi'} value={display.company_name} form={form} field="company_name" editing={editing} onChange={setField} /><ProfileField label={ru ? 'Банк' : 'Bank'} value={display.bank_name} form={form} field="bank_name" editing={editing} onChange={setField} /><ProfileField label={ru ? 'Расчётный счёт' : 'Hisob raqami'} value={display.bank_account} form={form} field="bank_account" editing={editing} onChange={setField} /></>}
+                    </div>
+                    <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">{ru ? 'Заполненные email и социальные сети могут быть показаны в публичной карточке продавца. Телефон остаётся защищённым и раскрывается через действие «Показать телефон».' : 'Kiritilgan email va ijtimoiy tarmoqlar e’lon beruvchi/sotuvchining ochiq profilida ko‘rsatilishi mumkin. Telefon esa himoyalangan holda qoladi va faqat «Telefonni ko‘rsatish» amali orqali ochiladi.'}</div>
+                    {editing && <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => { setForm(profile); setEditing(false); setError('') }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{ru ? 'Отмена' : 'Bekor qilish'}</button><button disabled={saving} type="submit" className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-60">{saving ? (ru ? 'Сохранение...' : 'Saqlanmoqda...') : (ru ? 'Сохранить' : 'Saqlash')}</button></div>}
+                  </form>
                 </section>
               </div>
 
               <aside className="space-y-4">
-                <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between"><div><h2 className="text-base font-black">{ru ? 'Статус профиля' : 'Profil holati'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Профиль и возможности' : 'Profil va imkoniyatlar'}</p></div><span className="text-sm font-black text-emerald-700">{completion}%</span></div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, completion))}%` }} /></div>
-                  <div className="mt-4 grid gap-2">
-                    <Link href="/account/trusted-profile" className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3 py-3 transition hover:bg-emerald-100"><span><b className="block text-xs font-black text-emerald-900">✓ {ru ? 'Надёжный профиль' : 'Ishonchli profil'}</b><small className="text-[11px] text-emerald-700">{ru ? 'Повышайте доверие' : 'Ishonchni oshiring'}</small></span><span className="text-emerald-700">→</span></Link>
-                    <Link href="/account/company-profile" className="flex items-center justify-between rounded-2xl border border-violet-100 bg-violet-50/70 px-3 py-3 transition hover:bg-violet-100"><span><b className="block text-xs font-black text-violet-900">▦ {ru ? 'Профиль компании' : 'Firma profili'}</b><small className="text-[11px] text-violet-700">{ru ? 'Подключить Business' : 'Business tarifini tanlash'}</small></span><span className="text-violet-700">→</span></Link>
-                    <div className={`rounded-2xl border px-3 py-3 ${telegramLinked ? 'border-sky-100 bg-sky-50/70' : 'border-amber-100 bg-amber-50/70'}`}>
-                      <div className="flex items-center justify-between gap-3"><span><b className="block text-xs font-black text-slate-900">✈️ Telegram</b><small className="text-[11px] text-slate-500">{telegramLinked ? (telegramUsername ? `@${telegramUsername.replace(/^@/, '')}` : (ru ? 'Подключён' : 'Ulangan')) : (ru ? 'Уведомления в боте' : 'Bot orqali bildirishnomalar')}</small></span>{telegramLinked ? <span className="text-sm font-black text-emerald-600">✓</span> : <button type="button" onClick={createTelegramLink} disabled={telegramBusy} className="rounded-xl bg-slate-950 px-3 py-2 text-[11px] font-black text-white disabled:opacity-60">{telegramBusy ? '...' : (ru ? 'Подключить' : 'Ulash')}</button>}</div>
-                      {!telegramLinked && telegramLinkUrl && <a href={telegramLinkUrl} target="_blank" rel="noreferrer" className="mt-2 block rounded-xl bg-emerald-600 px-3 py-2 text-center text-[11px] font-black text-white">{ru ? 'Открыть Telegram' : 'Telegramni ochish'}</a>}
-                      {telegramError && <p className="mt-2 text-[11px] font-semibold text-rose-600">{telegramError}</p>}
-                    </div>
-                  </div>
-                </section>
+                <ProfileStatusChecklist profile={profile} ru={ru} completion={completion} telegramLinked={telegramLinked} telegramUsername={telegramUsername} telegramBusy={telegramBusy} telegramLinkUrl={telegramLinkUrl} telegramError={telegramError} onTelegramLink={createTelegramLink} />
 
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-xl">★</div><div><h2 className="text-base font-black">{ru ? 'Быстрый рост' : 'Tezroq natija'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Продвиньте активное объявление и отслеживайте показы.' : 'Faol e’lonni ilgari suring va ko‘rishlar natijasini kuzating.'}</p></div></div><Link href="/account/monetization" className="mt-4 block rounded-xl bg-amber-400 px-4 py-3 text-center text-sm font-black text-slate-950 hover:bg-amber-300">{ru ? 'Выбрать продвижение' : 'Ilgari surish tariflarini ko‘rish'}</Link></section>
 
