@@ -4,6 +4,11 @@ import { telegramAuthEmail, telegramAuthPassword, validateTelegramInitData } fro
 
 export const runtime = 'nodejs'
 
+/**
+ * Telegram Mini App authentication is intentionally limited to users who have
+ * already linked their Telegram account from an existing RoyalHouse account.
+ * Opening the Mini App must NEVER create a RoyalHouse account automatically.
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null)
@@ -16,80 +21,24 @@ export async function POST(request: NextRequest) {
     const { user: tgUser } = validated
     const admin = serviceClient()
     const telegramUserId = String(tgUser.id)
-    const email = telegramAuthEmail(tgUser.id)
-    const password = telegramAuthPassword(tgUser.id)
-    const telegramDisplayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim()
-    const displayName = telegramDisplayName || (tgUser.username ? `@${tgUser.username}` : `Telegram ${tgUser.id}`)
 
-    // Telegram ID is the source of identity. Do not call the browser/session
-    // Supabase client here: this endpoint must work before a RoyalHouse session
-    // exists. The previous implementation performed auth.getUser() first and
-    // could leave the Mini App waiting during Telegram startup.
     const { data: existingLink, error: linkLookupError } = await admin
       .from('telegram_user_links')
       .select('profile_id,telegram_username,chat_id')
       .eq('telegram_user_id', telegramUserId)
       .maybeSingle()
+
     if (linkLookupError) throw linkLookupError
 
-    let profileId = existingLink?.profile_id || null
-    let session: { access_token: string; refresh_token: string } | null = null
-
+    // Telegram is not a registration mechanism. A user must first have an
+    // existing RoyalHouse profile and explicitly link Telegram from the
+    // account settings. Never call auth.admin.createUser() here.
+    const profileId = existingLink?.profile_id || null
     if (!profileId) {
-      const { data: createdUser, error: createUserError } = await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          auth_provider: 'telegram',
-          telegram_user_id: telegramUserId,
-          telegram_username: tgUser.username || null,
-          telegram_first_name: tgUser.first_name || null,
-          telegram_last_name: tgUser.last_name || null,
-        },
-      })
-
-      if (!createUserError && createdUser?.user?.id) {
-        profileId = createdUser.user.id
-      } else if (createUserError && /already registered|already exists/i.test(createUserError.message)) {
-        // Existing deterministic Telegram account. Find it without scanning
-        // auth.users on the normal path.
-        const { createClient } = await import('@/utils/supabase/server')
-        const authClient = await createClient()
-        const signIn = await authClient.auth.signInWithPassword({ email, password })
-
-        if (!signIn.error && signIn.data.user?.id && signIn.data.session) {
-          profileId = signIn.data.user.id
-          session = {
-            access_token: signIn.data.session.access_token,
-            refresh_token: signIn.data.session.refresh_token,
-          }
-        } else {
-          // Legacy recovery only. This path is not used for a newly created
-          // Telegram account and is retained for accounts created by earlier
-          // versions of the integration.
-          let page = 1
-          const perPage = 1000
-          while (!profileId) {
-            const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage })
-            if (usersError) throw usersError
-            const foundUser = usersPage.users.find(user => user.email?.toLowerCase() === email.toLowerCase())
-            if (foundUser?.id) {
-              profileId = foundUser.id
-              break
-            }
-            if (usersPage.users.length < perPage) break
-            page += 1
-          }
-          if (!profileId) throw signIn.error || new Error('TELEGRAM_USER_NOT_FOUND')
-        }
-      } else if (createUserError) {
-        throw createUserError
-      }
-    }
-
-    if (!profileId) {
-      return NextResponse.json({ error: 'TELEGRAM_USER_CREATE_FAILED' }, { status: 500 })
+      return NextResponse.json({
+        error: 'TELEGRAM_ACCOUNT_NOT_LINKED',
+        message: 'Telegram akkaunti RoyalHouse profiliga ulanmagan. Avval RoyalHouse saytida akkaunt yarating yoki mavjud akkauntingizga kiring va Profil sozlamalaridan Telegramni ulang.',
+      }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     const { data: profile, error: profileLookupError } = await admin
@@ -97,89 +46,80 @@ export async function POST(request: NextRequest) {
       .select('id,full_name,phone')
       .eq('id', profileId)
       .maybeSingle()
+
     if (profileLookupError) throw profileLookupError
-
     if (!profile) {
-      const { error: profileInsertError } = await admin.from('profiles').insert({
-        id: profileId,
-        full_name: displayName,
-        account_type: 'individual',
-      })
-      if (profileInsertError) throw profileInsertError
-    } else {
-      // Avoid an extra auth.users lookup on the hot path. Only repair the
-      // legacy Telegram placeholder when the profile itself still has the
-      // placeholder name; real profile names are left untouched.
-      const currentName = profile.full_name?.trim() || ''
-      const isTelegramPlaceholder = !currentName || /^admin$/i.test(currentName)
-
-      if (isTelegramPlaceholder) {
-        const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(profileId)
-        if (authUserError) throw authUserError
-
-        if (authUser.user?.user_metadata?.auth_provider === 'telegram') {
-          const { error: profileUpdateError } = await admin
-            .from('profiles')
-            .update({ full_name: displayName })
-            .eq('id', profileId)
-          if (profileUpdateError) throw profileUpdateError
-        }
-      }
+      return NextResponse.json({
+        error: 'TELEGRAM_PROFILE_NOT_FOUND',
+        message: 'RoyalHouse profilingiz topilmadi. Iltimos, akkauntingizdan Telegram ulanishini qayta tekshiring.',
+      }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
-    // The Telegram link normally already exists. Skip the write when nothing
-    // changed; this removes a database write from every repeat Mini App open.
-    const linkNeedsUpdate =
-      !existingLink ||
-      existingLink.telegram_username !== (tgUser.username || null) ||
+    const email = telegramAuthEmail(tgUser.id)
+    const password = telegramAuthPassword(tgUser.id)
+    const { createClient } = await import('@/utils/supabase/server')
+    const authClient = await createClient()
+
+    // Existing linked Telegram accounts use the deterministic credentials
+    // created by the legacy Telegram integration. If a legacy account has a
+    // mismatched password, repair only that already-existing account; never
+    // create a new auth user.
+    let { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email, password })
+
+    if (signInError) {
+      const { data: authUser, error: authUserError } = await admin.auth.admin.getUserById(profileId)
+      if (authUserError) throw authUserError
+
+      if (authUser.user?.user_metadata?.auth_provider !== 'telegram') {
+        return NextResponse.json({
+          error: 'TELEGRAM_AUTH_REQUIRES_RELINK',
+          message: 'Telegram ulanishi tasdiqlanmadi. RoyalHouse kabinetidan Telegram ulanishini qayta bajaring.',
+        }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } })
+      }
+
+      const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
+      if (passwordUpdateError) throw passwordUpdateError
+
+      const retry = await authClient.auth.signInWithPassword({ email, password })
+      signInData = retry.data
+      signInError = retry.error
+    }
+
+    if (signInError || !signInData.session) {
+      return NextResponse.json({
+        error: 'TELEGRAM_SESSION_CREATE_FAILED',
+        message: 'Telegram orqali kirish vaqtincha amalga oshmadi. RoyalHouse kabinetidan Telegram ulanishini qayta tekshiring.',
+      }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } })
+    }
+
+    const telegramUsername = tgUser.username || null
+    if (
+      existingLink.telegram_username !== telegramUsername ||
       existingLink.chat_id !== telegramUserId
+    ) {
+      const { error: telegramLinkError } = await admin
+        .from('telegram_user_links')
+        .update({
+          chat_id: telegramUserId,
+          telegram_username: telegramUsername,
+        })
+        .eq('profile_id', profileId)
+        .eq('telegram_user_id', telegramUserId)
 
-    if (linkNeedsUpdate) {
-      const { error: telegramLinkError } = await admin.from('telegram_user_links').upsert({
-        profile_id: profileId,
-        telegram_user_id: telegramUserId,
-        chat_id: telegramUserId,
-        telegram_username: tgUser.username || null,
-        linked_at: new Date().toISOString(),
-      }, { onConflict: 'profile_id' })
       if (telegramLinkError) throw telegramLinkError
-    }
-
-    // A newly created account still needs a browser session. Existing accounts
-    // may already have received one above; otherwise sign in now and return the
-    // tokens so the Mini App can call auth.setSession() in the browser.
-    if (!session) {
-      const { createClient } = await import('@/utils/supabase/server')
-      const authClient = await createClient()
-      let { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({ email, password })
-
-      if (signInError) {
-        const { error: passwordUpdateError } = await admin.auth.admin.updateUserById(profileId, { password })
-        if (passwordUpdateError) throw passwordUpdateError
-
-        const retry = await authClient.auth.signInWithPassword({ email, password })
-        signInData = retry.data
-        signInError = retry.error
-      }
-
-      if (signInError || !signInData.session) {
-        throw signInError || new Error('TELEGRAM_SESSION_CREATE_FAILED')
-      }
-
-      session = {
-        access_token: signInData.session.access_token,
-        refresh_token: signInData.session.refresh_token,
-      }
     }
 
     return NextResponse.json({
       ok: true,
-      session,
+      session: {
+        access_token: signInData.session.access_token,
+        refresh_token: signInData.session.refresh_token,
+      },
       profile: {
         id: profileId,
-        fullName: displayName,
-        phone: profile?.phone || null,
-        hasPhone: Boolean(profile?.phone),
+        fullName: profile.full_name || '',
+        phone: profile.phone || null,
+        hasPhone: Boolean(profile.phone),
       },
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (error) {
