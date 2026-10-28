@@ -3,6 +3,13 @@ import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
 const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
+const cleanUrl = (value: unknown) => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`
+  return trimmed
+}
 
 export async function POST(request: Request) {
   const auth = await createClient()
@@ -21,10 +28,16 @@ export async function POST(request: Request) {
   const mfo = typeof body.mfo === 'string' ? body.mfo.trim() : ''
   const oked = typeof body.oked === 'string' ? body.oked.trim() : ''
   const directorName = typeof body.director_full_name === 'string' ? body.director_full_name.trim() : ''
+  const email = typeof body.email === 'string' ? body.email.trim() : ''
+  const instagramUrl = cleanUrl(body.instagram_url)
+  const facebookUrl = cleanUrl(body.facebook_url)
+  const linkedinUrl = cleanUrl(body.linkedin_url)
+  const telegramUrl = cleanUrl(body.telegram_url)
 
   if (!fullName) return NextResponse.json({ error: 'F.I.O. ni kiriting.' }, { status: 400 })
   if (accountType === 'partner' && !legalForm) return NextResponse.json({ error: 'Hamkor turini tanlang.' }, { status: 400 })
   if (accountType === 'partner' && !inn) return NextResponse.json({ error: 'INN ni kiriting.' }, { status: 400 })
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Email manzilini tekshiring.' }, { status: 400 })
 
   const db = serviceClient()
   const profilePatch = {
@@ -38,6 +51,11 @@ export async function POST(request: Request) {
     mfo: mfo || null,
     oked: oked || null,
     director_full_name: directorName || null,
+    email: email || null,
+    instagram_url: instagramUrl,
+    facebook_url: facebookUrl,
+    linkedin_url: linkedinUrl,
+    telegram_url: telegramUrl,
   }
   const { error: updateError } = await db.from('profiles').update(profilePatch).eq('id', user.id)
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
@@ -62,7 +80,7 @@ export async function POST(request: Request) {
     if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
   }
 
-  const { data: updated, error: readError } = await db.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').eq('id', user.id).single()
+  const { data: updated, error: readError } = await db.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url').eq('id', user.id).single()
   if (readError) return NextResponse.json({ error: readError.message }, { status: 400 })
   return NextResponse.json({ profile: updated })
 }
