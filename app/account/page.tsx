@@ -131,53 +131,33 @@ export default function AccountPage() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const supabase = createClient()
       try {
-        // Browser-side account loading must not depend on a network round-trip
-        // to Supabase Auth. The previous getUser() call could remain pending
-        // after OTP setSession and leave the whole cabinet on Yuklanmoqda... .
-        const authResult = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AUTH_SESSION_TIMEOUT')), 5000)),
+        // The cabinet must not depend on the browser Supabase auth lock. OTP
+        // login already established the session cookie; the server endpoint
+        // validates that cookie and reads the profile directly. The previous
+        // client-side getSession()/profiles query could remain pending and
+        // leave the entire cabinet on "Yuklanmoqda...".
+        const response = await Promise.race([
+          fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('PROFILE_LOAD_TIMEOUT')), 8000)),
         ])
-        const user = authResult.data.session?.user
-        if (!user) {
-          router.replace('/account/login?next=%2Faccount')
-          return
-        }
-
-        const profileResult = await Promise.race([
-          supabase
-            .from('profiles')
-            .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
-            .eq('id', user.id)
-            .maybeSingle(),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('PROFILE_QUERY_TIMEOUT')), 8000)),
-        ])
-        const { data, error: profileError } = profileResult
+        const result = await response.json().catch(() => ({}))
 
         if (!mounted) return
-        if (profileError) {
-          setError(ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.')
-          setLoading(false)
-          return
-        }
-        if (!data) {
+        if (response.status === 401 && (result.error === 'AUTH_REQUIRED' || result.error === 'PHONE_AUTH_REQUIRED')) {
           router.replace('/account/login?next=%2Faccount')
           return
         }
+        if (!response.ok || !result.profile) {
+          throw new Error(result.error || (ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.'))
+        }
 
-        const nextProfile = data as Profile
+        const nextProfile = result.profile as Profile
         setProfile(nextProfile)
         setForm(nextProfile)
         setLoading(false)
 
-        // These are auxiliary dashboard values. They must never block the
-        // account itself from rendering when an API/RPC is slow or unavailable.
-        void supabase.rpc('get_seller_profile_completeness').then(({ data: completeness }) => {
-          if (!mounted) return
-          if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
-        }).catch(() => undefined)
+        // Auxiliary dashboard values never block the cabinet from rendering.
         void loadStats()
         void loadTelegramStatus()
       } catch (loadError) {
