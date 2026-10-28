@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
+const INTERNAL_USER_HEADER = 'x-royalhouse-user-id'
 const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
 const profileSelect = 'phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url'
 const cleanUrl = (value: unknown) => {
@@ -12,21 +12,19 @@ const cleanUrl = (value: unknown) => {
   return trimmed
 }
 
-async function getPhoneBackedUserId() {
-  const auth = await createClient()
-  const { data, error } = await auth.auth.getClaims()
-  if (error || !data?.claims?.sub) return null
-  return String(data.claims.sub)
+function getVerifiedUserId(request: Request) {
+  const value = request.headers.get(INTERNAL_USER_HEADER)?.trim()
+  return value && /^[0-9a-f-]{20,}$/i.test(value) ? value : null
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const userId = await getPhoneBackedUserId()
+    // proxy.ts has already verified the Supabase JWT and injects this header.
+    // Do not perform a second Auth lookup here: that duplicate getClaims/getUser
+    // path was the remaining source of the OTP -> /account loading stall.
+    const userId = getVerifiedUserId(request)
     if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
-    // Cabinet access is phone/SMS-only. Telegram may still be linked for
-    // notifications, but a profile without a real phone-backed profile must
-    // never be allowed to load the cabinet.
     const db = serviceClient()
     const { data: profile, error } = await db.from('profiles').select(profileSelect).eq('id', userId).maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -39,7 +37,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const userId = await getPhoneBackedUserId()
+  const userId = getVerifiedUserId(request)
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
@@ -63,7 +61,7 @@ export async function POST(request: Request) {
   if (!fullName) return NextResponse.json({ error: 'F.I.O. ni kiriting.' }, { status: 400 })
   if (accountType === 'partner' && !legalForm) return NextResponse.json({ error: 'Hamkor turini tanlang.' }, { status: 400 })
   if (accountType === 'partner' && !inn) return NextResponse.json({ error: 'INN ni kiriting.' }, { status: 400 })
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Email manzilini tekshiring.' }, { status: 400 })
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: 'Email manzilini tekshiring.' }, { status: 400 })
 
   const db = serviceClient()
   const profilePatch = {
