@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
@@ -11,7 +11,7 @@ function safeNext(value: string | null) {
   return value
 }
 
-export default function AccountLoginPage() {
+function AccountLoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { lang } = useI18n()
@@ -115,5 +115,25 @@ export default function AccountLoginPage() {
         </section>
       </div>
     </main>
+  )
+}
+
+function AccountLoginFallback() {
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 py-8">
+      <div className="mx-auto max-w-xl rounded-3xl bg-white p-8 shadow-sm">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">ROYALHOUSE</div>
+        <div className="mt-3 h-8 w-72 animate-pulse rounded bg-slate-100" />
+        <div className="mt-4 h-24 animate-pulse rounded-2xl bg-slate-100" />
+      </div>
+    </main>
+  )
+}
+
+export default function AccountLoginPage() {
+  return (
+    <Suspense fallback={<AccountLoginFallback />}>
+      <AccountLoginContent />
+    </Suspense>
   )
 }
