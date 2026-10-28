@@ -3,12 +3,33 @@ import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 
 const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
+const profileSelect = 'phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url'
 const cleanUrl = (value: unknown) => {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   if (!trimmed) return null
   if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`
   return trimmed
+}
+
+export async function GET() {
+  try {
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+    // Cabinet access is phone/SMS-only. Telegram may still be linked for
+    // notifications, but a profile without a real phone-backed profile must
+    // never be allowed to load the cabinet.
+    const db = serviceClient()
+    const { data: profile, error } = await db.from('profiles').select(profileSelect).eq('id', user.id).maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!profile?.phone) return NextResponse.json({ error: 'PHONE_AUTH_REQUIRED' }, { status: 401 })
+
+    return NextResponse.json({ profile })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'PROFILE_LOAD_FAILED' }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
@@ -80,7 +101,7 @@ export async function POST(request: Request) {
     if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
   }
 
-  const { data: updated, error: readError } = await db.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url').eq('id', user.id).single()
+  const { data: updated, error: readError } = await db.from('profiles').select(profileSelect).eq('id', user.id).single()
   if (readError) return NextResponse.json({ error: readError.message }, { status: 400 })
   return NextResponse.json({ profile: updated })
 }
