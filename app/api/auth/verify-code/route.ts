@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/utils/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession } from '@/utils/auth/account-session'
 
 const MAX_ATTEMPTS = 5
 
@@ -175,10 +177,31 @@ export async function POST(request: Request) {
     )
   }
 
-  // Store the verified session in the SSR cookie on the server. The browser
-  // must not call setSession()/getSession() after OTP because that auth-lock
-  // path is what was hanging in Telegram WebView and the regular browser.
-  const serverAuth = await createServerClient()
+  // Persist the verified Supabase session directly on the HTTP response.
+  // The browser/Telegram WebView must not call setSession/getSession after OTP.
+  const response = NextResponse.json({
+    ok: true,
+    testMode: false,
+    userId: user.id,
+    profileExists: Boolean(existingProfile?.id),
+  }, {
+    headers: { 'Cache-Control': 'no-store' },
+  })
+
+  const cookieStore = await cookies()
+  const serverAuth = createServerClient(supabaseUrl, publishableKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll(cookiesToSet) {
+        for (const { name, value, options } of cookiesToSet) {
+          response.cookies.set(name, value, options)
+        }
+      },
+    },
+  })
+
   const { error: cookieSessionError } = await serverAuth.auth.setSession({
     access_token: sessionData.session.access_token,
     refresh_token: sessionData.session.refresh_token,
@@ -187,10 +210,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: cookieSessionError.message }, { status: 500 })
   }
 
-  return NextResponse.json({
-    ok: true,
-    testMode: false,
-    userId: user.id,
-    profileExists: Boolean(existingProfile?.id),
-  })
+  // This signed cookie is the cabinet's bootstrap credential. It deliberately
+  // avoids the Supabase Auth network/auth-lock path that was freezing /account.
+  response.cookies.set(ACCOUNT_SESSION_COOKIE, createAccountSession(user.id), accountSessionCookieOptions)
+
+  return response
 }
