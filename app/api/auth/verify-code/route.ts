@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/utils/supabase/server'
 
 const MAX_ATTEMPTS = 5
 
@@ -174,13 +175,22 @@ export async function POST(request: Request) {
     )
   }
 
+  // Store the verified session in the SSR cookie on the server. The browser
+  // must not call setSession()/getSession() after OTP because that auth-lock
+  // path is what was hanging in Telegram WebView and the regular browser.
+  const serverAuth = await createServerClient()
+  const { error: cookieSessionError } = await serverAuth.auth.setSession({
+    access_token: sessionData.session.access_token,
+    refresh_token: sessionData.session.refresh_token,
+  })
+  if (cookieSessionError) {
+    return NextResponse.json({ error: cookieSessionError.message }, { status: 500 })
+  }
+
   return NextResponse.json({
     ok: true,
     testMode: false,
     userId: user.id,
-    session: {
-      access_token: sessionData.session.access_token,
-      refresh_token: sessionData.session.refresh_token,
-    },
+    profileExists: Boolean(existingProfile?.id),
   })
 }
