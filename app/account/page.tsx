@@ -1,11 +1,10 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, ReactNode, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
-import AppIcon from '@/app/components/AppIcon'
 
 type Profile = {
   phone: string | null
@@ -30,63 +29,15 @@ const partnerLabels: Record<string, { uz: string; ru: string }> = {
 type FieldProps = { label: string; value: string | null; form: Profile; field: keyof Profile; editing: boolean; required?: boolean; disabled?: boolean; onChange: (field: keyof Profile, value: string) => void }
 
 function ProfileField({ label, value, form, field, editing, required = false, disabled = false, onChange }: FieldProps) {
-  return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 transition hover:border-slate-200">
-      <label className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-400">{label}</label>
-      {editing && !disabled ? (
-        <input value={String(form[field] ?? '')} onChange={e => onChange(field, e.target.value)} required={required} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10" />
-      ) : (
-        <p className="mt-2 truncate font-bold text-slate-900">{value || '—'}</p>
-      )}
-    </div>
-  )
+  return <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</label>{editing && !disabled ? <input value={String(form[field] ?? '')} onChange={e => onChange(field, e.target.value)} required={required} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10" /> : <p className="mt-2 truncate text-sm font-bold text-slate-900">{value || '—'}</p>}</div>
 }
 
-function StatusIcon({ type }: { type: 'check' | 'user' | 'home' | 'plus' | 'help' }) {
-  return <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><AppIcon name={type} className="h-5 w-5" /></span>
-}
-
-function PartnerGrowthBanner({ lang }: { lang: 'uz' | 'ru' }) {
-  const [slide, setSlide] = useState(0)
-  const slides = lang === 'ru' ? [
-    { eyebrow: 'ROYALHOUSE PARTNER', title: 'Больше объявлений — больше клиентов', text: 'Выберите тариф START, PRO или BUSINESS и масштабируйте размещение.', cta: 'Выбрать тариф →', href: '/account/monetization', tone: 'from-slate-950 via-slate-900 to-emerald-950' },
-    { eyebrow: 'ПРОДВИЖЕНИЕ', title: 'Покажите объявления выше', text: 'TOP, UP и Highlight помогают привлечь больше внимания покупателей.', cta: 'Продвинуть объявление →', href: '/account/monetization', tone: 'from-emerald-950 via-emerald-900 to-slate-900' },
-    { eyebrow: 'ДОВЕРЕННЫЙ ПАРТНЁР', title: 'Больше доверия к вашему бизнесу', text: 'Загрузите необходимые документы и получите статус доверенного партнёра после проверки.', cta: 'Стать доверенным партнёром →', href: '/account/trusted-partner', tone: 'from-indigo-950 via-slate-900 to-emerald-950' },
-  ] : [
-    { eyebrow: 'ROYALHOUSE PARTNER', title: 'Ko‘proq e’lon — ko‘proq mijoz', text: 'START, PRO yoki BUSINESS tarifini tanlab, biznesingizni kengaytiring.', cta: 'Tarifni tanlash →', href: '/account/monetization', tone: 'from-slate-950 via-slate-900 to-emerald-950' },
-    { eyebrow: 'ILGARI SURISH', title: 'E’loningizni yuqoriroqda ko‘rsating', text: 'TOP, UP va Highlight xizmatlari xaridorlar e’tiborini ko‘proq jalb qilishga yordam beradi.', cta: 'E’lonni ilgari surish →', href: '/account/monetization', tone: 'from-emerald-950 via-emerald-900 to-slate-900' },
-    { eyebrow: 'ISHONCHLI HAMKOR', title: 'Biznesingizga ko‘proq ishonch', text: 'Zarur hujjatlarni yuklang va tekshiruvdan so‘ng Ishonchli hamkor maqomini oling.', cta: 'Ishonchli hamkor bo‘lish →', href: '/account/trusted-partner', tone: 'from-indigo-950 via-slate-900 to-emerald-950' },
-  ]
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setSlide(value => (value + 1) % slides.length), 5000)
-    return () => window.clearInterval(timer)
-  }, [slides.length])
-
-  const current = slides[slide]
-  return (
-    <section className={`relative overflow-hidden rounded-[28px] bg-gradient-to-br ${current.tone} p-6 text-white shadow-[0_18px_50px_rgba(15,23,42,0.14)] sm:p-8`}>
-      <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
-      <div className="absolute bottom-[-80px] left-1/3 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
-      <div className="relative flex min-h-[205px] flex-col justify-between sm:min-h-[190px]">
-        <div className="max-w-3xl">
-          <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black tracking-[0.18em] text-emerald-200">{current.eyebrow}</span>
-          <h2 className="mt-4 max-w-2xl text-2xl font-black tracking-tight sm:text-4xl">{current.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">{current.text}</p>
-          <Link href={current.href} className="mt-5 inline-flex items-center rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">{current.cta}</Link>
-        </div>
-        <div className="mt-6 flex items-center justify-between gap-4">
-          <span className="text-xs font-bold text-white/45">{lang === 'ru' ? 'Специальные предложения для партнёров' : 'Hamkorlar uchun maxsus takliflar'}</span>
-          <div className="flex gap-1.5" aria-label="Banner slides">{slides.map((_, index) => <button key={index} type="button" onClick={() => setSlide(index)} aria-label={`${index + 1}-banner`} className={`h-2 rounded-full transition-all ${index === slide ? 'w-7 bg-white' : 'w-2 bg-white/40'}`} />)}</div>
-        </div>
-      </div>
-    </section>
-  )
-}
+function NavIcon({ children }: { children: ReactNode }) { return <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-sm">{children}</span> }
 
 export default function AccountPage() {
   const router = useRouter()
   const { lang, setLang } = useI18n()
+  const ru = lang === 'ru'
   const [profile, setProfile] = useState<Profile | null>(null)
   const [form, setForm] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -109,182 +60,132 @@ export default function AccountPage() {
       if (!user) { router.replace('/register'); return }
       const { data, error: profileError } = await supabase.from('profiles').select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name').eq('id', user.id).maybeSingle()
       if (!mounted) return
-      if (profileError) {
-        setError(lang === 'ru' ? 'Не удалось проверить профиль. Обновите страницу и попробуйте снова.' : 'Profilni tekshirib bo‘lmadi. Sahifani yangilab qayta urinib ko‘ring.')
-        setLoading(false)
-        return
-      }
+      if (profileError) { setError(ru ? 'Не удалось проверить профиль. Обновите страницу и попробуйте снова.' : 'Profilni tekshirib bo‘lmadi. Sahifani yangilab qayta urinib ko‘ring.'); setLoading(false); return }
       if (!data) { router.replace('/register?next=%2Faccount'); return }
-      setProfile(data)
-      setForm(data)
-      const { data: completeness, error: completenessError } = await supabase.rpc('get_seller_profile_completeness')
-      if (mounted) {
-        if (completenessError) setError(prev => prev || completenessError.message)
-        if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
-        setLoading(false)
-      }
+      setProfile(data); setForm(data)
+      const { data: completeness } = await supabase.rpc('get_seller_profile_completeness')
+      if (mounted) { if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent); setLoading(false) }
     }
     load()
     return () => { mounted = false }
-  }, [router])
+  }, [router, ru])
 
   useEffect(() => {
     let active = true
-    fetch('/api/account/telegram/link', { cache: 'no-store' })
-      .then(async response => {
-        const data = await response.json()
-        if (active && response.ok) {
-          setTelegramLinked(Boolean(data.linked))
-          setTelegramUsername(data.username || null)
-        }
-      })
-      .catch(() => {})
+    fetch('/api/account/telegram/link', { cache: 'no-store' }).then(async response => { const data = await response.json(); if (active && response.ok) { setTelegramLinked(Boolean(data.linked)); setTelegramUsername(data.username || null) } }).catch(() => {})
     return () => { active = false }
   }, [])
 
   async function refreshTelegramStatus() {
-    try {
-      const response = await fetch('/api/account/telegram/link', { cache: 'no-store' })
-      const data = await response.json()
-      if (response.ok) {
-        setTelegramLinked(Boolean(data.linked))
-        setTelegramUsername(data.username || null)
-        if (data.linked) setTelegramLinkUrl('')
-      }
-    } catch {}
+    try { const response = await fetch('/api/account/telegram/link', { cache: 'no-store' }); const data = await response.json(); if (response.ok) { setTelegramLinked(Boolean(data.linked)); setTelegramUsername(data.username || null); if (data.linked) setTelegramLinkUrl('') } } catch {}
   }
 
   async function createTelegramLink() {
-    setTelegramBusy(true)
-    setTelegramError('')
-    try {
-      const response = await fetch('/api/account/telegram/link', { method: 'POST' })
-      const data = await response.json()
-      if (!response.ok || !data.url) throw new Error(data.error || (lang === 'ru' ? 'Не удалось создать ссылку.' : 'Ulash havolasini yaratib bo‘lmadi.'))
-      setTelegramLinkUrl(data.url)
-    } catch (e) {
-      setTelegramError(e instanceof Error ? e.message : (lang === 'ru' ? 'Ошибка Telegram.' : 'Telegram xatosi.'))
-    } finally { setTelegramBusy(false) }
+    setTelegramBusy(true); setTelegramError('')
+    try { const response = await fetch('/api/account/telegram/link', { method: 'POST' }); const data = await response.json(); if (!response.ok || !data.url) throw new Error(data.error || (ru ? 'Не удалось создать ссылку.' : 'Ulash havolasini yaratib bo‘lmadi.')); setTelegramLinkUrl(data.url) }
+    catch (e) { setTelegramError(e instanceof Error ? e.message : (ru ? 'Ошибка Telegram.' : 'Telegram xatosi.')) }
+    finally { setTelegramBusy(false) }
   }
 
   const setField = (key: keyof Profile, value: string) => setForm(v => v ? { ...v, [key]: value } : v)
 
   async function saveProfile(e: FormEvent) {
-    e.preventDefault()
-    if (!form) return
-    if (!form.full_name?.trim()) { setError(lang === 'ru' ? 'Введите Ф.И.О.' : 'F.I.O. ni kiriting.'); return }
-    if (form.account_type === 'partner' && !form.inn?.trim()) { setError(lang === 'ru' ? 'Введите ИНН.' : 'INN ni kiriting.'); return }
+    e.preventDefault(); if (!form) return
+    if (!form.full_name?.trim()) { setError(ru ? 'Введите Ф.И.О.' : 'F.I.O. ni kiriting.'); return }
+    if (form.account_type === 'partner' && !form.inn?.trim()) { setError(ru ? 'Введите ИНН.' : 'INN ni kiriting.'); return }
     setSaving(true); setError(''); setSuccess('')
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/register'); return }
+      const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) { router.replace('/register'); return }
       const response = await fetch('/api/account/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ full_name: form.full_name.trim(), account_type: form.account_type || 'individual', partner_type: form.partner_type, company_name: form.company_name?.trim() || '', inn: form.inn?.trim() || '', bank_name: form.bank_name?.trim() || '', bank_account: form.bank_account?.trim() || '', mfo: form.mfo?.trim() || '', oked: form.oked?.trim() || '', director_full_name: form.director_full_name?.trim() || '' }) })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Не удалось сохранить профиль.' : 'Profilni saqlashda xatolik'))
-      const data = result.profile as Profile
-      setProfile(data); setForm(data)
-      const { data: completeness, error: completenessError } = await supabase.rpc('get_seller_profile_completeness')
-      if (completenessError) throw completenessError
-      if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
-      setEditing(false)
-      setSuccess(lang === 'ru' ? 'Данные профиля сохранены.' : 'Profil ma’lumotlari saqlandi.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : (lang === 'ru' ? 'Не удалось сохранить профиль.' : 'Profilni saqlashda xatolik'))
-    } finally { setSaving(false) }
+      const result = await response.json(); if (!response.ok) throw new Error(result.error || (ru ? 'Не удалось сохранить профиль.' : 'Profilni saqlashda xatolik'))
+      const data = result.profile as Profile; setProfile(data); setForm(data)
+      const { data: completeness } = await supabase.rpc('get_seller_profile_completeness'); if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
+      setEditing(false); setSuccess(ru ? 'Данные профиля сохранены.' : 'Profil ma’lumotlari saqlandi.')
+    } catch (e) { setError(e instanceof Error ? e.message : (ru ? 'Не удалось сохранить профиль.' : 'Profilni saqlashda xatolik')) }
+    finally { setSaving(false) }
   }
 
-  async function signOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.replace('/')
-    router.refresh()
-  }
+  async function signOut() { const supabase = createClient(); await supabase.auth.signOut(); router.replace('/'); router.refresh() }
 
-  if (loading) return <main className="min-h-screen bg-[#f6f8fb] px-4 py-10"><div className="mx-auto max-w-6xl rounded-[28px] bg-white p-10 text-center shadow-sm">{lang === 'ru' ? 'Загрузка...' : 'Yuklanmoqda...'}</div></main>
-  if (!profile || !form) return <main className="min-h-screen bg-[#f6f8fb] px-4 py-10"><div className="mx-auto max-w-xl rounded-[28px] bg-white p-8 text-center shadow-sm"><h1 className="text-xl font-extrabold text-slate-900">{lang === 'ru' ? 'Профиль не загружен' : 'Profil yuklanmadi'}</h1><p className="mt-3 text-sm text-slate-600">{error || (lang === 'ru' ? 'Обновите страницу и попробуйте снова.' : 'Sahifani yangilab qayta urinib ko‘ring.')}</p><button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white">{lang === 'ru' ? 'Повторить' : 'Qayta urinish'}</button><Link href="/" className="mt-4 block text-sm font-bold text-emerald-700">{lang === 'ru' ? 'На главную' : 'Bosh sahifaga qaytish'}</Link></div></main>
+  if (loading) return <main className="min-h-screen bg-[#f4f7f8] p-6"><div className="mx-auto max-w-7xl rounded-3xl bg-white p-12 text-center shadow-sm">{ru ? 'Загрузка...' : 'Yuklanmoqda...'}</div></main>
+  if (!profile || !form) return <main className="min-h-screen bg-[#f4f7f8] p-6"><div className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-sm"><h1 className="text-xl font-black">{ru ? 'Профиль не загружен' : 'Profil yuklanmadi'}</h1><p className="mt-3 text-sm text-slate-500">{error}</p><button onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white">{ru ? 'Повторить' : 'Qayta urinish'}</button></div></main>
 
-  const ru = lang === 'ru'
   const isPartner = profile.account_type === 'partner'
   const showPartnerFields = editing ? form.account_type === 'partner' : isPartner
   const display = editing ? form : profile
-  const hasName = Boolean(profile.full_name?.trim())
-
-  const actions = [
-    { icon: 'plus' as const, title: ru ? 'Разместить объявление' : 'E’lon joylashtirish', text: ru ? 'Продайте или сдайте недвижимость через Royalhouse.' : 'Mulkingizni Royalhouse’da soting yoki ijaraga bering.', href: '/listings/new', primary: true },
-    { icon: 'home' as const, title: ru ? 'Мои объявления' : 'Mening e’lonlarim', text: ru ? 'Просматривайте, редактируйте и управляйте своими объявлениями.' : 'Joylashtirgan e’lonlaringizni ko‘ring, tahrirlang va holatini boshqaring.', href: '/account/listings', primary: false },
-    { icon: 'check' as const, title: ru ? 'Мои бронирования' : 'Mening bronlarim', text: ru ? 'Брони дач, статусы аванса и подтверждения оплаты.' : 'Dacha bronlari, avans holati va to‘lov tasdiqlari.', href: '/account/bookings', primary: false },
+  const navPrimary = [
+    ['🏠', ru ? 'Кабинет' : 'Kabinet', '/account'],
+    ['＋', ru ? 'Разместить объявление' : 'E’lon joylashtirish', '/listings/new'],
+    ['▣', ru ? 'Мои объявления' : 'Mening e’lonlarim', '/account/listings'],
+    ['✓', ru ? 'Мои бронирования' : 'Mening bronlarim', '/account/bookings'],
+    ['🏠', ru ? 'Ипотечные заявки' : 'Ipoteka arizalarim', '/account/mortgage'],
+    ['💬', ru ? 'Сообщения' : 'Xabarlar', '/chat'],
+    ['♡', ru ? 'Избранное' : 'Saqlanganlar', '/account/favorites'],
+    ['⌕', ru ? 'Сохранённые поиски' : 'Saqlangan qidiruvlar', '/account/saved-searches'],
+  ] as const
+  const navSeller = [
+    ['✓', ru ? 'Надёжный профиль' : 'Ishonchli profil', '/account/trusted-profile'],
+    ['★', ru ? 'Продвижение объявления' : 'E’lonni ilgari surish', '/account/monetization'],
+    ...(isPartner ? [['🏢', ru ? 'Профиль компании' : 'Firma profili', '/account/company-profile'] as const] : []),
+    ['₿', ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar', '/account/wallet'],
+  ] as const
+  const statCards = [
+    { icon: '▣', label: ru ? 'Все объявления' : 'Barcha e’lonlar', href: '/account/listings', tone: 'bg-emerald-50 text-emerald-700' },
+    { icon: '●', label: ru ? 'Активные объявления' : 'Faol e’lonlar', href: '/account/listings', tone: 'bg-green-50 text-green-700' },
+    { icon: '✕', label: ru ? 'Отклонённые' : 'Rad etilgan', href: '/account/listings', tone: 'bg-rose-50 text-rose-600' },
+    { icon: '✓', label: ru ? 'Проданные' : 'Sotilgan', href: '/account/listings', tone: 'bg-blue-50 text-blue-600' },
+    { icon: '⌕', label: ru ? 'Сданы в аренду' : 'Ijaraga berilgan', href: '/account/listings', tone: 'bg-violet-50 text-violet-600' },
+    { icon: '▤', label: ru ? 'Архив' : 'Arxiv', href: '/account/listings', tone: 'bg-slate-100 text-slate-600' },
   ]
 
-  return (
-    <main className="min-h-screen bg-[#f5f7fa] px-3 py-4 sm:px-5 sm:py-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 shadow-sm backdrop-blur sm:px-5">
-          <Link href="/" className="flex items-center gap-2 text-sm font-black text-slate-900"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">⌂</span>RoyalHouse.uz</Link>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700">{ru ? 'O‘z' : 'Ru'}</button>
-            <button type="button" onClick={signOut} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-rose-200 hover:text-rose-600">{ru ? 'Выйти' : 'Chiqish'}</button>
+  return <main className="min-h-screen bg-[#f4f7f8] text-slate-950">
+    <div className="flex min-h-screen">
+      <aside className="sticky top-0 hidden h-screen w-[218px] shrink-0 border-r border-slate-200/80 bg-white lg:flex lg:flex-col">
+        <div className="flex h-[74px] items-center gap-2 border-b border-slate-100 px-5"><Link href="/" className="flex items-center gap-2 font-black tracking-tight"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-lg">🏠</span>RoyalHouse.uz</Link></div>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          {navPrimary.map(([icon, label, href], index) => <Link key={href} href={href} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold transition ${index === 0 ? 'bg-emerald-100/80 text-emerald-800' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><NavIcon>{icon}</NavIcon>{label}</Link>)}
+          <div className="my-4 border-t border-slate-100" />
+          {navSeller.map(([icon, label, href]) => <Link key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"><NavIcon>{icon}</NavIcon>{label}</Link>)}
+          <button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-600 hover:bg-slate-50"><NavIcon>文</NavIcon>{ru ? 'O‘z / Ru' : 'O‘z / Ru'}</button>
+        </nav>
+        <button type="button" onClick={signOut} className="m-3 rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-bold text-slate-500 hover:border-rose-200 hover:text-rose-600">↪ {ru ? 'Выйти' : 'Chiqish'}</button>
+      </aside>
+
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 px-4 py-3 backdrop-blur sm:px-6 xl:px-8">
+          <div className="mx-auto flex max-w-[1500px] items-center gap-3">
+            <Link href="/" className="flex shrink-0 items-center gap-2 font-black lg:hidden"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50">🏠</span>RoyalHouse</Link>
+            <div className="hidden min-w-0 flex-1 items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm text-slate-400 md:flex"><span>⌕</span>{ru ? 'Дом, квартира, дача, офис, район...' : 'Uy, kvartira, dacha, ofis, yer...'}</div>
+            <div className="ml-auto flex items-center gap-2"><Link href="/account/favorites" className="rounded-xl p-2 text-slate-600 hover:bg-slate-50">♡</Link><Link href="/chat" className="rounded-xl p-2 text-slate-600 hover:bg-slate-50">💬</Link><button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black">{ru ? 'O‘z / Ru' : 'O‘z / Ru'}</button><span className="hidden text-right sm:block"><b className="block text-xs font-black">{profile.company_name || profile.full_name || 'RoyalHouse'}</b><small className="text-[10px] text-slate-400">{isPartner ? (ru ? 'Партнёр' : 'Hamkor') : (ru ? 'Пользователь' : 'Foydalanuvchi')}</small></span></div>
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px]">
-          <div className="min-w-0 space-y-5">
-            <section className="relative overflow-hidden rounded-[28px] bg-white shadow-[0_8px_35px_rgba(15,23,42,0.07)]">
-              <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-emerald-100/70 blur-3xl" />
-              <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
-                <div className="min-w-0">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">{ru ? 'Личный кабинет' : 'Shaxsiy kabinet'}</p>
-                  <h1 className="mt-2 truncate text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{profile.full_name || (ru ? 'Пользователь RoyalHouse' : 'RoyalHouse foydalanuvchisi')} <span className="inline-block">👋</span></h1>
-                  <p className="mt-2 text-sm text-slate-500">{ru ? 'Управляйте объявлениями, бронированиями и настройками профиля.' : 'E’lonlar, bronlar va profil sozlamalarini bir joydan boshqaring.'}</p>
-                </div>
-                <Link href="/listings/new" className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700">＋ {ru ? 'Разместить объявление' : 'E’lon joylashtirish'}</Link>
-              </div>
-            </section>
+        <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6 xl:px-8">
+          <section className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">{ru ? 'Личный кабинет' : 'Shaxsiy kabinet'}</p><h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{ru ? 'Здравствуйте' : 'Assalomu alaykum'}, {profile.full_name || 'RoyalHouse'}! 👋</h1><p className="mt-1 text-sm text-slate-500">{ru ? 'Управляйте объявлениями, бронированиями и настройками профиля в одном месте.' : 'E’lonlar, bronlar va profil sozlamalarini bir joydan boshqaring.'}</p></div><Link href="/listings/new" className="inline-flex shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700">＋ {ru ? 'Разместить объявление' : 'E’lon joylashtirish'}</Link></section>
 
-            {isPartner && <PartnerGrowthBanner lang={lang} />}
+          <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">{statCards.map(card => <Link key={card.label} href={card.href} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"><div className={`mb-4 flex h-9 w-9 items-center justify-center rounded-xl ${card.tone}`}>{card.icon}</div><p className="text-xs font-bold text-slate-500">{card.label}</p><p className="mt-1 text-xl font-black text-slate-900">—</p></Link>)}</section>
 
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {actions.map((action, index) => <Link key={`${action.title}-${index}`} href={action.href} className={`group rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md ${action.primary ? 'border-emerald-100 bg-emerald-50/80' : 'border-slate-200 bg-white'}`}><div className="flex items-start gap-3"><StatusIcon type={action.icon}/><div className="min-w-0"><h2 className="font-black text-slate-900">{action.title}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{action.text}</p><span className="mt-3 inline-flex text-xs font-black text-emerald-700 group-hover:translate-x-0.5">{ru ? 'Открыть →' : 'Ochish →'}</span></div></div></Link>)}
-            </section>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="min-w-0 space-y-5">
+              {isPartner && <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-emerald-100 via-green-50 to-sky-50 p-5 shadow-sm sm:p-7"><div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_center,rgba(16,185,129,.22),transparent_58%)]"/><div className="relative max-w-2xl"><span className="inline-flex rounded-full bg-white/80 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">{ru ? 'Продвижение объявления' : 'E’lonni ilgari surish'}</span><h2 className="mt-3 text-2xl font-black leading-tight sm:text-3xl">{ru ? 'Покажите объявление выше и быстрее найдите клиента' : 'Ko‘proq xaridorga ko‘rining, tezroq soting yoki ijaraga bering'}</h2><p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">{ru ? 'TOP, Highlight и тарифы START, PRO, BUSINESS помогают увеличить охват ваших объявлений.' : 'TOP, Highlight hamda START, PRO, BUSINESS tariflari e’lonlaringiz qamrovini oshirishga yordam beradi.'}</p><div className="mt-5 flex flex-wrap gap-2"><Link href="/account/monetization" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white">{ru ? 'Продвинуть объявление →' : 'E’lonni ilgari surish →'}</Link><Link href="/account/monetization" className="rounded-xl bg-white px-4 py-2.5 text-sm font-black text-emerald-700 shadow-sm">{ru ? 'Выбрать тариф' : 'Tarifni tanlash'}</Link></div></div></section>}
 
-            <section className="rounded-[28px] bg-white p-5 shadow-[0_8px_35px_rgba(15,23,42,0.06)] sm:p-7" id="profile">
-              <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-                <div><p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">{ru ? 'Профиль' : 'Profil'}</p><h2 className="mt-1 text-xl font-black text-slate-950">{ru ? 'Личные данные' : 'Shaxsiy ma’lumotlar'}</h2><p className="mt-1 text-sm text-slate-500">{ru ? 'Основные данные вашего аккаунта.' : 'Akkauntingizning asosiy ma’lumotlari.'}</p></div>
-                {!editing && <button type="button" onClick={() => { setForm(profile); setEditing(true); setError(''); setSuccess('') }} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700">{ru ? 'Редактировать' : 'Tahrirlash'}</button>}
-              </div>
+              <section className="rounded-[24px] bg-white p-5 shadow-sm sm:p-6"><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-black">{ru ? 'Быстрые действия' : 'Tezkor amallar'}</h2><p className="mt-1 text-xs text-slate-400">{ru ? 'Часто используемые разделы' : 'Ko‘p ishlatiladigan bo‘limlar'}</p></div><Link href="/account" className="text-xs font-black text-emerald-600">{ru ? 'Все →' : 'Barchasi →'}</Link></div><div className="grid gap-3 sm:grid-cols-3"><Link href="/listings/new" className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 hover:border-emerald-200"><span className="text-xl">＋</span><h3 className="mt-4 font-black">{ru ? 'Разместить объявление' : 'E’lon joylashtirish'}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Продать или сдать недвижимость' : 'Mulkni sotish yoki ijaraga berish'}</p></Link><Link href="/account/listings" className="rounded-2xl border border-slate-200 p-4 hover:border-emerald-200"><span className="text-xl">🏠</span><h3 className="mt-4 font-black">{ru ? 'Мои объявления' : 'Mening e’lonlarim'}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Редактировать и управлять' : 'Tahrirlash va boshqarish'}</p></Link><Link href="/account/bookings" className="rounded-2xl border border-slate-200 p-4 hover:border-emerald-200"><span className="text-xl">✓</span><h3 className="mt-4 font-black">{ru ? 'Мои бронирования' : 'Mening bronlarim'}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Статусы броней и оплат' : 'Bron va to‘lov holatlari'}</p></Link></div></section>
 
-              <form onSubmit={saveProfile} className="mt-5">
-                {editing && <div className="mb-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium leading-6 text-emerald-800">{ru ? 'Подтверждённый номер телефона привязан к аккаунту и не изменяется здесь.' : 'Telefon raqami tasdiqlangan akkauntga bog‘langan va bu yerda o‘zgartirilmaydi.'}</div>}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ProfileField label="F.I.O." value={display.full_name} form={form} field="full_name" editing={editing} required onChange={setField}/>
-                  <ProfileField label={ru ? 'Номер телефона' : 'Telefon raqami'} value={display.phone} form={form} field="phone" editing={editing} disabled onChange={setField}/>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4"><label className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-400">{ru ? 'Тип аккаунта' : 'Akkaunt turi'}</label>{editing ? <select value={form.account_type || 'individual'} onChange={e => setField('account_type', e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold text-slate-900"><option value="individual">{ru ? 'Физическое лицо' : 'Jismoniy shaxs'}</option><option value="partner">{ru ? 'Партнёр' : 'Hamkor'}</option></select> : <p className="mt-2 font-bold text-slate-900">{isPartner ? (ru ? 'Партнёр' : 'Hamkor') : (ru ? 'Физическое лицо' : 'Jismoniy shaxs')}</p>}</div>
-                  {showPartnerFields && <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4"><label className="block text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-400">{ru ? 'Организационно-правовая форма' : 'Hamkorning huquqiy shakli'}</label>{editing ? <select value={form.partner_type || 'self_employed'} onChange={e => setField('partner_type', e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-semibold"><option value="self_employed">{partnerLabels.self_employed[lang]}</option><option value="sole_proprietor">{partnerLabels.sole_proprietor[lang]}</option><option value="llc">{partnerLabels.llc[lang]}</option></select> : <p className="mt-2 font-bold text-slate-900">{partnerLabels[profile.partner_type || '']?.[lang] || '—'}</p>}</div>}
-                  {showPartnerFields && <ProfileField label="INN" value={display.inn} form={form} field="inn" editing={editing} required onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Организация' : 'Tashkilot'} value={display.company_name} form={form} field="company_name" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Ф.И.О. руководителя' : 'Rahbar F.I.O.'} value={display.director_full_name} form={form} field="director_full_name" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Название банка' : 'Bank nomi'} value={display.bank_name} form={form} field="bank_name" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Расчётный счёт' : 'Hisob raqami'} value={display.bank_account} form={form} field="bank_account" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label="МФО" value={display.mfo} form={form} field="mfo" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label="ОКЭД" value={display.oked} form={form} field="oked" editing={editing} onChange={setField}/>} 
-                </div>
-                {error && <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div>}
-                {success && <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</div>}
-                {editing && <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row"><button type="button" onClick={() => { setForm(profile); setEditing(false); setError(''); setSuccess('') }} className="flex-1 rounded-2xl border border-slate-200 px-5 py-3.5 font-bold text-slate-700">{ru ? 'Отмена' : 'Bekor qilish'}</button><button disabled={saving} className="flex-1 rounded-2xl bg-emerald-600 px-5 py-3.5 font-bold text-white shadow-lg shadow-emerald-600/15 disabled:opacity-50">{saving ? (ru ? 'Сохранение...' : 'Saqlanmoqda...') : (ru ? 'Сохранить' : 'Saqlash')}</button></div>}
-              </form>
-            </section>
+              <section className="rounded-[24px] bg-white p-5 shadow-sm sm:p-6" id="profile"><div className="flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ru ? 'Профиль' : 'Profil'}</p><h2 className="mt-1 text-xl font-black">{ru ? 'Личные данные' : 'Shaxsiy ma’lumotlar'}</h2></div>{!editing && <button type="button" onClick={() => { setForm(profile); setEditing(true); setError(''); setSuccess('') }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-black hover:border-emerald-300">{ru ? 'Редактировать' : 'Tahrirlash'}</button>}</div><form onSubmit={saveProfile} className="mt-5"><div className="grid gap-3 sm:grid-cols-2"><ProfileField label="F.I.O." value={display.full_name} form={form} field="full_name" editing={editing} required onChange={setField}/><ProfileField label={ru ? 'Номер телефона' : 'Telefon raqami'} value={display.phone} form={form} field="phone" editing={editing} disabled onChange={setField}/><div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">{ru ? 'Тип аккаунта' : 'Akkaunt turi'}</label>{editing ? <select value={form.account_type || 'individual'} onChange={e => setField('account_type', e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="individual">{ru ? 'Физическое лицо' : 'Jismoniy shaxs'}</option><option value="partner">{ru ? 'Партнёр' : 'Hamkor'}</option></select> : <p className="mt-2 text-sm font-bold">{isPartner ? (ru ? 'Партнёр' : 'Hamkor') : (ru ? 'Физическое лицо' : 'Jismoniy shaxs')}</p>}</div>{showPartnerFields && <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">{ru ? 'Организационно-правовая форма' : 'Hamkorning huquqiy shakli'}</label>{editing ? <select value={form.partner_type || 'self_employed'} onChange={e => setField('partner_type', e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold"><option value="self_employed">{partnerLabels.self_employed[lang]}</option><option value="sole_proprietor">{partnerLabels.sole_proprietor[lang]}</option><option value="llc">{partnerLabels.llc[lang]}</option></select> : <p className="mt-2 text-sm font-bold">{partnerLabels[profile.partner_type || '']?.[lang] || '—'}</p>}</div>}{showPartnerFields && <ProfileField label="INN" value={display.inn} form={form} field="inn" editing={editing} required onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Организация' : 'Tashkilot'} value={display.company_name} form={form} field="company_name" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Ф.И.О. руководителя' : 'Rahbar F.I.O.'} value={display.director_full_name} form={form} field="director_full_name" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Название банка' : 'Bank nomi'} value={display.bank_name} form={form} field="bank_name" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label={ru ? 'Расчётный счёт' : 'Hisob raqami'} value={display.bank_account} form={form} field="bank_account" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label="МФО" value={display.mfo} form={form} field="mfo" editing={editing} onChange={setField}/>} {showPartnerFields && <ProfileField label="ОКЭД" value={display.oked} form={form} field="oked" editing={editing} onChange={setField}/>}</div>{error && <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div>}{success && <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{success}</div>}{editing && <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row"><button type="button" onClick={() => { setForm(profile); setEditing(false); setError(''); setSuccess('') }} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 font-bold">{ru ? 'Отмена' : 'Bekor qilish'}</button><button disabled={saving} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white disabled:opacity-50">{saving ? (ru ? 'Сохранение...' : 'Saqlanmoqda...') : (ru ? 'Сохранить' : 'Saqlash')}</button></div>}</form></section>
+            </div>
+
+            <aside className="space-y-5">
+              <section className="rounded-[24px] bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ru ? 'Профиль' : 'Profil'}</p><h2 className="mt-1 text-lg font-black">{ru ? 'Состояние профиля' : 'Profil holati'}</h2></div><strong className="text-2xl font-black text-emerald-600">{completion}%</strong></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, Math.max(0, completion))}%` }}/></div><div className="mt-4 space-y-2.5 text-xs font-semibold text-slate-600"><div>✓ {ru ? 'Основные данные' : 'Asosiy ma’lumotlar'}</div><div>✓ {ru ? 'Номер телефона' : 'Telefon raqami'}</div><div className={isPartner && profile.company_name ? 'text-emerald-700' : 'text-slate-400'}>✓ {ru ? 'Данные компании' : 'Firma ma’lumotlari'}</div><div className="text-slate-400">○ {ru ? 'Социальные сети' : 'Ijtimoiy tarmoqlar'}</div></div></section>
+
+              <section className="rounded-[24px] border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{ru ? 'Лимит' : 'Limit'}</p><h2 className="mt-1 text-lg font-black">{ru ? 'Объявления' : 'E’lonlar'}</h2><p className="mt-2 text-sm leading-5 text-slate-600">{isPartner ? (ru ? 'Для партнёра доступно 5 бесплатных объявлений.' : 'Hamkor uchun 5 ta bepul e’lon limiti mavjud.') : (ru ? 'Для физического лица доступно 3 бесплатных объявления.' : 'Jismoniy shaxs uchun 3 ta bepul e’lon limiti mavjud.')}</p><Link href="/account/monetization" className="mt-4 inline-flex text-sm font-black text-emerald-700">{isPartner ? (ru ? 'Увеличить лимит →' : 'Limitni oshirish →') : (ru ? 'Подробнее →' : 'Batafsil →')}</Link></section>
+
+              <section className="rounded-[24px] border border-sky-100 bg-white p-5 shadow-sm"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50">✈️</span><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-widest text-sky-600">Telegram</p><h2 className="mt-1 text-lg font-black">{ru ? 'Уведомления' : 'Bildirishnomalar'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Новые бронирования, авансы и отмены — прямо в боте.' : 'Yangi bronlar, avanslar va bekor qilishlar — to‘g‘ridan-to‘g‘ri botda.'}</p><p className={`mt-3 text-xs font-black ${telegramLinked ? 'text-emerald-700' : 'text-amber-700'}`}>{telegramLinked ? (ru ? `Подключено ${telegramUsername ? '@' + telegramUsername : ''}` : `Ulangan ${telegramUsername ? '@' + telegramUsername : ''}`) : (ru ? 'Telegram не подключён' : 'Telegram ulanmagan')}</p>{!telegramLinked && <button type="button" onClick={createTelegramLink} disabled={telegramBusy} className="mt-3 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{telegramBusy ? (ru ? 'Создание...' : 'Yaratilmoqda...') : (ru ? 'Подключить Telegram' : 'Telegramni ulash')}</button>}{telegramLinkUrl && !telegramLinked && <a href={telegramLinkUrl} target="_blank" rel="noreferrer" className="mt-3 block text-xs font-bold text-sky-700 underline">{ru ? 'Открыть бота и нажать Start →' : 'Botni ochib Start bosing →'}</a>}{telegramLinkUrl && !telegramLinked && <button type="button" onClick={refreshTelegramStatus} className="mt-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold">{ru ? 'Проверить подключение' : 'Ulanganini tekshirish'}</button>}{telegramError && <p className="mt-2 text-xs text-rose-600">{telegramError}</p>}</div></div></section>
+
+              <section className="rounded-[24px] bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ru ? 'Помощь' : 'Yordam'}</p><h2 className="mt-1 text-lg font-black">{ru ? 'Нужна помощь?' : 'Yordam kerakmi?'}</h2><p className="mt-2 text-xs leading-5 text-slate-500">{ru ? 'Мы поможем разобраться с услугами RoyalHouse.' : 'RoyalHouse xizmatlari bo‘yicha yordam beramiz.'}</p><Link href="/" className="mt-3 inline-flex text-sm font-black text-emerald-700">{ru ? 'Открыть центр помощи →' : 'Yordam markazi →'}</Link></section>
+            </aside>
           </div>
-
-          <aside className="space-y-5 xl:sticky xl:top-5 xl:self-start">
-            <section className="rounded-[28px] bg-white p-5 shadow-[0_8px_35px_rgba(15,23,42,0.06)] sm:p-6">
-              <div className="flex items-center justify-between"><div><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-400">{ru ? 'Профиль' : 'Profil'}</p><h2 className="mt-1 text-lg font-black text-slate-950">{ru ? 'Состояние профиля' : 'Profil holati'}</h2></div><span className="text-2xl font-black text-emerald-600">{completion}%</span></div>
-              <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, completion))}%` }}/></div>
-              <div className="mt-4 space-y-3 text-sm"><div className="flex items-center gap-2 text-slate-700"><span className="text-emerald-600">✓</span>{ru ? 'Основные данные' : 'Asosiy ma’lumotlar'}</div><div className="flex items-center gap-2 text-slate-700"><span className="text-emerald-600">✓</span>{ru ? 'Номер телефона' : 'Telefon raqami'}</div><div className="flex items-center gap-2 text-slate-700"><span className={isPartner && profile.company_name ? 'text-emerald-600' : 'text-slate-300'}>✓</span>{ru ? 'Данные компании' : 'Firma ma’lumotlari'}</div><div className="flex items-center gap-2 text-slate-700"><span className="text-slate-300">○</span>{ru ? 'Социальные сети' : 'Ijtimoiy tarmoqlar'}</div></div>
-              {!hasName && <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{ru ? 'Введите Ф.И.О., чтобы полностью использовать профиль.' : 'Profilni to‘liq ishlatish uchun F.I.O. ma’lumotini kiriting.'}</p>}
-            </section>
-
-            <section className="rounded-[28px] border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm"><AppIcon name="home" className="h-5 w-5"/></span><div><p className="text-xs font-black uppercase tracking-[0.1em] text-emerald-600">{ru ? 'Лимит' : 'Limit'}</p><h2 className="mt-1 font-black text-slate-950">{ru ? 'Объявления' : 'E’lonlar'}</h2><p className="mt-2 text-sm leading-5 text-slate-600">{isPartner ? (ru ? 'Для партнёра доступно 5 бесплатных объявлений.' : 'Hamkor uchun 5 ta bepul e’lon limiti mavjud.') : (ru ? 'Для физического лица доступно 3 бесплатных объявления.' : 'Jismoniy shaxs uchun 3 ta bepul e’lon limiti mavjud.')}</p><Link href="/account/monetization" className="mt-4 inline-flex text-sm font-black text-emerald-700">{isPartner ? (ru ? 'Увеличить лимит →' : 'Limitni oshirish →') : (ru ? 'Подробнее →' : 'Batafsil →')}</Link></div></div></section>
-
-            <section className="rounded-[28px] border border-sky-100 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700"><AppIcon name="check" className="h-5 w-5"/></span><div className="min-w-0 flex-1"><p className="text-xs font-black uppercase tracking-[0.1em] text-sky-600">Telegram</p><h2 className="mt-1 font-black text-slate-950">{ru ? 'Уведомления' : 'Bildirishnomalar'}</h2><p className="mt-1 text-sm leading-5 text-slate-500">{ru ? 'Получайте сообщения о новых бронированиях, авансах и отменах.' : 'Yangi bronlar, avans to‘lovlari va bekor qilishlar haqida botdan xabar oling.'}</p><p className={`mt-3 text-xs font-black ${telegramLinked ? 'text-emerald-700' : 'text-amber-700'}`}>{telegramLinked ? (ru ? `Подключено ${telegramUsername ? '@' + telegramUsername : ''}` : `Ulangan ${telegramUsername ? '@' + telegramUsername : ''}`) : (ru ? 'Telegram не подключён' : 'Telegram ulanmagan')}</p>{!telegramLinked && <button type="button" onClick={createTelegramLink} disabled={telegramBusy} className="mt-3 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{telegramBusy ? (ru ? 'Создание ссылки...' : 'Havola yaratilmoqda...') : (ru ? 'Подключить Telegram' : 'Telegramni ulash')}</button>}{telegramLinkUrl && !telegramLinked && <a href={telegramLinkUrl} target="_blank" rel="noreferrer" className="mt-3 block break-all text-xs font-bold text-sky-700 underline">{ru ? 'Открыть бота и нажать Start →' : 'Botni ochib Start bosing →'}</a>}{telegramLinkUrl && !telegramLinked && <button type="button" onClick={refreshTelegramStatus} className="mt-3 block rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">{ru ? 'Проверить подключение' : 'Ulanganini tekshirish'}</button>}{telegramError && <p className="mt-2 text-xs text-rose-600">{telegramError}</p>}<p className="mt-2 text-[11px] leading-5 text-slate-400">{ru ? 'Ссылка действует 10 минут. После открытия бота нажмите Start.' : 'Havola 10 daqiqa amal qiladi. Bot ochilgach Start bosing.'}</p></div></div></section>
-
-            <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><StatusIcon type="help"/><div><p className="text-xs font-black uppercase tracking-[0.1em] text-slate-400">{ru ? 'Поддержка' : 'Qo‘llab-quvvatlash'}</p><h2 className="mt-1 font-black text-slate-950">{ru ? 'Нужна помощь?' : 'Yordam kerakmi?'}</h2><p className="mt-2 text-sm leading-5 text-slate-500">{ru ? 'Если у вас есть вопросы по услугам RoyalHouse, свяжитесь с нами.' : 'RoyalHouse xizmatlari bo‘yicha savolingiz bo‘lsa, biz bilan bog‘lanishingiz mumkin.'}</p><Link href="/" className="mt-3 inline-flex text-sm font-black text-emerald-700">{ru ? 'На главную →' : 'Bosh sahifaga →'}</Link></div></div></section>
-          </aside>
         </div>
       </div>
-    </main>
-  )
+    </div>
+  </main>
 }
