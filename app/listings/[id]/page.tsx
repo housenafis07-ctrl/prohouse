@@ -21,6 +21,17 @@ type Listing = {
   is_mortgage_available: boolean; is_verified: boolean; is_trusted_seller: boolean; is_featured: boolean
   promotion_rank?: number | null; promotion_badge?: string | null; promoted_until?: string | null; bumped_at?: string | null
   published_at: string | null; draft_data?: Record<string, any> | null; listing_images?: ListingImage[]
+  seller_profile?: {
+    full_name: string | null
+    company_name: string | null
+    email: string | null
+    instagram_url: string | null
+    facebook_url: string | null
+    linkedin_url: string | null
+    telegram_url: string | null
+    account_type: string | null
+    partner_type: string | null
+  } | null
 }
 
 function jsonLd(value: unknown) { return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') }
@@ -29,6 +40,7 @@ async function getListing(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.from('listings').select('id,listing_code,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_rank,promotion_badge,promoted_until,bumped_at,published_at,draft_data,listing_images(image_url,sort_order)').eq('id', id).eq('status', 'active').maybeSingle()
   if (error || !data) return null
+  const { data: sellerProfile } = await supabase.from('profiles').select('full_name,company_name,email,instagram_url,facebook_url,linkedin_url,telegram_url,account_type,partner_type').eq('id', data.owner_id).maybeSingle()
   const now = new Date(); const nowIso = now.toISOString()
   const { data: promotionRows } = await supabase.from('listing_promotions').select('product_code,starts_at,ends_at,status').eq('listing_id', id).eq('status', 'active').lte('starts_at', nowIso).not('ends_at', 'is', null).gt('ends_at', nowIso)
   const productCodes = Array.from(new Set((promotionRows || []).map((row: any) => row.product_code).filter(Boolean)))
@@ -41,7 +53,7 @@ async function getListing(id: string) {
   const effectiveBadge = topPromotion?.product?.badge || (bumpActive ? 'UP' : fallbackPromotionActive ? data.promotion_badge : null)
   const effectiveUntil = topPromotion?.ends_at || (bumpActive ? new Date(new Date(data.bumped_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : fallbackPromotionActive ? data.promoted_until : null)
   const effectiveRank = Math.max(Number(topPromotion?.product?.boost_rank || 0), bumpActive ? 20 : 0, fallbackPromotionActive ? Number(data.promotion_rank || 0) : 0)
-  return { ...(data as Listing), promotion_badge: effectiveBadge, promoted_until: effectiveUntil, is_featured: effectiveRank >= 60 }
+  return { ...(data as Listing), seller_profile: sellerProfile || null, promotion_badge: effectiveBadge, promoted_until: effectiveUntil, is_featured: effectiveRank >= 60 }
 }
 
 function formatPrice(listing: Listing) { const price = new Intl.NumberFormat('uz-UZ').format(Number(listing.price)); return listing.currency === 'USD' ? `$${price}` : `${price} so‘m` }
