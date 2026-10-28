@@ -132,37 +132,48 @@ export default function AccountPage() {
     let mounted = true
     const load = async () => {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.replace('/register')
-        return
-      }
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.replace('/register')
+          return
+        }
 
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
-        .eq('id', user.id)
-        .maybeSingle()
+        const { data, error: profileError } = await supabase
+          .from('profiles')
+          .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
+          .eq('id', user.id)
+          .maybeSingle()
 
-      if (!mounted) return
-      if (profileError) {
-        setError(ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.')
+        if (!mounted) return
+        if (profileError) {
+          setError(ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.')
+          setLoading(false)
+          return
+        }
+        if (!data) {
+          router.replace('/register?next=%2Faccount')
+          return
+        }
+
+        const nextProfile = data as Profile
+        setProfile(nextProfile)
+        setForm(nextProfile)
         setLoading(false)
-        return
+
+        // These are auxiliary dashboard values. They must never block the
+        // account itself from rendering when an API/RPC is slow or unavailable.
+        void supabase.rpc('get_seller_profile_completeness').then(({ data: completeness }) => {
+          if (!mounted) return
+          if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
+        }).catch(() => undefined)
+        void loadStats()
+        void loadTelegramStatus()
+      } catch (loadError) {
+        if (!mounted) return
+        setError(loadError instanceof Error ? loadError.message : (ru ? 'Не удалось загрузить профиль.' : 'Profilni yuklab bo‘lmadi.'))
+        setLoading(false)
       }
-      if (!data) {
-        router.replace('/register?next=%2Faccount')
-        return
-      }
-
-      setProfile(data as Profile)
-      setForm(data as Profile)
-
-      const { data: completeness } = await supabase.rpc('get_seller_profile_completeness')
-      if (typeof completeness?.completion_percent === 'number') setCompletion(completeness.completion_percent)
-
-      await Promise.all([loadStats(), loadTelegramStatus()])
-      if (mounted) setLoading(false)
     }
     void load()
     return () => { mounted = false }
@@ -324,7 +335,7 @@ export default function AccountPage() {
                 <p className="mt-2 max-w-[560px] text-sm leading-6 text-slate-600">{ru ? 'Поднимите объявление в результатах поиска и получите больше внимания от покупателей.' : 'E’loningizni qidiruv natijalarida yuqoriga ko‘taring va xaridorlardan ko‘proq e’tibor oling.'}</p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-black">
                   <span className="rounded-full bg-white/90 px-3 py-2 text-emerald-800">↗ {ru ? 'Больше показов' : 'Ko‘proq ko‘rsatish'}</span>
-                  <span className="rounded-full bg-white/90 px-3 py-2 text-emerald-800">★ {ru ? 'TOP / UP / Highlight' : 'TOP / UP / Highlight'}</span>
+                  <span className="rounded-full bg-white/90 px-3 py-2 text-emerald-800">★ TOP / UP / Highlight</span>
                   <span className="rounded-full bg-white/90 px-3 py-2 text-emerald-800">✓ {ru ? 'Контроль результата' : 'Natijani kuzatish'}</span>
                 </div>
                 <Link href="/account/monetization" className="mt-5 inline-flex w-fit items-center rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-700/20 transition hover:bg-emerald-800">{ru ? 'Продвинуть объявление →' : 'E’lonni ilgari surish →'}</Link>
@@ -341,9 +352,7 @@ export default function AccountPage() {
 
             <section className="rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between"><div><h2 className="text-base font-black">{ru ? 'Статистика объявлений' : 'E’lonlar statistikasi'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Краткий обзор ваших объявлений.' : 'E’lonlaringiz bo‘yicha qisqa ko‘rsatkichlar.'}</p></div><Link href="/account/statistics" className="text-xs font-black text-emerald-700">{ru ? 'Подробнее →' : 'Batafsil →'}</Link></div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                {compactStats.map((item, index) => <div key={`${item.label}-${index}`} className={`flex items-center justify-between rounded-2xl px-3 py-3 ${item.bg}`}><span className={`text-[11px] font-bold ${item.tone}`}>{item.label}</span><strong className="text-lg font-black text-slate-950">{item.value}</strong></div>)}
-              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{compactStats.map((item, index) => <div key={`${item.label}-${index}`} className={`flex items-center justify-between rounded-2xl px-3 py-3 ${item.bg}`}><span className={`text-[11px] font-bold ${item.tone}`}>{item.label}</span><strong className="text-lg font-black text-slate-950">{item.value}</strong></div>)}</div>
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -380,9 +389,7 @@ export default function AccountPage() {
 
               <aside className="space-y-4">
                 <ProfileStatusChecklist profile={profile} ru={ru} completion={completion} telegramLinked={telegramLinked} telegramUsername={telegramUsername} telegramBusy={telegramBusy} telegramLinkUrl={telegramLinkUrl} telegramError={telegramError} onTelegramLink={createTelegramLink} />
-
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-xl">★</div><div><h2 className="text-base font-black">{ru ? 'Быстрый рост' : 'Tezroq natija'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Продвиньте активное объявление и отслеживайте показы.' : 'Faol e’lonni ilgari suring va ko‘rishlar natijasini kuzating.'}</p></div></div><Link href="/account/monetization" className="mt-4 block rounded-xl bg-amber-400 px-4 py-3 text-center text-sm font-black text-slate-950 hover:bg-amber-300">{ru ? 'Выбрать продвижение' : 'Ilgari surish tariflarini ko‘rish'}</Link></section>
-
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><h2 className="text-base font-black">{ru ? 'Нужна помощь?' : 'Yordam kerakmi?'}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{ru ? 'Мы поможем разобраться с сервисами RoyalHouse.' : 'RoyalHouse xizmatlari bo‘yicha yordam beramiz.'}</p><Link href="/chat" className="mt-4 block rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-black hover:bg-slate-50">{ru ? 'Написать нам' : 'Bizga yozish'}</Link></section>
               </aside>
             </div>
