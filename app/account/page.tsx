@@ -133,17 +133,28 @@ export default function AccountPage() {
     const load = async () => {
       const supabase = createClient()
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        // Browser-side account loading must not depend on a network round-trip
+        // to Supabase Auth. The previous getUser() call could remain pending
+        // after OTP setSession and leave the whole cabinet on Yuklanmoqda... .
+        const authResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AUTH_SESSION_TIMEOUT')), 5000)),
+        ])
+        const user = authResult.data.session?.user
         if (!user) {
-          router.replace('/register')
+          router.replace('/account/login?next=%2Faccount')
           return
         }
 
-        const { data, error: profileError } = await supabase
-          .from('profiles')
-          .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
-          .eq('id', user.id)
-          .maybeSingle()
+        const profileResult = await Promise.race([
+          supabase
+            .from('profiles')
+            .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')
+            .eq('id', user.id)
+            .maybeSingle(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('PROFILE_QUERY_TIMEOUT')), 8000)),
+        ])
+        const { data, error: profileError } = profileResult
 
         if (!mounted) return
         if (profileError) {
@@ -152,7 +163,7 @@ export default function AccountPage() {
           return
         }
         if (!data) {
-          router.replace('/register?next=%2Faccount')
+          router.replace('/account/login?next=%2Faccount')
           return
         }
 
