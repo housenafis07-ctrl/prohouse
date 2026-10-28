@@ -11,6 +11,7 @@ export default function AccountNavigation() {
   const { lang, setLang } = useI18n()
   const [unreadCount, setUnreadCount] = useState(0)
   const [isPartner, setIsPartner] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -45,7 +46,9 @@ export default function AccountNavigation() {
     bookings: ru ? 'Мои бронирования' : 'Mening bronlarim', messages: ru ? '💬 Сообщения' : '💬 Xabarlar',
     trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil', promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
     company: ru ? '🏢 Профиль компании' : '🏢 Firma profili', wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
-    switchLanguage: ru ? 'Ru / O‘z' : 'O‘z / Ru', primary: ru ? 'Основное' : 'Asosiy', search: ru ? 'Поиск' : 'Qidiruv', seller: ru ? 'Продавец' : 'Sotuvchi',
+    settings: ru ? '⚙️ Настройки' : '⚙️ Sozlamalar',
+    switchLanguage: ru ? '🌐 Язык' : '🌐 Til', menu: ru ? 'Меню' : 'Menyu',
+    close: ru ? 'Закрыть меню' : 'Menyuni yopish', logout: ru ? '🚪 Выйти' : '🚪 Chiqish',
   }
   const toggleLanguage = () => setLang(ru ? 'uz' : 'ru')
 
@@ -65,6 +68,26 @@ export default function AccountNavigation() {
     { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
   ]
 
+  const mobileMenuItems: NavItem[] = [
+    { href: '/account/listings', label: text.myListings, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/favorites', label: text.favorites, className: 'bg-rose-50 text-rose-700' },
+    { href: '/account/saved-searches', label: text.savedSearches, className: 'bg-blue-50 text-blue-700' },
+    { href: '/account/bookings', label: text.bookings, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/mortgage', label: text.mortgage, className: 'bg-amber-50 text-amber-700' },
+    { href: '/chat', label: text.messages, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/trusted-profile', label: text.trusted, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
+    { href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' },
+    { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account', label: text.settings, className: 'bg-slate-100 text-slate-700' },
+  ]
+
+  async function signOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
+
   return <nav className="border-b border-slate-100 bg-white px-3 py-2"><div className="mx-auto max-w-6xl">
     <div className="hidden gap-1.5 md:flex md:flex-col"><div className="flex flex-wrap items-center gap-1.5">
       <Link href="/account" className="rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">{text.cabinet}</Link>
@@ -74,10 +97,28 @@ export default function AccountNavigation() {
       {sellerItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-1.5 text-xs font-extrabold hover:brightness-95 ${item.className}`}>{item.label}</Link>)}
       <button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узбекский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50">{text.switchLanguage}</button>
     </div></div>
-    <div className="md:hidden"><div className="mb-2 flex items-center justify-between"><Link href="/account" className="text-base font-black text-slate-900">{text.cabinet}</Link><button type="button" onClick={toggleLanguage} aria-label={ru ? 'Переключить язык на узbekский' : 'Tilni rus tiliga o‘zgartirish'} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700">{text.switchLanguage}</button></div>
-      <section className="mb-2" aria-labelledby="account-primary-navigation"><h2 id="account-primary-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.primary}</h2><div className="grid grid-cols-2 gap-1.5">{primaryItems.map(item => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className}`}>{item.label}</Link>)}</div></section>
-      <section className="mb-2" aria-labelledby="account-search-navigation"><h2 id="account-search-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.search}</h2><Link href="/account/saved-searches" className="block rounded-lg bg-blue-50 px-2.5 py-2.5 text-center text-[11px] font-black text-blue-700">{text.savedSearches}</Link></section>
-      <section aria-labelledby="account-seller-navigation"><h2 id="account-seller-navigation" className="mb-1 px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{text.seller}</h2><div className="grid grid-cols-2 gap-1.5">{sellerItems.map((item, index) => <Link key={item.href} href={item.href} className={`rounded-lg px-2.5 py-2.5 text-center text-[11px] font-black ${item.className} ${index === sellerItems.length - 1 ? 'col-span-2' : ''}`}>{item.label}</Link>)}</div></section>
+
+    <div className="relative md:hidden">
+      <div className="flex items-center justify-between">
+        <Link href="/account" className="text-base font-black text-slate-900">{text.cabinet}</Link>
+        <button type="button" onClick={() => setMenuOpen(current => !current)} aria-expanded={menuOpen} aria-controls="mobile-account-menu" aria-label={menuOpen ? text.close : text.menu} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-black text-slate-900 shadow-sm">
+          {menuOpen ? '×' : '☰'}
+        </button>
+      </div>
+
+      {menuOpen && <>
+        <button type="button" aria-label={text.close} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-slate-950/10" />
+        <div id="mobile-account-menu" className="absolute right-0 top-14 z-50 w-[min(92vw,360px)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
+          <div className="mb-1 flex items-center justify-between px-2 py-1.5">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-400">{text.menu}</span>
+            <button type="button" onClick={toggleLanguage} className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700">{text.switchLanguage}</button>
+          </div>
+          <div className="grid grid-cols-1 gap-1">
+            {mobileMenuItems.map(item => <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} className={`rounded-xl px-3 py-3 text-sm font-black ${item.className}`}>{item.label}</Link>)}
+          </div>
+          <button type="button" onClick={signOut} className="mt-1 w-full rounded-xl bg-rose-50 px-3 py-3 text-left text-sm font-black text-rose-700">{text.logout}</button>
+        </div>
+      </>}
     </div>
   </div></nav>
 }
