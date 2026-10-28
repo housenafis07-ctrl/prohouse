@@ -27,6 +27,7 @@ jobs:
           PY
       - name: Commit and remove one-time workflow
         run: |
+          # Retriggered after the previous repair did not reach main.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm -f .github/workflows/fix-account-loading.yml
