@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession, readAccountSession } from '@/utils/auth/account-session'
 
 const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
 const profileSelect = 'phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url'
@@ -13,10 +14,8 @@ const cleanUrl = (value: unknown) => {
 }
 
 async function getPhoneBackedUserId() {
-  const auth = await createClient()
-  const { data, error } = await auth.auth.getClaims()
-  if (error || !data?.claims?.sub) return null
-  return String(data.claims.sub)
+  const cookieStore = await cookies()
+  return readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
 }
 
 export async function GET() {
@@ -32,7 +31,7 @@ export async function GET() {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     if (!profile?.phone) return NextResponse.json({ error: 'PHONE_AUTH_REQUIRED' }, { status: 401 })
 
-    return NextResponse.json({ profile })
+    return NextResponse.json({ profile }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'PROFILE_LOAD_FAILED' }, { status: 500 })
   }
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
   if (!fullName) return NextResponse.json({ error: 'F.I.O. ni kiriting.' }, { status: 400 })
   if (accountType === 'partner' && !legalForm) return NextResponse.json({ error: 'Hamkor turini tanlang.' }, { status: 400 })
   if (accountType === 'partner' && !inn) return NextResponse.json({ error: 'INN ni kiriting.' }, { status: 400 })
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Email manzilini tekshiring.' }, { status: 400 })
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: 'Email manzilini tekshiring.' }, { status: 400 })
 
   const db = serviceClient()
   const profilePatch = {
