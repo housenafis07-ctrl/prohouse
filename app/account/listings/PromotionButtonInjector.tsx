@@ -21,8 +21,15 @@ export default function PromotionButtonInjector() {
         if (label !== 'Yopish' && label !== 'Закрыть') return
         if (button.dataset.promotionButtonAttached === 'true') return
 
+        const article = button.closest('article')
+        const viewLink = article?.querySelector<HTMLAnchorElement>('a[href*="/account/listings/"][href$="/view"]')
+        const href = viewLink?.getAttribute('href') || ''
+        const match = href.match(/\/account\/listings\/([^/]+)\/view(?:\?|$)/)
+        const listingId = match?.[1] || ''
+        if (!listingId) return
+
         const link = document.createElement('a')
-        link.href = '/account/monetization/checkout'
+        link.href = `/account/monetization/checkout?listingId=${encodeURIComponent(listingId)}`
         link.dataset.listingPromotionButton = 'true'
         link.className = 'inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-4 py-2.5 text-sm font-extrabold text-amber-900 shadow-sm transition hover:bg-amber-200 hover:border-amber-400 active:scale-[.98]'
         link.textContent = lang === 'ru' ? '⭐ Продвинуть' : '⭐ Ilgari surish'
