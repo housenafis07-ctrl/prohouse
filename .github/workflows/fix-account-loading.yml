@@ -1,0 +1,35 @@
+name: one-time-fix-account-loading
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch account auth loading
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/account/page.tsx')
+          s = p.read_text()
+          old = """        const { data: { user } } = await supabase.auth.getUser()\n        if (!user) {\n          router.replace('/register')\n          return\n        }\n\n        const { data, error: profileError } = await supabase\n"""
+          new = """        const authResult = await Promise.race([\n          supabase.auth.getUser(),\n          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 8000)),\n        ])\n        const { data: { user } } = authResult\n        if (!user) {\n          await supabase.auth.signOut()\n          router.replace('/account/login?next=%2Faccount')\n          return\n        }\n\n        const profileResult = await Promise.race([\n          supabase\n            .from('profiles')\n            .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')\n            .eq('id', user.id)\n            .maybeSingle(),\n          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('PROFILE_TIMEOUT')), 8000)),\n        ])\n        const { data, error: profileError } = profileResult\n\n        if (!data && !profileError) {\n          await supabase.auth.signOut()\n          router.replace('/account/login?next=%2Faccount')\n          return\n        }\n\n        if (profileError) {\n"""
+          if old not in s:
+              raise SystemExit('expected account auth block not found')
+          s = s.replace(old, new, 1)
+          old2 = """        const { data, error: profileError } = await supabase\n          .from('profiles')\n          .select('phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url')\n          .eq('id', user.id)\n          .maybeSingle()\n\n        if (!mounted) return\n        if (profileError) {\n"""
+          if old2 in s:
+              s = s.replace(old2, "", 1)
+          p.write_text(s)
+          PY
+      - name: Commit and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/fix-account-loading.yml
+          git add app/account/page.tsx .github/workflows/fix-account-loading.yml
+          git commit -m "fix: prevent account auth loading deadlock" || exit 0
+          git push
