@@ -6,12 +6,16 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Murojaat yuborish uchun tizimga kiring.' }, { status: 401 })
 
     const body = await request.json()
     const listingId = typeof body.listingId === 'string' ? body.listingId : ''
     const leadType = body.leadType === 'call' || body.leadType === 'chat' ? body.leadType : ''
     if (!listingId || !leadType) return NextResponse.json({ error: 'E’lon va murojaat turi ko‘rsatilishi kerak.' }, { status: 400 })
+
+    // Telefon raqamini ko‘rish public bo‘lishi kerak. Chat esa autentifikatsiyani talab qiladi.
+    if (!user && leadType !== 'call') {
+      return NextResponse.json({ error: 'Murojaat yuborish uchun tizimga kiring.' }, { status: 401 })
+    }
 
     const admin = serviceClient()
     const { data: listing, error: listingError } = await admin
@@ -22,7 +26,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (listingError) throw listingError
     if (!listing) return NextResponse.json({ error: 'E’lon topilmadi yoki faol emas.' }, { status: 404 })
-    if (listing.owner_id === user.id) return NextResponse.json({ error: 'O‘zingizning e’loningizga murojaat yubora olmaysiz.' }, { status: 400 })
+    if (user && listing.owner_id === user.id) return NextResponse.json({ error: 'O‘zingizning e’loningizga murojaat yubora olmaysiz.' }, { status: 400 })
 
     const isRental = listing.listing_type === 'daily' || listing.taxonomy_code === 'rent_dacha'
     if (isRental) {
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
     const { data: lead, error: leadError } = await admin.from('listing_leads').insert({
       listing_id: listing.id,
       owner_id: listing.owner_id,
-      visitor_id: user.id,
+      visitor_id: user?.id ?? null,
       lead_type: leadType,
     }).select('id,listing_id,lead_type,status,created_at').single()
     if (leadError) throw leadError
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (leadType === 'chat') {
       let conversationId: string | null = null
       const { data: existing } = await admin.from('conversations').select('id').eq('listing_id', listing.id).in('id', (
-        await admin.from('conversation_participants').select('conversation_id').eq('user_id', user.id)
+        await admin.from('conversation_participants').select('conversation_id').eq('user_id', user!.id)
       ).data?.map((x: any) => x.conversation_id) ?? []).limit(1).maybeSingle()
       conversationId = existing?.id ?? null
 
@@ -51,19 +55,29 @@ export async function POST(request: NextRequest) {
         if (conversationError) throw conversationError
         conversationId = conversation.id
         const { error: participantsError } = await admin.from('conversation_participants').insert([
-          { conversation_id: conversationId, user_id: user.id },
+          { conversation_id: conversationId, user_id: user!.id },
           { conversation_id: conversationId, user_id: listing.owner_id },
         ])
         if (participantsError) throw participantsError
       }
       const { error: messageError } = await admin.from('messages').insert({
         conversation_id: conversationId,
-        sender_id: user.id,
+        sender_id: user!.id,
         body: `Assalomu alaykum! «${listing.seller_name || 'E’lon'}» e’loni bo‘yicha murojaat qilmoqdaman.`,
       })
       if (messageError) throw messageError
       return NextResponse.json({ lead, conversationId })
     }
+
+    // Telefon ko‘rilganini e’lon statistikasiga yozamiz. Bu foydalanuvchi login qilmagan bo‘lsa ham ishlaydi.
+    const { error: eventError } = await admin.from('listing_events').insert({
+      listing_id: listing.id,
+      user_id: user?.id ?? null,
+      session_id: typeof body.sessionId === 'string' ? body.sessionId.trim().slice(0, 128) || null : null,
+      event_type: 'phone_click',
+      metadata: { source: 'listing_lead' },
+    })
+    if (eventError) throw eventError
 
     return NextResponse.json({ lead, phone: listing.seller_phone })
   } catch (e) {
