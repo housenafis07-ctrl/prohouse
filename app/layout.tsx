@@ -26,7 +26,6 @@ import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish"
 import RoyalhouseMobileAISearch from "./components/RoyalhouseMobileAISearch";
 import RoyalhousePwaHomeSearchFix from "./components/RoyalhousePwaHomeSearchFix";
 import RoyalhousePwaAiSearchStyle from "./components/RoyalhousePwaAiSearchStyle";
-import TelegramMiniAppAuth from "./components/TelegramMiniAppAuth";
 import SelectedListingCategoryStyle from "./components/SelectedListingCategoryStyle";
 import RoyalhouseMobileHomeTabFix from "./components/RoyalhouseMobileHomeTabFix";
 import RoyalhouseMobileListingsSearch from "./components/RoyalhouseMobileListingsSearch";
@@ -42,7 +41,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="uz">
       <body>
         <I18nProvider>
-          <TelegramMiniAppAuth />
           <RoyalhouseBrandFix />
           <RoyalhouseFooterFix />
           <RoyalhouseContactFooter />
