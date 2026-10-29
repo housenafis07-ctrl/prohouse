@@ -97,6 +97,38 @@ function ChatPageContent() {
           if (row.sender_id !== userId) void supabase.from('messages').update({ read_at: new Date().toISOString() }).eq('id', row.id)
         }
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_participants', filter: `user_id=eq.${userId}` }, async payload => {
+        // A newly created chat must appear in an already-open inbox, not only after a page refresh.
+        const participant = payload.new as { conversation_id?: string; user_id?: string }
+        if (!participant.conversation_id || participant.user_id !== userId) return
+
+        const { data: row } = await supabase
+          .from('conversations')
+          .select('id,listing_id,updated_at,listings(title)')
+          .eq('id', participant.conversation_id)
+          .maybeSingle()
+        if (!row) return
+
+        const [{ data: last }, { count }] = await Promise.all([
+          supabase.from('messages').select('body,created_at').eq('conversation_id', row.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('messages').select('id', { count: 'exact', head: true }).eq('conversation_id', row.id).neq('sender_id', userId).is('read_at', null),
+        ])
+        const conversation: Conversation = {
+          id: row.id,
+          listing_id: row.listing_id,
+          updated_at: row.updated_at,
+          title: (row as any).listings?.title || t.listingChat,
+          lastMessage: last?.body || t.noMessages,
+          unread: count ?? 0,
+        }
+        setConversations(current => {
+          const exists = current.some(item => item.id === conversation.id)
+          const next = exists
+            ? current.map(item => item.id === conversation.id ? { ...item, ...conversation } : item)
+            : [conversation, ...current]
+          return next.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+        })
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, payload => {
         const row = payload.new as Notification
         setNotifications(current => [row, ...current.filter(item => item.id !== row.id)].slice(0, 30))
