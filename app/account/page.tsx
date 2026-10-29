@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
-import ProfileStatusChecklist from './ProfileStatusChecklist'
 
 type Profile = {
   phone: string | null
@@ -84,7 +83,6 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [completion, setCompletion] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [telegramLinked, setTelegramLinked] = useState(false)
@@ -379,7 +377,6 @@ export default function AccountPage() {
               </div>
 
               <aside className="space-y-4">
-                <ProfileStatusChecklist profile={profile} ru={ru} completion={completion} telegramLinked={telegramLinked} telegramUsername={telegramUsername} telegramBusy={telegramBusy} telegramLinkUrl={telegramLinkUrl} telegramError={telegramError} onTelegramLink={createTelegramLink} />
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-xl">★</div><div><h2 className="text-base font-black">{ru ? 'Быстрый рост' : 'Tezroq natija'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Продвиньте активное объявление и отслеживайте показы.' : 'Faol e’lonni ilgari suring va ko‘rishlar natijasini kuzating.'}</p></div></div><Link href="/account/monetization" className="mt-4 block rounded-xl bg-amber-400 px-4 py-3 text-center text-sm font-black text-slate-950 hover:bg-amber-300">{ru ? 'Выбрать продвижение' : 'Ilgari surish tariflarini ko‘rish'}</Link></section>
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><h2 className="text-base font-black">{ru ? 'Нужна помощь?' : 'Yordam kerakmi?'}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{ru ? 'Мы поможем разобраться с сервисами RoyalHouse.' : 'RoyalHouse xizmatlari bo‘yicha yordam beramiz.'}</p><Link href="/chat" className="mt-4 block rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-black hover:bg-slate-50">{ru ? 'Написать нам' : 'Bizga yozish'}</Link></section>
               </aside>
