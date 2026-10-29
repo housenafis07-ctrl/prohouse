@@ -132,19 +132,26 @@ export default function MyListingsPage() {
     setLoading(true)
     setError('')
     const db = createClient()
-    const { data: { user } } = await db.auth.getUser()
-    if (!user) {
-      router.replace('/register')
+    // Use the same phone-backed session as the cabinet profile and stats APIs.
+    // Browser Supabase auth can point at a legacy user and incorrectly show an empty list.
+    const [profileResponse, listingsResponse] = await Promise.all([
+      fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }),
+      fetch('/api/account/listings', { cache: 'no-store', credentials: 'same-origin' }),
+    ])
+    const profileResult = await profileResponse.json().catch(() => ({}))
+    const listingsResult = await listingsResponse.json().catch(() => ({}))
+    if (profileResponse.status === 401 || listingsResponse.status === 401) {
+      router.replace('/account/login?next=%2Faccount%2Flistings')
       return
     }
-
-    const [{ data: profile }, { data, error: qError }] = await Promise.all([
-      db.from('profiles').select('account_type').eq('id', user.id).maybeSingle(),
-      db.from('listings').select('id,listing_code,title,title_ru,listing_type,property_type,status,price,currency,city,district,area_m2,rooms,floor,floors_total,is_trusted_seller,updated_at,moderation_note,seller_type,is_mortgage_available,primary_image_url,promoted_until,promotion_badge,bumped_at,partner_listing_taxonomy(name_uz,name_ru)').eq('owner_id', user.id).order('updated_at', { ascending: false }),
-    ])
-
-    if (qError) setError(qError.message || text.errorLoad)
-    const listingRows = (data || []) as Listing[]
+    if (!profileResponse.ok || !listingsResponse.ok) {
+      setError(listingsResult.error || profileResult.error || text.errorLoad)
+      setItems([])
+      setLoading(false)
+      return
+    }
+    const profile = profileResult.profile
+    const listingRows = (listingsResult.listings || []) as Listing[]
     setItems(listingRows)
 
     const nextEngagement: Record<string, ListingEngagement> = {}
