@@ -19,7 +19,7 @@ create table if not exists public.referral_rewards (
   id uuid primary key default gen_random_uuid(),
   referrer_id uuid not null references public.profiles(id) on delete cascade,
   invitee_id uuid not null unique references public.profiles(id) on delete cascade,
-  listing_id uuid not null unique references public.listings(id) on delete cascade,
+  listing_id uuid not null unique,
   amount_uzs numeric(18,2) not null default 15000 check (amount_uzs = 15000),
   status text not null default 'credited' check (status in ('credited','reversed')),
   created_at timestamptz not null default now()
@@ -251,3 +251,23 @@ end;
 $$;
 revoke all on function public.assert_individual_listing_limit(uuid) from public;
 grant execute on function public.assert_individual_listing_limit(uuid) to authenticated;
+
+-- Ensure every future profile receives a unique referral code.
+create or replace function public.ensure_profile_referral_code()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  candidate text;
+begin
+  if new.referral_code is null or btrim(new.referral_code) = '' then
+    loop
+      candidate := upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 10));
+      exit when not exists(select 1 from public.profiles where referral_code=candidate and id is distinct from new.id);
+    end loop;
+    new.referral_code := candidate;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists profiles_ensure_referral_code on public.profiles;
+create trigger profiles_ensure_referral_code before insert or update of referral_code on public.profiles
+for each row execute function public.ensure_profile_referral_code();
