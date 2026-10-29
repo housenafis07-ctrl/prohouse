@@ -1,3 +1,8 @@
+
+-- Extra professional profile fields used during realtor verification.
+alter table public.realtor_profiles
+  add column if not exists agency_name text,
+  add column if not exists service_areas text[] not null default '{}';
 -- Realtor growth + referral promotion-credit program.
 -- Promotion credits are separate from user-funded wallet balance and cannot be withdrawn/transferred.
 
