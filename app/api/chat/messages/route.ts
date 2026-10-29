@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import webpush from 'web-push'
-import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { serviceClient } from '@/utils/admin/auth'
 import { deliverPendingTelegramNotifications, queueTelegramNotification } from '@/utils/telegram/notifications'
@@ -11,9 +12,10 @@ type PushConfig = { public_key: string | null; private_key: string | null }
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const cookieStore = await cookies()
+    const userId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const admin = serviceClient()
 
     const body = await request.json().catch(() => ({}))
     const conversationId = typeof body.conversationId === 'string' ? body.conversationId : ''
@@ -21,17 +23,17 @@ export async function POST(request: Request) {
     if (!conversationId || !text) return NextResponse.json({ error: 'conversationId and text are required' }, { status: 400 })
     if (text.length > 5000) return NextResponse.json({ error: 'Xabar juda uzun' }, { status: 400 })
 
-    const { data: participant } = await supabase
+    const { data: participant } = await admin
       .from('conversation_participants')
       .select('conversation_id')
       .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle()
     if (!participant) return NextResponse.json({ error: 'Bu suhbatga kirish huquqi yo‘q' }, { status: 403 })
 
-    const { data: message, error: insertError } = await supabase
+    const { data: message, error: insertError } = await admin
       .from('messages')
-      .insert({ conversation_id: conversationId, sender_id: user.id, body: text })
+      .insert({ conversation_id: conversationId, sender_id: userId, body: text })
       .select('id,sender_id,body,created_at')
       .single()
     if (insertError || !message) return NextResponse.json({ error: insertError?.message || 'Xabar yuborilmadi' }, { status: 500 })
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
     try {
       const admin = serviceClient()
       const [{ data: recipients }, { data: conversation }] = await Promise.all([
-        admin.from('conversation_participants').select('user_id').eq('conversation_id', conversationId).neq('user_id', user.id),
+        admin.from('conversation_participants').select('user_id').eq('conversation_id', conversationId).neq('user_id', userId),
         admin.from('conversations').select('listing_id, listings(title)').eq('id', conversationId).maybeSingle(),
       ])
       const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
     try {
       const admin = serviceClient()
       const [{ data: recipients }, { data: conversation }] = await Promise.all([
-        admin.from('conversation_participants').select('user_id').eq('conversation_id', conversationId).neq('user_id', user.id),
+        admin.from('conversation_participants').select('user_id').eq('conversation_id', conversationId).neq('user_id', userId),
         admin.from('conversations').select('listing_id, listings(title)').eq('id', conversationId).maybeSingle(),
       ])
       const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
           .from('conversation_participants')
           .select('user_id')
           .eq('conversation_id', conversationId)
-          .neq('user_id', user.id)
+          .neq('user_id', userId)
         const recipientIds = (recipients ?? []).map(row => row.user_id)
 
         if (recipientIds.length) {
