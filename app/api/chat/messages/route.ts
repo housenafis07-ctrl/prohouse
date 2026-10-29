@@ -46,12 +46,11 @@ export async function POST(request: Request) {
       ])
       const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
       const preview = text.length > 240 ? `${text.slice(0, 240)}…` : text
-      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\\/$/, '')
       if (recipients?.length) {
         const { error: notificationError } = await admin.from('notifications').insert(recipients.map(recipient => ({
           user_id: recipient.user_id,
           title: 'RoyalHouse — yangi xabar',
-          body: `🏠 ${listingTitle}\\n${preview}`,
+          body: `🏠 ${listingTitle}\n${preview}`,
           link: `/chat?conversationId=${encodeURIComponent(conversationId)}`,
           conversation_id: conversationId,
         })))
