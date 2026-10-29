@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { createClient } from '@/utils/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { serviceClient } from '@/utils/admin/auth'
+import { deliverPendingTelegramNotifications, queueTelegramNotification } from '@/utils/telegram/notifications'
 
 export const runtime = 'nodejs'
 
@@ -33,6 +35,29 @@ export async function POST(request: Request) {
       .select('id,sender_id,body,created_at')
       .single()
     if (insertError || !message) return NextResponse.json({ error: insertError?.message || 'Xabar yuborilmadi' }, { status: 500 })
+
+    // Telegram notifications are best-effort and only sent to users who explicitly linked the bot.
+    try {
+      const admin = serviceClient()
+      const [{ data: recipients }, { data: conversation }] = await Promise.all([
+        admin.from('conversation_participants').select('user_id').eq('conversation_id', conversationId).neq('user_id', user.id),
+        admin.from('conversations').select('listing_id, listings(title)').eq('id', conversationId).maybeSingle(),
+      ])
+      const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
+      const preview = text.length > 240 ? `${text.slice(0, 240)}…` : text
+      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\\/$/, '')
+      await Promise.all((recipients || []).map((recipient) =>
+        queueTelegramNotification(
+          admin,
+          recipient.user_id,
+          'listing_message',
+          `💬 RoyalHouse — e’lon bo‘yicha yangi xabar\\n🏠 ${listingTitle}\\n\\n${preview}\\n\\nYozishmani ochish: ${siteUrl}/chat?conversationId=${encodeURIComponent(conversationId)}`,
+        ),
+      ))
+      await deliverPendingTelegramNotifications(admin, 20)
+    } catch (telegramError) {
+      console.error('[Telegram chat notification] Delivery failed', telegramError)
+    }
 
     // Push is deliberately best-effort: a push failure must never undo a saved chat message.
     try {
