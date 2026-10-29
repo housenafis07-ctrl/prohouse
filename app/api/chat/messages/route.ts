@@ -70,7 +70,6 @@ export async function POST(request: Request) {
       ])
       const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
       const preview = text.length > 240 ? `${text.slice(0, 240)}…` : text
-      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
       await Promise.all((recipients || []).map((recipient) =>
         queueTelegramNotification(
           admin,
