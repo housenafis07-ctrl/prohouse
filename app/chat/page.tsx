@@ -34,54 +34,50 @@ function ChatPageContent() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!mounted) return
-      if (!user) { setError(t.login); setLoading(false); return }
-      setUserId(user.id)
-      const { data: participantRows, error: participantError } = await supabase.from('conversation_participants').select('conversation_id').eq('user_id', user.id)
-      if (participantError) { setError(participantError.message); setLoading(false); return }
-      const ids = participantRows?.map(row => row.conversation_id) ?? []
-      let list: Conversation[] = []
-      if (ids.length) {
-        const { data: rows, error: conversationError } = await supabase.from('conversations').select('id,listing_id,updated_at,listings(title)').in('id', ids).order('updated_at', { ascending: false })
-        if (conversationError) setError(conversationError.message)
-        list = (rows ?? []).map((row: any) => ({ id: row.id, listing_id: row.listing_id, updated_at: row.updated_at, title: row.listings?.title || t.listingChat, lastMessage: '', unread: 0 }))
-        for (const conversation of list) {
-          const { data: last } = await supabase.from('messages').select('body,sender_id,created_at').eq('conversation_id', conversation.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
-          conversation.lastMessage = last?.body || t.noMessages
-          const { count } = await supabase.from('messages').select('id', { count: 'exact', head: true }).eq('conversation_id', conversation.id).neq('sender_id', user.id).is('read_at', null)
-          conversation.unread = count ?? 0
+      try {
+        const response = await fetch('/api/chat', { cache: 'no-store', credentials: 'same-origin' })
+        const result = await response.json().catch(() => ({}))
+        if (!mounted) return
+        if (response.status === 401) { setError(t.login); setLoading(false); return }
+        if (!response.ok) throw new Error(result.error || t.error)
+        setUserId(result.userId)
+        const list = (result.conversations || []) as Conversation[]
+        setConversations(list)
+        setNotifications((result.notifications || []) as Notification[])
+        if (listingId && !requestedConversationId) {
+          const existing = list.find(item => item.listing_id === listingId)
+          if (existing) setActiveConversationId(existing.id)
         }
+        if (!requestedConversationId && !listingId && list[0]) setActiveConversationId(list[0].id)
+      } catch (loadError) {
+        if (mounted) setError(loadError instanceof Error ? loadError.message : t.error)
+      } finally {
+        if (mounted) setLoading(false)
       }
-      if (listingId && !requestedConversationId) { const existing = list.find(item => item.listing_id === listingId); if (existing) setActiveConversationId(existing.id) }
-      if (!requestedConversationId && !listingId && list[0]) setActiveConversationId(list[0].id)
-      if (mounted) setConversations(list)
-      const { data: noteRows } = await supabase.from('notifications').select('id,title,body,link,read_at,created_at,conversation_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
-      if (mounted) setNotifications(noteRows ?? [])
-      setLoading(false)
     }
     void load()
-    return () => { mounted = false }
-  }, [listingId, requestedConversationId, supabase])
+    const interval = window.setInterval(() => { void load() }, 10000)
+    return () => { mounted = false; window.clearInterval(interval) }
+  }, [listingId, requestedConversationId])
 
   useEffect(() => {
+    if (!activeConversationId || !userId) { setMessages([]); return }
     let mounted = true
     const loadMessages = async () => {
-      if (!activeConversationId || !userId) { if (mounted) setMessages([]); return }
-      const { data, error: messageError } = await supabase.from('messages').select('id,sender_id,body,created_at,read_at').eq('conversation_id', activeConversationId).order('created_at', { ascending: true })
-      if (messageError) { if (mounted) setError(messageError.message); return }
-      if (mounted) setMessages((data ?? []).map(message => ({ id: message.id, text: message.body, mine: message.sender_id === userId, time: new Date(message.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) })))
-      const now = new Date().toISOString()
-      await supabase.from('messages').update({ read_at: now }).eq('conversation_id', activeConversationId).neq('sender_id', userId).is('read_at', null)
-      await supabase.from('notifications').update({ read_at: now }).eq('user_id', userId).eq('conversation_id', activeConversationId).is('read_at', null)
-      if (mounted) {
-        setConversations(current => current.map(item => item.id === activeConversationId ? { ...item, unread: 0 } : item))
-        setNotifications(current => current.map(item => item.conversation_id === activeConversationId ? { ...item, read_at: now } : item))
-      }
+      try {
+        const response = await fetch('/api/chat', { cache: 'no-store', credentials: 'same-origin' })
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok) return
+        if (mounted) {
+          const rows = (result.messages || []).filter((message: any) => message.conversation_id === activeConversationId)
+          setMessages(rows.map((message: any) => ({ id: message.id, text: message.body, mine: message.sender_id === userId, time: new Date(message.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) })))
+        }
+      } catch { /* The next poll will retry. */ }
     }
     void loadMessages()
-    return () => { mounted = false }
-  }, [activeConversationId, supabase, userId])
+    const interval = window.setInterval(() => { void loadMessages() }, 5000)
+    return () => { mounted = false; window.clearInterval(interval) }
+  }, [activeConversationId, userId])
 
   useEffect(() => {
     if (!userId) return

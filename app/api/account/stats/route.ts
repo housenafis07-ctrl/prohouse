@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
+import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+    const cookieStore = await cookies()
+    const userId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+    if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+    const supabase = serviceClient()
 
     const statuses = ['active', 'moderation', 'rejected', 'sold', 'rented', 'archived'] as const
     const [{ count: total, error: totalError }, ...statusResults] = await Promise.all([
-      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', user.id),
+      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', userId),
       ...statuses.map(async status => {
-        const { count, error } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', user.id).eq('status', status)
+        const { count, error } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('owner_id', userId).eq('status', status)
         return { status, count: count ?? 0, error }
       }),
     ])
