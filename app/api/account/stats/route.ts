@@ -18,10 +18,24 @@ export async function GET() {
         return { status, count: count ?? 0, error }
       }),
     ])
+    const { data: leads, error: leadsError } = await supabase
+      .from('listing_leads')
+      .select('status,created_at,first_responded_at')
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1000)
     if (totalError) throw totalError
     const failed = statusResults.find(item => item.error)
     if (failed?.error) throw failed.error
+    if (leadsError) throw leadsError
     const counts = Object.fromEntries(statusResults.map(item => [item.status, item.count]))
+    const leadRows = leads || []
+    const responseMinutes = leadRows
+      .filter(item => item.first_responded_at)
+      .map(item => Math.max(0, (new Date(item.first_responded_at as string).getTime() - new Date(item.created_at).getTime()) / 60000))
+    const avgResponseMinutes = responseMinutes.length
+      ? Math.round(responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length)
+      : null
 
     return NextResponse.json({
       total: total ?? 0,
@@ -31,6 +45,10 @@ export async function GET() {
       sold: counts.sold ?? 0,
       rented: counts.rented ?? 0,
       archived: counts.archived ?? 0,
+      leads: leadRows.length,
+      newLeads: leadRows.filter(item => item.status === 'new').length,
+      contactedLeads: leadRows.filter(item => item.status === 'contacted').length,
+      avgResponseMinutes,
     })
   } catch (error) {
     console.error('[Account stats] Failed', error)
