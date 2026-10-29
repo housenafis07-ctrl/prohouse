@@ -60,6 +60,10 @@ export async function POST(request: Request) {
       console.error('[Chat in-app notification] Failed', notificationError)
     }
 
+    // Keep a defined canonical site URL for Telegram links. Without this, every
+    // post-inquiry chat notification throws before it can be queued or delivered.
+    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
+
     // Telegram notifications are best-effort and only sent to users who explicitly linked the bot.
     try {
       const admin = serviceClient()
