@@ -36,6 +36,30 @@ export async function POST(request: Request) {
       .single()
     if (insertError || !message) return NextResponse.json({ error: insertError?.message || 'Xabar yuborilmadi' }, { status: 500 })
 
+    // Persist in-app notifications as well as Telegram/push delivery. The chat UI
+    // reads this table; a browser push alone does not create an inbox notification.
+    try {
+      const admin = serviceClient()
+      const [{ data: recipients }, { data: conversation }] = await Promise.all([
+        admin.from('conversation_participants').select('user_id').eq('conversation_id', conversationId).neq('user_id', user.id),
+        admin.from('conversations').select('listing_id, listings(title)').eq('id', conversationId).maybeSingle(),
+      ])
+      const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
+      const preview = text.length > 240 ? `${text.slice(0, 240)}…` : text
+      if (recipients?.length) {
+        const { error: notificationError } = await admin.from('notifications').insert(recipients.map(recipient => ({
+          user_id: recipient.user_id,
+          title: 'RoyalHouse — yangi xabar',
+          body: `🏠 ${listingTitle}\n${preview}`,
+          link: `/chat?conversationId=${encodeURIComponent(conversationId)}`,
+          conversation_id: conversationId,
+        })))
+        if (notificationError) console.error('[Chat in-app notification] Insert failed', notificationError)
+      }
+    } catch (notificationError) {
+      console.error('[Chat in-app notification] Failed', notificationError)
+    }
+
     // Telegram notifications are best-effort and only sent to users who explicitly linked the bot.
     try {
       const admin = serviceClient()
@@ -45,7 +69,6 @@ export async function POST(request: Request) {
       ])
       const listingTitle = (conversation as any)?.listings?.title || 'E’lon'
       const preview = text.length > 240 ? `${text.slice(0, 240)}…` : text
-      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
       await Promise.all((recipients || []).map((recipient) =>
         queueTelegramNotification(
           admin,
