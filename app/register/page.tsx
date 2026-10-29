@@ -163,6 +163,19 @@ export default function RegisterPage() {
       registrationStage = 'profile_upsert'
       const {error:profileError}=await supabase.from('profiles').upsert({id:user.id,phone:normalizedPhone,account_type:accountType,partner_type:accountType==='partner'?partnerType:null,full_name:form.fullName.trim(),company_name:form.companyName.trim()||null,inn:form.inn.trim()||null,bank_name:form.bankName.trim()||null,bank_account:form.bankAccount.trim()||null,mfo:form.mfo.trim()||null,director_full_name:form.directorFullName.trim()||null},{onConflict:'id'})
       if(profileError) throw profileError
+
+      // If registration was opened from a referral link, bind that referral
+      // only after the user's profile exists. The database prevents self-referrals
+      // and changing an already claimed referral.
+      const currentParams = new URLSearchParams(window.location.search)
+      const nextPath = currentParams.get('next') || ''
+      const referralCode = currentParams.get('ref') || new URLSearchParams(nextPath.split('?')[1] || '').get('code')
+      if (referralCode) {
+        registrationStage = 'referral_claim'
+        const { error: referralError } = await supabase.rpc('claim_referral_code', { p_code: referralCode })
+        if (referralError && !/REFERRAL_ALREADY_CLAIMED/i.test(referralError.message)) throw referralError
+      }
+
       registrationStage = 'consent_lookup'
       const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents').select('id').eq('user_id',user.id).eq('offer_version',offer.version).maybeSingle()
       if(consentLookupError) throw consentLookupError
@@ -177,7 +190,7 @@ export default function RegisterPage() {
       const code = typeof err?.code === 'string' ? err.code : ''
       const detail = typeof err?.message === 'string' ? err.message : e instanceof Error ? e.message : ''
       console.error('[registration] finish failed', { stage: registrationStage, code, message: detail, details: err?.details, hint: err?.hint })
-      const stageLabel: Record<string, string> = { session: t('sessiyani olish', 'получение сессии'), profile_lookup: t('mavjud profilni tekshirish', 'проверка существующего профиля'), profile_upsert: t('profilni bazaga yozish', 'сохранение профиля в базе'), consent_lookup: t('oferta roziligini tekshirish', 'проверка согласия с офертой'), consent_insert: t('oferta roziligini saqlash', 'сохранение согласия с офертой') }
+      const stageLabel: Record<string, string> = { referral_claim: t('taklif kodini biriktirish', 'привязка кода приглашения'), session: t('sessiyani olish', 'получение сессии'), profile_lookup: t('mavjud profilni tekshirish', 'проверка существующего профиля'), profile_upsert: t('profilni bazaga yozish', 'сохранение профиля в базе'), consent_lookup: t('oferta roziligini tekshirish', 'проверка согласия с офертой'), consent_insert: t('oferta roziligini saqlash', 'сохранение согласия с офертой') }
       if(code === '23505' && /phone/i.test(detail + ' ' + String(err?.details || ''))){ setMessage(t('Bu telefon raqami avval boshqa profilga biriktirilgan. Eski akkaunt orqali kiring yoki yordam xizmatiga murojaat qiling.','Этот телефонный номер уже привязан к другому профилю. Войдите в прежний аккаунт или обратитесь в поддержку.'))
       } else if(code === '23505'){ setMessage(t('Bu ma’lumot bilan profil avval ro‘yxatdan o‘tgan. Sahifani yangilang va qayta kiring.','Профиль с такими данными уже зарегистрирован. Обновите страницу va qayta urinib ko‘ring.'))
       } else if(code === '42501' || /row-level security|permission denied/i.test(detail)){ setMessage(t(`Ruxsat xatosi: ${stageLabel[registrationStage] || registrationStage}. ${detail || code}`, `Ошибка доступа: ${stageLabel[registrationStage] || registrationStage}. ${detail || code}`))
