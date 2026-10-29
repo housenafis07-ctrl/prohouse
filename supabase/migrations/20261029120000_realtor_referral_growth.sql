@@ -14,7 +14,7 @@ alter table public.wallet_accounts
   add column if not exists bonus_balance numeric(18,2) not null default 0 check (bonus_balance >= 0);
 
 update public.profiles
-set referral_code = upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 10))
+set referral_code = upper(substr(md5(gen_random_uuid()::text || clock_timestamp()::text), 1, 10))
 where referral_code is null;
 
 create unique index if not exists profiles_referral_code_key on public.profiles(referral_code);
@@ -268,7 +268,7 @@ declare
 begin
   if new.referral_code is null or btrim(new.referral_code) = '' then
     loop
-      candidate := upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 10));
+      candidate := upper(substr(md5(gen_random_uuid()::text || clock_timestamp()::text), 1, 10));
       exit when not exists(select 1 from public.profiles where referral_code=candidate and id is distinct from new.id);
     end loop;
     new.referral_code := candidate;
