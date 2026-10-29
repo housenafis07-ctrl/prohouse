@@ -62,6 +62,9 @@ export default function MonetizationCheckoutPage() {
   const [paying, setPaying] = useState<'click' | 'payme' | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [walletBalances, setWalletBalances] = useState({ balance: 0, bonus_balance: 0 })
+  const [usingBonus, setUsingBonus] = useState(false)
   const [pendingCheckoutUrl, setPendingCheckoutUrl] = useState('')
   const [pendingCheckoutProvider, setPendingCheckoutProvider] = useState<'click' | 'payme' | null>(null)
 
@@ -119,6 +122,9 @@ export default function MonetizationCheckoutPage() {
         requestedOrderId ? fetch(`/api/monetization/orders/${encodeURIComponent(requestedOrderId)}`, { cache: 'no-store' }) : Promise.resolve(null),
       ])
 
+      const { data: walletData } = await db.from('wallet_accounts').select('balance,bonus_balance').eq('user_id', user.id).maybeSingle()
+      setWalletBalances({ balance: Number(walletData?.balance || 0), bonus_balance: Number(walletData?.bonus_balance || 0) })
+
       const listingsPayload = listingsResponse.ok ? await listingsResponse.json() : { listings: [] }
       const ownListings = Array.isArray(listingsPayload.listings) ? listingsPayload.listings as Listing[] : []
       setProducts((productRows || []) as Product[])
@@ -169,6 +175,28 @@ export default function MonetizationCheckoutPage() {
       setError(err instanceof Error ? err.message : t('orderCreateFailed'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const buyWithPromotionBonus = async () => {
+    if (!product || !listingId || !['top', 'up', 'highlight', 'premium'].includes(product.product_type || '')) return
+    setError('')
+    setSuccess('')
+    setUsingBonus(true)
+    try {
+      const db = createClient()
+      const { data, error: purchaseError } = await db.rpc('purchase_listing_promotion', { p_listing_id: listingId, p_product_code: product.code })
+      if (purchaseError) throw purchaseError
+      setWalletBalances({ balance: Number(data?.balance || 0), bonus_balance: Number(data?.bonus_balance || 0) })
+      setSuccess(lang === 'ru' ? 'Продвижение успешно оплачено бонусным балансом.' : 'E’lonni ilgari surish bonus balansi orqali muvaffaqiyatli amalga oshirildi.')
+      setOrder(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      setError(message.includes('INSUFFICIENT_BALANCE')
+        ? (lang === 'ru' ? 'Бонуса и средств на счёте недостаточно для этой услуги. Выберите более дешёвое продвижение или пополните основной баланс.' : 'Bonus va asosiy balans bu xizmat uchun yetarli emas. Arzonroq ilgari surishni tanlang yoki asosiy balansni to‘ldiring.')
+        : message || (lang === 'ru' ? 'Не удалось оплатить продвижение бонусом.' : 'Bonus orqali to‘lov amalga oshmadi.'))
+    } finally {
+      setUsingBonus(false)
     }
   }
 
@@ -244,7 +272,7 @@ export default function MonetizationCheckoutPage() {
             <div className="flex items-center justify-between"><h2 className="text-lg font-black">2. {lang === 'ru' ? 'Проверьте заказ' : 'Buyurtmani tekshiring'}</h2><span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black">{product?.name}</span></div>
             {selectedListing ? <div className="mt-5 overflow-hidden rounded-3xl bg-white/10 ring-1 ring-white/10"><div className="relative aspect-[16/9] bg-white/5">{selectedListing.image_url ? <img src={selectedListing.image_url} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-4xl">🏠</div>}</div><div className="p-4"><div className="text-xs font-bold uppercase tracking-wider text-slate-400">{lang === 'ru' ? 'Объявление' : 'E’lon'}</div><div className="mt-1 font-black leading-5">{pickLocalized(lang, selectedListing.title, selectedListing.title_ru) || t('noName')}</div>{selectedListing.price ? <div className="mt-2 font-black text-emerald-300">{money(selectedListing.price)}</div> : null}</div></div> : <div className="mt-5 rounded-3xl border border-dashed border-white/20 bg-white/5 p-6 text-center"><div className="text-3xl">👆</div><p className="mt-3 text-sm leading-6 text-slate-300">{lang === 'ru' ? 'Выберите объявление слева.' : 'Chap tomondan e’lonni tanlang.'}</p></div>}
 
-            {product && <div className="mt-5 border-t border-white/10 pt-5"><div className="flex items-end justify-between"><span className="text-sm text-slate-400">{t('total')}</span><b className="text-2xl">{money(product.price_uzs)}</b></div>{!order && <button type="button" disabled={submitting || !listingId} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{submitting ? t('creatingOrder') : t('createOrder')}</button>}</div>}
+            {product && <div className="mt-5 border-t border-white/10 pt-5"><div className="flex items-end justify-between"><span className="text-sm text-slate-400">{t('total')}</span><b className="text-2xl">{money(product.price_uzs)}</b></div>{success && <div className="mt-4 rounded-xl bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">{success}</div>}{!success && !order && <><button type="button" disabled={submitting || !listingId} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{submitting ? t('creatingOrder') : t('createOrder')}</button>{needsListing && walletBalances.bonus_balance > 0 && walletBalances.balance + walletBalances.bonus_balance >= Number(product.price_uzs) && <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4"><p className="text-sm font-bold text-emerald-100">{lang === 'ru' ? 'Бонусный баланс: ' : 'Bonus balansi: '}{money(walletBalances.bonus_balance)}</p><p className="mt-1 text-xs leading-5 text-slate-300">{lang === 'ru' ? 'Бонус сначала списывается на продвижение; остаток при необходимости списывается с основного счёта.' : 'Avval bonus balansi ishlatiladi, yetmagan qismi bo‘lsa asosiy balansdan yechiladi.'}</p><button type="button" disabled={usingBonus || !listingId} onClick={() => void buyWithPromotionBonus()} className="mt-3 w-full rounded-xl bg-white px-4 py-3 text-sm font-black text-emerald-800 disabled:opacity-50">{usingBonus ? (lang === 'ru' ? 'Оплата…' : 'To‘lanmoqda…') : (lang === 'ru' ? 'Оплатить бонусом' : 'Bonus bilan to‘lash')}</button></div>}</>}{success && <Link href="/account/listings" className="mt-4 block rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-white">{lang === 'ru' ? 'Вернуться к объявлениям' : 'E’lonlarimga qaytish'}</Link>}</div>}
 
             {order && <div className="mt-5 rounded-3xl bg-white p-4 text-slate-950"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1"><button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center font-black">Click</div><ClickLogo /></button><button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-emerald-400 disabled:opacity-60"><div className="text-center font-black">Payme</div><PaymeLogo /></button></div></div>}
             {pendingCheckoutUrl && <button type="button" onClick={openPendingCheckout} className="mt-3 w-full rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">{lang === 'ru' ? 'Открыть страницу оплаты Payme' : 'Payme to‘lov sahifasini ochish'}</button>}
