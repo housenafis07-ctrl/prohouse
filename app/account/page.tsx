@@ -379,6 +379,36 @@ export default function AccountPage() {
               <aside className="space-y-4">
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-xl">★</div><div><h2 className="text-base font-black">{ru ? 'Быстрый рост' : 'Tezroq natija'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{ru ? 'Продвиньте активное объявление и отслеживайте показы.' : 'Faol e’lonni ilgari suring va ko‘rishlar natijasini kuzating.'}</p></div></div><Link href="/account/monetization" className="mt-4 block rounded-xl bg-amber-400 px-4 py-3 text-center text-sm font-black text-slate-950 hover:bg-amber-300">{ru ? 'Выбрать продвижение' : 'Ilgari surish tariflarini ko‘rish'}</Link></section>
                 <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm"><h2 className="text-base font-black">{ru ? 'Нужна помощь?' : 'Yordam kerakmi?'}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{ru ? 'Мы поможем разобраться с сервисами RoyalHouse.' : 'RoyalHouse xizmatlari bo‘yicha yordam beramiz.'}</p><Link href="/chat" className="mt-4 block rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-black hover:bg-slate-50">{ru ? 'Написать нам' : 'Bizga yozish'}</Link></section>
+                <section className="rounded-[26px] border border-sky-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#229ED9] text-white shadow-sm" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor"><path d="M21.7 3.3 2.9 10.55c-1.28.5-1.27 1.2.23 1.5l4.82 1.5 1.85 5.77c.23.65.12.91.8.91.52 0 .75-.24 1.03-.52l2.5-2.43 5.2 3.84c.96.53 1.65.27 1.9-.89l3.42-16.14c.37-1.42-.54-2.06-1.48-1.79ZM8.23 13.17l10.8-6.81c.51-.31.98-.14.6.2l-8.75 7.9-.34 3.63-4.92-1.58-.49.77-.51Z"/></svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-base font-black">{ru ? 'Подключить Telegram' : 'Telegramni ulash'}</h2>
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${telegramLinked ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{telegramLinked ? (ru ? 'Подключён' : 'Ulangan') : (ru ? 'Не подключён' : 'Ulanmagan')}</span>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">{ru ? 'Получайте в @RoyalHouseUz_bot уведомления о новых сообщениях и обращениях по вашим объявлениям, а также важные обновления бронирований и платежей.' : 'E’lonlaringiz bo‘yicha yangi yozishmalar va murojaatlar, shuningdek bron hamda to‘lovlar haqidagi muhim xabarlarni @RoyalHouseUz_bot orqali oling.'}</p>
+                      {telegramLinked && telegramUsername && <p className="mt-2 text-xs font-bold text-emerald-700">@{telegramUsername.replace(/^@/, '')}</p>}
+                    </div>
+                  </div>
+                  {telegramError && <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{telegramError}</p>}
+                  {telegramLinked ? (
+                    <div className="mt-4 rounded-xl bg-emerald-50 px-3 py-3 text-xs font-bold leading-5 text-emerald-800">{ru ? 'Telegram успешно подключён. Уведомления будут приходить в бот.' : 'Telegram muvaffaqiyatli ulangan. Bildirishnomalar botga yuboriladi.'}</div>
+                  ) : telegramLinkUrl ? (
+                    <a href={telegramLinkUrl} target="_blank" rel="noreferrer" className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#229ED9] px-4 py-3 text-center text-sm font-black text-white transition hover:bg-[#168AC0]">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M21.7 3.3 2.9 10.55c-1.28.5-1.27 1.2.23 1.5l4.82 1.5 1.85 5.77c.23.65.12.91.8.91.52 0 .75-.24 1.03-.52l2.5-2.43 5.2 3.84c.96.53 1.65.27 1.9-.89l3.42-16.14c.37-1.42-.54-2.06-1.48-1.79ZM8.23 13.17l10.8-6.81c.51-.31.98-.14.6.2l-8.75 7.9-.34 3.63-4.92-1.58-.49.77-.51Z"/></svg>
+                      {ru ? 'Открыть бота и завершить подключение' : 'Botni ochish va ulashni yakunlash'}
+                    </a>
+                  ) : (
+                    <button type="button" onClick={createTelegramLink} disabled={telegramBusy} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#229ED9] px-4 py-3 text-sm font-black text-white transition hover:bg-[#168AC0] disabled:cursor-not-allowed disabled:opacity-60">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M21.7 3.3 2.9 10.55c-1.28.5-1.27 1.2.23 1.5l4.82 1.5 1.85 5.77c.23.65.12.91.8.91.52 0 .75-.24 1.03-.52l2.5-2.43 5.2 3.84c.96.53 1.65.27 1.9-.89l3.42-16.14c.37-1.42-.54-2.06-1.48-1.79ZM8.23 13.17l10.8-6.81c.51-.31.98-.14.6.2l-8.75 7.9-.34 3.63-4.92-1.58-.49.77-.51Z"/></svg>
+                      {telegramBusy ? (ru ? 'Создаём ссылку…' : 'Havola yaratilmoqda…') : (ru ? 'Подключить Telegram' : 'Telegramni ulash')}
+                    </button>
+                  )}
+                  {!telegramLinked && <p className="mt-2 text-[11px] leading-4 text-slate-400">{ru ? 'Для подтверждения откройте бота и отправьте свой контакт. Номер должен совпадать с номером в профиле RoyalHouse.' : 'Tasdiqlash uchun botni ochib, o‘z telefon raqamingizni yuboring. Raqam RoyalHouse profilingizdagi raqam bilan bir xil bo‘lishi kerak.'}</p>}
+                </section>
               </aside>
             </div>
           </div>
