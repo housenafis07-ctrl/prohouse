@@ -42,11 +42,11 @@ export default function RealtorCabinetPage() {
       const r = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || tx('Kod noto‘g‘ri','Неверный код'))
+      // /api/auth/verify-code establishes the Supabase session in secure cookies.
+      // The endpoint intentionally does not return access/refresh tokens in JSON.
       const supabase = createClient()
-      if (!d.session?.access_token || !d.session?.refresh_token) throw new Error(tx('Sessiya ma’lumotlari qaytmadi.','Данные сессии не получены.'))
-      const sessionError = (await supabase.auth.setSession({ access_token: d.session.access_token, refresh_token: d.session.refresh_token })).error
-      if (sessionError) throw sessionError
-      const { data: userData } = await supabase.auth.getUser()
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
       if (!userData.user) throw new Error(tx('Sessiya topilmadi.','Сессия не найдена.'))
       const { data: realtor, error: realtorLookupError } = await supabase.from('realtor_profiles').select('id,verification_status').eq('user_id', userData.user.id).maybeSingle()
       if (realtorLookupError) throw realtorLookupError
