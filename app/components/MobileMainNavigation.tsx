@@ -69,6 +69,9 @@ export default function MobileMainNavigation() {
           display:grid;
           grid-template-columns:repeat(5,minmax(0,1fr));
           align-items:end;
+          grid-template-rows:64px;
+          height:auto;
+          min-height:0;
           width:100%;
           box-sizing:border-box;
           padding:7px 8px max(8px, env(safe-area-inset-bottom));
@@ -80,6 +83,9 @@ export default function MobileMainNavigation() {
         }
         .prohouse-mobile-main-nav a {
           display:flex;
+          box-sizing:border-box;
+          height:52px;
+          max-height:52px;
           min-width:0;
           flex-direction:column;
           align-items:center;
@@ -98,8 +104,13 @@ export default function MobileMainNavigation() {
         .prohouse-mobile-main-nav a svg { width:22px; height:22px; flex:0 0 auto; }
         .prohouse-mobile-main-nav a.active { color:#059669; background:#ecfdf5; }
         .prohouse-mobile-main-nav a.create {
-          margin:-14px 3px 0;
+          align-self:end;
+          box-sizing:border-box;
+          height:62px;
+          max-height:62px;
           min-height:62px;
+          margin:-14px 3px 0;
+          overflow:hidden;
           border:1px solid #10b981;
           border-radius:18px;
           background:#059669;
