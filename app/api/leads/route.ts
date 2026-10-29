@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
           admin,
           listing.owner_id,
           'listing_lead',
-          `💬 RoyalHouse — e’loningiz bo‘yicha yangi murojaat\\n🏠 ${listing.seller_name || 'E’lon'}\\nXaridor sizga yozishma yubordi.\\n\\nYozishmani ochish: ${(process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\\/$/, '')}/chat?conversationId=${encodeURIComponent(conversationId)}`,
+          `💬 RoyalHouse — e’loningiz bo‘yicha yangi murojaat\n🏠 ${listing.seller_name || 'E’lon'}\nXaridor sizga yozishma yubordi.\n\nYozishmani ochish: ${(process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')}/chat?conversationId=${encodeURIComponent(conversationId)}`,
         )
         await deliverPendingTelegramNotifications(admin, 20)
       } catch (telegramError) {
