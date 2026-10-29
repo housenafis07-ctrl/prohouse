@@ -26,7 +26,7 @@ export default function ReferralsPage() {
   async function load() {
     const response = await fetch('/api/account/referrals', { cache: 'no-store', credentials: 'same-origin' })
     const result = await response.json().catch(() => ({}))
-    if (response.status === 401) { router.replace('/account/login?next=%2Faccount%2Freferrals'); return }
+    if (response.status === 401) { const code = new URLSearchParams(window.location.search).get('code'); const next = '/account/referrals' + (code ? '?code=' + encodeURIComponent(code) : ''); router.replace('/register?next=' + encodeURIComponent(next)); return }
     if (!response.ok) throw new Error(result.error || 'REFERRAL_LOAD_FAILED')
     setData(result)
   }
