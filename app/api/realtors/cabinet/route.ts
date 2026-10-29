@@ -4,7 +4,7 @@ import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 function phoneDigits(value: unknown) {
-  return String(value || '').replace(/\\D/g, '')
+  return String(value || '').replace(/\D/g, '')
 }
 
 async function getUserId() {
