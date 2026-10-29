@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         const { error: notificationError } = await admin.from('notifications').insert({
           user_id: listing.owner_id,
           title: 'RoyalHouse — e’loningiz bo‘yicha yangi murojaat',
-          body: `🏠 ${listing.seller_name || 'E’lon'}\\nXaridor sizga yozishma yubordi.`,
+          body: `🏠 ${listing.seller_name || 'E’lon'}\nXaridor sizga yozishma yubordi.`,
           link: `/chat?conversationId=${encodeURIComponent(conversationId)}`,
           conversation_id: conversationId,
         })
