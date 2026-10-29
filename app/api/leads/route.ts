@@ -68,6 +68,20 @@ export async function POST(request: NextRequest) {
       })
       if (messageError) throw messageError
 
+      // Keep the first listing inquiry in the site's in-app notification center too.
+      try {
+        const { error: notificationError } = await admin.from('notifications').insert({
+          user_id: listing.owner_id,
+          title: 'RoyalHouse — e’loningiz bo‘yicha yangi murojaat',
+          body: `🏠 ${listing.seller_name || 'E’lon'}\\nXaridor sizga yozishma yubordi.`,
+          link: `/chat?conversationId=${encodeURIComponent(conversationId)}`,
+          conversation_id: conversationId,
+        })
+        if (notificationError) console.error('[Chat lead in-app notification] Insert failed', notificationError)
+      } catch (notificationError) {
+        console.error('[Chat lead in-app notification] Failed', notificationError)
+      }
+
       // Notify the listing owner in Telegram if they have explicitly linked @RoyalHouseUz_bot.
       try {
         await queueTelegramNotification(
