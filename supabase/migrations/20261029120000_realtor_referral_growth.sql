@@ -118,15 +118,16 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
   v_account_type text;
   v_realtor_status text;
+  v_agency_name text;
   v_count integer;
   v_limit integer := 3;
 begin
   select account_type into v_account_type from public.profiles where id=new.owner_id;
-  select verification_status into v_realtor_status from public.realtor_profiles where user_id=new.owner_id limit 1;
+  select verification_status, agency_name into v_realtor_status, v_agency_name from public.realtor_profiles where user_id=new.owner_id limit 1;
 
   if coalesce(v_account_type,'individual') = 'individual' then
     new.seller_type := 'owner';
-    if v_realtor_status = 'verified' then v_limit := 20;
+    if v_realtor_status = 'verified' then v_limit := case when nullif(btrim(v_agency_name),'') is not null then 50 else 20 end;
     else
       select individual_free_listing_limit into v_limit from public.listing_pricing_settings where id=1;
       v_limit := coalesce(v_limit,3);
@@ -152,14 +153,15 @@ declare
   fee numeric(18,2);
   paid_enabled boolean;
   realtor_status text;
+  realtor_agency_name text;
 begin
   select p.account_type into account_type_value from public.profiles p where p.id=new.owner_id;
-  select verification_status into realtor_status from public.realtor_profiles where user_id=new.owner_id limit 1;
+  select verification_status, agency_name into realtor_status, realtor_agency_name from public.realtor_profiles where user_id=new.owner_id limit 1;
 
   if account_type_value='individual' and new.status='active' then
     select individual_free_listing_limit,individual_listing_fee_uzs,paid_listing_enabled
       into free_limit,fee,paid_enabled from public.listing_pricing_settings where id=1;
-    if realtor_status='verified' then free_limit:=20; end if;
+    if realtor_status='verified' then free_limit:=case when nullif(btrim(realtor_agency_name),'') is not null then 50 else 20 end; end if;
     select count(*) into used_free from public.listings l
       where l.owner_id=new.owner_id and l.status='active' and l.is_free_listing=true and l.id is distinct from new.id;
     if used_free < coalesce(free_limit,3) then
@@ -233,6 +235,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_account_type text;
   v_realtor_status text;
+  v_agency_name text;
   used_count integer;
   free_limit integer := 3;
 begin
@@ -240,8 +243,8 @@ begin
   if coalesce(v_account_type,'') <> 'individual' then
     return jsonb_build_object('allowed',true,'account_type',v_account_type,'used',0,'free_limit',free_limit,'remaining',free_limit);
   end if;
-  select rp.verification_status into v_realtor_status from public.realtor_profiles rp where rp.user_id=p_user_id limit 1;
-  if v_realtor_status='verified' then free_limit:=20;
+  select rp.verification_status, rp.agency_name into v_realtor_status, v_agency_name from public.realtor_profiles rp where rp.user_id=p_user_id limit 1;
+  if v_realtor_status='verified' then free_limit:=case when nullif(btrim(v_agency_name),'') is not null then 50 else 20 end;
   else
     select individual_free_listing_limit into free_limit from public.listing_pricing_settings where id=1;
     free_limit:=coalesce(free_limit,3);
