@@ -242,7 +242,7 @@ begin
     free_limit:=coalesce(free_limit,3);
   end if;
   select count(*)::integer into used_count from public.listings l
-    where l.owner_id=p_user_id and l.status in ('active','moderation') and l.id is distinct from null;
+    where l.owner_id=p_user_id and l.status in ('active','moderation');
   if used_count >= free_limit then
     raise exception 'LISTING_LIMIT_REACHED' using detail=jsonb_build_object('used',used_count,'free_limit',free_limit,'remaining',0)::text;
   end if;
