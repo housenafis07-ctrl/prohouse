@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { deliverPendingTelegramNotifications, queueTelegramNotification } from '@/utils/telegram/notifications'
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,6 +67,20 @@ export async function POST(request: NextRequest) {
         body: `Assalomu alaykum! «${listing.seller_name || 'E’lon'}» e’loni bo‘yicha murojaat qilmoqdaman.`,
       })
       if (messageError) throw messageError
+
+      // Notify the listing owner in Telegram if they have explicitly linked @RoyalHouseUz_bot.
+      try {
+        await queueTelegramNotification(
+          admin,
+          listing.owner_id,
+          'listing_lead',
+          `💬 RoyalHouse — e’loningiz bo‘yicha yangi murojaat\\n🏠 ${listing.seller_name || 'E’lon'}\\nXaridor sizga yozishma yubordi.\\n\\nYozishmani ochish: ${(process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\\/$/, '')}/chat?conversationId=${encodeURIComponent(conversationId)}`,
+        )
+        await deliverPendingTelegramNotifications(admin, 20)
+      } catch (telegramError) {
+        console.error('[Telegram lead notification] Delivery failed', telegramError)
+      }
+
       return NextResponse.json({ lead, conversationId })
     }
 
