@@ -69,16 +69,36 @@ export default function RegisterPage() {
       const data=await response.json()
       if(!response.ok) throw new Error(data.error||t('Kod noto‘g‘ri','Неверный код'))
 
-      // The API now stores the verified Supabase session in the SSR cookie.
-      // Do not call browser setSession()/getSession()/profiles here: those
-      // calls can contend with the WebView/browser auth lock immediately after
-      // OTP and were the source of the login -> loading deadlock.
-      if(data.profileExists){ router.replace(getRedirectTo()); return }
+      // The API stores the verified Supabase session in secure cookies.
+      // Existing accounts can still add a second role (partner) without creating
+      // a duplicate account or replacing their realtor profile.
+      const requestedType = new URLSearchParams(window.location.search).get('type')
+      if(data.profileExists && requestedType !== 'partner'){ router.replace(getRedirectTo()); return }
+
+      if (data.profileExists && requestedType === 'partner') {
+        const profileResponse = await fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' })
+        const profileData = await profileResponse.json().catch(() => ({}))
+        if (!profileResponse.ok || !profileData.profile) throw new Error(profileData.error || t('Mavjud profilni yuklab bo‘lmadi.','Не удалось загрузить существующий профиль.'))
+        const existing = profileData.profile
+        setAccountType('partner')
+        setForm({
+          ...emptyForm,
+          fullName: existing.full_name || '',
+          companyName: existing.company_name || '',
+          inn: existing.inn || '',
+          bankName: existing.bank_name || '',
+          bankAccount: existing.bank_account || '',
+          mfo: existing.mfo || '',
+          directorFullName: existing.director_full_name || '',
+        })
+      }
 
       setCode(otpCode)
       setVerified(true)
       stopOtpRef.current?.(); stopOtpRef.current=null
-      setMessage(t('Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.','Номер телефона подтверждён. Теперь заполните данные профиля.'))
+      setMessage(data.profileExists
+        ? t('Mavjud akkauntingizga hamkor rolini qo‘shish uchun ma’lumotlarni to‘ldiring.','Заполните данные, чтобы добавить роль партнёра к существующему аккаунту.')
+        : t('Telefon raqami tasdiqlandi. Endi profil ma’lumotlarini kiriting.','Номер телефона подтверждён. Теперь заполните данные профиля.'))
     }catch(e){
       submitGuardRef.current.finish()
       setMessage(e instanceof Error?e.message:t('Tasdiqlashda xatolik','Ошибка подтверждения'))
