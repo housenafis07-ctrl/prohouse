@@ -134,7 +134,7 @@ export async function POST(request: Request) {
   if (status === 'moderation' && !listingId) {
     const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
     if (limitError) {
-      if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({ error: 'LISTING_LIMIT_REACHED', message: '3 ta bepul faol e’lon limitingiz tugagan. Qo‘shimcha e’lon uchun monetizatsiya xizmatini tanlang.' }, { status: 402 })
+      if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({ error: 'LISTING_LIMIT_REACHED', message: 'Bepul faol e’lon limitingiz tugagan. Rieltor bo‘lsangiz, avval rieltor profilingiz tasdiqlanganini tekshiring yoki qo‘shimcha e’lon tarifini tanlang.' }, { status: 402 })
       return NextResponse.json({ error: limitError.message }, { status: 400 })
     }
   }

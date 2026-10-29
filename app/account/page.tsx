@@ -263,6 +263,7 @@ export default function AccountPage() {
     { href: '/chat', icon: '◌', uz: 'Xabarlar', ru: 'Сообщения' },
     { href: '/account/favorites', icon: '♡', uz: 'Saqlanganlar', ru: 'Избранное' },
     { href: '/account/saved-searches', icon: '⌕', uz: 'Saqlangan qidiruvlar', ru: 'Сохранённые поиски' },
+    { href: '/account/referrals', icon: '🎁', uz: 'Do‘stni taklif qilish', ru: 'Пригласить друга' },
   ], [])
 
   const sellerLinks = useMemo(() => [
@@ -270,6 +271,7 @@ export default function AccountPage() {
     { href: '/account/monetization', icon: '★', uz: 'E’lonni ilgari surish', ru: 'Продвижение объявления' },
     { href: '/account/company-profile', icon: '▦', uz: 'Firma profili', ru: 'Профиль компании' },
     { href: '/account/wallet', icon: '₿', uz: 'Hisob va to‘lovlar', ru: 'Счёт и платежи' },
+    { href: '/realtors/cabinet', icon: '♙', uz: 'Rieltor kabineti', ru: 'Кабинет риелтора' },
   ], [])
 
   const compactStats = [

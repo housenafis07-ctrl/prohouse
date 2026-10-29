@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
-type Wallet = { id: string; account_number: string; balance: number; currency: string; status: string }
+type Wallet = { id: string; account_number: string; balance: number; bonus_balance?: number; currency: string; status: string }
 type Transaction = { id: string; transaction_code: string; listing_id: string | null; type: string; amount: number; balance_after: number | null; description: string | null; status: string; created_at: string }
 type Listing = { id: string; listing_code: string; title: string; status: string; price: number; currency: string }
 
@@ -35,7 +35,7 @@ export default function WalletPage() {
       if (!user) { router.replace('/register'); return }
 
       const [{ data: walletData, error: walletError }, { data: txData, error: txError }, { data: listingData }] = await Promise.all([
-        supabase.from('wallet_accounts').select('id,account_number,balance,currency,status').eq('user_id', user.id).maybeSingle(),
+        supabase.from('wallet_accounts').select('id,account_number,balance,bonus_balance,currency,status').eq('user_id', user.id).maybeSingle(),
         supabase.from('wallet_transactions').select('id,transaction_code,listing_id,type,amount,balance_after,description,status,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
         supabase.from('listings').select('id,listing_code,title,status,price,currency').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(20),
       ])
@@ -74,6 +74,7 @@ export default function WalletPage() {
               </div>
             </div>
             <div className="p-6 sm:p-8">
+              <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-emerald-900">{t('Bonus balansi','Бонусный баланс')}</p><p className="mt-1 text-2xl font-black text-emerald-900">{money(Number(wallet?.bonus_balance || 0), wallet?.currency || 'UZS')}</p><p className="mt-1 text-xs text-emerald-800">{t('Faqat TOP, Highlight va boshqa e’lonni ilgari surish xizmatlari uchun. Naqd pulga yechilmaydi.','Только для TOP, Highlight и других услуг продвижения. Не выводится наличными.')}</p></div><Link href="/account/referrals" className="shrink-0 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white">{t('Do‘st taklif qilish','Пригласить друга')}</Link></div></div>
               <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
                 {t('Balansni to‘ldirish funksiyasi keyingi bosqichda to‘lov provayderiga ulanadi. Hozircha hisob va barcha tranzaksiyalar tarixi tayyor.','Функция пополнения баланса будет подключена к платёжному провайдеру на следующем этапе. Пока доступны счёт и история всех транзакций.')}
               </div>
