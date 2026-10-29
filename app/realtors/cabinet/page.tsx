@@ -3,7 +3,6 @@
 import { FormEvent, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type Mode = 'login' | 'register'
@@ -46,12 +45,13 @@ export default function RealtorCabinetPage() {
       if (!r.ok) throw new Error(d.error || tx('Kod noto‘g‘ri','Неверный код'))
       // /api/auth/verify-code establishes the Supabase session in secure cookies.
       // The endpoint intentionally does not return access/refresh tokens in JSON.
-      const supabase = createClient()
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-      if (!userData.user) throw new Error(tx('Sessiya topilmadi.','Сессия не найдена.'))
-      const { data: realtor, error: realtorLookupError } = await supabase.from('realtor_profiles').select('id,verification_status').eq('user_id', userData.user.id).maybeSingle()
-      if (realtorLookupError) throw realtorLookupError
+      // Use the server-verified phone session cookie. Do not depend on browser
+      // Supabase auth state here: OTP verification can succeed while the browser
+      // auth client has not hydrated its session yet.
+      const statusResponse = await fetch('/api/realtors/cabinet', { cache: 'no-store', credentials: 'same-origin' })
+      const statusData = await statusResponse.json().catch(() => ({}))
+      if (!statusResponse.ok) throw new Error(statusData.message || statusData.error || tx('Sessiya tekshirilmadi. SMS orqali qayta kiring.','Не удалось проверить сессию. Войдите повторно по SMS.'))
+      const realtor = statusData.realtor
       if (mode === 'login') {
         if (!realtor) throw new Error(tx('Rieltor kabineti topilmadi. Avval rieltor sifatida ro‘yxatdan o‘ting.','Кабинет риелтора не найден. Сначала зарегистрируйтесь как риелтор.'))
         router.replace('/realtors/cabinet/dashboard')
@@ -59,8 +59,27 @@ export default function RealtorCabinetPage() {
       }
       if (realtor) { router.replace('/realtors/cabinet/dashboard'); return }
       if (!name.trim() || !certificate.trim()) throw new Error(tx('F.I.O. va malaka sertifikati raqamini kiriting.','Введите Ф.И.О. и номер квалификационного сертификата.'))
-      const { error } = await supabase.from('realtor_profiles').insert({ user_id: userData.user.id, display_name: name.trim(), phone: phone.replace(/\\s/g, ''), certificate_number: certificate.trim(), experience_years: Number(experience) || 0, verification_status: 'pending', rating: 0, reviews_count: 0, agency_id: null, agency_name: agencyName.trim() || null, service_areas: serviceAreas.split(',').map(area => area.trim()).filter(Boolean).slice(0, 20), bio: 'Royalhouse rieltorlik kabineti orqali yuborilgan ariza.' })
-      if (error) throw error
+      const applicationResponse = await fetch('/api/realtors/cabinet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          display_name: name.trim(),
+          phone,
+          certificate_number: certificate.trim(),
+          experience_years: Number(experience) || 0,
+          agency_name: agencyName.trim(),
+          service_areas: serviceAreas.split(',').map(area => area.trim()).filter(Boolean).slice(0, 20),
+        }),
+      })
+      const applicationData = await applicationResponse.json().catch(() => ({}))
+      if (!applicationResponse.ok) {
+        if (applicationResponse.status === 409 && applicationData.verificationStatus) {
+          router.replace('/realtors/cabinet/dashboard')
+          return
+        }
+        throw new Error(applicationData.message || applicationData.error || tx('Arizani yuborib bo‘lmadi. Qayta urinib ko‘ring.','Не удалось отправить заявку. Попробуйте ещё раз.'))
+      }
       router.replace('/realtors/cabinet/dashboard?submitted=1')
     } catch (e) { setMessage(e instanceof Error ? e.message : tx('Xatolik yuz berdi','Произошла ошибка')) } finally { setLoading(false) }
   }
