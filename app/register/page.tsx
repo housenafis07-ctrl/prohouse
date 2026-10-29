@@ -39,20 +39,22 @@ export default function RegisterPage() {
   useEffect(()=>{
     let mounted=true
     const load=async()=>{
-      const supabase=createClient()
-      const [{data:{user}},{data:activeOffer}]=await Promise.all([
-        supabase.auth.getUser(),
-        supabase.from('offer_versions').select('version,title,content').eq('is_active',true).maybeSingle()
+      // Only redirect when the server confirms the signed phone/SMS cabinet
+      // session. A stale Supabase browser session alone must not bounce the
+      // user between /account and /account/login.
+      const [offerResult, accountResponse] = await Promise.all([
+        createClient().from('offer_versions').select('version,title,content').eq('is_active',true).maybeSingle(),
+        fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null),
       ])
       if(!mounted) return
-      if(activeOffer) setOffer(activeOffer)
-      if(user){
-        const {data}=await supabase.from('profiles').select('*').eq('id',user.id).maybeSingle()
-        if(data){ router.replace(getRedirectTo()); return }
+      if(offerResult.data) setOffer(offerResult.data)
+      if(accountResponse?.ok){
+        router.replace(getRedirectTo())
       }
     }
-    load()
+    void load()
     return()=>{mounted=false}
+
   },[router])
 
   useEffect(()=>()=>stopOtpRef.current?.(),[])
