@@ -4,11 +4,11 @@ insert into public.monetization_products
 (code,name,name_ru,description,description_ru,price_uzs,duration_days,boost_rank,badge,badge_ru,active,product_type,audience,unit,quantity,metadata)
 values
 ('realtor_free','FREE','FREE','10 ta faol e’lon, professional profil va mijozlardan murojaat qabul qilish.','10 активных объявлений, профессиональный профиль и приём обращений клиентов.',0,30,0,'FREE','FREE',true,'subscription','realtor','month',1,
- jsonb_build_object('listing_limit',10,'analytics','basic','top_credits',0,'up_credits',0,'verified_badge',true,'crm',false,'team_members',1,'lead_distribution',false,'agency_profile',false,'priority_search',false)),
+ jsonb_build_object('listing_limit',10,'analytics','basic','top_credits',0,'up_credits',0,'verified_badge',false,'crm',false,'team_members',1,'lead_distribution',false,'agency_profile',false,'priority_search',false)),
 ('realtor_pro','PRO','PRO','100 ta e’lon, oyiga 20 TOP va 30 UP, tasdiqlangan belgi, CRM, statistika va qidiruvda ustuvorlik.','100 объявлений, 20 TOP и 30 UP в месяц, значок проверки, CRM, статистика и приоритет в поиске.',299900,30,0,'PRO','PRO',true,'subscription','realtor','month',1,
  jsonb_build_object('listing_limit',100,'analytics','advanced','top_credits',20,'up_credits',30,'verified_badge',true,'crm',true,'team_members',1,'lead_distribution',false,'agency_profile',false,'priority_search',true)),
 ('realtor_business','BUSINESS','BUSINESS','300 ta e’lon, jamoa va agentlar, CRM, murojaatlarni taqsimlash, kengaytirilgan statistika va agentlik profili.','300 объявлений, команда и агенты, CRM, распределение обращений, расширенная аналитика и профиль агентства.',599900,30,0,'BUSINESS','BUSINESS',true,'subscription','realtor','month',1,
- jsonb_build_object('listing_limit',300,'analytics','advanced','top_credits',60,'up_credits',100,'verified_badge',true,'crm',true,'team_members',10,'lead_distribution',true,'agency_profile',true,'priority_search',true))
+ jsonb_build_object('listing_limit',300,'analytics','advanced','top_credits',0,'up_credits',0,'verified_badge',true,'crm',true,'team_members',10,'lead_distribution',true,'agency_profile',true,'priority_search',true))
 on conflict (code) do update set
  name=excluded.name,name_ru=excluded.name_ru,description=excluded.description,description_ru=excluded.description_ru,
  price_uzs=excluded.price_uzs,duration_days=excluded.duration_days,boost_rank=excluded.boost_rank,
