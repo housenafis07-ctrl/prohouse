@@ -186,9 +186,11 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
   const isCleanPaginationUrl = Array.from(searchParams.keys()).every((key) => key === 'page')
   const queryString = useMemo(() => {
     const q = toQuery(state, cursor)
+    const realtorId = searchParams.get('realtor')
+    if (realtorId) q.set('realtor', realtorId)
     if (!cursor && requestedPage > 1) q.set('page', String(requestedPage))
     return q.toString()
-  }, [state, cursor, requestedPage])
+  }, [state, cursor, requestedPage, searchParams])
 
   const hasOnlyServerPagination = Array.from(searchParams.keys()).every((key) => key === 'page')
   const text = lang === 'ru'
