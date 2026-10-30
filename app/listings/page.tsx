@@ -55,7 +55,7 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
   const cursorValue = Array.isArray(params.cursor) ? params.cursor[0] : params.cursor
   const realtorId = Array.isArray(params.realtor) ? params.realtor[0] : params.realtor
   const page = Math.max(1, Number(pageValue || '1') || 1)
-  const isCleanSeoPage = !cursorValue && Object.keys(params).every((key) => key === 'page')
+  const isCleanSeoPage = !realtorId && !cursorValue && Object.keys(params).every((key) => key === 'page')
   const supabase = await createClient()
   let realtorOwnerId: string | null = null
   if (realtorId) {
@@ -81,12 +81,12 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
     if (!realtorOwnerId) listingQuery = listingQuery.eq('id', '00000000-0000-0000-0000-000000000000')
     else listingQuery = listingQuery.eq('owner_id', realtorOwnerId)
   }
+  if (!realtorId) listingQuery = listingQuery.or('listing_type.eq.sale,listing_type.eq.new_building')
   const { data, count } = await listingQuery
     .select(
       'id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge',
       { count: 'estimated' },
     )
-    .or('listing_type.eq.sale,listing_type.eq.new_building')
     .order('effective_promotion_rank', { ascending: false })
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false })
