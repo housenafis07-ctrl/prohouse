@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   if (file.size < 1 || file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'Rasm hajmi 5 MB dan oshmasligi kerak.' }, { status: 400 })
 
   const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-  const path = `realtor-avatars/${userId}/profile.${extension}`
+  const path = `realtor-avatars/${userId}/profile-${Date.now()}.${extension}`
   const db = serviceClient()
   const { error: uploadError } = await db.storage.from('listing-images').upload(path, file, {
     contentType: file.type,
