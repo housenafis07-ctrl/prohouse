@@ -6,7 +6,7 @@ import { useI18n } from '@/app/components/I18nProvider'
 const plans = [
   { code: 'realtor_free', name: 'FREE', price: 0, limit: 10, features: { uz: ['10 ta faol e’lon','Professional rieltor profili','Mijozlardan murojaat qabul qilish','Asosiy statistika'], ru: ['10 активных объявлений','Профессиональный профиль риелтора','Приём обращений клиентов','Базовая статистика'] } },
   { code: 'realtor_pro', name: 'PRO', price: 299900, limit: 100, popular: true, features: { uz: ['100 ta faol e’lon','Oyiga 20 ta TOP va 30 ta UP','Tasdiqlangan rieltor belgisi','CRM va kengaytirilgan statistika','Qidiruvda ustuvor ko‘rinish'], ru: ['100 активных объявлений','20 TOP и 30 UP в месяц','Значок проверенного риелтора','CRM и расширенная статистика','Приоритетное отображение в поиске'] } },
-  { code: 'realtor_business', name: 'BUSINESS', price: 599900, limit: 300, features: { uz: ['300 ta faol e’lon','10 tagacha jamoa a’zosi / agent','CRM va murojaatlarni taqsimlash','Kengaytirilgan statistika','Alohida agentlik profili','TOP/UP oylik paket kreditlari'], ru: ['300 активных объявлений','До 10 участников команды / агентов','CRM и распределение обращений','Расширенная аналитика','Отдельный профиль агентства','Ежемесячные кредиты TOP/UP'] } },
+  { code: 'realtor_business', name: 'BUSINESS', price: 599900, limit: 300, features: { uz: ['300 ta faol e’lon','10 tagacha jamoa a’zosi / agent','CRM va murojaatlarni taqsimlash','Kengaytirilgan statistika','Alohida agentlik profili'], ru: ['300 активных объявлений','До 10 участников команды / агентов','CRM и распределение обращений','Расширенная аналитика','Отдельный профиль агентства'] } },
 ]
 
 export default function RealtorTariffsPage() {
