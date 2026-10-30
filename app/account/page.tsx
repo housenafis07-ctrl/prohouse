@@ -42,9 +42,9 @@ function Icon({ children }: IconProps) {
   return <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500">{children}</span>
 }
 
-function MenuLink({ href, active, icon, children }: { href: string; active?: boolean; icon: ReactNode; children: ReactNode }) {
+function MenuLink({ href, active, icon, children, onClick }: { href: string; active?: boolean; icon: ReactNode; children: ReactNode; onClick?: () => void }) {
   return (
-    <Link href={href} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold transition ${active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`}>
+    <Link href={href} onClick={onClick ? (event) => { event.preventDefault(); onClick() } : undefined} className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-bold transition ${active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`}>
       <Icon>{icon}</Icon><span className="truncate">{children}</span>
     </Link>
   )
@@ -90,6 +90,7 @@ export default function AccountPage() {
   const [telegramLinkUrl, setTelegramLinkUrl] = useState('')
   const [telegramBusy, setTelegramBusy] = useState(false)
   const [telegramError, setTelegramError] = useState('')
+  const [openingRealtorCabinet, setOpeningRealtorCabinet] = useState(false)
 
   const loadTelegramStatus = useCallback(async () => {
     try {
@@ -243,6 +244,26 @@ export default function AccountPage() {
     }
   }
 
+  async function openRealtorCabinet() {
+    if (openingRealtorCabinet) return
+    setOpeningRealtorCabinet(true)
+    try {
+      const response = await fetch('/api/realtors/cabinet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ intent: 'handoff' }),
+      })
+      if (!response.ok) throw new Error('HANDOFF_NOT_CREATED')
+      router.push('/realtors/cabinet')
+    } catch {
+      // Fall back to the public entry: it will require normal SMS verification.
+      router.push('/realtors/cabinet')
+    } finally {
+      setOpeningRealtorCabinet(false)
+    }
+  }
+
   async function signOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -297,7 +318,7 @@ export default function AccountPage() {
           <nav className="flex-1 overflow-y-auto px-3 py-4">
             <div className="space-y-1">{mainLinks.map((item) => <MenuLink key={item.href} href={item.href} active={item.href === '/account'} icon={item.icon}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
             <div className="my-4 border-t border-slate-100" />
-            <div className="space-y-1">{sellerLinks.map((item) => <MenuLink key={item.href} href={item.href} icon={item.icon}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
+            <div className="space-y-1">{sellerLinks.map((item) => <MenuLink key={item.href} href={item.href} icon={item.icon} onClick={item.href === '/realtors/cabinet' ? openRealtorCabinet : undefined}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
           </nav>
           <div className="border-t border-slate-100 p-3">
             <button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="mb-2 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"><span>{ru ? 'Язык' : 'Til'}</span><span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px]">{ru ? 'O‘z' : 'Ru'}</span></button>
