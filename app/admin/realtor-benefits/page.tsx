@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type Grant={id:string;benefit_tier:string;listing_limit:number;starts_at:string;ends_at:string;note:string|null}
 type Realtor={id:string;user_id:string;display_name:string;phone:string;agency_name:string|null;profile:{full_name:string|null;phone:string|null}|null;activeListings:number;activeGrant:Grant|null}
