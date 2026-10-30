@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/app/components/I18nProvider'
+import RealtorCabinetNav from '@/app/realtors/cabinet/CabinetNav'
 
 type Reward = { id: string; invitee_id: string; amount_uzs: number; created_at: string; status: string }
 type ReferralData = { code: string | null; referredBy: boolean; invitedCount: number; rewards: Reward[]; bonusBalance: number }
@@ -22,6 +23,7 @@ export default function ReferralsPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const [fromRealtor, setFromRealtor] = useState(false)
 
   async function load() {
     const response = await fetch('/api/account/referrals', { cache: 'no-store', credentials: 'same-origin' })
@@ -31,6 +33,7 @@ export default function ReferralsPage() {
     setData(result)
   }
   useEffect(() => { load().catch(e => setError(e instanceof Error ? e.message : 'Xatolik')).finally(() => setLoading(false)) }, [router])
+  useEffect(() => { setFromRealtor(new URLSearchParams(window.location.search).get('from') === 'realtor') }, [])
 
   async function claimCode(event: React.FormEvent) {
     event.preventDefault()
@@ -71,7 +74,7 @@ export default function ReferralsPage() {
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8">
     <div className="mx-auto max-w-4xl">
-      <header className="flex items-center justify-between"><Link href="/account" className="font-bold text-emerald-700">← {t('Shaxsiy kabinet','Личный кабинет')}</Link><span className="font-black">RoyalHouse.uz</span></header>
+      {fromRealtor ? <RealtorCabinetNav /> : <header className="flex items-center justify-between"><Link href="/account" className="font-bold text-emerald-700">← {t('Shaxsiy kabinet','Личный кабинет')}</Link><span className="font-black">RoyalHouse.uz</span></header>}
       <section className="mt-5 overflow-hidden rounded-3xl bg-white shadow-sm">
         <div className="bg-slate-900 p-7 text-white sm:p-9"><p className="text-xs font-black tracking-[.18em] text-emerald-400">ROYALHOUSE REFERRALS</p><h1 className="mt-2 text-3xl font-black">{t('Do‘stingni taklif qil','Пригласи друга')}</h1><p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">{t('Do‘stingiz haqiqiy e’lonini joylashtirib, e’lon moderatsiyadan o‘tib faol bo‘lsa, sizga 15 000 so‘m reklama bonusi beriladi.','Получите бонус 15 000 сум на продвижение, когда приглашённый друг опубликует настоящее объявление и оно пройдёт модерацию.')}</p></div>
         <div className="grid gap-4 p-6 sm:grid-cols-3">
