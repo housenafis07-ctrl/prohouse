@@ -7,7 +7,7 @@ const date=(v:string)=>new Date(v).toLocaleString('uz-UZ',{dateStyle:'medium',ti
 const localDate=(d:Date)=>{const x=new Date(d.getTime()-d.getTimezoneOffset()*60000);return x.toISOString().slice(0,16)}
 export default function AdminRealtorsPage(){
  const [rows,setRows]=useState<Realtor[]>([]),[counts,setCounts]=useState({all:0,pending:0,verified:0,rejected:0})
- const [status,setStatus]=useState('pending'),[q,setQ]=useState(''),[loading,setLoading]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('')
+ const [status,setStatus]=useState('all'),[q,setQ]=useState(''),[loading,setLoading]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState('')
  const [target,setTarget]=useState<Realtor|null>(null),[tier,setTier]=useState('PRO'),[limit,setLimit]=useState('100'),[endsAt,setEndsAt]=useState(localDate(new Date(Date.now()+30*86400000))),[note,setNote]=useState(''),[saving,setSaving]=useState(false)
  const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await fetch('/api/admin/realtors?'+new URLSearchParams({status,q}),{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'Yuklashda xatolik');setRows(d.realtors||[]);setCounts(d.counts||{all:0,pending:0,verified:0,rejected:0})}catch(e){setError(e instanceof Error?e.message:'Xatolik')}finally{setLoading(false)}},[status,q])
  useEffect(()=>{const id=window.setTimeout(()=>void load(),250);return()=>window.clearTimeout(id)},[load])
