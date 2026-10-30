@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, serviceClient } from '@/utils/admin/auth'
 
-const DEFAULT_LIMIT: Record<string, number> = { FREE: 20, PRO: 100, BUSINESS: 300 }
 const FEATURES: Record<string, Record<string, boolean>> = {
   FREE: { crm: false, analytics: true, priority_search: false, team: false, lead_distribution: false, top_up_credits: false },
   PRO: { crm: true, analytics: true, priority_search: true, team: false, lead_distribution: false, top_up_credits: true },
