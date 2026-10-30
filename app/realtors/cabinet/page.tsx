@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/app/components/I18nProvider'
@@ -16,6 +16,7 @@ export default function RealtorCabinetPage() {
   const [phone, setPhone] = useState('+998 ')
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
+  const [sessionVerified, setSessionVerified] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [name, setName] = useState('')
@@ -23,6 +24,27 @@ export default function RealtorCabinetPage() {
   const [experience, setExperience] = useState('0')
   const [agencyName, setAgencyName] = useState('')
   const [serviceAreas, setServiceAreas] = useState('')
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/realtors/cabinet', { cache: 'no-store', credentials: 'same-origin' })
+      .then(async response => {
+        if (!active || response.status === 401) return
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) return
+        if (data.realtor) {
+          router.replace('/realtors/cabinet/dashboard')
+          return
+        }
+        setSessionVerified(true)
+        setSent(true)
+        if (data.phone) setPhone(data.phone)
+        if (new URLSearchParams(window.location.search).get('mode') === 'register') setMode('register')
+        setMessage(tx('Asosiy shaxsiy kabinet sessiyasi tasdiqlangan. SMS kodini qayta kiritish shart emas.','Сессия основного кабинета подтверждена. Повторно вводить SMS-код не нужно.'))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [router])
 
   async function sendCode() {
     if (phone.replace(/\D/g, '').length < 12) return setMessage(tx('Telefon raqamini to‘liq kiriting.','Введите полный номер телефона.'))
@@ -37,12 +59,14 @@ export default function RealtorCabinetPage() {
 
   async function verify(e: FormEvent) {
     e.preventDefault()
-    if (!sent || code.length !== 6) return setMessage(tx('SMS kodini kiriting.','Введите код из SMS.'))
+    if (!sessionVerified && (!sent || code.length !== 6)) return setMessage(tx('SMS kodini kiriting.','Введите код из SMS.'))
     setLoading(true); setMessage('')
     try {
-      const authResponse = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code }) })
-      const authData = await authResponse.json()
-      if (!authResponse.ok) throw new Error(authData.error || tx('Kod noto‘g‘ri','Неверный код'))
+      if (!sessionVerified) {
+        const authResponse = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code }) })
+        const authData = await authResponse.json()
+        if (!authResponse.ok) throw new Error(authData.error || tx('Kod noto‘g‘ri','Неверный код'))
+      }
       const statusResponse = await fetch('/api/realtors/cabinet', { cache: 'no-store', credentials: 'same-origin' })
       const statusData = await statusResponse.json().catch(() => ({}))
       if (!statusResponse.ok) throw new Error(statusData.message || statusData.error || tx('Sessiya tekshirilmadi.','Не удалось проверить сессию.'))
@@ -80,18 +104,18 @@ export default function RealtorCabinetPage() {
           </div>
           <div className="p-6 sm:p-8">
             <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-              <button type="button" onClick={() => { setMode('login'); setSent(false); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{tx('Kirish','Войти')}</button>
-              <button type="button" onClick={() => { setMode('register'); setSent(false); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'register' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>{tx('Ro‘yxatdan o‘tish','Регистрация')}</button>
+              <button type="button" onClick={() => { setMode('login'); setSent(sessionVerified); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{tx('Kirish','Войти')}</button>
+              <button type="button" onClick={() => { setMode('register'); setSent(sessionVerified); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'register' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>{tx('Ro‘yxatdan o‘tish','Регистрация')}</button>
             </div>
             <form onSubmit={verify} className="mt-6 space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-bold">{tx('Telefon raqami','Номер телефона')}</label>
                 <div className="flex gap-2">
-                  <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3" />
-                  <button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent ? tx('Qayta yuborish','Отправить повторно') : tx('SMS yuborish','Отправить SMS')}</button>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} disabled={sessionVerified} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3" />
+                  <button type="button" disabled={loading || sessionVerified} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sessionVerified ? tx('Akkaunt tasdiqlangan','Аккаунт подтверждён') : sent ? tx('Qayta yuborish','Отправить повторно') : tx('SMS yuborish','Отправить SMS')}</button>
                 </div>
               </div>
-              {sent && (
+              {sent && !sessionVerified && (
                 <div>
                   <label className="mb-2 block text-sm font-bold">{tx('SMS kodi','Код из SMS')}</label>
                   <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-xl tracking-[.35em]" />
@@ -123,7 +147,7 @@ export default function RealtorCabinetPage() {
                 </>
               )}
               {message && <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}
-              {sent && <button disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading ? tx('Tekshirilmoqda...','Проверка...') : mode === 'login' ? tx('Rieltor kabinetiga kirish','Войти в кабинет риелтора') : tx('Rieltor sifatida ariza yuborish','Подать заявку как риелтор')}</button>}
+              {(sent || sessionVerified) && <button disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading ? tx('Tekshirilmoqda...','Проверка...') : mode === 'login' ? tx('Rieltor kabinetiga kirish','Войти в кабинет риелтора') : tx('Rieltor sifatida ariza yuborish','Подать заявку как риелтор')}</button>}
             </form>
           </div>
         </section>

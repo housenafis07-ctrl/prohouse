@@ -17,7 +17,7 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
   const db = serviceClient()
   const { data, error } = await db.from('realtor_profiles')
-    .select('id,verification_status,display_name,certificate_number,phone,experience_years,rating,reviews_count,agency_name,service_areas,benefit_period_starts_at,benefit_period_ends_at,benefit_period_note')
+    .select('id,verification_status,display_name,certificate_number,phone,experience_years,rating,reviews_count,agency_name,service_areas,bio,avatar_url')
     .eq('user_id', userId).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const { data: profile } = await db.from('profiles').select('phone,full_name,account_type,company_name').eq('id', userId).maybeSingle()
