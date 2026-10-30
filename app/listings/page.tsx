@@ -53,9 +53,15 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
   const params = (await searchParams) || {}
   const pageValue = Array.isArray(params.page) ? params.page[0] : params.page
   const cursorValue = Array.isArray(params.cursor) ? params.cursor[0] : params.cursor
+  const realtorId = Array.isArray(params.realtor) ? params.realtor[0] : params.realtor
   const page = Math.max(1, Number(pageValue || '1') || 1)
   const isCleanSeoPage = !cursorValue && Object.keys(params).every((key) => key === 'page')
   const supabase = await createClient()
+  let realtorOwnerId: string | null = null
+  if (realtorId) {
+    const { data: realtor } = await supabase.from('realtor_profiles').select('user_id').eq('id', realtorId).maybeSingle()
+    realtorOwnerId = realtor?.user_id || null
+  }
 
   if (isCleanSeoPage && page > 1) {
     const { count: eligibleCount } = await supabase
@@ -69,8 +75,13 @@ export default async function ListingsPage({ searchParams }: ListingsPageProps) 
     }
   }
 
-  const { data, count } = await supabase
+  let listingQuery = supabase
     .from('listing_search')
+  if (realtorId) {
+    if (!realtorOwnerId) listingQuery = listingQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+    else listingQuery = listingQuery.eq('owner_id', realtorOwnerId)
+  }
+  const { data, count } = await listingQuery
     .select(
       'id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge',
       { count: 'estimated' },
