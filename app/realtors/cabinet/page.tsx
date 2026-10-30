@@ -27,12 +27,18 @@ export default function RealtorCabinetPage() {
 
   useEffect(() => {
     let active = true
-    fetch('/api/realtors/cabinet', { cache: 'no-store', credentials: 'same-origin' })
+    // A long-lived partner account session is not enough to bypass SMS.
+    // Only a one-time signed handoff created by the main account's realtor
+    // navigation action can authorize a seamless transition.
+    fetch('/api/realtors/cabinet?handoff=consume', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
       .then(async response => {
-        if (!active || response.status === 401) return
+        if (!active || !response.ok) return
         const data = await response.json().catch(() => ({}))
-        if (!response.ok) return
-        if (data.realtor) {
+        if (!active || !data.authorized) return
+        if (data.hasRealtorProfile) {
           router.replace('/realtors/cabinet/dashboard')
           return
         }
@@ -40,7 +46,11 @@ export default function RealtorCabinetPage() {
         setSent(true)
         if (data.phone) setPhone(data.phone)
         if (new URLSearchParams(window.location.search).get('mode') === 'register') setMode('register')
-        setMessage(tx('Asosiy shaxsiy kabinet sessiyasi tasdiqlangan. SMS kodini qayta kiritish shart emas.','Сессия основного кабинета подтверждена. Повторно вводить SMS-код не нужно.'))
+        else setMode('register')
+        setMessage(tx(
+          'Asosiy shaxsiy kabinetdan xavfsiz o‘tish tasdiqlandi. SMS kodi talab qilinmaydi.',
+          'Переход из основного личного кабинета подтверждён. SMS-код не требуется.',
+        ))
       })
       .catch(() => {})
     return () => { active = false }

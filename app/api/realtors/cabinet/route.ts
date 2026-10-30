@@ -1,7 +1,36 @@
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
+
+const HANDOFF_COOKIE = 'rh_realtor_handoff'
+const HANDOFF_TTL_SECONDS = 90
+
+function signHandoff(payload: string) {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!secret) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured')
+  return createHmac('sha256', secret).update(payload).digest('base64url')
+}
+
+function createHandoff(userId: string) {
+  const payload = Buffer.from(JSON.stringify({ userId, exp: Math.floor(Date.now() / 1000) + HANDOFF_TTL_SECONDS })).toString('base64url')
+  return `${payload}.${signHandoff(payload)}`
+}
+
+function verifyHandoff(token: string | undefined, userId: string) {
+  if (!token) return false
+  const separator = token.lastIndexOf('.')
+  if (separator <= 0) return false
+  const payload = token.slice(0, separator)
+  const received = Buffer.from(token.slice(separator + 1))
+  const expected = Buffer.from(signHandoff(payload))
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) return false
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
+    return data.userId === userId && Number.isFinite(data.exp) && data.exp > Math.floor(Date.now() / 1000)
+  } catch { return false }
+}
 
 function phoneDigits(value: unknown) {
   return String(value || '').replace(/\D/g, '')
@@ -12,9 +41,48 @@ async function getUserId() {
   return readAccountSession(store.get(ACCOUNT_SESSION_COOKIE)?.value)
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const userId = await getUserId()
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  // A verified main-account handoff is the ONLY way to skip the realtor SMS
+  // screen. A normal account cookie alone must never authorize this shortcut.
+  const url = new URL(request.url)
+  if (url.searchParams.get('handoff') === 'consume') {
+    const store = await cookies()
+    const token = store.get(HANDOFF_COOKIE)?.value
+    const valid = verifyHandoff(token, userId)
+    const response = NextResponse.json({ authorized: false }, { headers: { 'Cache-Control': 'no-store' } })
+    response.cookies.set(HANDOFF_COOKIE, '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/realtors/cabinet',
+      maxAge: 0,
+    })
+    if (!valid) return response
+
+    const db = serviceClient()
+    const [{ data: profile }, { data: realtor }] = await Promise.all([
+      db.from('profiles').select('phone').eq('id', userId).maybeSingle(),
+      db.from('realtor_profiles').select('id,verification_status').eq('user_id', userId).maybeSingle(),
+    ])
+    const authorizedResponse = NextResponse.json({
+      authorized: true,
+      phone: profile?.phone || null,
+      hasRealtorProfile: Boolean(realtor),
+      verificationStatus: realtor?.verification_status || null,
+    }, { headers: { 'Cache-Control': 'no-store' } })
+    authorizedResponse.cookies.set(HANDOFF_COOKIE, '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/realtors/cabinet',
+      maxAge: 0,
+    })
+    return authorizedResponse
+  }
+
   const db = serviceClient()
   const { data, error } = await db.from('realtor_profiles')
     .select('id,verification_status,display_name,certificate_number,phone,experience_years,rating,reviews_count,agency_name,service_areas,bio,avatar_url')
@@ -40,6 +108,20 @@ export async function POST(request: Request) {
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED', message: 'Sessiya topilmadi. SMS orqali qayta tasdiqlang.' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
+
+  // Create a short-lived, signed, account-bound handoff from the main cabinet.
+  if (body?.intent === 'handoff') {
+    const response = NextResponse.json({ ok: true })
+    response.cookies.set(HANDOFF_COOKIE, createHandoff(userId), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/realtors/cabinet',
+      maxAge: HANDOFF_TTL_SECONDS,
+    })
+    return response
+  }
+
   const displayName = typeof body?.display_name === 'string' ? body.display_name.trim() : ''
   const certificate = typeof body?.certificate_number === 'string' ? body.certificate_number.trim() : ''
   const phone = phoneDigits(body?.phone)
