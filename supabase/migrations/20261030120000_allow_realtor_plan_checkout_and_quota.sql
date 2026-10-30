@@ -65,15 +65,15 @@ begin
 
   select verification_status into v_realtor_status from public.realtor_profiles where user_id=p_user_id limit 1;
   if v_realtor_status='verified' then
-    free_limit := 10;
-    select e.product_code,greatest(coalesce((mp.metadata->>'listing_limit')::integer,10),10)
+    free_limit := 20;
+    select e.product_code,greatest(coalesce((mp.metadata->>'listing_limit')::integer,20),20)
       into plan_code,free_limit
     from public.monetization_entitlements e
     join public.monetization_products mp on mp.code=e.product_code
     where e.user_id=p_user_id and e.status='active' and mp.product_type='subscription'
       and mp.audience='realtor' and mp.active=true and (e.ends_at is null or e.ends_at>now())
     order by e.ends_at desc nulls last,e.created_at desc limit 1;
-    free_limit := coalesce(free_limit,10);
+    free_limit := coalesce(free_limit,20);
   else
     select individual_free_listing_limit into free_limit from public.listing_pricing_settings where id=1;
     free_limit := coalesce(free_limit,3);
