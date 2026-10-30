@@ -84,7 +84,7 @@ const locationOf = (x: Listing, lang: Lang) => [locationPart(x.city, lang), loca
 
 function readState(params: URLSearchParams): SearchState {
   const tab = params.get('tab')
-  return { tab: tab === 'rent' || tab === 'daily' || tab === 'all' ? tab : 'sale', region: params.get('region') || '', district: params.get('district') || '', type: params.get('property_type') || params.get('type') || '', min: params.get('min') || '', max: params.get('max') || '', currency: params.get('currency') || '', rooms: params.get('rooms') || '', owner: params.get('owner') === 'true', trusted: params.get('trusted') === 'true', mortgage: params.get('mortgage') === 'true', taxonomy: params.get('taxonomy') || '', sort: params.get('sort') || 'newest', q: params.get('q') || '' }
+  return { tab: tab === 'rent' || tab === 'daily' || tab === 'all' ? tab : params.has('realtor') ? 'all' : 'sale', region: params.get('region') || '', district: params.get('district') || '', type: params.get('property_type') || params.get('type') || '', min: params.get('min') || '', max: params.get('max') || '', currency: params.get('currency') || '', rooms: params.get('rooms') || '', owner: params.get('owner') === 'true', trusted: params.get('trusted') === 'true', mortgage: params.get('mortgage') === 'true', taxonomy: params.get('taxonomy') || '', sort: params.get('sort') || 'newest', q: params.get('q') || '' }
 }
 
 function toQuery(s: SearchState, cursor?: string | null) {
@@ -186,9 +186,11 @@ export default function ListingsClient({ initialItems = [], initialTotal = null,
   const isCleanPaginationUrl = Array.from(searchParams.keys()).every((key) => key === 'page')
   const queryString = useMemo(() => {
     const q = toQuery(state, cursor)
+    const realtorId = searchParams.get('realtor')
+    if (realtorId) q.set('realtor', realtorId)
     if (!cursor && requestedPage > 1) q.set('page', String(requestedPage))
     return q.toString()
-  }, [state, cursor, requestedPage])
+  }, [state, cursor, requestedPage, searchParams])
 
   const hasOnlyServerPagination = Array.from(searchParams.keys()).every((key) => key === 'page')
   const text = lang === 'ru'

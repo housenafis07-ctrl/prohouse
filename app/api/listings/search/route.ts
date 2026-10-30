@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient(); const params = request.nextUrl.searchParams
   const page = Math.max(1, Number(params.get('page') || '1') || 1); const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(params.get('limit') || '24') || 24)); const sort = (params.get('sort') || 'newest') as Sort; const cursor = decodeCursor(params.get('cursor'), sort)
   const min = numberParam(params.get('min')); const max = numberParam(params.get('max')); const rooms = numberParam(params.get('rooms')); const roomsExact = params.get('rooms_exact') === 'true'; const strictPrice = params.get('strict_price') === 'true'
-  const taxonomy = params.get('taxonomy')?.trim() || ''; const listingType = params.get('listing_type')?.trim() || ''; const propertyType = params.get('property_type')?.trim() || ''; const propertyTypes = params.get('property_types')?.split(',').map((value) => value.trim()).filter(Boolean) || []
+  const realtorId = params.get('realtor')?.trim() || ''; const taxonomy = params.get('taxonomy')?.trim() || ''; const listingType = params.get('listing_type')?.trim() || ''; const propertyType = params.get('property_type')?.trim() || ''; const propertyTypes = params.get('property_types')?.split(',').map((value) => value.trim()).filter(Boolean) || []
   const propertyScope = params.get('property_scope')?.trim() || ''; const city = params.get('city')?.trim() || ''; const district = params.get('district')?.trim() || ''; const region = params.get('region')?.trim() || ''; const neighborhood = params.get('neighborhood')?.trim() || ''; const currency = params.get('currency')?.trim() || ''; const q = params.get('q')?.trim() || ''; const tab = params.get('tab') || ''; const searchAll = params.get('all') === 'true'; const dachaSearch = isDachaSearch(q)
 
   if (!['newest','priceLow','priceHigh'].includes(sort)) return NextResponse.json({ error: 'Noto‘g‘ri saralash parametri.' }, { status: 400 })
@@ -31,6 +31,12 @@ export async function GET(request: NextRequest) {
 
   let query = supabase.from('listing_search').select('id,title,title_ru,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,latitude,longitude,seller_type,seller_name,is_mortgage_available,is_verified,is_trusted_seller,is_featured,published_at,taxonomy_code,effective_promotion_rank,effective_promotion_badge', { count: 'estimated' })
 
+  if (realtorId) {
+    const { data: realtor, error: realtorError } = await supabase.from('realtor_profiles').select('user_id').eq('id', realtorId).maybeSingle()
+    if (realtorError) return NextResponse.json({ error: realtorError.message }, { status: 500 })
+    if (!realtor?.user_id) return NextResponse.json({ data: [], pagination: { page, limit, total: 0, has_next: false, next_cursor: null, mode: 'offset' } }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0' } })
+    query = query.eq('owner_id', realtor.user_id)
+  }
   if (taxonomy) query = query.eq('taxonomy_code', taxonomy)
   if (listingType) query = query.eq('listing_type', listingType)
   if (propertyType) query = query.eq('property_type', propertyType)
