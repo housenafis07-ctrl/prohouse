@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
@@ -33,6 +33,7 @@ const copy = {
     notFound:'Rieltor topilmadi.', loading:'Profil yuklanmoqda…', noPhone:'Telefon ko‘rsatilmagan',
     chatUnavailable:'Xabar yuborish funksiyasi hozircha mavjud emas. Telefon orqali bog‘laning.',
     noPhoto:'Rasm mavjud emas', rooms:'xonali', floor:'qavat', mapOpen:'E’lonlar xaritasini ochish',
+    phoneHidden:'Raqam maxfiy. Ko‘rish uchun tugmani bosing.', sendError:'Xabar yuborilmadi. Qayta urinib ko‘ring.', sent:'Xabaringiz yuborildi. Chat ochilmoqda…', loginRequired:'Xabar yuborish uchun tizimga kiring.',
     tariffs:'Rieltor tariflari', priceRequest:'Narx so‘rov bo‘yicha'
   },
   ru: {
@@ -49,6 +50,7 @@ const copy = {
     notFound:'Риелтор не найден.', loading:'Загрузка профиля…', noPhone:'Телефон не указан',
     chatUnavailable:'Отправка сообщений пока недоступна. Свяжитесь по телефону.',
     noPhoto:'Нет фотографии', rooms:'-комн.', floor:'эт.', mapOpen:'Открыть карту объявлений',
+    phoneHidden:'Номер скрыт. Нажмите кнопку, чтобы увидеть его.', sendError:'Не удалось отправить сообщение. Попробуйте ещё раз.', sent:'Сообщение отправлено. Открываем чат…', loginRequired:'Войдите в аккаунт, чтобы отправить сообщение.',
     tariffs:'Тарифы риелторов', priceRequest:'Цена по запросу'
   }
 }
@@ -58,6 +60,7 @@ function money(value:number|null,currency:string|null,ru:boolean) {
 }
 export default function RealtorProfile() {
   const params=useParams<{id:string}>()
+  const router=useRouter()
   const {lang}=useI18n()
   const ru=lang==='ru'
   const t=ru?copy.ru:copy.uz
@@ -70,6 +73,8 @@ export default function RealtorProfile() {
   const [view,setView]=useState<'tiles'|'map'>('tiles')
   const [question,setQuestion]=useState('')
   const [sent,setSent]=useState(false)
+  const [sending,setSending]=useState(false)
+  const [messageError,setMessageError]=useState('')
 
   useEffect(()=>{
     let alive=true
@@ -105,7 +110,7 @@ export default function RealtorProfile() {
   if(loading)return <main className="min-h-screen bg-[#eef0f2] p-6"><div className="mx-auto max-w-6xl rounded-3xl bg-white p-12 text-center">{t.loading}</div></main>
   if(!r)return <main className="min-h-screen bg-[#eef0f2] p-6"><div className="mx-auto max-w-6xl rounded-3xl bg-white p-12 text-center">{t.notFound}</div></main>
 
-  const phoneButton=<button onClick={()=>setPhoneVisible(true)} disabled={!phone} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-center font-bold text-white disabled:opacity-50">{t.showPhone}<span className="mt-1 block text-xs font-medium text-emerald-100">{phone||t.noPhone}</span></button>
+  const phoneButton=<button onClick={()=>setPhoneVisible(true)} disabled={!phone} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-center font-bold text-white disabled:opacity-50">{t.showPhone}<span className="mt-1 block text-xs font-medium text-emerald-100">{phone?t.phoneHidden:t.noPhone}</span></button>
   return <main className="min-h-screen bg-[#eef0f2] text-slate-900">
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-[1280px] items-center justify-between px-4 py-4">
@@ -145,7 +150,7 @@ export default function RealtorProfile() {
             </div>
             <div className="hidden rounded-2xl border border-slate-100 p-4 xl:flex xl:flex-col xl:justify-center xl:gap-3">
               <div className="text-sm text-slate-500">{t.contact}</div>
-              {phoneVisible&&phone?<a href={'tel:'+phone} className="rounded-xl bg-emerald-600 px-4 py-4 text-center font-bold text-white">{phone}<span className="mt-1 block text-xs">{t.call}</span></a>:phoneButton}
+              {phoneVisible&&phone?<a href={'tel:'+phone.replace(/[^+\\d]/g,'')} className="rounded-xl bg-emerald-600 px-4 py-4 text-center font-bold text-white">{phone}<span className="mt-1 block text-xs">{t.call}</span></a>:phoneButton}
               <button onClick={()=>document.getElementById('ask-realtor')?.scrollIntoView({behavior:'smooth',block:'center'})} className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold">{t.ask}</button>
               <p className="text-center text-xs text-slate-500">{r.agency_name||t.private}</p>
             </div>
@@ -178,12 +183,13 @@ export default function RealtorProfile() {
       </div>
       <aside className="space-y-2 lg:sticky lg:top-4 lg:self-start">
         <section id="ask-realtor" className="rounded-[22px] bg-white p-5">
-          {phoneVisible&&phone?<a href={'tel:'+phone} className="block rounded-xl bg-emerald-600 px-4 py-3 text-center font-bold text-white">{phone}<span className="mt-1 block text-xs">{t.call}</span></a>:phoneButton}
+          {phoneVisible&&phone?<a href={'tel:'+phone.replace(/[^+\\d]/g,'')} className="block rounded-xl bg-emerald-600 px-4 py-3 text-center font-bold text-white">{phone}<span className="mt-1 block text-xs">{t.call}</span></a>:phoneButton}
           <h2 className="pt-4 text-lg font-bold">{t.ask}</h2>
-          <form onSubmit={event=>{event.preventDefault();if(question.trim())setSent(true)}} className="mt-2">
-            <textarea value={question} onChange={event=>{setQuestion(event.target.value);setSent(false)}} rows={3} placeholder={t.placeholder} className="w-full resize-none rounded-xl bg-[#e8eff4] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"/>
-            <button type="submit" disabled={!question.trim()} className="mt-2 w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold disabled:opacity-50">{t.send} →</button>
-            {sent&&<p className="mt-2 text-xs text-amber-700">{t.chatUnavailable}</p>}
+          <form onSubmit={async event=>{event.preventDefault();const value=question.trim();if(!value||sending)return;setSending(true);setMessageError('');setSent(false);try{const response=await fetch('/api/realtors/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({realtorId:r.id,message:value})});const result=await response.json().catch(()=>({}));if(response.status===401){setMessageError(t.loginRequired);return}if(!response.ok||!result.conversationId)throw new Error(result.error||t.sendError);setSent(true);router.push('/chat?conversationId='+encodeURIComponent(result.conversationId))}catch(error){setMessageError(error instanceof Error?error.message:t.sendError)}finally{setSending(false)}}} className="mt-2">
+            <textarea value={question} onChange={event=>{setQuestion(event.target.value);setSent(false);setMessageError('')}} rows={3} maxLength={2000} placeholder={t.placeholder} className="w-full resize-none rounded-xl bg-[#e8eff4] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"/>
+            <button type="submit" disabled={!question.trim()||sending} className="mt-2 w-full rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold disabled:opacity-50">{sending?(ru?'Отправка…':'Yuborilmoqda…'):t.send} →</button>
+            {messageError&&<p className="mt-2 text-xs text-red-600">{messageError}</p>}
+            {sent&&<p className="mt-2 text-xs text-emerald-700">{t.sent}</p>}
           </form>
           <div className="mt-3 flex flex-wrap gap-2">{[t.buy,t.sell,t.rentOut,t.rent].map(label=><button key={label} onClick={()=>{setQuestion(label);setSent(false)}} className="rounded-lg border border-slate-300 px-3 py-2 text-xs">{label}</button>)}</div>
         </section>
