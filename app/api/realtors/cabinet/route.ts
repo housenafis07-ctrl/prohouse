@@ -67,12 +67,20 @@ export async function GET(request: Request) {
       db.from('profiles').select('phone').eq('id', userId).maybeSingle(),
       db.from('realtor_profiles').select('id,verification_status').eq('user_id', userId).maybeSingle(),
     ])
-    return NextResponse.json({
+    const authorizedResponse = NextResponse.json({
       authorized: true,
       phone: profile?.phone || null,
       hasRealtorProfile: Boolean(realtor),
       verificationStatus: realtor?.verification_status || null,
     }, { headers: { 'Cache-Control': 'no-store' } })
+    authorizedResponse.cookies.set(HANDOFF_COOKIE, '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/api/realtors/cabinet',
+      maxAge: 0,
+    })
+    return authorizedResponse
   }
 
   const db = serviceClient()
