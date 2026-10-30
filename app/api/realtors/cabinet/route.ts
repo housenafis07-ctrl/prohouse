@@ -21,7 +21,18 @@ export async function GET() {
     .eq('user_id', userId).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const { data: profile } = await db.from('profiles').select('phone,full_name,account_type,company_name').eq('id', userId).maybeSingle()
-  return NextResponse.json({ userId, phone: profile?.phone || null, profile: profile || null, realtor: data || null }, { headers: { 'Cache-Control': 'no-store' } })
+  const now = new Date().toISOString()
+  const { data: activeBenefit, error: benefitError } = await db.from('realtor_admin_benefit_grants')
+    .select('id,benefit_tier,listing_limit,features,starts_at,ends_at,note')
+    .eq('user_id', userId)
+    .is('revoked_at', null)
+    .lte('starts_at', now)
+    .gt('ends_at', now)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (benefitError) return NextResponse.json({ error: benefitError.message }, { status: 500 })
+  return NextResponse.json({ userId, phone: profile?.phone || null, profile: profile || null, realtor: data || null, activeBenefit: activeBenefit || null }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(request: Request) {
