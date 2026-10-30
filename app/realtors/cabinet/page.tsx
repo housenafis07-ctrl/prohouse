@@ -104,14 +104,14 @@ export default function RealtorCabinetPage() {
           </div>
           <div className="p-6 sm:p-8">
             <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1">
-              <button type="button" onClick={() => { setMode('login'); setSent(false); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{tx('Kirish','Войти')}</button>
-              <button type="button" onClick={() => { setMode('register'); setSent(false); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'register' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>{tx('Ro‘yxatdan o‘tish','Регистрация')}</button>
+              <button type="button" onClick={() => { setMode('login'); setSent(sessionVerified); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'login' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}>{tx('Kirish','Войти')}</button>
+              <button type="button" onClick={() => { setMode('register'); setSent(sessionVerified); setCode(''); setMessage('') }} className={`rounded-lg px-4 py-3 text-sm font-bold ${mode === 'register' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>{tx('Ro‘yxatdan o‘tish','Регистрация')}</button>
             </div>
             <form onSubmit={verify} className="mt-6 space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-bold">{tx('Telefon raqami','Номер телефона')}</label>
                 <div className="flex gap-2">
-                  <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3" />
+                  <input value={phone} onChange={e => setPhone(e.target.value)} disabled={sessionVerified} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3" />
                   <button type="button" disabled={loading || sessionVerified} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sessionVerified ? tx('Akkaunt tasdiqlangan','Аккаунт подтверждён') : sent ? tx('Qayta yuborish','Отправить повторно') : tx('SMS yuborish','Отправить SMS')}</button>
                 </div>
               </div>
