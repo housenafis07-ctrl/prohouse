@@ -14,15 +14,17 @@ export async function GET(request: NextRequest) {
   if(queryError)return NextResponse.json({error:queryError.message},{status:500})
   const ids=[...new Set((data||[]).map(x=>x.user_id))]
   const [{data:profiles,error:profileError},{data:grants,error:grantError}]=await Promise.all([
-    ids.length?db.from('profiles').select('id,full_name,phone,email,account_type').in('id',ids):Promise.resolve({data:[],error:null}),
+    ids.length?db.from('profiles').select('id,full_name,phone,account_type').in('id',ids):Promise.resolve({data:[],error:null}),
     ids.length?db.from('realtor_admin_benefit_grants').select('id,user_id,benefit_tier,listing_limit,starts_at,ends_at,note,revoked_at').in('user_id',ids).is('revoked_at',null).gt('ends_at',new Date().toISOString()).order('created_at',{ascending:false}):Promise.resolve({data:[],error:null})
   ])
   if(profileError)return NextResponse.json({error:profileError.message},{status:500})
   if(grantError)return NextResponse.json({error:grantError.message},{status:500})
   const pm=new Map((profiles||[]).map(x=>[x.id,x])),gm=new Map<string,any>()
   for(const grant of grants||[])if(!gm.has(grant.user_id))gm.set(grant.user_id,grant)
-  const realtors=(data||[]).map(x=>({...x,profile:pm.get(x.user_id)||null,activeGrant:gm.get(x.user_id)||null}))
-  return NextResponse.json({realtors,counts:{all:realtors.length,pending:realtors.filter(x=>x.verification_status==='pending').length,verified:realtors.filter(x=>x.verification_status==='verified').length,rejected:realtors.filter(x=>x.verification_status==='rejected').length}},{headers:{'Cache-Control':'no-store'}})
+  const allRealtors=(data||[]).map(x=>({...x,profile:pm.get(x.user_id)||null,activeGrant:gm.get(x.user_id)||null}))
+  const counts={all:allRealtors.length,pending:allRealtors.filter(x=>x.verification_status==='pending').length,verified:allRealtors.filter(x=>x.verification_status==='verified').length,rejected:allRealtors.filter(x=>x.verification_status==='rejected').length}
+  const realtors=status==='all'?allRealtors:allRealtors.filter(x=>x.verification_status===status)
+  return NextResponse.json({realtors,counts},{headers:{'Cache-Control':'no-store'}})
 }
 export async function PATCH(request:NextRequest){
  const {admin,error}=await requireAdmin()
