@@ -115,7 +115,7 @@ export default function RealtorCabinetPage() {
                   <button type="button" disabled={loading || sessionVerified} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sessionVerified ? tx('Akkaunt tasdiqlangan','Аккаунт подтверждён') : sent ? tx('Qayta yuborish','Отправить повторно') : tx('SMS yuborish','Отправить SMS')}</button>
                 </div>
               </div>
-              {sent && (
+              {sent && !sessionVerified && (
                 <div>
                   <label className="mb-2 block text-sm font-bold">{tx('SMS kodi','Код из SMS')}</label>
                   <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-xl tracking-[.35em]" />
