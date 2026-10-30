@@ -1,5 +1,7 @@
+import { cookies } from 'next/headers'
 import { createClient as createSupabaseServerClient } from '@/utils/supabase/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 export type AdminRole = 'super_admin' | 'admin'
 
@@ -11,11 +13,30 @@ export function serviceClient() {
 }
 
 export async function getCurrentAdmin() {
+  // The platform supports both Supabase Auth sessions and signed first-party
+  // account sessions. Resolve either identity, then always verify its active
+  // admin_roles record in the database before granting admin access.
   const authClient = await createSupabaseServerClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) return null
-  const { data: role } = await serviceClient().from('admin_roles').select('id,user_id,role,is_active').eq('user_id', user.id).eq('is_active', true).maybeSingle()
-  if (!role) return null
+  const { data: { user: supabaseUser } } = await authClient.auth.getUser()
+  let userId = supabaseUser?.id || null
+
+  if (!userId) {
+    const cookieStore = await cookies()
+    userId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  }
+  if (!userId) return null
+
+  const { data: role, error } = await serviceClient()
+    .from('admin_roles')
+    .select('id,user_id,role,is_active')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error || !role) return null
+
+  // Keep the shape consumed by existing admin APIs while supporting the
+  // signed account-session authentication path.
+  const user = supabaseUser || { id: userId }
   return { user, role }
 }
 
