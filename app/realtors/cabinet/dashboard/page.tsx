@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/app/components/I18nProvider'
@@ -72,7 +72,7 @@ export default function RealtorDashboard() {
     return () => { active = false }
   }, [router])
 
-  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSavingProfile(true); setProfileError(''); setProfileMessage('')
     try {
@@ -95,7 +95,7 @@ export default function RealtorDashboard() {
     finally { setSavingProfile(false) }
   }
 
-  async function uploadAvatar(event: React.ChangeEvent<HTMLInputElement>) {
+  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
     setUploadingAvatar(true); setProfileError(''); setProfileMessage('')
