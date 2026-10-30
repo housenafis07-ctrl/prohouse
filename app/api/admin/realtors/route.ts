@@ -8,7 +8,6 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q')?.trim() || ''
   const db = serviceClient()
   let query = db.from('realtor_profiles').select('id,user_id,display_name,phone,certificate_number,experience_years,agency_name,service_areas,verification_status,created_at,bio').order('created_at',{ascending:false}).limit(200)
-  if (status !== 'all') query = query.eq('verification_status',status)
   if (q.length >= 2) { const p='%'+q.replace(/[%_]/g,'\\$&')+'%'; query=query.or('display_name.ilike.'+p+',phone.ilike.'+p+',agency_name.ilike.'+p+',certificate_number.ilike.'+p) }
   const {data,error:queryError}=await query
   if(queryError)return NextResponse.json({error:queryError.message},{status:500})
