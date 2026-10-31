@@ -5,7 +5,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024 * 1024
 const MAX_DURATION_SECONDS = 60
 const STANDARD_UPLOAD_THRESHOLD_BYTES = 50 * 1024 * 1024
-const TUS_THRESHOLD_BYTES = 200 * 1024 * 1024
 const CLOUDFLARE_TUS_CHUNK_SIZE = 50 * 1024 * 1024
 
 const VIDEO_MIME_BY_EXTENSION: Record<string, string> = {
@@ -84,7 +83,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (accountId && apiToken) {
       const cloudflareBase = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream`
-      const useTus = preferredProtocol === 'tus' || sizeBytes >= TUS_THRESHOLD_BYTES
+      // Cloudflare's browser POST/direct-upload path is unreliable for some
+      // mobile-origin files (notably Android camera MP4s). Use the same resumable
+      // TUS protocol for every Cloudflare upload; it is already supported by the
+      // client and handles both small and large files without changing Supabase.
+      const useTus = true
 
       let uploadUrl = ''
       let providerId = ''
