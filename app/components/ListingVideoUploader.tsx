@@ -274,7 +274,33 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         }
         setProgress(100)
       } else if (init.upload.protocol === 'post') {
-        throw new Error('DIRECT_UPLOAD_UNSUPPORTED_IN_CLIENT')
+        // Cloudflare Stream Direct Creator Uploads expects the selected file
+        // as multipart/form-data under the "file" field. Do not set the
+        // Content-Type manually; the browser must add the multipart boundary.
+        if (!init.upload.url || typeof init.upload.url !== 'string') {
+          throw new Error('VIDEO_UPLOAD_URL_MISSING')
+        }
+
+        const formData = new FormData()
+        formData.append('file', file, file.name)
+        setProgress(10)
+
+        const uploadResponse = await fetch(init.upload.url, {
+          method: 'POST',
+          body: formData,
+          cache: 'no-store',
+        })
+
+        if (!uploadResponse.ok) {
+          const detail = (await uploadResponse.text().catch(() => '')).slice(0, 300)
+          console.error('[listing-video] Cloudflare direct upload failed', {
+            status: uploadResponse.status,
+            detail,
+          })
+          throw new Error(`CLOUDFLARE_DIRECT_UPLOAD_${uploadResponse.status}`)
+        }
+
+        setProgress(100)
       } else if (init.upload.protocol === 'tus') {
         await uploadTus(init.upload.url, file, setProgress, init.upload.chunkSize)
       } else {
