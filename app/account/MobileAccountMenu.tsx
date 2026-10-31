@@ -49,6 +49,7 @@ export default function MobileAccountMenu() {
   }, [open])
 
   const items = [
+    { href: '/account/listings', label: ru ? '📋 Мои объявления' : '📋 Mening e’lonlarim' },
     { href: '/account/favorites', label: ru ? '❤️ Избранное' : '❤️ Saqlanganlar' },
     { href: '/account/saved-searches', label: ru ? '🔍 Сохранённые поиски' : '🔍 Saqlangan qidiruvlar' },
     { href: '/account/bookings', label: ru ? '📑 Мои бронирования' : '📑 Mening bronlarim' },
