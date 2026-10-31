@@ -30,13 +30,21 @@ export default function MobileAccountMenu() {
 
   useEffect(() => {
     if (!open) return
+    const scrollY = window.scrollY
+    const previousPosition = document.body.style.position
+    const previousTop = document.body.style.top
+    const previousWidth = document.body.style.width
     const previousOverflow = document.body.style.overflow
-    const previousTouchAction = document.body.style.touchAction
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
     document.body.style.overflow = 'hidden'
-    document.body.style.touchAction = 'none'
     return () => {
+      document.body.style.position = previousPosition
+      document.body.style.top = previousTop
+      document.body.style.width = previousWidth
       document.body.style.overflow = previousOverflow
-      document.body.style.touchAction = previousTouchAction
+      window.scrollTo(0, scrollY)
     }
   }, [open])
 
@@ -66,7 +74,7 @@ export default function MobileAccountMenu() {
       {open && <div className="pointer-events-auto fixed inset-0 z-[110]">
         <button type="button" aria-label={ru ? 'Закрыть меню' : 'Menyuni yopish'} onClick={close} className="absolute inset-0 bg-slate-950/35" />
         <aside id="mobile-account-drawer" role="dialog" aria-modal="true" aria-label={ru ? 'Меню кабинета' : 'Kabinet menyusi'} className="absolute right-3 top-[max(84px,env(safe-area-inset-top))] bottom-[calc(88px+env(safe-area-inset-bottom))] flex w-[min(88vw,360px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3"><span className="text-xs font-black uppercase tracking-widest text-slate-400">{ru ? 'Кабинет' : 'Kabinet'}</span><button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-700">🌐 {ru ? 'O‘z' : 'Ru'}</button></div>
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3"><span className="text-xs font-black uppercase tracking-widest text-slate-400">{ru ? 'Кабинет' : 'Kabinet'}</span><div className="flex items-center gap-2"><button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-700">🌐 {ru ? 'O‘z' : 'Ru'}</button><button type="button" onClick={close} aria-label={ru?'Закрыть':'Yopish'} className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-lg font-black">×</button></div></div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y px-2 pb-3 pt-2 [webkit-overflow-scrolling:touch]">
             <section className="mb-2 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
               <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">{ru ? 'Профиль и публичные данные' : 'Profil va ochiq ma’lumotlar'}</p>
