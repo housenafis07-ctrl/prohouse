@@ -189,7 +189,31 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
           updateStatus('failed', null)
           setError(text(ru, 'Video serveri sozlanmagan. Administrator Cloudflare Stream konfiguratsiyasini tekshirishi kerak.', 'Видеосервер не настроен. Администратору нужно проверить конфигурацию Cloudflare Stream.'))
           stop()
+          return
         }
+
+        // A temporary network/5xx failure must not leave the processing UI
+        // silently polling forever. Keep retrying, but show the transient
+        // state and enforce the same bounded processing timeout.
+        const elapsed = processingStartedRef.current
+          ? Date.now() - processingStartedRef.current
+          : 0
+        if (elapsed > MAX_PROCESSING_WAIT_MS) {
+          updateStatus('failed', null)
+          setError(text(
+            ru,
+            'Video holatini serverdan tekshirib bo‘lmadi. Internetni tekshirib, videoni qayta yuklang.',
+            'Не удалось проверить статус видео на сервере. Проверьте интернет и загрузите видео повторно.',
+          ))
+          stop()
+          return
+        }
+
+        setError(text(
+          ru,
+          'Video serveri bilan aloqa vaqtincha uzildi. Holat avtomatik qayta tekshirilmoqda…',
+          'Связь с видеосервером временно прервана. Статус будет проверен повторно…',
+        ))
       }
     }
 
