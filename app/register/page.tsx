@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 import { listenForSmsOtp, normalizeCode } from '@/app/lib/web-otp'
@@ -15,6 +15,7 @@ const emptyForm = { fullName:'', companyName:'', inn:'', bankName:'', bankAccoun
 
 export default function RegisterPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const otpInputRef = useRef<HTMLInputElement | null>(null)
   const stopOtpRef = useRef<(() => void) | null>(null)
   const submitGuardRef = useRef(createSubmitGuard())
@@ -39,23 +40,34 @@ export default function RegisterPage() {
   useEffect(()=>{
     let mounted=true
     const load=async()=>{
-      // Only redirect when the server confirms the signed phone/SMS cabinet
-      // session. A stale Supabase browser session alone must not bounce the
-      // user between /account and /account/login.
-      const [offerResult, accountResponse] = await Promise.all([
-        createClient().from('offer_versions').select('version,title,content').eq('is_active',true).maybeSingle(),
-        fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null),
-      ])
+      // A deliberate visit to /account/login must not silently reuse a
+      // previously verified 30-day cabinet cookie. Clear only the RoyalHouse
+      // cabinet credential; the OTP flow will issue a fresh one after SMS
+      // verification. Keep /register's existing signed-session redirect.
+      const loginPage = pathname === '/account/login'
+      if (loginPage) {
+        await fetch('/api/auth/clear-account-session', {
+          method: 'POST',
+          cache: 'no-store',
+          credentials: 'same-origin',
+        }).catch(() => null)
+      }
+
+      const offerPromise = createClient().from('offer_versions').select('version,title,content').eq('is_active',true).maybeSingle()
+      const accountPromise = loginPage
+        ? Promise.resolve(null)
+        : fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null)
+      const [offerResult, accountResponse] = await Promise.all([offerPromise, accountPromise])
+
       if(!mounted) return
       if(offerResult.data) setOffer(offerResult.data)
-      if(accountResponse?.ok){
+      if(!loginPage && accountResponse?.ok){
         router.replace(getRedirectTo())
       }
     }
     void load()
     return()=>{mounted=false}
-
-  },[router])
+  },[router, pathname])
 
   useEffect(()=>()=>stopOtpRef.current?.(),[])
 
