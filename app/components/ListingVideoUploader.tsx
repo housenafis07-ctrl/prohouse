@@ -332,9 +332,11 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
           ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
           : code.startsWith('SUPABASE_UPLOAD_')
             ? text(ru, 'Video saqlashga yuklanmadi. Fayl hajmi, internet yoki Storage ruxsatlarini tekshirish kerak.', 'Видео не загрузилось в хранилище. Проверьте размер файла, интернет или права Storage.')
-            : code.startsWith('TUS_')
-              ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
-              : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
+            : code.startsWith('CLOUDFLARE_DIRECT_UPLOAD_')
+              ? text(ru, 'Cloudflare video serveri faylni qabul qilmadi. Internet aloqasini tekshirib, videoni qayta tanlang.', 'Видеосервер Cloudflare не принял файл. Проверьте интернет-соединение и выберите видео ещё раз.')
+              : code.startsWith('TUS_')
+                ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
+                : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
                 ? text(ru, 'Video serverga ulanishda xatolik. Qayta urinib ko‘ring.', 'Ошибка подключения к видеосерверу. Попробуйте ещё раз.')
                 : code === 'VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED'
                   ? text(ru, 'Video yuklash protokoli qo‘llab-quvvatlanmaydi.', 'Протокол загрузки видео не поддерживается.')
