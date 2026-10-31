@@ -338,7 +338,7 @@ export default function AccountPage() {
           </div>
         </aside>
 
-        <div className="w-full min-w-0 flex-1 pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0">
+        <div className="min-w-0 flex-1 pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0">
           <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
             <div className="mx-auto flex h-[68px] max-w-[1500px] items-center gap-3 px-4 sm:px-6 xl:px-8">
               <Link href="/" className="flex shrink-0 items-center gap-2 lg:hidden"><Image src="/royalhouse-icon.svg" alt="RoyalHouse" width={34} height={34} priority /><span className="text-[16px] font-black">RoyalHouse<span className="text-emerald-600">.uz</span></span></Link>
@@ -376,7 +376,7 @@ export default function AccountPage() {
 
             <section className="w-full min-w-0 rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between"><div><h2 className="text-base font-black">{ru ? 'Статистика объявлений' : 'E’lonlar statistikasi'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Краткий обзор ваших объявлений.' : 'E’lonlaringiz bo‘yicha qisqa ko‘rsatkichlar.'}</p></div><Link href="/account/statistics" className="text-xs font-black text-emerald-700">{ru ? 'Подробнее →' : 'Batafsil →'}</Link></div>
-              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{compactStats.map((item, index) => <div key={`${item.label}-${index}`} className={`flex min-w-0 items-center justify-between gap-2 rounded-2xl px-3 py-3 ${item.bg}`}><span className={`text-[11px] font-bold ${item.tone}`}>{item.label}</span><strong className="text-lg font-black text-slate-950">{item.value}</strong></div>)}</div>
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{compactStats.map((item, index) => <div key={`${item.label}-${index}`} className={`flex min-w-0 items-center justify-between gap-2 rounded-2xl px-3 py-3 ${item.bg}`}><span className={`min-w-0 break-words text-[11px] font-bold ${item.tone}`}>{item.label}</span><strong className="text-lg font-black text-slate-950">{item.value}</strong></div>)}</div>
             </section>
 
             <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
