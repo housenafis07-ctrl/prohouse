@@ -397,7 +397,8 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
                   ? text(ru, 'Video yuklash protokoli qo‘llab-quvvatlanmaydi.', 'Протокол загрузки видео не поддерживается.')
                   : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
 
-      setError(message)
+      const diagnostic = `${uploadStage}${uploadProtocol !== 'not-started' ? ` / ${uploadProtocol}` : ''}${code ? ` / ${code.slice(0, 100)}` : ''}`
+      setError(`${message} (${diagnostic})`)
     }
   }
 
