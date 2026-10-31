@@ -274,7 +274,33 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         }
         setProgress(100)
       } else if (init.upload.protocol === 'post') {
-        throw new Error('DIRECT_UPLOAD_UNSUPPORTED_IN_CLIENT')
+        // Cloudflare Stream Direct Creator Uploads expects the selected file
+        // as multipart/form-data under the "file" field. Do not set the
+        // Content-Type manually; the browser must add the multipart boundary.
+        if (!init.upload.url || typeof init.upload.url !== 'string') {
+          throw new Error('VIDEO_UPLOAD_URL_MISSING')
+        }
+
+        const formData = new FormData()
+        formData.append('file', file, file.name)
+        setProgress(10)
+
+        const uploadResponse = await fetch(init.upload.url, {
+          method: 'POST',
+          body: formData,
+          cache: 'no-store',
+        })
+
+        if (!uploadResponse.ok) {
+          const detail = (await uploadResponse.text().catch(() => '')).slice(0, 300)
+          console.error('[listing-video] Cloudflare direct upload failed', {
+            status: uploadResponse.status,
+            detail,
+          })
+          throw new Error(`CLOUDFLARE_DIRECT_UPLOAD_${uploadResponse.status}`)
+        }
+
+        setProgress(100)
       } else if (init.upload.protocol === 'tus') {
         await uploadTus(init.upload.url, file, setProgress, init.upload.chunkSize)
       } else {
@@ -306,9 +332,11 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
           ? text(ru, 'Video kamida 1 soniya bo‘lishi kerak.', 'Видео должно быть длиннее 1 секунды.')
           : code.startsWith('SUPABASE_UPLOAD_')
             ? text(ru, 'Video saqlashga yuklanmadi. Fayl hajmi, internet yoki Storage ruxsatlarini tekshirish kerak.', 'Видео не загрузилось в хранилище. Проверьте размер файла, интернет или права Storage.')
-            : code.startsWith('TUS_')
-              ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
-              : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
+            : code.startsWith('CLOUDFLARE_DIRECT_UPLOAD_')
+              ? text(ru, 'Cloudflare video serveri faylni qabul qilmadi. Internet aloqasini tekshirib, videoni qayta tanlang.', 'Видеосервер Cloudflare не принял файл. Проверьте интернет-соединение и выберите видео ещё раз.')
+              : code.startsWith('TUS_')
+                ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
+                : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
                 ? text(ru, 'Video serverga ulanishda xatolik. Qayta urinib ko‘ring.', 'Ошибка подключения к видеосерверу. Попробуйте ещё раз.')
                 : code === 'VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED'
                   ? text(ru, 'Video yuklash protokoli qo‘llab-quvvatlanmaydi.', 'Протокол загрузки видео не поддерживается.')
