@@ -322,7 +322,7 @@ export default function AccountPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f7f8] text-slate-950">
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen w-full min-w-0">
         <aside className="sticky top-0 hidden h-screen w-[238px] shrink-0 flex-col border-r border-slate-200/80 bg-white lg:flex">
           <div className="flex h-[78px] items-center border-b border-slate-100 px-5">
             <Link href="/" className="flex items-center gap-2.5"><Image src="/royalhouse-icon.svg" alt="RoyalHouse" width={36} height={36} priority /><span className="text-[17px] font-black">RoyalHouse<span className="text-emerald-600">.uz</span></span></Link>
@@ -338,7 +338,7 @@ export default function AccountPage() {
           </div>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-24 lg:pb-0">
+        <div className="w-full min-w-0 flex-1 pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0">
           <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur">
             <div className="mx-auto flex h-[68px] max-w-[1500px] items-center gap-3 px-4 sm:px-6 xl:px-8">
               <Link href="/" className="flex shrink-0 items-center gap-2 lg:hidden"><Image src="/royalhouse-icon.svg" alt="RoyalHouse" width={34} height={34} priority /><span className="text-[16px] font-black">RoyalHouse<span className="text-emerald-600">.uz</span></span></Link>
@@ -350,7 +350,7 @@ export default function AccountPage() {
             </div>
           </header>
 
-          <div className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 sm:px-6 xl:px-8">
+          <div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-5 px-4 py-5 sm:px-6 xl:px-8">
             <section className="relative min-h-[245px] overflow-hidden rounded-[28px] border border-emerald-100 bg-[#dff9ee] shadow-sm">
               <Image src="/account-monetization-banner.svg" alt="RoyalHouse monetizatsiya" fill priority className="object-cover" />
               <div className="relative z-10 flex min-h-[245px] max-w-[650px] flex-col justify-center p-7 sm:p-9">
@@ -374,20 +374,20 @@ export default function AccountPage() {
             {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div>}
             {success && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{success}</div>}
 
-            <section className="rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm">
+            <section className="w-full min-w-0 rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between"><div><h2 className="text-base font-black">{ru ? 'Статистика объявлений' : 'E’lonlar statistikasi'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Краткий обзор ваших объявлений.' : 'E’lonlaringiz bo‘yicha qisqa ko‘rsatkichlar.'}</p></div><Link href="/account/statistics" className="text-xs font-black text-emerald-700">{ru ? 'Подробнее →' : 'Batafsil →'}</Link></div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{compactStats.map((item, index) => <div key={`${item.label}-${index}`} className={`flex items-center justify-between rounded-2xl px-3 py-3 ${item.bg}`}><span className={`text-[11px] font-bold ${item.tone}`}>{item.label}</span><strong className="text-lg font-black text-slate-950">{item.value}</strong></div>)}</div>
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{compactStats.map((item, index) => <div key={`${item.label}-${index}`} className={`flex min-w-0 items-center justify-between gap-2 rounded-2xl px-3 py-3 ${item.bg}`}><span className={`text-[11px] font-bold ${item.tone}`}>{item.label}</span><strong className="text-lg font-black text-slate-950">{item.value}</strong></div>)}</div>
             </section>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="space-y-5">
-                <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-black">{ru ? 'Быстрые действия' : 'Tezkor amallar'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Основные действия для продавца.' : 'Sotuvchi uchun asosiy amallar.'}</p></div><Link href="/account/listings" className="text-xs font-black text-emerald-700">{ru ? 'Все объявления →' : 'Barcha e’lonlar →'}</Link></div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <Link href="/listings/new" className="rounded-2xl bg-emerald-50 p-4 transition hover:bg-emerald-100"><b className="block text-sm font-black text-emerald-800">+ {ru ? 'Новое объявление' : 'Yangi e’lon'}</b><span className="mt-1 block text-xs text-emerald-700/80">{ru ? 'Разместить объект' : 'Obyekt joylashtirish'}</span></Link>
-                    <Link href="/account/monetization" className="rounded-2xl bg-amber-50 p-4 transition hover:bg-amber-100"><b className="block text-sm font-black text-amber-800">★ {ru ? 'Продвижение' : 'Ilgari surish'}</b><span className="mt-1 block text-xs text-amber-700/80">{ru ? 'Больше просмотров' : 'Ko‘proq ko‘rishlar'}</span></Link>
-                    <Link href="/account/bookings" className="rounded-2xl bg-blue-50 p-4 transition hover:bg-blue-100"><b className="block text-sm font-black text-blue-800">✓ {ru ? 'Бронирования' : 'Bronlar'}</b><span className="mt-1 block text-xs text-blue-700/80">{ru ? 'Контроль заявок' : 'Arizalarni boshqarish'}</span></Link>
-                    <Link href="/account/wallet" className="rounded-2xl bg-violet-50 p-4 transition hover:bg-violet-100"><b className="block text-sm font-black text-violet-800">₿ {ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar'}</b><span className="mt-1 block text-xs text-violet-700/80">{ru ? 'Платежи и история' : 'To‘lovlar va tarix'}</span></Link>
+            <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-w-0 space-y-5">
+                <section className="w-full min-w-0 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><div className="min-w-0"><h2 className="text-lg font-black">{ru ? 'Быстрые действия' : 'Tezkor amallar'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Основные действия для продавца.' : 'Sotuvchi uchun asosiy amallar.'}</p></div><Link href="/account/listings" className="text-xs font-black text-emerald-700">{ru ? 'Все объявления →' : 'Barcha e’lonlar →'}</Link></div>
+                  <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Link href="/listings/new" className="min-w-0 break-words rounded-2xl bg-emerald-50 p-4 transition hover:bg-emerald-100"><b className="block text-sm font-black text-emerald-800">+ {ru ? 'Новое объявление' : 'Yangi e’lon'}</b><span className="mt-1 block text-xs text-emerald-700/80">{ru ? 'Разместить объект' : 'Obyekt joylashtirish'}</span></Link>
+                    <Link href="/account/monetization" className="min-w-0 break-words rounded-2xl bg-amber-50 p-4 transition hover:bg-amber-100"><b className="block text-sm font-black text-amber-800">★ {ru ? 'Продвижение' : 'Ilgari surish'}</b><span className="mt-1 block text-xs text-amber-700/80">{ru ? 'Больше просмотров' : 'Ko‘proq ko‘rishlar'}</span></Link>
+                    <Link href="/account/bookings" className="min-w-0 break-words rounded-2xl bg-blue-50 p-4 transition hover:bg-blue-100"><b className="block text-sm font-black text-blue-800">✓ {ru ? 'Бронирования' : 'Bronlar'}</b><span className="mt-1 block text-xs text-blue-700/80">{ru ? 'Контроль заявок' : 'Arizalarni boshqarish'}</span></Link>
+                    <Link href="/account/wallet" className="min-w-0 break-words rounded-2xl bg-violet-50 p-4 transition hover:bg-violet-100"><b className="block text-sm font-black text-violet-800">₿ {ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar'}</b><span className="mt-1 block text-xs text-violet-700/80">{ru ? 'Платежи и история' : 'To‘lovlar va tarix'}</span></Link>
                   </div>
                 </section>
 
@@ -432,7 +432,7 @@ export default function AccountPage() {
           </div>
         </div>
 
-        <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-5 border-t border-slate-200 bg-white/95 px-2 backdrop-blur lg:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[calc(76px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
           <Link href="/" className="flex flex-col items-center justify-center gap-1 text-[11px] font-bold text-slate-500"><span className="text-xl">⌂</span>{ru ? 'Главная' : 'Bosh sahifa'}</Link>
           <Link href="/search" className="flex flex-col items-center justify-center gap-1 text-[11px] font-bold text-slate-500"><span className="text-xl">⌕</span>{ru ? 'Поиск' : 'Qidiruv'}</Link>
           <Link href="/listings/new" className="-mt-7 flex flex-col items-center justify-center gap-1 rounded-[28px] bg-emerald-600 text-[11px] font-black text-white shadow-xl shadow-emerald-600/30"><span className="text-2xl">+</span>{ru ? 'Объявление' : 'E’lon'}</Link>
