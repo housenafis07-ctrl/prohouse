@@ -59,8 +59,10 @@ async function getTusOffset(url: string): Promise<number | null> {
       cache: 'no-store',
     })
     if (!response.ok) return null
-    const value = Number(response.headers.get('Upload-Offset'))
-    return Number.isFinite(value) && value >= 0 ? value : null
+    const rawOffset = response.headers.get('Upload-Offset')
+    if (rawOffset === null || rawOffset.trim() === '') return null
+    const value = Number(rawOffset)
+    return Number.isSafeInteger(value) && value >= 0 ? value : null
   } catch {
     return null
   }
@@ -253,6 +255,9 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       return
     }
 
+    let uploadStage = 'video-validation'
+    let uploadProtocol = 'not-started'
+
     try {
       try {
         const duration = await getVideoDuration(file)
@@ -266,6 +271,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       }
 
       updateStatus('uploading', null)
+      uploadStage = 'create-upload-session'
 
       const initResponse = await fetch(`/api/listings/${listingId}/video/upload`, {
         method: 'POST',
@@ -282,8 +288,10 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       if (!init.media?.id || !init.upload?.protocol) throw new Error('VIDEO_UPLOAD_INIT_INVALID_RESPONSE')
 
       mediaIdRef.current = init.media.id
+      uploadProtocol = init.upload.protocol
 
       if (init.upload.protocol === 'supabase-standard') {
+        uploadStage = 'supabase-storage-upload'
         const supabase = createClient()
         setProgress(5)
         const { error: uploadError } = await supabase.storage
@@ -299,6 +307,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         }
         setProgress(100)
       } else if (init.upload.protocol === 'post') {
+        uploadStage = 'cloudflare-direct-upload'
         // Cloudflare Stream Direct Creator Uploads expects the selected file
         // as multipart/form-data under the "file" field. Do not set the
         // Content-Type manually; the browser must add the multipart boundary.
@@ -327,11 +336,13 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
 
         setProgress(100)
       } else if (init.upload.protocol === 'tus') {
+        uploadStage = 'tus-chunk-upload'
         await uploadTus(init.upload.url, file, setProgress, init.upload.chunkSize)
       } else {
         throw new Error('VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED')
       }
 
+      uploadStage = 'finalize-upload'
       const completeResponse = await fetch(`/api/listings/${listingId}/video/upload/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -343,8 +354,23 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
       updateStatus(complete.media?.status === 'ready' ? 'ready' : 'processing', complete.media)
       if (complete.media?.status !== 'ready') await pollStatus(init.media.id)
     } catch (err) {
+      console.error('[listing-video] upload failed', {
+        stage: uploadStage,
+        protocol: uploadProtocol,
+        listingId,
+        mediaId: mediaIdRef.current,
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        error: err instanceof Error ? { name: err.name, message: err.message } : String(err),
+      })
       if (mediaIdRef.current && listingId) {
-        await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' }).catch(() => undefined)
+        const cleanupResponse = await fetch(`/api/listings/${listingId}/video?mediaId=${encodeURIComponent(mediaIdRef.current)}`, { method: 'DELETE' }).catch(() => null)
+        if (!cleanupResponse?.ok) {
+          console.error('[listing-video] failed upload cleanup did not complete', {
+            status: cleanupResponse?.status ?? null,
+            mediaId: mediaIdRef.current,
+          })
+        }
       }
 
       mediaIdRef.current = null
@@ -361,8 +387,12 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
               ? text(ru, 'Cloudflare video serveri faylni qabul qilmadi. Internet aloqasini tekshirib, videoni qayta tanlang.', 'Видеосервер Cloudflare не принял файл. Проверьте интернет-соединение и выберите видео ещё раз.')
               : code.startsWith('TUS_')
                 ? text(ru, 'Video serverga yuklanmadi. Internet aloqasini tekshiring va qayta urinib ko‘ring.', 'Видео не загрузилось на сервер. Проверьте интернет-соединение и попробуйте ещё раз.')
-                : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED'
-                ? text(ru, 'Video serverga ulanishda xatolik. Qayta urinib ko‘ring.', 'Ошибка подключения к видеосерверу. Попробуйте ещё раз.')
+                : code === 'VIDEO_UPLOAD_PROVIDER_INIT_FAILED' || code === 'VIDEO_UPLOAD_INIT_FAILED'
+                ? text(ru, 'Video yuklash sessiyasini yaratib bo‘lmadi. Server konfiguratsiyasi yoki e’lon ruxsatlarini tekshirish kerak.', 'Не удалось создать сессию загрузки видео. Нужно проверить конфигурацию сервера или права объявления.')
+                : code === 'VIDEO_UPLOAD_INIT_INVALID_RESPONSE'
+                  ? text(ru, 'Video serveri noto‘g‘ri javob qaytardi. Qayta urinib ko‘ring.', 'Видеосервер вернул некорректный ответ. Попробуйте ещё раз.')
+                  : code === 'VIDEO_UPLOAD_COMPLETE_FAILED'
+                    ? text(ru, 'Video fayli yuklandi, lekin server yakunlash bosqichida xatolik berdi.', 'Видео загружено, но сервер вернул ошибку на этапе завершения.')
                 : code === 'VIDEO_UPLOAD_PROTOCOL_UNSUPPORTED'
                   ? text(ru, 'Video yuklash protokoli qo‘llab-quvvatlanmaydi.', 'Протокол загрузки видео не поддерживается.')
                   : text(ru, 'Videoni yuklashda xatolik yuz berdi. Qayta urinib ko‘ring.', 'Не удалось загрузить видео. Попробуйте ещё раз.')
