@@ -160,6 +160,7 @@ export default function ListingVideoUploader({ listingId, ru, onStatusChange }: 
         const response = await fetch(`/api/listings/${listingId}/video/status?mediaId=${encodeURIComponent(mediaId)}`, { cache: 'no-store' })
         const data = await response.json()
         if (!response.ok) throw new Error(data.error || 'VIDEO_STATUS_FAILED')
+        setError('')
 
         const providerStatus = data.provider?.status
         if (data.media?.status === 'ready' || providerStatus === 'ready') {
