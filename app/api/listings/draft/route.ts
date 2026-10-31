@@ -211,12 +211,14 @@ export async function POST(request: Request) {
       description: typeof data.description === 'string' ? data.description : null,
       listing_type: typeof data.listing_type === 'string' ? data.listing_type : 'sale',
       property_type: typeof data.property_type === 'string' ? data.property_type : 'apartment',
-      status,
+      // Create as draft first: required category attributes must be persisted
+      // before the moderation trigger validates the listing.
+      status: 'draft',
       price: Number.isFinite(Number(data.price)) ? Number(data.price) : 0,
       currency: data.currency === 'USD' ? 'USD' : 'UZS',
       draft_step: step,
       draft_data: data,
-      submitted_at: status === 'moderation' ? new Date().toISOString() : null,
+      submitted_at: null,
       ...commonFields,
     }
     const { data: created, error } = await supabase.from('listings').insert(insertData).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
@@ -226,6 +228,18 @@ export async function POST(request: Request) {
       await persistAttributeValues(supabase, created.id, taxonomyCode, attributes)
     } catch (attributeError) {
       return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
+    }
+
+    if (status === 'moderation') {
+      const { data: submitted, error: submitError } = await supabase
+        .from('listings')
+        .update({ status: 'moderation', submitted_at: new Date().toISOString() })
+        .eq('id', created.id)
+        .eq('owner_id', user.id)
+        .select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area')
+        .single()
+      if (submitError) return NextResponse.json({ error: submitError.message }, { status: 400 })
+      return NextResponse.json({ listing: submitted })
     }
 
     return NextResponse.json({ listing: created })
@@ -241,13 +255,25 @@ export async function POST(request: Request) {
     ...commonFields,
     ...(status === 'moderation' ? { status: 'moderation', submitted_at: new Date().toISOString() } : { status: 'draft' }),
   }
+  // The database moderation trigger validates listing_attribute_values.
+  // Persist them before changing status so the trigger sees the latest values.
+  if (status === 'moderation') {
+    try {
+      await persistAttributeValues(supabase, listingId, taxonomyCode, attributes)
+    } catch (attributeError) {
+      return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
+    }
+  }
+
   const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', user.id).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  try {
-    await persistAttributeValues(supabase, updated.id, taxonomyCode, attributes)
-  } catch (attributeError) {
-    return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
+  if (status !== 'moderation') {
+    try {
+      await persistAttributeValues(supabase, updated.id, taxonomyCode, attributes)
+    } catch (attributeError) {
+      return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
+    }
   }
 
   return NextResponse.json({ listing: updated })
