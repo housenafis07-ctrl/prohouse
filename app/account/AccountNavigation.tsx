@@ -83,9 +83,20 @@ export default function AccountNavigation() {
   ]
 
   async function signOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    window.location.href = '/'
+    try {
+      const clearResponse = await fetch('/api/auth/clear-account-session', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      if (!clearResponse.ok) throw new Error('ACCOUNT_SESSION_CLEAR_FAILED')
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      window.location.href = '/'
+    } catch (error) {
+      console.error('[account] sign out failed', error)
+      window.alert(ru ? 'Не удалось безопасно выйти. Попробуйте ещё раз.' : 'Xavfsiz chiqish amalga oshmadi. Qayta urinib ko‘ring.')
+    }
   }
 
   return <nav className="border-b border-slate-100 bg-white px-3 py-2"><div className="mx-auto max-w-6xl">

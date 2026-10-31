@@ -63,9 +63,20 @@ export default function MobileAccountMenu() {
   const close = () => setOpen(false)
 
   const signOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    window.location.href = '/'
+    try {
+      const clearResponse = await fetch('/api/auth/clear-account-session', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      if (!clearResponse.ok) throw new Error('ACCOUNT_SESSION_CLEAR_FAILED')
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      window.location.href = '/'
+    } catch (error) {
+      console.error('[account] sign out failed', error)
+      window.alert(ru ? 'Не удалось безопасно выйти. Попробуйте ещё раз.' : 'Xavfsiz chiqish amalga oshmadi. Qayta urinib ko‘ring.')
+    }
   }
 
   return (
