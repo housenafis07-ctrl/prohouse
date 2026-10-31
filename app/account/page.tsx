@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
+import AccountListingsPreview from './AccountListingsPreview'
 
 type Profile = {
   phone: string | null
@@ -379,24 +380,7 @@ export default function AccountPage() {
                   </div>
                 </section>
 
-                <section id="profile-data" className="scroll-mt-24 rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">{ru ? 'Профиль и публичные данные' : 'Profil va ochiq ma’lumotlar'}</h2><p className="mt-1 text-xs text-slate-500">{ru ? 'Эти данные помогут покупателям познакомиться с продавцом.' : 'Bu ma’lumotlar xaridorlarga sotuvchi bilan tanishish va ishonch hosil qilishga yordam beradi.'}</p></div>{!editing && <button type="button" onClick={() => setEditing(true)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black hover:bg-slate-50">{ru ? 'Изменить' : 'Tahrirlash'}</button>}</div>
-                  <form onSubmit={saveProfile} className="mt-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <ProfileField label={ru ? 'Ф.И.О.' : 'F.I.O.'} value={display.full_name} form={form} field="full_name" editing={editing} required onChange={setField} />
-                      <ProfileField label={ru ? 'Телефон' : 'Telefon'} value={display.phone} form={form} field="phone" editing={false} disabled onChange={setField} />
-                      <ProfileField label={ru ? 'Тип аккаунта' : 'Akkaunt turi'} value={display.account_type === 'partner' ? (ru ? 'Партнёр' : 'Hamkor') : ru ? 'Физическое лицо' : 'Jismoniy shaxs'} form={form} field="account_type" editing={false} disabled onChange={setField} />
-                      <ProfileField label="Email" value={display.email} form={form} field="email" editing={editing} onChange={setField} />
-                      <ProfileField label="Instagram" value={display.instagram_url} form={form} field="instagram_url" editing={editing} onChange={setField} />
-                      <ProfileField label="Facebook" value={display.facebook_url} form={form} field="facebook_url" editing={editing} onChange={setField} />
-                      <ProfileField label="LinkedIn" value={display.linkedin_url} form={form} field="linkedin_url" editing={editing} onChange={setField} />
-                      <ProfileField label={ru ? 'Telegram (публичная ссылка)' : 'Telegram (ochiq profil)'} value={display.telegram_url} form={form} field="telegram_url" editing={editing} onChange={setField} />
-                      {showPartnerFields && <><ProfileField label="ИНН" value={display.inn} form={form} field="inn" editing={editing} required onChange={setField} /><ProfileField label={ru ? 'Компания' : 'Firma nomi'} value={display.company_name} form={form} field="company_name" editing={editing} onChange={setField} /><ProfileField label={ru ? 'Банк' : 'Bank'} value={display.bank_name} form={form} field="bank_name" editing={editing} onChange={setField} /><ProfileField label={ru ? 'Расчётный счёт' : 'Hisob raqami'} value={display.bank_account} form={form} field="bank_account" editing={editing} onChange={setField} /></>}
-                    </div>
-                    <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">{ru ? 'Заполненные email и социальные сети могут быть показаны в публичной карточке продавца. Телефон остаётся защищённым и раскрывается через действие «Показать телефон».' : 'Kiritilgan email va ijtimoiy tarmoqlar e’lon beruvchi/sotuvchining ochiq profilida ko‘rsatilishi mumkin. Telefon esa himoyalangan holda qoladi va faqat «Telefonni ko‘rsatish» amali orqali ochiladi.'}</div>
-                    {editing && <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => { setForm(profile); setEditing(false); setError('') }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold">{ru ? 'Отмена' : 'Bekor qilish'}</button><button disabled={saving} type="submit" className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white disabled:opacity-60">{saving ? (ru ? 'Сохранение...' : 'Saqlanmoqda...') : (ru ? 'Сохранить' : 'Saqlash')}</button></div>}
-                  </form>
-                </section>
+                <AccountListingsPreview />
               </div>
 
               <aside className="space-y-4">
