@@ -3,6 +3,76 @@ import { createClient } from '@/utils/supabase/server'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+
+async function retirePreviousReadyVideos(
+  db: Awaited<ReturnType<typeof createClient>>,
+  listingId: string,
+  currentMediaId: string,
+) {
+  const { data: previous, error } = await db
+    .from('listing_media')
+    .select('id,provider,original_storage_path,processed_storage_path')
+    .eq('listing_id', listingId)
+    .eq('media_type', 'video')
+    .eq('status', 'ready')
+    .neq('id', currentMediaId)
+
+  if (error) {
+    console.error('[listing-video/status] previous video lookup failed', error)
+    return
+  }
+  if (!previous?.length) return
+
+  const previousIds = previous.map(item => item.id)
+  const { error: retireError } = await db
+    .from('listing_media')
+    .update({ status: 'deleted' })
+    .eq('listing_id', listingId)
+    .in('id', previousIds)
+
+  if (retireError) {
+    console.error('[listing-video/status] previous video retirement failed', retireError)
+    return
+  }
+
+  await Promise.all(previous.map(async item => {
+    if (item.provider === 'supabase') {
+      const storagePath = item.original_storage_path || item.processed_storage_path
+      if (!storagePath) return
+      const { error: storageError } = await db.storage.from('listing-videos').remove([storagePath])
+      if (storageError) console.error('[listing-video/status] previous Supabase video cleanup failed', {
+        mediaId: item.id,
+        error: storageError,
+      })
+      return
+    }
+
+    if (item.provider === 'cloudflare' && item.processed_storage_path) {
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim()
+      const apiToken = process.env.CLOUDFLARE_STREAM_API_TOKEN?.trim()
+      if (!accountId || !apiToken) return
+
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream/${encodeURIComponent(item.processed_storage_path)}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${apiToken}` }, cache: 'no-store' },
+      ).catch(error => {
+        console.error('[listing-video/status] previous Cloudflare video cleanup failed', {
+          mediaId: item.id,
+          error,
+        })
+        return null
+      })
+
+      if (response && !response.ok) {
+        console.error('[listing-video/status] previous Cloudflare video cleanup returned an error', {
+          mediaId: item.id,
+          status: response.status,
+        })
+      }
+    }
+  }))
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: listingId } = await params
@@ -17,7 +87,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { data: media, error } = await db
       .from('listing_media')
-      .select('id,listing_id,status,provider,processed_storage_path,playback_url,thumbnail_storage_path,original_mime_type,original_size_bytes')
+      .select('id,listing_id,status,provider,processed_storage_path,original_storage_path,playback_url,thumbnail_storage_path,original_mime_type,original_size_bytes')
       .eq('id', mediaId)
       .eq('listing_id', listingId)
       .single()
@@ -47,6 +117,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .select('id,listing_id,status,provider,playback_url,thumbnail_storage_path,processed_storage_path,duration_seconds,width,height')
         .single()
       if (updateError) throw updateError
+      await retirePreviousReadyVideos(db, listingId, mediaId)
       return NextResponse.json({ media: updated, provider: { status: 'ready' } })
     }
 
@@ -90,6 +161,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .select('id,listing_id,status,provider,playback_url,thumbnail_storage_path,processed_storage_path,duration_seconds,width,height')
         .single()
       if (updateError) throw updateError
+      await retirePreviousReadyVideos(db, listingId, mediaId)
       return NextResponse.json({ media: updated, provider: { status: 'ready' } })
     }
 
