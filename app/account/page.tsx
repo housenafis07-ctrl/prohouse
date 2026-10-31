@@ -266,10 +266,21 @@ export default function AccountPage() {
   }
 
   async function signOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.replace('/')
-    router.refresh()
+    try {
+      const clearResponse = await fetch('/api/auth/clear-account-session', {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      if (!clearResponse.ok) throw new Error('ACCOUNT_SESSION_CLEAR_FAILED')
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.replace('/')
+      router.refresh()
+    } catch (signOutError) {
+      console.error('[account] sign out failed', signOutError)
+      window.alert(ru ? 'Не удалось безопасно выйти. Попробуйте ещё раз.' : 'Xavfsiz chiqish amalga oshmadi. Qayta urinib ko‘ring.')
+    }
   }
 
   const isPartner = profile?.account_type === 'partner'
