@@ -25,6 +25,7 @@ type CurrentListing = ListingRecommendationSignal & {
 
 export default function ListingRecommendations({ listing, lang }: { listing: CurrentListing; lang: Lang }) {
   const [items, setItems] = useState<ListingCandidate[]>([])
+  const { id, title, listing_type, property_type, taxonomy_code, city, district, is_mortgage_available } = listing
 
   useEffect(() => {
     let cancelled = false
@@ -42,7 +43,7 @@ export default function ListingRecommendations({ listing, lang }: { listing: Cur
 
         if (error) throw error
         const candidates = (data || []) as ListingCandidate[]
-        const ranked = rankSimilarListings(candidates, [listing], [], 4)
+        const ranked = rankSimilarListings(candidates, [{ id, title, listing_type, property_type, taxonomy_code, city, district, is_mortgage_available }], [], 4)
         if (!cancelled) setItems(ranked)
       } catch {
         if (!cancelled) setItems([])
@@ -51,7 +52,7 @@ export default function ListingRecommendations({ listing, lang }: { listing: Cur
 
     void load()
     return () => { cancelled = true }
-  }, [listing])
+  }, [id, title, listing_type, property_type, taxonomy_code, city, district, is_mortgage_available])
 
   if (!items.length) return null
 
