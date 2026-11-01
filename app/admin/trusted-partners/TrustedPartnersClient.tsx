@@ -202,9 +202,7 @@ export default function TrustedPartnersClient({
               {profile.trusted_profile_rejection_reason && <div className="mt-3 rounded-2xl bg-red-50 p-4 text-sm text-red-700"><span className="font-black">Rad etish sababi:</span> {profile.trusted_profile_rejection_reason}</div>}
             </article>
           })}
-        </div>
-        <div className="mt-5 space-y-4">
-          {filtered.map(partner => {
+        {filtered.map(partner => {
             const partnerStatus = normalizedPartnerStatus(partner)
             const partnerDocs = docsFor(partner.user_id)
             return <article key={partner.id} className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -226,7 +224,6 @@ export default function TrustedPartnersClient({
               </div>
             </article>
           })}
-        </div>
       </div>
     </div>
   </main>
