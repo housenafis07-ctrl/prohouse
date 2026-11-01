@@ -230,6 +230,7 @@ export default function TrustedPartnersClient({
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {partnerDocs.length === 0 ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800 md:col-span-2">Hujjatlar yuklanmagan.</div> : partnerDocs.map(document => <div key={document.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black">{documentLabel[document.document_type] || document.document_type}</p><p className="mt-1 text-xs text-slate-500">{document.file_name} · {Math.round(document.size_bytes / 1024)} KB</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold">{document.status}</span></div><a href={`/api/admin/trusted-partners/documents/${document.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-black text-emerald-700">Hujjatni ochish →</a></div>)}
               </div>
+              </div>
             </details>
           })}
       </div>
