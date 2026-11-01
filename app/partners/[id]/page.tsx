@@ -105,7 +105,7 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
 
   const { partner, listings } = result
   const name = partner.company_name || partner.display_name || 'Royalhouse hamkori'
-  const isTrusted = partner.trusted_partner_status === 'verified'
+  const isTrusted = partner.trusted_partner_status === 'verified' || partner.verification_status === 'verified'
   const regions = Array.isArray(partner.service_regions) ? partner.service_regions.filter(Boolean) : []
 
   return (
