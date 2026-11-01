@@ -13,7 +13,7 @@ export default async function TrustedPartnersPage() {
   const { data: partnerRows, error: partnerError } = await db
     .from('partner_profiles')
     .select('id,user_id,partner_type,legal_form,display_name,company_name,verification_status,trusted_partner_status,trusted_partner_rejection_reason,trusted_partner_reviewed_at,updated_at')
-    .or('trusted_partner_status.in.(requested,under_review,verified,rejected),verification_status.eq.verified')
+    .in('trusted_partner_status', ['requested', 'under_review', 'verified', 'rejected'])
     .order('updated_at', { ascending: false })
 
   if (partnerError) throw new Error(partnerError.message)
