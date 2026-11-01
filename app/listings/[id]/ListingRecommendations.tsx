@@ -78,7 +78,7 @@ export default function ListingRecommendations({ listing, lang }: { listing: Cur
               </div>
               <div className="p-3">
                 <p className="line-clamp-2 min-h-10 text-sm font-bold text-slate-900">{titleFor(item)}</p>
-                <p className="mt-2 text-sm font-black text-emerald-700">{formatMoney(Number(item.price), item.currency, lang)}</p>
+                <p className="mt-2 text-sm font-black text-emerald-700">{formatMoney(Number(item.price), item.currency, lang)}{item.listing_type === 'daily' || item.taxonomy_code === 'rent_dacha' ? (lang === 'ru' ? ' / день' : ' / kun') : item.listing_type === 'rent' ? (lang === 'ru' ? ' / мес.' : ' / oy') : ''}</p>
                 <p className="mt-1 truncate text-xs text-slate-500">{[item.district, item.city].filter(Boolean).join(', ')}</p>
               </div>
             </Link>
