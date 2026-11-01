@@ -160,13 +160,13 @@ export default function TrustedPartnersClient({
       <header className="rounded-3xl bg-slate-900 p-7 text-white">
         <p className="text-sm font-bold text-emerald-300">RoyalHouse xavfsizlik tizimi</p>
         <h1 className="mt-2 text-3xl font-black">Ishonchli profillar va hamkorlar</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Jismoniy shaxslarning MyID natijasi va hamkorlarning hujjatlari shu yerda tekshiriladi. Tasdiqlangan ishonchli profil va hamkor maqomi arxivda saqlanadi hamda e‘lonlar oddiy e‘lonlardan yuqoriroq ranking oladi.</p>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Jismoniy shaxslarning selfie va pasport/ID hujjatlari hamda hamkorlarning hujjatlari shu yerda tekshiriladi. Tasdiqlangan ishonchli profil va hamkor maqomi arxivda saqlanadi hamda e‘lonlar oddiy e‘lonlardan yuqoriroq ranking oladi.</p>
       </header>
 
       <div className="mt-5 grid gap-2 sm:grid-cols-2">
         <button type="button" onClick={() => setSection('individuals')} className={`rounded-2xl px-5 py-4 text-left ${section === 'individuals' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>
           <span className="block text-sm font-black">Ishonchli profillar</span>
-          <span className={`mt-1 block text-xs ${section === 'individuals' ? 'text-slate-300' : 'text-slate-500'}`}>Jismoniy shaxslar · MyID</span>
+          <span className={`mt-1 block text-xs ${section === 'individuals' ? 'text-slate-300' : 'text-slate-500'}`}>Jismoniy shaxslar · Pasport / ID</span>
           <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-black ${section === 'individuals' ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>{individualItems.filter(item => !item.trusted_profile).length} ta ko‘rib chiqilmagan</span>
         </button>
         <button type="button" onClick={() => setSection('partners')} className={`rounded-2xl px-5 py-4 text-left ${section === 'partners' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>
@@ -184,7 +184,7 @@ export default function TrustedPartnersClient({
         </div>
 
         <div className="mt-5 space-y-4">
-          {filteredIndividuals.length === 0 ? <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">Hozircha MyID orqali yuborilgan ishonchli profil so‘rovlari yo‘q.</div> : filteredIndividuals.map(profile => {
+          {filteredIndividuals.length === 0 ? <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">Hozircha hujjat orqali yuborilgan ishonchli profil so‘rovlari yo‘q.</div> : filteredIndividuals.map(profile => {
             const status = profile.trusted_profile_program_status || 'not_joined'
             const myIdVerified = profile.myid_status === 'verified'
             const identityDocs = docsFor(profile.id).filter(document => document.document_type.startsWith('identity_'))
