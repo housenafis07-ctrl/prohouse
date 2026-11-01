@@ -92,10 +92,10 @@ export default function TrustedPartnersClient({
   const [error, setError] = useState('')
 
   const normalizedPartnerStatus = (item: Partner) => item.trusted_partner_status || 'requested'
-  const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => normalizedPartnerStatus(item) === filter), [items, filter])
+  const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => filter === 'pending' ? ['requested', 'under_review'].includes(normalizedPartnerStatus(item)) : normalizedPartnerStatus(item) === filter), [items, filter])
   const filteredIndividuals = useMemo(() => filter === 'all' ? individualItems : individualItems.filter(item => {
     const status = item.trusted_profile ? 'verified' : item.trusted_profile_program_status === 'verification' ? 'under_review' : item.trusted_profile_program_status || 'not_joined'
-    return status === filter
+    return filter === 'pending' ? ['requested', 'under_review'].includes(status) : status === filter
   }), [individualItems, filter])
   const docsFor = (userId: string) => documents.filter(document => document.user_id === userId)
 
@@ -160,9 +160,9 @@ export default function TrustedPartnersClient({
       </header>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold text-slate-500">Jami profillar va hamkorlar</p><p className="mt-1 text-2xl font-black">{individualItems.length + items.length}</p></div>
-        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold text-slate-500">Tekshiruv kutilmoqda</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => !item.trusted_profile && ["requested","verification"].includes(item.trusted_profile_program_status || "")).length + items.filter(item => ["requested","under_review"].includes(normalizedPartnerStatus(item))).length}</p></div>
-        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold text-slate-500">Tasdiqlangan</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => item.trusted_profile).length + items.filter(item => normalizedPartnerStatus(item) === "verified").length}</p></div>
+        <button type="button" onClick={() => setFilter('all')} aria-pressed={filter === 'all'} className={`rounded-2xl bg-white p-4 text-left ring-1 transition hover:ring-slate-400 ${filter === 'all' ? 'ring-2 ring-slate-900' : 'ring-slate-200'}`}><p className="text-xs font-bold text-slate-500">Jami profillar va hamkorlar</p><p className="mt-1 text-2xl font-black">{individualItems.length + items.length}</p></button>
+        <button type="button" onClick={() => setFilter('pending')} aria-pressed={filter === 'pending'} className={`rounded-2xl bg-white p-4 text-left ring-1 transition hover:ring-amber-400 ${filter === 'pending' ? 'ring-2 ring-amber-500' : 'ring-slate-200'}`}><p className="text-xs font-bold text-slate-500">Tekshiruv kutilmoqda</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => !item.trusted_profile && ["requested","verification"].includes(item.trusted_profile_program_status || "")).length + items.filter(item => ["requested","under_review"].includes(normalizedPartnerStatus(item))).length}</p></button>
+        <button type="button" onClick={() => setFilter('verified')} aria-pressed={filter === 'verified'} className={`rounded-2xl bg-white p-4 text-left ring-1 transition hover:ring-emerald-400 ${filter === 'verified' ? 'ring-2 ring-emerald-500' : 'ring-slate-200'}`}><p className="text-xs font-bold text-slate-500">Tasdiqlangan</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => item.trusted_profile).length + items.filter(item => normalizedPartnerStatus(item) === "verified").length}</p></button>
       </div>
       {error && <div className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
