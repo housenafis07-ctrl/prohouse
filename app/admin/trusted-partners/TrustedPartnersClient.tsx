@@ -89,19 +89,14 @@ export default function TrustedPartnersClient({
   const [individualItems, setIndividualItems] = useState(individuals)
   const [working, setWorking] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
-  const [individualFilter, setIndividualFilter] = useState('all')
-  const [section, setSection] = useState<'individuals' | 'partners'>('individuals')
   const [error, setError] = useState('')
 
   const normalizedPartnerStatus = (item: Partner) => item.trusted_partner_status || 'requested'
   const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => normalizedPartnerStatus(item) === filter), [items, filter])
-  const filteredIndividuals = useMemo(() => {
-    if (individualFilter === 'all') return individualItems
-    return individualItems.filter(item => {
-      const status = item.trusted_profile_program_status || 'not_joined'
-      return status === individualFilter
-    })
-  }, [individualItems, individualFilter])
+  const filteredIndividuals = useMemo(() => filter === 'all' ? individualItems : individualItems.filter(item => {
+    const status = item.trusted_profile ? 'verified' : item.trusted_profile_program_status === 'verification' ? 'under_review' : item.trusted_profile_program_status || 'not_joined'
+    return status === filter
+  }), [individualItems, filter])
   const docsFor = (userId: string) => documents.filter(document => document.user_id === userId)
 
   const reviewPartner = async (partnerProfileId: string, status: 'under_review' | 'verified' | 'rejected') => {
@@ -160,32 +155,23 @@ export default function TrustedPartnersClient({
 
       <header className="rounded-3xl bg-slate-900 p-7 text-white">
         <p className="text-sm font-bold text-emerald-300">RoyalHouse xavfsizlik tizimi</p>
-        <h1 className="mt-2 text-3xl font-black">Ishonchli profillar va hamkorlar</h1>
+        <h1 className="mt-2 text-3xl font-black">Yagona ishonchli profil va hamkorlar</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Jismoniy shaxslarning selfie va pasport/ID hujjatlari hamda hamkorlarning hujjatlari shu yerda tekshiriladi. Tasdiqlangan ishonchli profil va hamkor maqomi arxivda saqlanadi hamda e‘lonlar oddiy e‘lonlardan yuqoriroq ranking oladi.</p>
       </header>
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        <button type="button" onClick={() => setSection('individuals')} className={`rounded-2xl px-5 py-4 text-left ${section === 'individuals' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>
-          <span className="block text-sm font-black">Ishonchli profillar</span>
-          <span className={`mt-1 block text-xs ${section === 'individuals' ? 'text-slate-300' : 'text-slate-500'}`}>Jismoniy shaxslar · Pasport / ID</span>
-          <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-black ${section === 'individuals' ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>{individualItems.filter(item => !item.trusted_profile).length} ta ko‘rib chiqilmagan</span>
-        </button>
-        <button type="button" onClick={() => setSection('partners')} className={`rounded-2xl px-5 py-4 text-left ${section === 'partners' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>
-          <span className="block text-sm font-black">Ishonchli hamkorlar</span>
-          <span className={`mt-1 block text-xs ${section === 'partners' ? 'text-slate-300' : 'text-slate-500'}`}>YaTT · Firma · o‘zini o‘zi band qilganlar</span>
-          <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-black ${section === 'partners' ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>{items.filter(item => ['requested', 'under_review'].includes(normalizedPartnerStatus(item))).length} ta tekshiruvda</span>
-        </button>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold text-slate-500">Jami profillar va hamkorlar</p><p className="mt-1 text-2xl font-black">{individualItems.length + items.length}</p></div>
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold text-slate-500">Tekshiruv kutilmoqda</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => !item.trusted_profile && ["requested","verification"].includes(item.trusted_profile_program_status || "")).length + items.filter(item => ["requested","under_review"].includes(normalizedPartnerStatus(item))).length}</p></div>
+        <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold text-slate-500">Tasdiqlangan</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => item.trusted_profile).length + items.filter(item => normalizedPartnerStatus(item) === "verified").length}</p></div>
       </div>
-
       {error && <div className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
-      {section === 'individuals' ? <>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {['all', 'requested', 'verification', 'verified', 'rejected'].map(value => <button key={value} type="button" onClick={() => setIndividualFilter(value)} className={`rounded-full px-4 py-2 text-sm font-bold ${individualFilter === value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{value === 'all' ? 'Barchasi' : individualStatusLabel[value]}</button>)}
-        </div>
+      <div className="mt-5 flex flex-wrap gap-2">
+        {['all', 'requested', 'under_review', 'verified', 'rejected'].map(value => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{value === 'all' ? 'Barchasi' : statusLabel[value]}</button>)}
+      </div>
 
         <div className="mt-5 space-y-4">
-          {filteredIndividuals.length === 0 ? <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">Hozircha hujjat orqali yuborilgan ishonchli profil so‘rovlari yo‘q.</div> : filteredIndividuals.map(profile => {
+          {filteredIndividuals.map(profile => {
             const status = profile.trusted_profile_program_status || 'not_joined'
             const myIdVerified = profile.myid_status === 'verified'
             const identityDocs = docsFor(profile.id).filter(document => document.document_type.startsWith('identity_'))
@@ -217,13 +203,8 @@ export default function TrustedPartnersClient({
             </article>
           })}
         </div>
-      </> : <>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {['all', 'requested', 'under_review', 'verified', 'rejected'].map(value => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{value === 'all' ? 'Barchasi' : statusLabel[value]}</button>)}
-        </div>
-
         <div className="mt-5 space-y-4">
-          {filtered.length === 0 ? <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">Hozircha hamkor so‘rovlari yo‘q.</div> : filtered.map(partner => {
+          {filtered.map(partner => {
             const partnerStatus = normalizedPartnerStatus(partner)
             const partnerDocs = docsFor(partner.user_id)
             return <article key={partner.id} className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -246,7 +227,7 @@ export default function TrustedPartnersClient({
             </article>
           })}
         </div>
-      </>}
+      </div>
     </div>
   </main>
 }
