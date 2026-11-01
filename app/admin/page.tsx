@@ -4,7 +4,7 @@ import AdminHomeClient from './AdminHomeClient'
 
 async function getStats() {
   const supabase = serviceClient()
-  const [{ count: total }, { count: moderation }, { count: active }, { count: rejected }, { count: partners }, { count: today }, { count: trustedProfiles }, { count: clients }, { count: unreadMessages }] = await Promise.all([
+  const [{ count: total }, { count: moderation }, { count: active }, { count: rejected }, { count: partners }, { count: today }, { count: trustedProfiles }, { count: trustedPartners }, { count: clients }, { count: unreadMessages }] = await Promise.all([
     supabase.from('listings').select('*', { count: 'exact', head: true }),
     supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'moderation'),
     supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
@@ -12,6 +12,7 @@ async function getStats() {
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('account_type', 'partner'),
     supabase.from('listings').select('*', { count: 'exact', head: true }).gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('account_type', 'individual').or('trusted_profile_opt_in.eq.true,trusted_profile.eq.true'),
+    supabase.from('partner_profiles').select('*', { count: 'exact', head: true }).in('trusted_partner_status', ['requested','under_review','verified','rejected']),
     supabase.from('profiles').select('*', { count: 'exact', head: true }),
     supabase.from('support_messages').select('id', { count: 'exact', head: true }).eq('status', 'new'),
   ])
@@ -23,6 +24,7 @@ async function getStats() {
     partners: partners ?? 0,
     today: today ?? 0,
     trustedProfiles: trustedProfiles ?? 0,
+    trustedPartners: trustedPartners ?? 0,
     clients: clients ?? 0,
     unreadMessages: unreadMessages ?? 0,
   }

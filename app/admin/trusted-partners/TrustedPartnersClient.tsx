@@ -70,6 +70,10 @@ const documentLabel: Record<string, string> = {
   sole_proprietor_certificate: 'YaTT guvohnomasi',
   company_charter: 'Firma ustavi',
   other_required_documents: 'Boshqa zaruriy hujjatlar',
+  identity_selfie: 'Foydalanuvchi fotosurati',
+  identity_passport: 'Pasport rasmi',
+  identity_id_front: 'ID karta — old tomoni',
+  identity_id_back: 'ID karta — orqa tomoni',
 }
 
 export default function TrustedPartnersClient({
@@ -85,18 +89,14 @@ export default function TrustedPartnersClient({
   const [individualItems, setIndividualItems] = useState(individuals)
   const [working, setWorking] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
-  const [individualFilter, setIndividualFilter] = useState('all')
-  const [section, setSection] = useState<'individuals' | 'partners'>('individuals')
   const [error, setError] = useState('')
 
-  const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => item.trusted_partner_status === filter), [items, filter])
-  const filteredIndividuals = useMemo(() => {
-    if (individualFilter === 'all') return individualItems
-    return individualItems.filter(item => {
-      const status = item.trusted_profile_program_status || 'not_joined'
-      return status === individualFilter
-    })
-  }, [individualItems, individualFilter])
+  const normalizedPartnerStatus = (item: Partner) => item.trusted_partner_status || 'requested'
+  const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => filter === 'pending' ? ['requested', 'under_review'].includes(normalizedPartnerStatus(item)) : normalizedPartnerStatus(item) === filter), [items, filter])
+  const filteredIndividuals = useMemo(() => filter === 'all' ? individualItems : individualItems.filter(item => {
+    const status = item.trusted_profile ? 'verified' : item.trusted_profile_program_status === 'verification' ? 'under_review' : item.trusted_profile_program_status || 'not_joined'
+    return filter === 'pending' ? ['requested', 'under_review'].includes(status) : status === filter
+  }), [individualItems, filter])
   const docsFor = (userId: string) => documents.filter(document => document.user_id === userId)
 
   const reviewPartner = async (partnerProfileId: string, status: 'under_review' | 'verified' | 'rejected') => {
@@ -155,89 +155,85 @@ export default function TrustedPartnersClient({
 
       <header className="rounded-3xl bg-slate-900 p-7 text-white">
         <p className="text-sm font-bold text-emerald-300">RoyalHouse xavfsizlik tizimi</p>
-        <h1 className="mt-2 text-3xl font-black">Ishonchli profillar va hamkorlar</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Jismoniy shaxslarning MyID natijasi va hamkorlarning hujjatlari shu yerda tekshiriladi. Tasdiqlangan ishonchli profil va hamkor maqomi arxivda saqlanadi hamda e‘lonlar oddiy e‘lonlardan yuqoriroq ranking oladi.</p>
+        <h1 className="mt-2 text-3xl font-black">Yagona ishonchli profil va hamkorlar</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">Jismoniy shaxslarning selfie va pasport/ID hujjatlari hamda hamkorlarning hujjatlari shu yerda tekshiriladi. Tasdiqlangan ishonchli profil va hamkor maqomi arxivda saqlanadi hamda e‘lonlar oddiy e‘lonlardan yuqoriroq ranking oladi.</p>
       </header>
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        <button type="button" onClick={() => setSection('individuals')} className={`rounded-2xl px-5 py-4 text-left ${section === 'individuals' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>
-          <span className="block text-sm font-black">Ishonchli profillar</span>
-          <span className={`mt-1 block text-xs ${section === 'individuals' ? 'text-slate-300' : 'text-slate-500'}`}>Jismoniy shaxslar · MyID</span>
-          <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-black ${section === 'individuals' ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>{individualItems.filter(item => !item.trusted_profile).length} ta ko‘rib chiqilmagan</span>
-        </button>
-        <button type="button" onClick={() => setSection('partners')} className={`rounded-2xl px-5 py-4 text-left ${section === 'partners' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>
-          <span className="block text-sm font-black">Ishonchli hamkorlar</span>
-          <span className={`mt-1 block text-xs ${section === 'partners' ? 'text-slate-300' : 'text-slate-500'}`}>YaTT · Firma · o‘zini o‘zi band qilganlar</span>
-          <span className={`mt-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-black ${section === 'partners' ? 'bg-white/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>{items.filter(item => item.trusted_partner_status === 'requested' || item.trusted_partner_status === 'under_review').length} ta tekshiruvda</span>
-        </button>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <button type="button" onClick={() => setFilter('all')} aria-pressed={filter === 'all'} className={`rounded-2xl bg-white p-4 text-left ring-1 transition hover:ring-slate-400 ${filter === 'all' ? 'ring-2 ring-slate-900' : 'ring-slate-200'}`}><p className="text-xs font-bold text-slate-500">Jami profillar va hamkorlar</p><p className="mt-1 text-2xl font-black">{individualItems.length + items.length}</p></button>
+        <button type="button" onClick={() => setFilter('pending')} aria-pressed={filter === 'pending'} className={`rounded-2xl bg-white p-4 text-left ring-1 transition hover:ring-amber-400 ${filter === 'pending' ? 'ring-2 ring-amber-500' : 'ring-slate-200'}`}><p className="text-xs font-bold text-slate-500">Tekshiruv kutilmoqda</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => !item.trusted_profile && ["requested","verification"].includes(item.trusted_profile_program_status || "")).length + items.filter(item => ["requested","under_review"].includes(normalizedPartnerStatus(item))).length}</p></button>
+        <button type="button" onClick={() => setFilter('verified')} aria-pressed={filter === 'verified'} className={`rounded-2xl bg-white p-4 text-left ring-1 transition hover:ring-emerald-400 ${filter === 'verified' ? 'ring-2 ring-emerald-500' : 'ring-slate-200'}`}><p className="text-xs font-bold text-slate-500">Tasdiqlangan</p><p className="mt-1 text-2xl font-black">{individualItems.filter(item => item.trusted_profile).length + items.filter(item => normalizedPartnerStatus(item) === "verified").length}</p></button>
       </div>
-
       {error && <div className="mt-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
-      {section === 'individuals' ? <>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {['all', 'requested', 'verification', 'verified', 'rejected'].map(value => <button key={value} type="button" onClick={() => setIndividualFilter(value)} className={`rounded-full px-4 py-2 text-sm font-bold ${individualFilter === value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{value === 'all' ? 'Barchasi' : individualStatusLabel[value]}</button>)}
-        </div>
+      <div className="mt-5 flex flex-wrap gap-2">
+        {['all', 'requested', 'under_review', 'verified', 'rejected'].map(value => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{value === 'all' ? 'Barchasi' : statusLabel[value]}</button>)}
+      </div>
 
         <div className="mt-5 space-y-4">
-          {filteredIndividuals.length === 0 ? <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">Hozircha MyID orqali yuborilgan ishonchli profil so‘rovlari yo‘q.</div> : filteredIndividuals.map(profile => {
+          {filteredIndividuals.map(profile => {
             const status = profile.trusted_profile_program_status || 'not_joined'
             const myIdVerified = profile.myid_status === 'verified'
-            return <article key={profile.id} className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
+            const identityDocs = docsFor(profile.id).filter(document => document.document_type.startsWith('identity_'))
+            const hasManualDocs = identityDocs.some(document => document.document_type === 'identity_selfie') && identityDocs.some(document => ['identity_passport', 'identity_id_front'].includes(document.document_type))
+            return <details key={profile.id} className="group rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-3 py-1 text-xs font-black ${profile.trusted_profile ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{individualStatusLabel[status] || status}</span>
-                    <span className={`rounded-full px-3 py-1 text-xs font-black ${myIdVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>MyID: {myIdVerified ? 'Tasdiqlangan' : (profile.myid_status || 'Tasdiqlanmagan')}</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${profile.trusted_profile ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{profile.trusted_profile ? 'Ishonchli profil' : individualStatusLabel[status] || status}</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${hasManualDocs ? 'bg-sky-50 text-sky-700' : myIdVerified ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{hasManualDocs ? 'Hujjatlar yuklangan' : myIdVerified ? 'MyID tasdiqlangan' : 'Hujjat kutilmoqda'}</span>
                   </div>
-                  <h2 className="mt-3 text-xl font-black">{profile.full_name || 'Nomsiz foydalanuvchi'}</h2>
+                  <h2 className="mt-2 font-black text-slate-900">{profile.full_name || 'Nomsiz foydalanuvchi'}</h2>
                   <p className="mt-1 text-sm text-slate-500">{profile.phone || 'Telefon yo‘q'} · {profile.partner_type || 'Jismoniy shaxs'}</p>
-                  {profile.myid_verified_at && <p className="mt-1 text-xs text-slate-400">MyID tasdiqlangan: {new Date(profile.myid_verified_at).toLocaleString('uz-UZ')}</p>}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {status !== 'verified' && <button disabled={working === profile.id} onClick={() => void reviewIndividual(profile.id, 'under_review')} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold">Tekshiruvga olish</button>}
-                  <button disabled={working === profile.id || !myIdVerified} onClick={() => void reviewIndividual(profile.id, 'verified')} title={!myIdVerified ? 'Avval MyID tasdiqlanishi kerak' : undefined} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Tasdiqlash</button>
-                  {status !== 'rejected' && <button disabled={working === profile.id} onClick={() => void reviewIndividual(profile.id, 'rejected')} className="rounded-xl bg-red-50 px-4 py-2 text-sm font-black text-red-700">Rad etish</button>}
+                <span className="shrink-0 text-sm font-bold text-emerald-700 group-open:rotate-180">⌄ Batafsil</span>
+              </summary>
+              <div className="border-t border-slate-100 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>{profile.myid_verified_at && <p className="text-xs text-slate-400">MyID tasdiqlangan: {new Date(profile.myid_verified_at).toLocaleString('uz-UZ')}</p>}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {status !== 'verified' && <button disabled={working === profile.id} onClick={() => void reviewIndividual(profile.id, 'under_review')} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold">Tekshiruvga olish</button>}
+                    {!profile.trusted_profile && <button disabled={working === profile.id || (!myIdVerified && !hasManualDocs)} onClick={() => void reviewIndividual(profile.id, 'verified')} title={!myIdVerified && !hasManualDocs ? 'Avval selfie va pasport/ID rasmlarini yuklash kerak' : undefined} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Tasdiqlash</button>}
+                    {status !== 'rejected' && <button disabled={working === profile.id} onClick={() => void reviewIndividual(profile.id, 'rejected')} className="rounded-xl bg-red-50 px-4 py-2 text-sm font-black text-red-700">Rad etish</button>}
+                  </div>
                 </div>
+                <div className="mt-4 rounded-2xl border border-slate-200 p-4">
+                  <p className="font-black text-slate-900">Shaxsni tasdiqlovchi hujjatlar</p>
+                  {identityDocs.length === 0 ? <p className="mt-2 text-sm text-amber-700">Hali hujjatlar yuklanmagan.</p> : <div className="mt-3 grid gap-2 sm:grid-cols-2">{identityDocs.map(document => <div key={document.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"><div><p className="text-sm font-bold">{documentLabel[document.document_type] || document.document_type}</p><p className="text-xs text-slate-500">{document.file_name} · {document.status}</p></div><a href={`/api/admin/trusted-partners/documents/${document.id}`} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-black text-emerald-700">Ochish ↗</a></div>)}</div>}
+                  <p className="mt-3 text-xs leading-5 text-slate-500">Admin hujjatdagi ma’lumotlarni profil bilan solishtirib, shaxsan tekshiradi. MyID shart emas.</p>
+                </div>
+                {profile.trusted_profile_rejection_reason && <div className="mt-3 rounded-2xl bg-red-50 p-4 text-sm text-red-700"><span className="font-black">Rad etish sababi:</span> {profile.trusted_profile_rejection_reason}</div>}
               </div>
-
-              <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                <p className="font-black text-slate-900">MyID tekshiruvi</p>
-                <p className="mt-1">MyID shaxsning identifikatsiyasini tasdiqlaydi. RoyalHouse admini MyID natijasi va so‘rov holatini ko‘rib, ishonchli profil belgisini yakuniy tasdiqlaydi.</p>
-              </div>
-              {profile.trusted_profile_rejection_reason && <div className="mt-3 rounded-2xl bg-red-50 p-4 text-sm text-red-700"><span className="font-black">Rad etish sababi:</span> {profile.trusted_profile_rejection_reason}</div>}
-            </article>
+            </details>
           })}
-        </div>
-      </> : <>
-        <div className="mt-5 flex flex-wrap gap-2">
-          {['all', 'requested', 'under_review', 'verified', 'rejected'].map(value => <button key={value} type="button" onClick={() => setFilter(value)} className={`rounded-full px-4 py-2 text-sm font-bold ${filter === value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{value === 'all' ? 'Barchasi' : statusLabel[value]}</button>)}
-        </div>
-
-        <div className="mt-5 space-y-4">
-          {filtered.length === 0 ? <div className="rounded-3xl bg-white p-8 text-center text-slate-500 shadow-sm">Hozircha hamkor so‘rovlari yo‘q.</div> : filtered.map(partner => {
+        {filtered.map(partner => {
+            const partnerStatus = normalizedPartnerStatus(partner)
             const partnerDocs = docsFor(partner.user_id)
-            return <article key={partner.id} className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{statusLabel[partner.trusted_partner_status] || partner.trusted_partner_status}</span><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{partner.legal_form || partner.partner_type || 'partner'}</span></div>
-                  <h2 className="mt-3 text-xl font-black">{partner.display_name || partner.profiles?.full_name || 'Nomsiz hamkor'}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{partner.company_name || partner.profiles?.company_name || '—'} · {partner.profiles?.phone || 'Telefon yo‘q'} · INN: {partner.profiles?.inn || '—'}</p>
+            return <details key={partner.id} className="group rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{statusLabel[partnerStatus] || partnerStatus}</span><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{partner.legal_form || partner.partner_type || 'partner'}</span></div>
+                  <h2 className="mt-2 font-black text-slate-900">{partner.display_name || partner.profiles?.full_name || 'Nomsiz hamkor'}</h2>
+                  <p className="mt-1 text-sm text-slate-500">{partner.company_name || partner.profiles?.company_name || '—'} · {partner.profiles?.phone || 'Telefon yo‘q'}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {partner.trusted_partner_status !== 'verified' && <button disabled={working === partner.id} onClick={() => void reviewPartner(partner.id, 'under_review')} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold">Tekshiruvga olish</button>}
-                  <button disabled={working === partner.id} onClick={() => void reviewPartner(partner.id, 'verified')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Tasdiqlash</button>
-                  {partner.trusted_partner_status !== 'rejected' && <button disabled={working === partner.id} onClick={() => void reviewPartner(partner.id, 'rejected')} className="rounded-xl bg-red-50 px-4 py-2 text-sm font-black text-red-700">Rad etish</button>}
+                <span className="shrink-0 text-sm font-bold text-emerald-700 group-open:rotate-180">⌄ Batafsil</span>
+              </summary>
+              <div className="border-t border-slate-100 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-slate-500">INN: {partner.profiles?.inn || '—'}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {partnerStatus !== 'verified' && <button disabled={working === partner.id} onClick={() => void reviewPartner(partner.id, 'under_review')} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold">Tekshiruvga olish</button>}
+                    {partnerStatus !== 'verified' && <button disabled={working === partner.id} onClick={() => void reviewPartner(partner.id, 'verified')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Tasdiqlash</button>}
+                    {partnerStatus !== 'rejected' && <button disabled={working === partner.id} onClick={() => void reviewPartner(partner.id, 'rejected')} className="rounded-xl bg-red-50 px-4 py-2 text-sm font-black text-red-700">Rad etish</button>}
+                  </div>
                 </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {partnerDocs.length === 0 ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800 md:col-span-2">Hujjatlar yuklanmagan.</div> : partnerDocs.map(document => <div key={document.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black">{documentLabel[document.document_type] || document.document_type}</p><p className="mt-1 text-xs text-slate-500">{document.file_name} · {Math.round(document.size_bytes / 1024)} KB</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold">{document.status}</span></div><a href={`/api/admin/trusted-partners/documents/${document.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-black text-emerald-700">Hujjatni ochish →</a></div>)}
               </div>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
-                {partnerDocs.length === 0 ? <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800 md:col-span-2">Hujjatlar yuklanmagan.</div> : partnerDocs.map(document => <div key={document.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-black">{documentLabel[document.document_type] || document.document_type}</p><p className="mt-1 text-xs text-slate-500">{document.file_name} · {Math.round(document.size_bytes / 1024)} KB</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold">{document.status}</span></div><a href={`/api/admin/trusted-partners/documents/${document.id}`} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-black text-emerald-700">Hujjatni ochish →</a></div>)}
               </div>
-            </article>
+            </details>
           })}
-        </div>
-      </>}
+      </div>
     </div>
   </main>
 }
