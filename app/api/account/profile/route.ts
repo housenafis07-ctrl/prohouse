@@ -4,7 +4,7 @@ import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 const legalForms = new Set(['self_employed', 'sole_proprietor', 'llc'])
-const profileSelect = 'phone,full_name,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url'
+const profileSelect = 'phone,full_name,trusted_profile,trusted_profile_program_status,account_type,partner_type,company_name,inn,bank_name,bank_account,mfo,oked,director_full_name,email,instagram_url,facebook_url,linkedin_url,telegram_url'
 const cleanUrl = (value: unknown) => {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
