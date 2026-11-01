@@ -25,7 +25,6 @@ type Profile = {
   myid_verified_at: string | null
   payment_verification_status: string | null
   trusted_profile_rejection_reason: string | null
-  manual_verification_status?: string | null
 }
 
 type PartnerDocument = {
@@ -88,7 +87,7 @@ export default function TrustedProfilePage() {
     const db = createClient()
     const { data: { user } } = await db.auth.getUser()
     if (!user) { router.replace('/register'); return }
-    const { data, error: queryError } = await db.from('profiles').select('account_type,partner_type,trusted_profile,trusted_profile_opt_in,trusted_profile_program_status,myid_status,myid_verified_at,payment_verification_status,trusted_profile_rejection_reason,manual_verification_status').eq('id', user.id).maybeSingle()
+    const { data, error: queryError } = await db.from('profiles').select('account_type,partner_type,trusted_profile,trusted_profile_opt_in,trusted_profile_program_status,myid_status,myid_verified_at,payment_verification_status,trusted_profile_rejection_reason').eq('id', user.id).maybeSingle()
     if (queryError) setError(queryError.message)
     const nextProfile = (data ?? { account_type: 'individual', partner_type: null, trusted_profile: false, trusted_profile_opt_in: false, trusted_profile_program_status: 'not_joined', myid_status: 'not_started', myid_verified_at: null, payment_verification_status: null, trusted_profile_rejection_reason: null }) as Profile
     setProfile(nextProfile)
