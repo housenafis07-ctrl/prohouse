@@ -37,7 +37,7 @@ export default function ListingRecommendations({ listing, lang }: { listing: Cur
           .from('listing_search')
           .select('id,title,title_ru,listing_type,property_type,taxonomy_code,city,district,is_mortgage_available,price,currency,primary_image_url,published_at')
           .eq('status', 'active')
-          .neq('id', listing.id)
+          .neq('id', id)
           .order('published_at', { ascending: false })
           .limit(150)
 
