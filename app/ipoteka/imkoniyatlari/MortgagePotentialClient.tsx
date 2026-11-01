@@ -30,6 +30,20 @@ const money = (value: number, lang: 'uz' | 'ru') =>
   new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ', { maximumFractionDigits: 0 })
     .format(Math.max(0, Math.round(value)))
 
+// Same indicative USD/UZS rate used by the listings map for cross-currency comparisons.
+const USD_TO_UZS = 12_500
+
+const comparablePriceInUzs = (listing: Listing) => {
+  const price = Number(listing.price || 0)
+  return listing.currency === 'USD' ? price * USD_TO_UZS : price
+}
+
+const formatListingPrice = (listing: Listing, lang: 'uz' | 'ru') => {
+  const amount = money(Number(listing.price || 0), lang)
+  if (listing.currency === 'USD') return `${amount}`
+  return `${amount} ${lang === 'ru' ? 'сум' : 'so‘m'}`
+}
+
 const normalize = (value: string) => value.replace(/\D/g, '')
 
 export default function MortgagePotentialClient() {
@@ -120,17 +134,21 @@ export default function MortgagePotentialClient() {
     setListingsLoading(true)
     setListingsError('')
     try {
+      // Do not send a UZS budget as a raw DB price limit: USD listings store their
+      // price in dollars. Fetch mortgage listings, then compare normalized UZS values.
       const params = new URLSearchParams({
         tab: 'sale',
         mortgage: 'true',
-        max: String(Math.round(result.maxHome)),
-        limit: '24',
-        sort: 'priceLow',
+        limit: '48',
+        sort: 'newest',
       })
       const response = await fetch('/api/listings/search?' + params.toString(), { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload?.error || 'Listings request failed')
-      setListings(Array.isArray(payload?.data) ? payload.data : [])
+      const rows = Array.isArray(payload?.data) ? payload.data as Listing[] : []
+      setListings(rows
+        .filter((listing) => Number(listing.price) > 0 && comparablePriceInUzs(listing) <= result.maxHome)
+        .sort((a, b) => comparablePriceInUzs(a) - comparablePriceInUzs(b)))
     } catch {
       setListingsError(
         tx(
@@ -354,7 +372,7 @@ export default function MortgagePotentialClient() {
                       </div>
                       <div className="p-4">
                         <p className="line-clamp-2 min-h-10 font-black text-slate-950">{title}</p>
-                        <p className="mt-2 text-lg font-black text-emerald-700">{money(Number(listing.price || 0), lang)} {ru ? 'сум' : 'so‘m'}</p>
+                        <p className="mt-2 text-lg font-black text-emerald-700">{formatListingPrice(listing, lang)}</p>
                         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-slate-500">
                           {listing.area_m2 ? <span>{listing.area_m2} м²</span> : null}
                           {listing.rooms ? <span>{listing.rooms} {tx('xona', 'комн.')}</span> : null}
