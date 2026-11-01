@@ -33,9 +33,6 @@ export async function GET() {
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 })
   if (!profile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
-  if (isIdentityDocument && profile.account_type !== 'individual') return NextResponse.json({ error: 'INDIVIDUAL_ONLY' }, { status: 403 })
-  if (!isIdentityDocument && profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
-
   if (profile.account_type === 'individual') {
     const { data: trusted, error: trustedError } = await db.from('profiles')
       .select('trusted_profile_program_status,trusted_profile_rejection_reason,manual_verification_status')
@@ -80,6 +77,8 @@ export async function POST(request: Request) {
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
   if (!profile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
+  if (isIdentityDocument && profile.account_type !== 'individual') return NextResponse.json({ error: 'INDIVIDUAL_ONLY' }, { status: 403 })
+  if (!isIdentityDocument && profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
 
   const { data: partner, error: partnerError } = await admin
     .from('partner_profiles')
