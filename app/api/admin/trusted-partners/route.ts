@@ -77,9 +77,6 @@ export async function PATCH(request: NextRequest) {
         trusted_profile_rejection_reason: status === 'rejected' ? rejectionReason : null,
         trusted_profile_reviewed_at: now,
         trusted_profile_reviewed_by: admin.user.id,
-        manual_verification_status: status === 'verified' ? 'verified' : status === 'rejected' ? 'rejected' : 'under_review',
-        manual_verification_reviewed_at: now,
-        manual_verification_reviewed_by: admin.user.id,
         updated_at: now,
       })
       .eq('id', profileUserId)
