@@ -59,7 +59,13 @@ export async function PATCH(request: NextRequest) {
     if (!profile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
     if (profile.account_type !== 'individual') return NextResponse.json({ error: 'INVALID_INDIVIDUAL_PROFILE' }, { status: 400 })
     if (!profile.trusted_profile_opt_in && !profile.trusted_profile) return NextResponse.json({ error: 'TRUSTED_PROFILE_NOT_REQUESTED' }, { status: 400 })
-    if (status === 'verified' && profile.myid_status !== 'verified') return NextResponse.json({ error: 'MYID_NOT_VERIFIED' }, { status: 400 })
+    const { data: identityDocs, error: identityDocsError } = await db.from('partner_verification_documents')
+      .select('id,document_type,status').eq('user_id', profileUserId).like('document_type', 'identity_%')
+      .in('status', ['submitted', 'accepted'])
+    if (identityDocsError) return NextResponse.json({ error: identityDocsError.message }, { status: 500 })
+    const hasManualIdentityDocs = (identityDocs || []).some(doc => doc.document_type === 'identity_selfie') &&
+      (identityDocs || []).some(doc => ['identity_passport', 'identity_id_front'].includes(doc.document_type))
+    if (status === 'verified' && profile.myid_status !== 'verified' && !hasManualIdentityDocs) return NextResponse.json({ error: 'IDENTITY_DOCUMENTS_REQUIRED' }, { status: 400 })
 
     const now = new Date().toISOString()
     const { error: updateError } = await db
@@ -71,11 +77,15 @@ export async function PATCH(request: NextRequest) {
         trusted_profile_rejection_reason: status === 'rejected' ? rejectionReason : null,
         trusted_profile_reviewed_at: now,
         trusted_profile_reviewed_by: admin.user.id,
+        manual_verification_status: status === 'verified' ? 'verified' : status === 'rejected' ? 'rejected' : 'under_review',
+        manual_verification_reviewed_at: now,
+        manual_verification_reviewed_by: admin.user.id,
         updated_at: now,
       })
       .eq('id', profileUserId)
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+    await db.from('partner_verification_documents').update({ status: status === 'verified' ? 'accepted' : status === 'rejected' ? 'rejected' : 'submitted', rejection_reason: status === 'rejected' ? rejectionReason : null, reviewed_at: now, reviewed_by: admin.user.id, updated_at: now }).eq('user_id', profileUserId).like('document_type', 'identity_%').eq('status', 'submitted')
     return NextResponse.json({ ok: true, status })
   }
 
