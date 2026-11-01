@@ -23,6 +23,10 @@ type CurrentListing = ListingRecommendationSignal & {
   title: string
 }
 
+function normalizedValue(value: string | null | undefined) {
+  return (value || '').trim().toLocaleLowerCase()
+}
+
 export default function ListingRecommendations({ listing, lang }: { listing: CurrentListing; lang: Lang }) {
   const [items, setItems] = useState<ListingCandidate[]>([])
   const { id, title, listing_type, property_type, taxonomy_code, city, district, is_mortgage_available } = listing
@@ -33,19 +37,50 @@ export default function ListingRecommendations({ listing, lang }: { listing: Cur
     async function load() {
       try {
         const db = createClient()
-        const { data, error } = await db
+        const selectFields = 'id,title,title_ru,listing_type,property_type,taxonomy_code,city,district,is_mortgage_available,price,currency,primary_image_url,published_at'
+        let candidates: ListingCandidate[] = []
+
+        const searchResult = await db
           .from('listing_search')
-          .select('id,title,title_ru,listing_type,property_type,taxonomy_code,city,district,is_mortgage_available,price,currency,primary_image_url,published_at')
+          .select(selectFields)
           .eq('status', 'active')
           .neq('id', id)
           .order('published_at', { ascending: false })
-          .limit(150)
+          .limit(300)
 
-        if (error) throw error
-        const candidates = (data || []) as ListingCandidate[]
-        const ranked = rankSimilarListings(candidates, [{ id, title, listing_type, property_type, taxonomy_code, city, district, is_mortgage_available }], [], 4)
-        if (!cancelled) setItems(ranked)
-      } catch {
+        if (!searchResult.error && searchResult.data?.length) {
+          candidates = searchResult.data as ListingCandidate[]
+        } else {
+          if (searchResult.error) console.warn('[ListingRecommendations] listing_search query failed; trying listings fallback', searchResult.error)
+          const fallbackResult = await db
+            .from('listings')
+            .select(selectFields)
+            .eq('status', 'active')
+            .neq('id', id)
+            .order('published_at', { ascending: false })
+            .limit(300)
+
+          if (fallbackResult.error) throw fallbackResult.error
+          candidates = (fallbackResult.data || []) as ListingCandidate[]
+        }
+
+        const seed: ListingRecommendationSignal = { id, title, listing_type, property_type, taxonomy_code, city, district, is_mortgage_available }
+        const ranked = rankSimilarListings(candidates, [seed], [], 4)
+        const fallback = candidates
+          .filter((item) => item.id !== id && normalizedValue(item.listing_type) === normalizedValue(listing_type))
+          .sort((a, b) => {
+            const score = (item: ListingCandidate) =>
+              (normalizedValue(item.taxonomy_code) && normalizedValue(item.taxonomy_code) === normalizedValue(taxonomy_code) ? 30 : 0) +
+              (normalizedValue(item.property_type) && normalizedValue(item.property_type) === normalizedValue(property_type) ? 20 : 0) +
+              (normalizedValue(item.district) && normalizedValue(item.district) === normalizedValue(district) ? 10 : 0) +
+              (normalizedValue(item.city) && normalizedValue(item.city) === normalizedValue(city) ? 5 : 0)
+            return score(b) - score(a)
+          })
+          .slice(0, 4)
+
+        if (!cancelled) setItems(ranked.length ? ranked : fallback)
+      } catch (error) {
+        console.error('[ListingRecommendations] failed to load recommendations', error)
         if (!cancelled) setItems([])
       }
     }
