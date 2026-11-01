@@ -37,7 +37,7 @@ export default async function TrustedPartnersPage() {
 
   const { data: individualRows, error: individualError } = await db
     .from('profiles')
-    .select('id,full_name,phone,account_type,partner_type,trusted_profile,trusted_profile_opt_in,trusted_profile_program_status,myid_status,myid_verified_at,trusted_profile_rejection_reason,trusted_profile_reviewed_at,manual_verification_status')
+    .select('id,full_name,phone,account_type,partner_type,trusted_profile,trusted_profile_opt_in,trusted_profile_program_status,myid_status,myid_verified_at,trusted_profile_rejection_reason,trusted_profile_reviewed_at')
     .eq('account_type', 'individual')
     .or('trusted_profile_opt_in.eq.true,trusted_profile.eq.true')
     .order('updated_at', { ascending: false })
