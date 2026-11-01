@@ -134,18 +134,6 @@ export default function TrustedProfilePage() {
     finally { setWorking(false) }
   }
 
-  const startMyId = async () => {
-    setWorking(true); setError(''); setMessage('')
-    try {
-      const response = await fetch('/api/verification/myid/start', { method: 'POST' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || t('MyID tekshiruvini boshlashda xatolik','Ошибка запуска проверки MyID'))
-      if (data.redirectUrl) window.location.assign(data.redirectUrl)
-      else setMessage(data.message || t('MyID integratsiyasi konfiguratsiya qilinmagan.','Интеграция MyID не настроена.'))
-    } catch (e) { setError(e instanceof Error ? e.message : t('MyID tekshiruvini boshlashda xatolik','Ошибка запуска проверки MyID')) }
-    finally { setWorking(false) }
-  }
-
   const uploadDocument = async (documentType: string, file: File) => {
     setUploading(true); setError(''); setMessage('')
     try {
