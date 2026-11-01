@@ -44,7 +44,6 @@ interface IndividualTrustedProfile {
   myid_verified_at: string | null
   trusted_profile_rejection_reason: string | null
   trusted_profile_reviewed_at: string | null
-  manual_verification_status?: string | null
 }
 
 const statusLabel: Record<string, string> = {
@@ -145,7 +144,6 @@ export default function TrustedPartnersClient({
         trusted_profile_program_status: status === 'under_review' ? 'verification' : status,
         trusted_profile_rejection_reason: status === 'rejected' ? rejectionReason : null,
         trusted_profile_reviewed_at: new Date().toISOString(),
-        manual_verification_status: status === 'under_review' ? 'under_review' : status,
       } : item))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Saqlashda xatolik')
