@@ -93,7 +93,7 @@ export default function TrustedPartnersClient({
   const [section, setSection] = useState<'individuals' | 'partners'>('individuals')
   const [error, setError] = useState('')
 
-  const normalizedPartnerStatus = (item: Partner) => item.trusted_partner_status || (item.verification_status === 'verified' ? 'verified' : 'requested')
+  const normalizedPartnerStatus = (item: Partner) => item.trusted_partner_status || 'requested'
   const filtered = useMemo(() => filter === 'all' ? items : items.filter(item => normalizedPartnerStatus(item) === filter), [items, filter])
   const filteredIndividuals = useMemo(() => {
     if (individualFilter === 'all') return individualItems
