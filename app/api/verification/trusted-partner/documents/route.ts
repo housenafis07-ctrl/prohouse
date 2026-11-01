@@ -11,6 +11,10 @@ const DOCUMENT_TYPES = new Set([
   'self_employed_certificate',
   'sole_proprietor_certificate',
   'company_charter',
+  'identity_selfie',
+  'identity_passport',
+  'identity_id_front',
+  'identity_id_back',
 ])
 
 export async function GET() {
@@ -28,7 +32,9 @@ export async function GET() {
   ])
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
   if (documentError) return NextResponse.json({ error: documentError.message }, { status: 500 })
-  if (!profile || profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
+  if (!profile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
+  if (isIdentityDocument && profile.account_type !== 'individual') return NextResponse.json({ error: 'INDIVIDUAL_ONLY' }, { status: 403 })
+  if (!isIdentityDocument && profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
 
   const { data: partner, error: partnerError } = await db
     .from('partner_profiles')
@@ -57,13 +63,15 @@ export async function POST(request: Request) {
   const file = form.get('file')
   if (!DOCUMENT_TYPES.has(documentType)) return NextResponse.json({ error: 'INVALID_DOCUMENT_TYPE' }, { status: 400 })
   if (!(file instanceof File)) return NextResponse.json({ error: 'FILE_REQUIRED' }, { status: 400 })
+  const isIdentityDocument = documentType.startsWith('identity_')
+  if (isIdentityDocument && !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return NextResponse.json({ error: 'IDENTITY_IMAGE_REQUIRED' }, { status: 400 })
   if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: 'FILE_TYPE_NOT_ALLOWED' }, { status: 400 })
   if (file.size <= 0 || file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'FILE_SIZE_NOT_ALLOWED' }, { status: 400 })
 
   const admin = serviceClient()
   const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('id,account_type,partner_type')
+    .select('id,account_type,partner_type,trusted_profile,trusted_profile_opt_in')
     .eq('id', user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
@@ -75,7 +83,7 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
     .maybeSingle()
   if (partnerError) return NextResponse.json({ error: partnerError.message }, { status: 500 })
-  if (!partner) return NextResponse.json({ error: 'PARTNER_PROFILE_REQUIRED' }, { status: 400 })
+  if (!isIdentityDocument && !partner) return NextResponse.json({ error: 'PARTNER_PROFILE_REQUIRED' }, { status: 400 })
 
   const extension = file.name.split('.').pop()?.toLowerCase() || 'bin'
   const safeExtension = extension.replace(/[^a-z0-9]/g, '') || 'bin'
@@ -90,7 +98,7 @@ export async function POST(request: Request) {
     .from('partner_verification_documents')
     .insert({
       user_id: user.id,
-      partner_profile_id: partner.id,
+      partner_profile_id: partner?.id || null,
       document_type: documentType,
       file_name: file.name,
       storage_path: storagePath,
@@ -106,11 +114,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 })
   }
 
-  const { error: statusError } = await admin
-    .from('partner_profiles')
-    .update({ trusted_partner_status: 'requested', trusted_partner_rejection_reason: null, updated_at: new Date().toISOString() })
-    .eq('id', partner.id)
-  if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
+  if (isIdentityDocument) {
+    const { error: statusError } = await admin.from('profiles').update({
+      trusted_profile_opt_in: true,
+      trusted_profile_program_status: 'requested',
+      trusted_profile_rejection_reason: null,
+      manual_verification_status: 'pending',
+      updated_at: new Date().toISOString(),
+    }).eq('id', user.id)
+    if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
+  } else {
+    const { error: statusError } = await admin.from('partner_profiles')
+      .update({ trusted_partner_status: 'requested', trusted_partner_rejection_reason: null, updated_at: new Date().toISOString() })
+      .eq('id', partner!.id)
+    if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
+  }
 
   return NextResponse.json({ document }, { status: 201 })
 }
