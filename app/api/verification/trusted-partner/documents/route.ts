@@ -35,7 +35,7 @@ export async function GET() {
   if (!profile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
   if (profile.account_type === 'individual') {
     const { data: trusted, error: trustedError } = await db.from('profiles')
-      .select('trusted_profile_program_status,trusted_profile_rejection_reason,manual_verification_status')
+      .select('trusted_profile_program_status,trusted_profile_rejection_reason')
       .eq('id', user.id).maybeSingle()
     if (trustedError) return NextResponse.json({ error: trustedError.message }, { status: 500 })
     return NextResponse.json({
@@ -122,7 +122,6 @@ export async function POST(request: Request) {
       trusted_profile_opt_in: true,
       trusted_profile_program_status: 'requested',
       trusted_profile_rejection_reason: null,
-      manual_verification_status: 'pending',
       updated_at: new Date().toISOString(),
     }).eq('id', user.id)
     if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
