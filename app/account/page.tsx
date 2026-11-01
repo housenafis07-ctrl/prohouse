@@ -13,6 +13,7 @@ type Profile = {
   full_name: string | null
   trusted_profile?: boolean
   trusted_profile_program_status?: string | null
+  trusted_partner_status?: string | null
   account_type: 'individual' | 'partner' | null
   partner_type: string | null
   company_name: string | null
@@ -369,7 +370,7 @@ export default function AccountPage() {
             </section>
 
             <section className="flex flex-col gap-5 rounded-[26px] border border-slate-200/80 bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-600">{ru ? 'Личный кабинет' : 'Shaxsiy kabinet'}</p><div className="mt-2 flex flex-wrap items-center gap-2"><h2 className="text-2xl font-black tracking-tight sm:text-3xl">{ru ? `Здравствуйте, ${display.full_name || 'пользователь'}! 👋` : `Assalomu alaykum, ${display.full_name || 'foydalanuvchi'}! 👋`}</h2>{profile.trusted_profile && <span title={ru ? 'Личность подтверждена администратором' : 'Shaxs admin tomonidan tasdiqlangan'} className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700 ring-1 ring-emerald-200"><span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>Verified</span>}</div><p className="mt-2 text-sm text-slate-500">{ru ? 'Управляйте объявлениями, бронированиями и профилем в одном месте.' : 'E’lonlar, bronlar va profil sozlamalarini bir joydan boshqaring.'}</p></div>
+              <div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-600">{ru ? 'Личный кабинет' : 'Shaxsiy kabinet'}</p><div className="mt-2 flex flex-wrap items-center gap-2"><h2 className="text-2xl font-black tracking-tight sm:text-3xl">{ru ? `Здравствуйте, ${display.full_name || 'пользователь'}! 👋` : `Assalomu alaykum, ${display.full_name || 'foydalanuvchi'}! 👋`}</h2>{(profile.trusted_profile || profile.trusted_partner_status === 'verified') && <span title={ru ? 'Личность подтверждена администратором' : 'Shaxs admin tomonidan tasdiqlangan'} className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700 ring-1 ring-emerald-200"><span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>Verified</span>}</div><p className="mt-2 text-sm text-slate-500">{ru ? 'Управляйте объявлениями, бронированиями и профилем в одном месте.' : 'E’lonlar, bronlar va profil sozlamalarini bir joydan boshqaring.'}</p></div>
               <Link href="/listings/new" className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700">+ {ru ? 'Разместить объявление' : 'E’lon joylashtirish'}</Link>
             </section>
 
