@@ -25,6 +25,7 @@ type Profile = {
   myid_verified_at: string | null
   payment_verification_status: string | null
   trusted_profile_rejection_reason: string | null
+  manual_verification_status?: string | null
 }
 
 type PartnerDocument = {
@@ -52,6 +53,10 @@ const documentTypes = [
   { value: 'registration_certificate', uz: 'Ro‘yxatdan o‘tganlik guvohnomasi', ru: 'Свидетельство о регистрации' },
   { value: 'other_required_documents', uz: 'Boshqa zaruriy hujjatlar', ru: 'Другие необходимые документы' },
   { value: 'director_id', uz: 'Rahbar pasporti / ID', ru: 'Паспорт / ID руководителя' },
+  { value: 'identity_selfie', uz: 'Shaxsiy fotosurat', ru: 'Личное фото' },
+  { value: 'identity_passport', uz: 'Pasport rasmi', ru: 'Фото паспорта' },
+  { value: 'identity_id_front', uz: 'ID karta — old tomoni', ru: 'ID-карта — лицевая сторона' },
+  { value: 'identity_id_back', uz: 'ID karta — orqa tomoni', ru: 'ID-карта — обратная сторона' },
   { value: 'company_charter', uz: 'Firma ustavi', ru: 'Устав компании' },
 ]
 
@@ -83,17 +88,17 @@ export default function TrustedProfilePage() {
     const db = createClient()
     const { data: { user } } = await db.auth.getUser()
     if (!user) { router.replace('/register'); return }
-    const { data, error: queryError } = await db.from('profiles').select('account_type,partner_type,trusted_profile,trusted_profile_opt_in,trusted_profile_program_status,myid_status,myid_verified_at,payment_verification_status,trusted_profile_rejection_reason').eq('id', user.id).maybeSingle()
+    const { data, error: queryError } = await db.from('profiles').select('account_type,partner_type,trusted_profile,trusted_profile_opt_in,trusted_profile_program_status,myid_status,myid_verified_at,payment_verification_status,trusted_profile_rejection_reason,manual_verification_status').eq('id', user.id).maybeSingle()
     if (queryError) setError(queryError.message)
     const nextProfile = (data ?? { account_type: 'individual', partner_type: null, trusted_profile: false, trusted_profile_opt_in: false, trusted_profile_program_status: 'not_joined', myid_status: 'not_started', myid_verified_at: null, payment_verification_status: null, trusted_profile_rejection_reason: null }) as Profile
     setProfile(nextProfile)
 
-    if (nextProfile.account_type === 'partner') {
+    {
       const response = await fetch('/api/verification/trusted-partner/documents', { cache: 'no-store' })
       if (response.ok) {
         const payload = await response.json()
         setDocuments(Array.isArray(payload.documents) ? payload.documents : [])
-        setPartnerStatus(payload.trustedPartnerStatus || 'not_requested')
+        setPartnerStatus(payload.trustedPartnerStatus || payload.trustedProfileStatus || 'not_requested')
       }
     }
     setLoading(false)
@@ -166,6 +171,7 @@ export default function TrustedProfilePage() {
       <div className="p-6 sm:p-8"><div className="flex flex-col gap-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-wide text-emerald-600">{t('Holat','Статус')}</p><h2 className="mt-1 text-xl font-black text-emerald-900">{metaTitle}</h2><p className="mt-1 text-sm leading-6 text-emerald-800">{metaText}</p></div>{status === 'verified' && <TrustedBadge small label={profile.account_type === 'partner' ? t('Ishonchli hamkor','Доверенный партнёр') : t('Ishonchli profil','Доверенный профиль')}/>}</div>
 
         {profile.account_type === 'individual' ? <>
+          <div className="mt-6 rounded-2xl border border-slate-200 p-5"><h3 className="font-black">{t('Shaxsni hujjat orqali tasdiqlash','Подтверждение личности по документам')}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{t('Selfie va pasport yoki ID karta rasmini yuklang. Admin hujjatlarni qo‘lda tekshiradi.','Загрузите селфи и фото паспорта или ID-карты. Администратор проверит документы вручную.')}</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{['identity_selfie','identity_passport','identity_id_front','identity_id_back'].map(type => { const metaDoc = documentTypes.find(item => item.value === type); const uploaded = documents.find(document => document.document_type === type && document.status !== 'archived'); return <div key={type} className="rounded-xl bg-slate-50 p-4"><p className="text-sm font-black">{ru ? metaDoc?.ru : metaDoc?.uz}</p><p className="mt-1 text-xs text-slate-500">{uploaded ? `${uploaded.file_name} · ${uploaded.status}` : t('Rasm yuklanmagan','Фото не загружено')}</p><label className="mt-3 inline-flex cursor-pointer rounded-xl bg-white px-4 py-2 text-sm font-black text-emerald-700 ring-1 ring-slate-200"><input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void uploadDocument(type, file) }} />{uploaded ? t('Qayta yuklash','Загрузить заново') : t('Rasm tanlash','Выбрать фото')}</label></div>})}</div><p className="mt-3 text-xs text-slate-500">{t('Selfie va pasport yoki ID karta old tomoni majburiy. ID karta tanlansa orqa tomonini ham yuklang.','Обязательны селфи и лицевая сторона паспорта или ID-карты. Для ID-карты загрузите также обратную сторону.')}</p></div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-slate-100 bg-slate-50 p-5"><div className="flex items-center justify-between"><h3 className="font-black">MyID</h3><span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${myIdVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>{myIdVerified ? t('Tasdiqlangan','Подтверждено') : t('Bepul','Бесплатно')}</span></div><p className="mt-2 text-sm leading-6 text-slate-500">{t('Jismoniy shaxs uchun biometrik identifikatsiya orqali bepul tasdiqlash.','Бесплатное подтверждение физического лица с помощью биометрической идентификации.')}</p>{!myIdVerified && <button onClick={startMyId} disabled={working} className="mt-4 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{working ? t('Yuklanmoqda...','Загрузка...') : t('MyID orqali tasdiqlash','Подтвердить через MyID')}</button>}</div></div>
           {!profile.trusted_profile && <div className="mt-6 rounded-2xl border border-slate-200 p-5"><h3 className="font-black">{t('Ishonchli profilga so‘rov','Заявка на доверенный профиль')}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{t('MyID tasdig‘idan keyin bepul ishonchli profil belgisi beriladi.','После подтверждения MyID бесплатный профиль получает знак доверия.')}</p><button onClick={requestIndividual} disabled={working || status === 'requested' || status === 'verification'} className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 disabled:opacity-50">{status === 'requested' || status === 'verification' ? t('Tekshiruv kutilmoqda','Ожидается проверка') : t('Ishonchli profilga qo‘shilish','Подключиться к доверенному профилю')}</button></div>}
         </> : <>
