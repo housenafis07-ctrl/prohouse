@@ -32,7 +32,7 @@ export async function GET() {
     if (profile.account_type === 'partner') {
       const { data: partner } = await db.from('partner_profiles')
         .select('trusted_partner_status,verification_status').eq('user_id', userId).maybeSingle()
-      trustedPartnerStatus = partner?.trusted_partner_status || (partner?.verification_status === 'verified' ? 'verified' : null)
+      trustedPartnerStatus = partner?.trusted_partner_status || null
     }
 
     return NextResponse.json({ profile: { ...profile, trusted_partner_status: trustedPartnerStatus } }, { headers: { 'Cache-Control': 'no-store' } })
