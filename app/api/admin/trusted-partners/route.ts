@@ -11,7 +11,7 @@ export async function GET() {
   const { data, error: queryError } = await db
     .from('partner_profiles')
     .select('id,user_id,partner_type,legal_form,display_name,company_name,verification_status,trusted_partner_status,trusted_partner_rejection_reason,trusted_partner_reviewed_at,updated_at,profiles!inner(full_name,phone,inn,company_name)')
-    .in('trusted_partner_status', ['requested', 'under_review', 'verified', 'rejected'])
+    .or('trusted_partner_status.in.(requested,under_review,verified,rejected),verification_status.eq.verified')
     .order('updated_at', { ascending: false })
   if (queryError) return NextResponse.json({ error: queryError.message }, { status: 500 })
 
