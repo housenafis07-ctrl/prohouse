@@ -36,19 +36,23 @@ export async function GET() {
   if (isIdentityDocument && profile.account_type !== 'individual') return NextResponse.json({ error: 'INDIVIDUAL_ONLY' }, { status: 403 })
   if (!isIdentityDocument && profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
 
-  const { data: partner, error: partnerError } = await db
-    .from('partner_profiles')
-    .select('trusted_partner_status,trusted_partner_rejection_reason')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  if (profile.account_type === 'individual') {
+    const { data: trusted, error: trustedError } = await db.from('profiles')
+      .select('trusted_profile_program_status,trusted_profile_rejection_reason,manual_verification_status')
+      .eq('id', user.id).maybeSingle()
+    if (trustedError) return NextResponse.json({ error: trustedError.message }, { status: 500 })
+    return NextResponse.json({
+      accountType: 'individual',
+      trustedProfileStatus: trusted?.trusted_profile_program_status || 'not_joined',
+      rejectionReason: trusted?.trusted_profile_rejection_reason || null,
+      documents: (documents || []).filter(item => item.document_type.startsWith('identity_')),
+    })
+  }
+  if (profile.account_type !== 'partner') return NextResponse.json({ error: 'INVALID_ACCOUNT_TYPE' }, { status: 403 })
+  const { data: partner, error: partnerError } = await db.from('partner_profiles')
+    .select('trusted_partner_status,trusted_partner_rejection_reason').eq('user_id', user.id).maybeSingle()
   if (partnerError) return NextResponse.json({ error: partnerError.message }, { status: 500 })
-
-  return NextResponse.json({
-    partnerType: profile.partner_type,
-    trustedPartnerStatus: partner?.trusted_partner_status || 'not_requested',
-    rejectionReason: partner?.trusted_partner_rejection_reason || null,
-    documents: documents || [],
-  })
+  return NextResponse.json({ partnerType: profile.partner_type, trustedPartnerStatus: partner?.trusted_partner_status || 'not_requested', rejectionReason: partner?.trusted_partner_rejection_reason || null, documents: documents || [] })
 }
 
 export async function POST(request: Request) {
@@ -75,7 +79,7 @@ export async function POST(request: Request) {
     .eq('id', user.id)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
-  if (!profile || profile.account_type !== 'partner') return NextResponse.json({ error: 'PARTNER_ONLY' }, { status: 403 })
+  if (!profile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
 
   const { data: partner, error: partnerError } = await admin
     .from('partner_profiles')
