@@ -130,8 +130,6 @@ const PAIRS: Pair[] = [
   ['kun', 'день'],
   ['oy', 'месяц'],
   ['so‘m', 'сум'],
-  ['O‘z / Ru', 'Ru / O‘z'],
-  ['Ru / O‘z', 'O‘z / Ru'],
   ['Hamkorlar uchun', 'Партнёрам'],
   ['Qayta aloqa', 'Обратная связь'],
   ['Shikoyat va takliflar', 'Жалобы и предложения'],
@@ -193,6 +191,11 @@ function translateMoneyLabel(value: string, lang: Lang) {
 }
 
 function translateText(value: string, lang: Lang) {
+  // Language switch labels describe the control, not translatable page content.
+  // Translating them in both directions causes the MutationObserver to flip
+  // the button text repeatedly (O‘z / Ru <-> Ru / O‘z).
+  if (value.trim() === 'O‘z / Ru' || value.trim() === 'Ru / O‘z') return value
+
   const money = translateMoneyLabel(value, lang)
   if (money !== null) return money
 
