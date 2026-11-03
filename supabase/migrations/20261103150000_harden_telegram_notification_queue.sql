@@ -26,12 +26,12 @@ as $$
       and q.attempts < 8
       and (q.locked_until is null or q.locked_until < now())
     order by q.created_at asc
-    limit greatest(1, least(coalesce(p_limit, 50), 100))
+    limit greatest(1, least(coalesce(p_limit, 20), 20))
     for update skip locked
   ),
   claimed as (
     update public.telegram_notification_queue q
-    set locked_until = now() + interval '2 minutes'
+    set locked_until = now() + interval '10 minutes'
     from candidates c
     where q.id = c.id
     returning q.id, q.profile_id, q.message, q.attempts
