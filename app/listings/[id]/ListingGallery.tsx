@@ -76,7 +76,7 @@ const rentalUiCss = `
   }
 `
 
-export default function ListingGallery({ images, title }: { images: ListingImage[]; title: string }) {
+export default function ListingGallery({ images, title, favorite = false, favoriteBusy = false, onToggleFavorite }: { images: ListingImage[]; title: string; favorite?: boolean; favoriteBusy?: boolean; onToggleFavorite?: () => void }) {
   const [activeImage, setActiveImage] = useState(0)
   const [lightbox, setLightbox] = useState(false)
   const [touchStart, setTouchStart] = useState<number | null>(null)
@@ -123,7 +123,7 @@ export default function ListingGallery({ images, title }: { images: ListingImage
         <img src={imageSrc(current, safeIndex)} alt={`${title} — ${safeIndex + 1}-rasm`} title={title} loading="eager" fetchPriority="high" decoding="async" draggable={false} onError={() => void resolveSigned(current, safeIndex)} className="h-full w-full object-cover" />
         {resolving[safeIndex] && <div className="absolute inset-0 flex items-center justify-center bg-slate-100/80 text-sm font-semibold text-slate-500">Rasm yuklanmoqda...</div>}
         {images.length > 1 && <><button type="button" aria-label="Oldingi rasm" onClick={event => { event.stopPropagation(); previousImage() }} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl font-black shadow-lg sm:left-4 sm:px-4 sm:py-3">‹</button><button type="button" aria-label="Keyingi rasm" onClick={event => { event.stopPropagation(); nextImage() }} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-xl font-black shadow-lg sm:right-4 sm:px-4 sm:py-3">›</button><div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/65 px-3 py-1.5 text-xs font-bold text-white">{safeIndex + 1} / {images.length}</div></>}
-        <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white">↗ Kattalashtirish</div>
+        {onToggleFavorite && <button type="button" aria-label={favorite ? 'Saqlanganlardan olib tashlash' : 'Saqlash'} title={favorite ? 'Saqlanganlardan olib tashlash' : 'Saqlash'} aria-pressed={favorite} disabled={favoriteBusy} onClick={event => { event.stopPropagation(); onToggleFavorite() }} className={`absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full bg-white/95 text-2xl shadow-lg transition hover:scale-105 disabled:cursor-wait disabled:opacity-60 ${favorite ? 'text-rose-600' : 'text-slate-600'}`}>{favorite ? '♥' : '♡'}</button>}<div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white">↗ Kattalashtirish</div>
       </div>
       {images.length > 1 && <div className="flex gap-2 overflow-x-auto border-t border-slate-200 bg-white p-3">{images.map((image, index) => <button key={`${image.image_url}-${index}`} type="button" onClick={() => setActiveImage(index)} aria-label={`${title} — ${index + 1}-rasm`} className={`h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 ${safeIndex === index ? 'border-emerald-500' : 'border-transparent'}`}><img src={imageSrc(image, index)} alt={`${title} — ${index + 1}-rasm`} loading="lazy" decoding="async" draggable={false} onError={() => void resolveSigned(image, index)} className="h-full w-full object-cover" /></button>)}</div>}
     </div>
