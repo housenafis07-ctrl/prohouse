@@ -101,7 +101,11 @@ async function sendListingShare(chatId: string | number, listingId: string) {
 
 export async function POST(request: NextRequest) {
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET
-  if (expectedSecret && request.headers.get('x-telegram-bot-api-secret-token') !== expectedSecret) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!expectedSecret) {
+    console.error('[Telegram webhook] TELEGRAM_WEBHOOK_SECRET is not configured')
+    return NextResponse.json({ error: 'Webhook is not configured' }, { status: 503 })
+  }
+  if (request.headers.get('x-telegram-bot-api-secret-token') !== expectedSecret) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   try {
     const update = (await request.json()) as TelegramUpdate
     const message = update.message; const text = String(message?.text || '').trim(); const chatId = message?.chat?.id
