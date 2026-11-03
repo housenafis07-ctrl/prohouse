@@ -36,12 +36,7 @@ export async function deliverPendingTelegramNotifications(db: SupabaseClient, li
     console.warn('[Telegram notification] TELEGRAM_BOT_TOKEN is not configured')
     return { sent: 0, failed: 0 }
   }
-  const { data: queue, error } = await db.from('telegram_notification_queue')
-    .select('id,profile_id,message,attempts')
-    .is('sent_at', null)
-    .lt('attempts', 8)
-    .order('created_at', { ascending: true })
-    .limit(limit)
+  const { data: queue, error } = await db.rpc('claim_telegram_notification_queue', { p_limit: limit })
   if (error) {
     console.error('[Telegram notification] Queue read failed', error)
     return { sent: 0, failed: 1 }
@@ -55,7 +50,8 @@ export async function deliverPendingTelegramNotifications(db: SupabaseClient, li
       await db.from('telegram_notification_queue').update({
         attempts: Number(item.attempts || 0) + 1,
         last_error: linkError?.message || 'Telegram account not linked',
-      }).eq('id', item.id)
+        locked_until: null,
+      }).eq('id', item.id).is('sent_at', null)
       failed++
       continue
     }
@@ -69,7 +65,7 @@ export async function deliverPendingTelegramNotifications(db: SupabaseClient, li
       const result = await response.json()
       if (!response.ok || !result.ok) throw new Error(result.description || 'Telegram sendMessage failed')
       const { error: markError } = await db.from('telegram_notification_queue')
-        .update({ sent_at: new Date().toISOString(), attempts: Number(item.attempts || 0) + 1, last_error: null })
+        .update({ sent_at: new Date().toISOString(), attempts: Number(item.attempts || 0) + 1, last_error: null, locked_until: null })
         .eq('id', item.id).is('sent_at', null)
       if (markError) throw markError
       sent++
@@ -77,6 +73,7 @@ export async function deliverPendingTelegramNotifications(db: SupabaseClient, li
       await db.from('telegram_notification_queue').update({
         attempts: Number(item.attempts || 0) + 1,
         last_error: e instanceof Error ? e.message.slice(0, 1000) : 'Telegram delivery failed',
+        locked_until: null,
       }).eq('id', item.id).is('sent_at', null)
       failed++
     }
