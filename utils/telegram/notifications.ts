@@ -28,6 +28,11 @@ export async function queueTelegramNotification(
   }
 }
 
+function getTelegramRetryAt(attempts: number) {
+  const delayMs = Math.min(60 * 60 * 1000, 2 ** Math.max(1, attempts) * 60 * 1000)
+  return new Date(Date.now() + delayMs).toISOString()
+}
+
 /**
  * Best-effort delivery. The database lease prevents concurrent workers from
  * claiming the same row. A successful Telegram send is acknowledged separately:
@@ -63,7 +68,7 @@ export async function deliverPendingTelegramNotifications(db: SupabaseClient, li
         .update({
           attempts: Number(item.attempts || 0) + 1,
           last_error: linkError?.message || 'Telegram account not linked',
-          locked_until: null,
+          locked_until: getTelegramRetryAt(Number(item.attempts || 0) + 1),
         })
         .eq('id', item.id)
         .is('sent_at', null)
@@ -93,7 +98,7 @@ export async function deliverPendingTelegramNotifications(db: SupabaseClient, li
         .update({
           attempts: Number(item.attempts || 0) + 1,
           last_error: sendError.message.slice(0, 1000),
-          locked_until: null,
+          locked_until: getTelegramRetryAt(Number(item.attempts || 0) + 1),
         })
         .eq('id', item.id)
         .is('sent_at', null)
