@@ -334,6 +334,7 @@ export default function AccountPage() {
             <div className="space-y-1">{mainLinks.map((item) => <MenuLink key={item.href} href={item.href} active={item.href === '/account'} icon={item.icon}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
             <div className="my-4 border-t border-slate-100" />
             <div className="space-y-1">{sellerLinks.map((item) => <MenuLink key={item.href} href={item.href} icon={item.icon} onClick={item.href === '/realtors/cabinet' ? openRealtorCabinet : undefined}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
+            {isPartner && <div className="mt-1"><MenuLink href="/account/developer" icon="🏢">{ru ? 'Кабинет девелопера' : 'Developer kabineti'}</MenuLink></div>}
           </nav>
           <div className="border-t border-slate-100 p-3">
             <button type="button" onClick={() => setLang(ru ? 'uz' : 'ru')} className="mb-2 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"><span>{ru ? 'Язык' : 'Til'}</span><span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px]">{ru ? 'O‘z' : 'Ru'}</span></button>
