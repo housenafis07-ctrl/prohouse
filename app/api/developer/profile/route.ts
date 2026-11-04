@@ -119,3 +119,49 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ developer }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
 }
+
+export async function PUT(request: Request) {
+  const userId = await getSignedUserId()
+  if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
+
+  const developerName = typeof body.developer_name === 'string' ? body.developer_name.trim() : ''
+  const description = typeof body.description === 'string' ? body.description.trim() : ''
+  const website = typeof body.website === 'string' ? body.website.trim() : ''
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+  if (developerName.length < 2 || developerName.length > 160) {
+    return NextResponse.json({ error: 'COMPANY_NAME_INVALID' }, { status: 400 })
+  }
+  if (description.length > 4000 || website.length > 240 || phone.length > 40) {
+    return NextResponse.json({ error: 'FIELD_TOO_LONG' }, { status: 400 })
+  }
+  if (website && !/^https?:\/\//i.test(website)) {
+    return NextResponse.json({ error: 'WEBSITE_MUST_INCLUDE_PROTOCOL' }, { status: 400 })
+  }
+
+  const db = serviceClient()
+  const { data: partner, error: partnerError } = await db.from('partner_profiles')
+    .select('id').eq('user_id', userId).maybeSingle()
+  if (partnerError) return NextResponse.json({ error: 'PARTNER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
+  if (!partner) return NextResponse.json({ error: 'PARTNER_PROFILE_REQUIRED' }, { status: 403 })
+
+  const { data: existing, error: existingError } = await db.from('developer_profiles')
+    .select('id,user_id').eq('partner_profile_id', partner.id).maybeSingle()
+  if (existingError) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
+  if (!existing) return NextResponse.json({ error: 'DEVELOPER_PROFILE_REQUIRED' }, { status: 404 })
+  if (existing.user_id && existing.user_id !== userId) {
+    return NextResponse.json({ error: 'DEVELOPER_PROFILE_ACCESS_DENIED' }, { status: 403 })
+  }
+
+  const { data, error } = await db.from('developer_profiles').update({
+    user_id: existing.user_id || userId,
+    developer_name: developerName,
+    description: description || null,
+    website: website || null,
+    phone: phone || null,
+  }).eq('id', existing.id).select(safeSelect).single()
+  if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_UPDATE_FAILED' }, { status: 500 })
+  return NextResponse.json({ developer: data }, { headers: { 'Cache-Control': 'no-store' } })
+}
