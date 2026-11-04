@@ -27,7 +27,7 @@ const importErrors: Record<string, string> = {
   BUILDING_AND_FILE_REQUIRED: 'Korpus va Excel faylini tanlang.',
   BUILDING_NOT_FOUND: 'Tanlangan korpus topilmadi yoki sizga tegishli emas.',
   FILE_EMPTY: 'Excel fayli bo‘sh.',
-  FILE_TOO_LARGE: 'Fayl hajmi 5 MB dan oshmasligi kerak.',
+  FILE_TOO_LARGE: 'Fayl hajmi 4 MB dan oshmasligi kerak.',
   XLSX_ONLY: 'Faqat .xlsx formatidagi Excel fayli qabul qilinadi.',
   INVALID_XLSX: 'Fayl haqiqiy XLSX hujjati emas.',
   WORKSHEET_NOT_FOUND: 'Excel faylida ko‘rinadigan varaq topilmadi.',
@@ -182,7 +182,7 @@ export default function InventoryPage() {
             </label>
             <button type="button" disabled={importBusy || !importFile || !selectedBuilding} onClick={() => runImport('preview')} className="h-12 rounded-xl bg-slate-900 px-5 text-sm font-black text-white disabled:opacity-50">{importBusy ? tx('Tekshirilmoqda...', 'Проверка...') : tx('Faylni tekshirish', 'Проверить файл')}</button>
           </div>
-          <p className="mt-3 text-xs text-slate-500">{tx('Cheklovlar: XLSX, 5 MB gacha, 500 qatorgacha. Mavjud yoki fayl ichida takrorlangan xonadon raqamlari import qilinmaydi.', 'Ограничения: XLSX, до 5 МБ, до 500 строк. Существующие и повторяющиеся номера квартир не импортируются.')}</p>
+          <p className="mt-3 text-xs text-slate-500">{tx('Cheklovlar: XLSX, 4 MB gacha, 500 qatorgacha. Mavjud yoki fayl ichida takrorlangan xonadon raqamlari import qilinmaydi.', 'Ограничения: XLSX, до 4 МБ, до 500 строк. Существующие и повторяющиеся номера квартир не импортируются.')}</p>
 
           {importResult && <div className="mt-5 rounded-2xl border border-slate-200 p-4">
             <div className="flex flex-wrap gap-4 text-sm">
