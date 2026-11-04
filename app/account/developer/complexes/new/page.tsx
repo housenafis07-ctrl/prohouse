@@ -3,8 +3,13 @@
 import { FormEvent, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import ResidentialComplexMap from '../ResidentialComplexMap'
+
+type MapData = { type: 'FeatureCollection'; features: Array<{ type: 'Feature'; properties: { kind: 'complex' | 'building'; name: string }; geometry: { type: 'Polygon'; coordinates: [number, number][][] } }> }
 
 const messages: Record<string, string> = {
+  MAP_COORDINATES_INVALID: 'Xarita koordinatalarini tekshiring.',
+  MAP_DATA_INVALID: 'Xarita konturi noto‘g‘ri formatda.',
   AUTH_REQUIRED: 'Tizimga qayta kiring.',
   PARTNER_ACCOUNT_REQUIRED: 'Hamkor hisob qaydnomasi talab qilinadi.',
   PARTNER_PROFILE_REQUIRED: 'Avval hamkor profilingizni to‘ldiring.',
@@ -23,6 +28,8 @@ export default function NewComplexPage() {
   const [address, setAddress] = useState('')
   const [description, setDescription] = useState('')
   const [completionYear, setCompletionYear] = useState('')
+  const [mapData, setMapData] = useState<MapData>({ type: 'FeatureCollection', features: [] })
+  const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -37,6 +44,9 @@ export default function NewComplexPage() {
         body: JSON.stringify({
           name, city, district, address, description,
           completion_year: completionYear || null,
+          latitude: mapCenter?.latitude ?? null,
+          longitude: mapCenter?.longitude ?? null,
+          map_data: mapData,
         }),
       })
       const result = await response.json()
@@ -104,7 +114,11 @@ export default function NewComplexPage() {
                 className="w-full rounded-xl border border-slate-200 p-4 outline-none focus:border-emerald-500"
                 placeholder="Majmua, infratuzilma va loyiha xususiyatlari haqida..." />
             </label>
-            {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+            <div className="space-y-2">
+              <div><h2 className="text-sm font-black text-slate-800">Majmua joylashuvi va xarita konturi</h2><p className="mt-1 text-xs leading-5 text-slate-500">Xaritada majmua hududini, keyin esa korpuslarni alohida poligon bilan belgilang. Bu ma’lumotlar majmua kartasida ishlatiladi.</p></div>
+              <ResidentialComplexMap value={mapData} onChange={(next, center) => { setMapData(next); setMapCenter(center) }} />
+            </div>
+                        {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             <button type="submit" disabled={loading}
               className="w-full rounded-xl bg-emerald-600 px-5 py-3.5 font-black text-white hover:bg-emerald-700 disabled:opacity-60">
               {loading ? 'Saqlanmoqda...' : 'Majmuani yaratish'}
