@@ -201,10 +201,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 })
   }
 
-  const { data: existingUnits, error: existingError } = await context.db.from('complex_units')
-    .select('unit_no').eq('building_id', buildingId).not('unit_no', 'is', null)
-  if (existingError) return NextResponse.json({ error: 'EXISTING_UNITS_LOOKUP_FAILED' }, { status: 500 })
-  const existingNumbers = new Set((existingUnits || []).map(item => String(item.unit_no).trim().toLocaleLowerCase()))
+  const existingNumbers = new Set<string>()
+  for (let offset = 0; offset < 100000; offset += 1000) {
+    const { data: existingUnits, error: existingError } = await context.db.from('complex_units')
+      .select('unit_no').eq('building_id', buildingId).not('unit_no', 'is', null)
+      .range(offset, offset + 999)
+    if (existingError) return NextResponse.json({ error: 'EXISTING_UNITS_LOOKUP_FAILED' }, { status: 500 })
+    for (const item of existingUnits || []) existingNumbers.add(String(item.unit_no).trim().toLocaleLowerCase())
+    if (!existingUnits || existingUnits.length < 1000) break
+    if (offset === 99000) return NextResponse.json({ error: 'TOO_MANY_EXISTING_UNITS_TO_VALIDATE' }, { status: 409 })
+  }
   rows.forEach(row => {
     if (row.unit_no && existingNumbers.has(row.unit_no.toLocaleLowerCase())) {
       row.errors.push('Bu xonadon raqami bazada allaqachon mavjud')
