@@ -7,7 +7,7 @@ import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_FILE_BYTES = 5 * 1024 * 1024
+const MAX_FILE_BYTES = 4 * 1024 * 1024
 const MAX_ROWS = 500
 const CURRENCIES = ['USD', 'UZS', 'EUR']
 const REQUIRED_HEADERS = ['unit_no', 'floor', 'rooms', 'area_m2', 'price', 'currency', 'plan_url']
@@ -94,7 +94,7 @@ async function parseImportFile(file: File) {
   const headerMap = new Map<string, number>()
   headerRow.eachCell((cell, column) => {
     const header = cellText(cell.value).toLowerCase().replace(/[\s-]+/g, '_')
-    if (header) headerMap.set(header, column)
+    if (header) { if (headerMap.has(header)) throw new Error('DUPLICATE_HEADER:' + header); headerMap.set(header, column) }
   })
   const missing = REQUIRED_HEADERS.filter(header => !headerMap.has(header))
   if (missing.length) throw new Error('MISSING_COLUMNS:' + missing.join(','))
