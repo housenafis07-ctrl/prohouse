@@ -66,14 +66,23 @@ export async function POST(request: Request) {
   const district = typeof body.district === 'string' ? body.district.trim() : ''
   const address = typeof body.address === 'string' ? body.address.trim() : ''
   const description = typeof body.description === 'string' ? body.description.trim() : ''
-  const completionYear = body.completion_year === '' || body.completion_year == null ? null : Number(body.completion_year)\n  const latitude = body.latitude == null ? null : Number(body.latitude)\n  const longitude = body.longitude == null ? null : Number(body.longitude)\n  const mapData = body.map_data && typeof body.map_data === 'object' ? body.map_data : { type: 'FeatureCollection', features: [] }
+  const completionYear = body.completion_year === '' || body.completion_year == null ? null : Number(body.completion_year)
+  const latitude = body.latitude == null ? null : Number(body.latitude)
+  const longitude = body.longitude == null ? null : Number(body.longitude)
+  const mapData = body.map_data && typeof body.map_data === 'object' ? body.map_data : { type: 'FeatureCollection', features: [] }
 
   if (name.length < 2 || name.length > 180) return NextResponse.json({ error: 'COMPLEX_NAME_INVALID' }, { status: 400 })
   if (!city || city.length > 120) return NextResponse.json({ error: 'CITY_REQUIRED' }, { status: 400 })
   if (district.length > 120 || address.length > 500 || description.length > 8000) {
     return NextResponse.json({ error: 'FIELD_TOO_LONG' }, { status: 400 })
   }
-  if ((latitude === null) !== (longitude === null) || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) {\n    return NextResponse.json({ error: 'MAP_COORDINATES_INVALID' }, { status: 400 })\n  }\n  if (mapData.type !== 'FeatureCollection' || !Array.isArray(mapData.features) || mapData.features.length > 100) {\n    return NextResponse.json({ error: 'MAP_DATA_INVALID' }, { status: 400 })\n  }\n  const currentYear = new Date().getFullYear()
+  if ((latitude === null) !== (longitude === null) || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) {
+    return NextResponse.json({ error: 'MAP_COORDINATES_INVALID' }, { status: 400 })
+  }
+  if (mapData.type !== 'FeatureCollection' || !Array.isArray(mapData.features) || mapData.features.length > 100) {
+    return NextResponse.json({ error: 'MAP_DATA_INVALID' }, { status: 400 })
+  }
+  const currentYear = new Date().getFullYear()
   if (completionYear !== null && (!Number.isInteger(completionYear) || completionYear < currentYear - 5 || completionYear > currentYear + 30)) {
     return NextResponse.json({ error: 'COMPLETION_YEAR_INVALID' }, { status: 400 })
   }
