@@ -45,7 +45,7 @@ export default function AccountNavigation() {
     addListing: ru ? '+ Разместить объявление' : '+ E’lon joylashtirish', myListings: ru ? 'Мои объявления' : 'Mening e’lonlarim',
     bookings: ru ? 'Мои бронирования' : 'Mening bronlarim', messages: ru ? '💬 Сообщения' : '💬 Xabarlar',
     trusted: ru ? '✓ Надёжный профиль' : '✓ Ishonchli profil', promotion: ru ? '★ Продвижение объявления' : '★ E’lonni ilgari surish',
-    company: ru ? '🏢 Профиль компании' : '🏢 Firma profili', wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
+    company: ru ? '🏢 Профиль компании' : '🏢 Firma profili', developer: ru ? '🏗️ Кабинет девелопера' : '🏗️ Developer kabineti', wallet: ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar',
     settings: ru ? '⚙️ Настройки' : '⚙️ Sozlamalar',
     switchLanguage: ru ? '🌐 Язык' : '🌐 Til', menu: ru ? 'Меню' : 'Menyu',
     close: ru ? 'Закрыть меню' : 'Menyuni yopish', logout: ru ? '🚪 Выйти' : '🚪 Chiqish',
@@ -64,7 +64,7 @@ export default function AccountNavigation() {
   const sellerItems: NavItem[] = [
     { href: '/account/trusted-profile', label: text.trusted, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
-    ...(isPartner ? [{ href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' }] : []),
+    ...(isPartner ? [{ href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' }, { href: '/account/developer', label: text.developer, className: 'bg-emerald-50 text-emerald-700' }] : []),
     { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
   ]
 
@@ -77,7 +77,7 @@ export default function AccountNavigation() {
     { href: '/chat', label: text.messages, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/trusted-profile', label: text.trusted, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
-    { href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' },
+    ...(isPartner ? [{ href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' }, { href: '/account/developer', label: text.developer, className: 'bg-emerald-50 text-emerald-700' }] : []),
     { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account', label: text.settings, className: 'bg-slate-100 text-slate-700' },
   ]
