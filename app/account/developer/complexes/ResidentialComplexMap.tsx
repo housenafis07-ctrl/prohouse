@@ -36,6 +36,12 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
   const draft = useRef<Position[]>([])
   const data = useRef<MapData>(value || empty)
   const [mode, setMode] = useState<Mode>('complex')
+  const modeRef = useRef<Mode>('complex')
+  const categoryRef = useRef('school')
+  const nameRef = useRef('')
+  modeRef.current = mode
+  categoryRef.current = category
+  nameRef.current = name
   const [points, setPoints] = useState<Position[]>([])
   const [ready, setReady] = useState(false)
   const [message, setMessage] = useState('Majmua hududini chizish uchun xaritada kamida 3 nuqtani belgilang.')
@@ -110,15 +116,15 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
         })
         m.on('click', (event: any) => {
           const point: Position = [event.lngLat.lng, event.lngLat.lat]
-          if (mode === 'select') {
+          if (modeRef.current === 'select') {
             selectExistingBuilding(event.point, point)
             return
           }
-          if (mode === 'infrastructure') {
-            const item = categories.find(x => x.value === category)
+          if (modeRef.current === 'infrastructure') {
+            const item = categories.find(x => x.value === categoryRef.current)
             const feature: MapFeature = {
               type: 'Feature',
-              properties: { kind: 'infrastructure', category, name: name.trim() || item?.label || 'Infratuzilma' },
+              properties: { kind: 'infrastructure', category: categoryRef.current, name: nameRef.current.trim() || item?.label || 'Infratuzilma' },
               geometry: { type: 'Point', coordinates: point },
             }
             const next = { type: 'FeatureCollection' as const, features: [...data.current.features, feature] }
@@ -195,10 +201,10 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
       : { type: 'Polygon', coordinates: candidate.geometry.coordinates[0] }
     const feature: MapFeature = {
       type: 'Feature',
-      properties: { kind: 'building', name: name.trim() || p.name || 'Xaritadan tanlangan korpus', height, source: parsedHeight > 0 ? 'map-height' : 'estimated-height' },
+      properties: { kind: 'building', name: nameRef.current.trim() || p.name || 'Xaritadan tanlangan korpus', height, source: parsedHeight > 0 ? 'map-height' : 'estimated-height' },
       geometry,
     }
-    const next = { type: 'FeatureCollection' as const, features: [...data.current.features.filter(x => x.properties.kind !== 'complex' || true), feature] }
+    const next = { type: 'FeatureCollection' as const, features: [...data.current.features, feature] }
     data.current = next
     m.getSource('developer-polygons')?.setData(next)
     onChange(next, { latitude: click[1], longitude: click[0] })
