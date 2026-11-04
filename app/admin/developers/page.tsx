@@ -108,7 +108,7 @@ export default function DeveloperApplicationsPage() {
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
       {loading ? <div className="mt-6 rounded-2xl bg-white p-10 text-center">{t('Yuklanmoqda...', 'Загрузка...')}</div> : filtered.length === 0 ? <div className="mt-6 rounded-2xl bg-white p-10 text-center text-slate-500">{t('Bu bo‘limda arizalar yo‘q.', 'Заявок в этом разделе нет.')}</div> : <div className="mt-5 space-y-4">
         {filtered.map(item => {
-          const review = item.metadata?.admin_review as { reason?: string | null; reviewed_at?: string } | undefined
+          const reviewMeta = item.metadata?.admin_review as { reason?: string | null; reviewed_at?: string } | undefined
           return <article key={item.id} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -125,7 +125,7 @@ export default function DeveloperApplicationsPage() {
               <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-400">{t('Veb-sayt', 'Сайт')}</p>{item.website ? <a href={item.website} target="_blank" rel="noreferrer" className="mt-1 block break-all font-bold text-emerald-700">{item.website}</a> : '—'}</div>
               <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-400">{t('Aloqa telefoni', 'Телефон')}</p><p className="mt-1 font-bold">{item.phone || item.applicant?.phone || '—'}</p></div>
             </div>
-            {review?.reason && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700"><b>{t('Rad etish sababi:', 'Причина отказа:')}</b> {review.reason}</p>}
+            {reviewMeta?.reason && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700"><b>{t('Rad etish sababi:', 'Причина отказа:')}</b> {reviewMeta.reason}</p>}
             <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
               {item.verification_status !== 'pending' && <button disabled={busy === item.id} onClick={() => void review(item, 'pending')} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold">{t('Tekshiruvga qaytarish', 'Вернуть на проверку')}</button>}
               {item.verification_status !== 'verified' && <button disabled={busy === item.id} onClick={() => void review(item, 'verified')} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{t('Tasdiqlash', 'Подтвердить')}</button>}
