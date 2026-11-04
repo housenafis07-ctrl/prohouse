@@ -11,6 +11,7 @@ export async function GET() {
   const { data: complexes, error: queryError } = await db
     .from('residential_complexes')
     .select('id,developer_id,name,slug,city,district,address,description,status,completion_year,total_buildings,total_units,is_verified,moderation_status,moderation_note,moderated_at,moderated_by,latitude,longitude,map_data,created_at,updated_at')
+    .neq('moderation_status', 'draft')
     .order('created_at', { ascending: false })
   if (queryError) return NextResponse.json({ error: 'COMPLEXES_LOAD_FAILED' }, { status: 500 })
 
@@ -61,11 +62,12 @@ export async function PATCH(request: NextRequest) {
   const db = serviceClient()
   const { data: existing, error: lookupError } = await db
     .from('residential_complexes')
-    .select('id')
+    .select('id,moderation_status')
     .eq('id', id)
     .maybeSingle()
   if (lookupError) return NextResponse.json({ error: 'COMPLEX_LOOKUP_FAILED' }, { status: 500 })
   if (!existing) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
+  if (existing.moderation_status === 'draft') return NextResponse.json({ error: 'COMPLEX_NOT_SUBMITTED' }, { status: 409 })
 
   const now = new Date().toISOString()
   const approved = status === 'approved'
