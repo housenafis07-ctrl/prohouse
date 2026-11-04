@@ -65,13 +65,39 @@ export async function PATCH(request: Request) {
   if ('error' in context) return context.error
   const body = await request.json().catch(() => null)
   const id = typeof body?.id === 'string' ? body.id : ''
-  const status = typeof body?.status === 'string' ? body.status : ''
-  if (!id || !unitStatuses.includes(status)) return NextResponse.json({ error: 'INVALID_UNIT_UPDATE' }, { status: 400 })
+  if (!id || !body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_UNIT_UPDATE' }, { status: 400 })
+
+  const update: Record<string, unknown> = {}
+  if (Object.prototype.hasOwnProperty.call(body, 'status')) {
+    if (typeof body.status !== 'string' || !unitStatuses.includes(body.status)) return NextResponse.json({ error: 'UNIT_STATUS_INVALID' }, { status: 400 })
+    update.status = body.status
+  }
+
+  const editingFields = ['unit_no', 'floor', 'rooms', 'area_m2', 'price', 'currency']
+  const isEditing = editingFields.some(field => Object.prototype.hasOwnProperty.call(body, field))
+  if (isEditing) {
+    const unitNo = typeof body.unit_no === 'string' ? body.unit_no.trim() : ''
+    const floor = body.floor === '' || body.floor == null ? null : Number(body.floor)
+    const rooms = body.rooms === '' || body.rooms == null ? null : Number(body.rooms)
+    const area = body.area_m2 === '' || body.area_m2 == null ? null : Number(body.area_m2)
+    const price = body.price === '' || body.price == null ? null : Number(body.price)
+    const currency = typeof body.currency === 'string' ? body.currency : ''
+    if (unitNo.length > 40) return NextResponse.json({ error: 'UNIT_NUMBER_INVALID' }, { status: 400 })
+    if (floor !== null && (!Number.isInteger(floor) || floor < 0 || floor > 250)) return NextResponse.json({ error: 'FLOOR_INVALID' }, { status: 400 })
+    if (rooms !== null && (!Number.isFinite(rooms) || rooms <= 0 || rooms > 20)) return NextResponse.json({ error: 'ROOMS_INVALID' }, { status: 400 })
+    if (area !== null && (!Number.isFinite(area) || area <= 0 || area > 10000)) return NextResponse.json({ error: 'AREA_INVALID' }, { status: 400 })
+    if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000000)) return NextResponse.json({ error: 'PRICE_INVALID' }, { status: 400 })
+    if (!['USD', 'UZS', 'EUR'].includes(currency)) return NextResponse.json({ error: 'CURRENCY_INVALID' }, { status: 400 })
+    Object.assign(update, { unit_no: unitNo || null, floor, rooms, area_m2: area, price, currency })
+  }
+  if (!Object.keys(update).length) return NextResponse.json({ error: 'NO_UNIT_FIELDS_TO_UPDATE' }, { status: 400 })
+
   const owned = await getOwnedBuildingIds(context.db, context.developer.id)
   if ('error' in owned) return NextResponse.json({ error: 'INVENTORY_OWNERSHIP_CHECK_FAILED' }, { status: 500 })
   if (!owned.ids.length) return NextResponse.json({ error: 'UNIT_NOT_FOUND' }, { status: 404 })
-  const { data, error } = await context.db.from('complex_units').update({ status })
-    .eq('id', id).in('building_id', owned.ids).select('id,status').maybeSingle()
+  const { data, error } = await context.db.from('complex_units').update(update)
+    .eq('id', id).in('building_id', owned.ids)
+    .select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id').maybeSingle()
   if (error) return NextResponse.json({ error: 'UNIT_UPDATE_FAILED' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'UNIT_NOT_FOUND' }, { status: 404 })
   return NextResponse.json({ unit: data }, { headers: { 'Cache-Control': 'no-store' } })
