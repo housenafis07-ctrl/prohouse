@@ -79,21 +79,23 @@ export async function POST(request: Request) {
 
   const { data: existing, error: existingError } = await db
     .from('developer_profiles')
-    .select(safeSelect)
+    .select('id,user_id')
     .eq('partner_profile_id', partner.id)
     .maybeSingle()
 
   if (existingError) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
   if (existing) {
-    // The profile is reached through the caller's own partner_profiles row;
-    // partner_profile_id is unique, so this lookup cannot select another partner's company.
+    // partner_profile_id is unique and was resolved through the signed-in user's own partner profile.
+    if (existing.user_id && existing.user_id !== userId) {
+      return NextResponse.json({ error: 'DEVELOPER_PROFILE_ACCESS_DENIED' }, { status: 403 })
+    }
     if (!existing.user_id) {
       const { error: linkError } = await db.from('developer_profiles')
         .update({ user_id: userId })
         .eq('id', existing.id)
       if (linkError) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LINK_FAILED' }, { status: 500 })
     }
-    return NextResponse.json({ developer: existing, alreadyExists: true }, { status: 200 })
+    return NextResponse.json({ developer: { id: existing.id }, alreadyExists: true }, { status: 200 })
   }
 
   const { data: developer, error: insertError } = await db
