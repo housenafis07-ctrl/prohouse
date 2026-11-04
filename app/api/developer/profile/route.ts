@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
-const safeSelect = 'id,developer_name,description,logo_url,website,phone,verification_status,metadata,created_at'
+const safeSelect = 'id,developer_name,description,logo_url,website,phone,verification_status,created_at'
 
 async function getSignedUserId() {
   const cookieStore = await cookies()
@@ -23,13 +23,16 @@ export async function GET() {
 
   if (partnerError) return NextResponse.json({ error: 'PARTNER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
 
-  const query = db.from('developer_profiles').select(safeSelect)
+  const query = db.from('developer_profiles').select(`${safeSelect},metadata`)
   const { data, error } = partner
     ? await query.eq('partner_profile_id', partner.id).maybeSingle()
     : await query.eq('user_id', userId).maybeSingle()
 
   if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
-  return NextResponse.json({ developer: data }, { headers: { 'Cache-Control': 'no-store' } })
+  const adminReview = data?.metadata && typeof data.metadata === 'object' ? (data.metadata as Record<string, any>).admin_review : null
+  const publicReview = adminReview ? { status: adminReview.status, reason: adminReview.reason || null, reviewed_at: adminReview.reviewed_at || null } : null
+  const developer = data ? { ...data, metadata: publicReview ? { admin_review: publicReview } : null } : null
+  return NextResponse.json({ developer }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(request: Request) {
