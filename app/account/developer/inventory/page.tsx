@@ -33,6 +33,7 @@ const importErrors: Record<string, string> = {
   WORKSHEET_NOT_FOUND: 'Excel faylida ko‘rinadigan varaq topilmadi.',
   TOO_MANY_ROWS: 'Bir importda 500 tadan ko‘p xonadon bo‘lmasligi kerak.',
   NO_DATA_ROWS: 'Excel faylida import qilinadigan qator yo‘q.',
+  DUPLICATE_HEADER: 'Excel faylida bir xil ustun sarlavhasi takrorlangan.',
 }
 
 export default function InventoryPage() {
@@ -109,7 +110,7 @@ export default function InventoryPage() {
       const result = await response.json()
       if (!response.ok) {
         const code = String(result.error || 'IMPORT_FAILED')
-        throw new Error(importErrors[code] || (code.startsWith('MISSING_COLUMNS:') ? 'Excel ustunlari yetishmayapti: ' + code.split(':')[1] : 'Excel faylini tekshirishda xatolik yuz berdi.'))
+        throw new Error(importErrors[code] || (code.startsWith('MISSING_COLUMNS:') ? 'Excel ustunlari yetishmayapti: ' + code.split(':')[1] : code.startsWith('DUPLICATE_HEADER:') ? importErrors.DUPLICATE_HEADER : 'Excel faylini tekshirishda xatolik yuz berdi.'))
       }
       setImportResult(result)
       if (result.imported) {
