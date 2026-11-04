@@ -75,3 +75,46 @@ export async function PATCH(request: Request) {
   if (!data) return NextResponse.json({ error: 'UNIT_NOT_FOUND' }, { status: 404 })
   return NextResponse.json({ unit: data }, { headers: { 'Cache-Control': 'no-store' } })
 }
+
+export async function POST(request: Request) {
+  const context = await getDeveloper()
+  if ('error' in context) return context.error
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
+
+  const buildingId = typeof body.building_id === 'string' ? body.building_id : ''
+  const unitNo = typeof body.unit_no === 'string' ? body.unit_no.trim() : ''
+  const floor = body.floor === '' || body.floor == null ? null : Number(body.floor)
+  const rooms = body.rooms === '' || body.rooms == null ? null : Number(body.rooms)
+  const area = body.area_m2 === '' || body.area_m2 == null ? null : Number(body.area_m2)
+  const price = body.price === '' || body.price == null ? null : Number(body.price)
+  const currency = typeof body.currency === 'string' ? body.currency : 'USD'
+  const planUrl = typeof body.plan_url === 'string' ? body.plan_url.trim() : ''
+
+  if (!buildingId) return NextResponse.json({ error: 'BUILDING_REQUIRED' }, { status: 400 })
+  if (unitNo.length > 40) return NextResponse.json({ error: 'UNIT_NUMBER_INVALID' }, { status: 400 })
+  if (floor !== null && (!Number.isInteger(floor) || floor < 0 || floor > 250)) return NextResponse.json({ error: 'FLOOR_INVALID' }, { status: 400 })
+  if (rooms !== null && (!Number.isFinite(rooms) || rooms <= 0 || rooms > 20)) return NextResponse.json({ error: 'ROOMS_INVALID' }, { status: 400 })
+  if (area !== null && (!Number.isFinite(area) || area <= 0 || area > 10000)) return NextResponse.json({ error: 'AREA_INVALID' }, { status: 400 })
+  if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000000)) return NextResponse.json({ error: 'PRICE_INVALID' }, { status: 400 })
+  if (!['USD', 'UZS', 'EUR'].includes(currency)) return NextResponse.json({ error: 'CURRENCY_INVALID' }, { status: 400 })
+  if (planUrl && (!/^https?:\/\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
+
+  const owned = await getOwnedBuildingIds(context.db, context.developer.id)
+  if ('error' in owned) return NextResponse.json({ error: 'INVENTORY_OWNERSHIP_CHECK_FAILED' }, { status: 500 })
+  if (!owned.ids.includes(buildingId)) return NextResponse.json({ error: 'BUILDING_NOT_FOUND' }, { status: 404 })
+
+  const { data, error } = await context.db.from('complex_units').insert({
+    building_id: buildingId,
+    unit_no: unitNo || null,
+    floor,
+    rooms,
+    area_m2: area,
+    price,
+    currency,
+    plan_url: planUrl || null,
+    status: 'available',
+  }).select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id').single()
+  if (error) return NextResponse.json({ error: 'UNIT_CREATE_FAILED' }, { status: 500 })
+  return NextResponse.json({ unit: data }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
+}
