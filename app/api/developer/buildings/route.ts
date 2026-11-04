@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   const complexId = new URL(request.url).searchParams.get('complex_id')
   if (!complexId) return NextResponse.json({ error: 'COMPLEX_ID_REQUIRED' }, { status: 400 })
   const { data: complex, error: complexError } = await context.db.from('residential_complexes')
-    .select('id,name').eq('id', complexId).eq('developer_id', context.developer.id).maybeSingle()
+    .select('id,name,map_data').eq('id', complexId).eq('developer_id', context.developer.id).maybeSingle()
   if (complexError) return NextResponse.json({ error: 'COMPLEX_LOOKUP_FAILED' }, { status: 500 })
   if (!complex) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
   const { data, error } = await context.db.from('residential_buildings')
@@ -59,10 +59,22 @@ export async function POST(request: Request) {
   if (unitsTotal !== null && (!Number.isInteger(unitsTotal) || unitsTotal < 0 || unitsTotal > 10000)) return NextResponse.json({ error: 'UNITS_TOTAL_INVALID' }, { status: 400 })
   if (completionDate && !/^\d{4}-\d{2}-\d{2}$/.test(completionDate)) return NextResponse.json({ error: 'COMPLETION_DATE_INVALID' }, { status: 400 })
 
+  const mapFeatureIndex = body.map_feature_index == null || body.map_feature_index === '' ? null : Number(body.map_feature_index)
+  if (mapFeatureIndex !== null && (!Number.isInteger(mapFeatureIndex) || mapFeatureIndex < 0 || mapFeatureIndex > 99)) {
+    return NextResponse.json({ error: 'MAP_FEATURE_INVALID' }, { status: 400 })
+  }
   const { data: complex, error: complexError } = await context.db.from('residential_complexes')
-    .select('id').eq('id', complexId).eq('developer_id', context.developer.id).maybeSingle()
+    .select('id,map_data').eq('id', complexId).eq('developer_id', context.developer.id).maybeSingle()
   if (complexError) return NextResponse.json({ error: 'COMPLEX_LOOKUP_FAILED' }, { status: 500 })
   if (!complex) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
+  const mapData = complex.map_data && typeof complex.map_data === 'object' ? complex.map_data : { type: 'FeatureCollection', features: [] }
+  const features = Array.isArray(mapData.features) ? [...mapData.features] : []
+  if (mapFeatureIndex !== null) {
+    const feature = features[mapFeatureIndex]
+    if (!feature || feature.type !== 'Feature' || feature.properties?.kind !== 'building' || feature.properties?.building_id) {
+      return NextResponse.json({ error: 'MAP_FEATURE_INVALID' }, { status: 400 })
+    }
+  }
 
   const { data, error } = await context.db.from('residential_buildings').insert({
     complex_id: complexId,
@@ -74,5 +86,14 @@ export async function POST(request: Request) {
     status: 'construction',
   }).select('id,name,building_no,floors,units_total,completion_date,status,created_at').single()
   if (error) return NextResponse.json({ error: 'BUILDING_CREATE_FAILED' }, { status: 500 })
+  if (mapFeatureIndex !== null) {
+    features[mapFeatureIndex] = { ...features[mapFeatureIndex], properties: { ...features[mapFeatureIndex].properties, building_id: data.id, building_name: data.name } }
+    const { error: mapError } = await context.db.from('residential_complexes').update({ map_data: { ...mapData, features } })
+      .eq('id', complexId).eq('developer_id', context.developer.id)
+    if (mapError) {
+      await context.db.from('residential_buildings').delete().eq('id', data.id).eq('complex_id', complexId)
+      return NextResponse.json({ error: 'MAP_FEATURE_LINK_FAILED' }, { status: 500 })
+    }
+  }
   return NextResponse.json({ building: data }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
 }
