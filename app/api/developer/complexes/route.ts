@@ -79,7 +79,23 @@ export async function POST(request: Request) {
   if ((latitude === null) !== (longitude === null) || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) {
     return NextResponse.json({ error: 'MAP_COORDINATES_INVALID' }, { status: 400 })
   }
-  if (mapData.type !== 'FeatureCollection' || !Array.isArray(mapData.features) || mapData.features.length > 100) {
+  const validPosition = (position: unknown) =>
+    Array.isArray(position) && position.length >= 2 &&
+    Number.isFinite(Number(position[0])) && Number(position[0]) >= -180 && Number(position[0]) <= 180 &&
+    Number.isFinite(Number(position[1])) && Number(position[1]) >= -90 && Number(position[1]) <= 90
+  const validMapFeature = (feature: any) => {
+    if (!feature || feature.type !== 'Feature' || !feature.properties || typeof feature.properties !== 'object') return false
+    const kind = feature.properties.kind
+    if (!['complex', 'building', 'infrastructure'].includes(kind)) return false
+    if (typeof feature.properties.name !== 'string' || feature.properties.name.length > 160) return false
+    if (feature.geometry?.type === 'Point' && kind === 'infrastructure') return validPosition(feature.geometry.coordinates)
+    if (feature.geometry?.type !== 'Polygon' || !Array.isArray(feature.geometry.coordinates)) return false
+    const rings = feature.geometry.coordinates
+    if (!rings.length || !Array.isArray(rings[0]) || rings[0].length < 4 || rings[0].length > 500) return false
+    return rings.every((ring: unknown) => Array.isArray(ring) && ring.every(validPosition))
+  }
+  if (mapData.type !== 'FeatureCollection' || !Array.isArray(mapData.features) ||
+      mapData.features.length > 100 || !mapData.features.every(validMapFeature)) {
     return NextResponse.json({ error: 'MAP_DATA_INVALID' }, { status: 400 })
   }
   const currentYear = new Date().getFullYear()
