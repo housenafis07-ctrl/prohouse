@@ -5,7 +5,7 @@ import LeadForm from './lead-form'
 
 export default async function ComplexPage({params}:{params:Promise<{slug:string}>}){
  const {slug}=await params; const db=await createClient()
- const {data:complex}=await db.from('residential_complexes').select('*').eq('slug',slug).maybeSingle(); if(!complex) notFound()
+ const {data:complex}=await db.from('residential_complexes').select('*').eq('slug',slug).eq('is_verified',true).maybeSingle(); if(!complex) notFound()
  const {data:developer}=complex.developer_id?await db.from('developer_profiles').select('id,developer_name,verification_status').eq('id',complex.developer_id).maybeSingle():{data:null}
  const {data:buildings}=await db.from('residential_buildings').select('id,name,building_no,floors,units_total,status').eq('complex_id',complex.id).order('name')
  const buildingIds=(buildings||[]).map(b=>b.id); const {data:units}=buildingIds.length?await db.from('complex_units').select('id,building_id,unit_no,floor,rooms,area_m2,price,currency,status,plan_url').in('building_id',buildingIds).neq('status','hidden').order('price',{ascending:true}):{data:[]}
