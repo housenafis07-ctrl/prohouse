@@ -22,12 +22,14 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const { token, secret, webhookUrl } = getConfig()
   if (!token) return NextResponse.json({ ok: false, error: 'TELEGRAM_BOT_TOKEN is not configured' }, { status: 500 })
+  if (!secret) return NextResponse.json({ ok: false, error: 'TELEGRAM_WEBHOOK_SECRET is not configured' }, { status: 503 })
   const setupKey = process.env.TELEGRAM_WEBHOOK_SETUP_KEY
-  if (setupKey && request.headers.get('x-telegram-webhook-setup-key') !== setupKey) {
+  if (!setupKey) return NextResponse.json({ error: 'TELEGRAM_WEBHOOK_SETUP_KEY is not configured' }, { status: 503 })
+  if (request.headers.get('x-telegram-webhook-setup-key') !== setupKey) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const body: Record<string, unknown> = { url: webhookUrl, allowed_updates: ['message'] }
-  if (secret) body.secret_token = secret
+  body.secret_token = secret
   const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
