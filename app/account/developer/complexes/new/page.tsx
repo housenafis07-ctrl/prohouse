@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ResidentialComplexMap from '../ResidentialComplexMap'
 
-type MapData = { type: 'FeatureCollection'; features: Array<{ type: 'Feature'; properties: { kind: 'complex' | 'building'; name: string }; geometry: { type: 'Polygon'; coordinates: [number, number][][] } }> }
+type MapData = { type: 'FeatureCollection'; features: Array<{ type: 'Feature'; properties: { kind: 'complex' | 'building' | 'infrastructure'; name: string; category?: string; height?: number; source?: string }; geometry: { type: 'Polygon' | 'Point'; coordinates: any } }> }
 
 const messages: Record<string, string> = {
   MAP_COORDINATES_INVALID: 'Xarita koordinatalarini tekshiring.',
