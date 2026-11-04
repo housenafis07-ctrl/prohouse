@@ -127,6 +127,8 @@ export async function POST(request: Request) {
     longitude,
     map_data: mapData,
     status: 'planning',
+    moderation_status: 'draft',
+    is_verified: false,
   }).select('id,name,slug,city,district,address,status,completion_year,latitude,longitude,map_data,created_at').single()
 
   if (error) {
