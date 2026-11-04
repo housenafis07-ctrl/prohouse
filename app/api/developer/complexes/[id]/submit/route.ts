@@ -51,9 +51,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!linked) missing.push(`${building.name}: xaritadagi korpus konturini bog‘lash`)
   }
 
-  const { count, error: unitsError } = await db.from('complex_units').select('id', { count: 'exact', head: true }).in('building_id', [...buildingIds])
+  const { data: units, error: unitsError } = await db.from('complex_units').select('id,rooms,area_m2,price').in('building_id', [...buildingIds])
   if (unitsError) return NextResponse.json({ error: 'INVENTORY_LOOKUP_FAILED' }, { status: 500 })
-  if (!count) missing.push('Kamida bitta xonadon inventari (xonalar, maydon va narx ma’lumotlari bilan)')
+  if (!units?.length) missing.push('Kamida bitta xonadon inventari')
+  else if (units.some((unit: any) => unit.rooms == null || unit.area_m2 == null || unit.price == null)) {
+    missing.push('Har bir xonadon uchun xonalar soni, maydon va narx')
+  }
 
   if (missing.length) return NextResponse.json({ error: 'COMPLEX_INCOMPLETE', missing }, { status: 422 })
 
