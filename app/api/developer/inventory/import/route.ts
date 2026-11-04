@@ -85,7 +85,7 @@ async function parseImportFile(file: File) {
   if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error('INVALID_XLSX')
 
   const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.load(bytes as unknown as ExcelJS.Buffer)
+  await workbook.xlsx.load(bytes)
   const sheet = workbook.worksheets.find(item => item.state === 'visible')
   if (!sheet) throw new Error('WORKSHEET_NOT_FOUND')
   if (sheet.rowCount > MAX_ROWS + 1) throw new Error('TOO_MANY_ROWS')
