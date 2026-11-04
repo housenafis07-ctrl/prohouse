@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 
 type Building = { id: string; name: string; building_no: string | null; floors: number | null; units_total: number | null; completion_date: string | null; status: string }
-type Complex = { id: string; name: string }
+type MapFeature = { type: 'Feature'; properties?: { kind?: string; name?: string; building_id?: string }; geometry?: { type?: string } }
+type Complex = { id: string; name: string; map_data?: { features?: MapFeature[] } }
 
 export default function ComplexBuildingsPage({ params }: { params: Promise<{ id: string }> }) {
   const [complexId, setComplexId] = useState('')
@@ -15,6 +16,7 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
   const [floors, setFloors] = useState('')
   const [unitsTotal, setUnitsTotal] = useState('')
   const [completionDate, setCompletionDate] = useState('')
+  const [mapFeatureIndex, setMapFeatureIndex] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -49,12 +51,14 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
           complex_id: complexId, name, building_no: buildingNo,
           floors: floors || null, units_total: unitsTotal || null,
           completion_date: completionDate || null,
+          map_feature_index: mapFeatureIndex || null,
         }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Korpusni yaratib bo‘lmadi')
       setBuildings(current => [...current, result.building])
-      setName(''); setBuildingNo(''); setFloors(''); setUnitsTotal(''); setCompletionDate('')
+      setName(''); setBuildingNo(''); setFloors(''); setUnitsTotal(''); setCompletionDate(''); setMapFeatureIndex('')
+      await load(complexId)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Server bilan bog‘lanib bo‘lmadi')
     } finally {
@@ -92,6 +96,13 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
               </div>
               <label className="block"><span className="mb-2 block text-sm font-bold">Topshirish sanasi</span>
                 <input type="date" value={completionDate} onChange={e => setCompletionDate(e.target.value)} className="h-12 w-full rounded-xl border px-4" />
+              </label>
+              <label className="block"><span className="mb-2 block text-sm font-bold">Xaritadagi korpus konturi</span>
+                <select value={mapFeatureIndex} onChange={e => setMapFeatureIndex(e.target.value)} className="h-12 w-full rounded-xl border bg-white px-4">
+                  <option value="">Konturga bog‘lamaslik</option>
+                  {(complex?.map_data?.features || []).map((feature, index) => feature.properties?.kind === 'building' && !feature.properties?.building_id ? <option key={index} value={index}>{feature.properties.name || `Korpus konturi ${index + 1}`}</option> : null)}
+                </select>
+                <span className="mt-1 block text-xs text-slate-500">Avval majmua xaritasida korpus konturini chizing. So‘ng uni shu yerda tanlab, korpusga bog‘lang.</span>
               </label>
               <button disabled={saving || loading} className="w-full rounded-xl bg-emerald-600 px-5 py-3.5 font-black text-white disabled:opacity-60">
                 {saving ? 'Saqlanmoqda...' : 'Korpusni qo‘shish'}
