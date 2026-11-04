@@ -123,6 +123,9 @@ export async function POST(request: Request) {
     address: address || null,
     description: description || null,
     completion_year: completionYear,
+    latitude,
+    longitude,
+    map_data: mapData,
     status: 'planning',
   }).select('id,name,slug,city,district,address,status,completion_year,latitude,longitude,map_data,created_at').single()
 
