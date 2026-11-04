@@ -69,11 +69,42 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ lead: data }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
-export async function POST(request: Request){
- const body=await request.json().catch(()=>null)
- if(!body?.developer_id || !body?.name || !body?.phone) return NextResponse.json({error:'developer_id, name va phone majburiy'},{status:400})
- const db=await createClient(); const {data:{user}}=await db.auth.getUser()
- const {data,error}=await db.from('developer_lead_requests').insert({developer_id:body.developer_id,complex_id:body.complex_id||null,unit_id:body.unit_id||null,user_id:user?.id||null,name:String(body.name).trim(),phone:String(body.phone).trim(),message:body.message?String(body.message).trim():null,source:body.source||'royalhouse'}).select('id,status,created_at').single()
- if(error) return NextResponse.json({error:error.message},{status:400})
- return NextResponse.json({lead:data},{status:201})
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => null)
+  const developerId = typeof body?.developer_id === 'string' ? body.developer_id : ''
+  const complexId = typeof body?.complex_id === 'string' ? body.complex_id : ''
+  const name = typeof body?.name === 'string' ? body.name.trim() : ''
+  const phone = typeof body?.phone === 'string' ? body.phone.trim() : ''
+  const message = typeof body?.message === 'string' ? body.message.trim() : ''
+  const allowedSources = ['prohouse', 'listing', 'complex', 'unit', 'phone', 'chat']
+  const source = allowedSources.includes(body?.source) ? body.source : 'complex'
+
+  if (!developerId || !complexId || name.length < 2 || name.length > 160 || phone.length < 7 || phone.length > 40 || message.length > 2000) {
+    return NextResponse.json({ error: 'INVALID_LEAD_DATA' }, { status: 400 })
+  }
+
+  const db = await createClient()
+  const { data: complex, error: complexError } = await db.from('residential_complexes')
+    .select('id,developer_id,is_verified')
+    .eq('id', complexId)
+    .eq('developer_id', developerId)
+    .eq('is_verified', true)
+    .maybeSingle()
+  if (complexError) return NextResponse.json({ error: 'COMPLEX_LOOKUP_FAILED' }, { status: 500 })
+  if (!complex) return NextResponse.json({ error: 'COMPLEX_NOT_AVAILABLE' }, { status: 404 })
+
+  const { data: { user } } = await db.auth.getUser()
+  const { data, error } = await db.from('developer_lead_requests').insert({
+    developer_id: developerId,
+    complex_id: complexId,
+    unit_id: typeof body.unit_id === 'string' ? body.unit_id : null,
+    user_id: user?.id || null,
+    name,
+    phone,
+    message: message || null,
+    source,
+  }).select('id,status,created_at').single()
+
+  if (error) return NextResponse.json({ error: 'LEAD_CREATE_FAILED' }, { status: 400 })
+  return NextResponse.json({ lead: data }, { status: 201 })
 }
