@@ -27,7 +27,7 @@ export async function GET() {
     : { data: [], error: null }
   if (buildingsError) return NextResponse.json({ error: 'COMPLEX_BUILDINGS_LOAD_FAILED' }, { status: 500 })
 
-  const buildingMap = new Map<string, typeof buildings>()
+  const buildingMap = new Map<string, Array<{ id: string; complex_id: string; name: string; building_no: string | null; floors: number | null; units_total: number | null }>>()
   for (const building of buildings || []) {
     const current = buildingMap.get(building.complex_id) || []
     current.push(building)
@@ -37,7 +37,7 @@ export async function GET() {
   return NextResponse.json({
     complexes: (complexes || []).map(complex => ({
       ...complex,
-      developer: developerMap.get(complex.developer_id) || null,
+      developer: complex.developer_id ? developerMap.get(complex.developer_id) || null : null,
       buildings: buildingMap.get(complex.id) || [],
     })),
   }, { headers: { 'Cache-Control': 'no-store' } })
