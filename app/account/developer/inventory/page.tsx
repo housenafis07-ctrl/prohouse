@@ -56,6 +56,9 @@ export default function InventoryPage() {
   const [importBusy, setImportBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [editingUnit, setEditingUnit] = useState<Unit | null>(null)
+  const [editDraft, setEditDraft] = useState({ unit_no: '', floor: '', rooms: '', area_m2: '', price: '', currency: 'USD' })
+  const [editSaving, setEditSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function refreshInventory() {
@@ -123,6 +126,42 @@ export default function InventoryPage() {
       setError(e instanceof Error ? e.message : 'Import bajarilmadi.')
     } finally {
       setImportBusy(false)
+    }
+  }
+
+
+  function startEdit(unit: Unit) {
+    setEditingUnit(unit)
+    setEditDraft({
+      unit_no: unit.unit_no || '',
+      floor: unit.floor == null ? '' : String(unit.floor),
+      rooms: unit.rooms == null ? '' : String(unit.rooms),
+      area_m2: unit.area_m2 == null ? '' : String(unit.area_m2),
+      price: unit.price == null ? '' : String(unit.price),
+      currency: unit.currency || 'USD',
+    })
+    setError('')
+  }
+
+  async function saveUnitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingUnit) return
+    setEditSaving(true)
+    setError('')
+    try {
+      const response = await fetch('/api/developer/inventory', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingUnit.id, ...editDraft }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || tx('Xonadon ma’lumotlarini saqlab bo‘lmadi.', 'Не удалось сохранить данные квартиры.'))
+      setUnits(current => current.map(unit => unit.id === editingUnit.id ? { ...unit, ...result.unit } : unit))
+      setEditingUnit(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : tx('Xonadonni yangilashda xatolik.', 'Ошибка обновления квартиры.'))
+    } finally {
+      setEditSaving(false)
     }
   }
 
