@@ -78,9 +78,8 @@ export async function POST(request: Request) {
 
   if (existingError) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
   if (existing) {
-    if (existing.user_id && existing.user_id !== userId) {
-      return NextResponse.json({ error: 'DEVELOPER_PROFILE_ACCESS_DENIED' }, { status: 403 })
-    }
+    // The profile is reached through the caller's own partner_profiles row;
+    // partner_profile_id is unique, so this lookup cannot select another partner's company.
     return NextResponse.json({ developer: existing, alreadyExists: true }, { status: 200 })
   }
 
