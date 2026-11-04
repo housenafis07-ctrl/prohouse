@@ -43,9 +43,10 @@ async function getDeveloper() {
   if (!partner) return { error: NextResponse.json({ error: 'PARTNER_PROFILE_REQUIRED' }, { status: 403 }) }
 
   const { data: developer, error: developerError } = await db.from('developer_profiles')
-    .select('id,user_id').eq('partner_profile_id', partner.id).maybeSingle()
+    .select('id,user_id,verification_status').eq('partner_profile_id', partner.id).maybeSingle()
   if (developerError) return { error: NextResponse.json({ error: 'DEVELOPER_PROFILE_LOOKUP_FAILED' }, { status: 500 }) }
   if (!developer) return { error: NextResponse.json({ error: 'DEVELOPER_PROFILE_REQUIRED' }, { status: 403 }) }
+  if (developer.verification_status !== 'verified') return { error: NextResponse.json({ error: 'DEVELOPER_NOT_APPROVED' }, { status: 403 }) }
   if (developer.user_id && developer.user_id !== userId) {
     return { error: NextResponse.json({ error: 'DEVELOPER_PROFILE_ACCESS_DENIED' }, { status: 403 }) }
   }
