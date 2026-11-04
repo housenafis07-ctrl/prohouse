@@ -15,11 +15,18 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
   const db = serviceClient()
-  const { data, error } = await db
-    .from('developer_profiles')
-    .select(safeSelect)
+  const { data: partner, error: partnerError } = await db
+    .from('partner_profiles')
+    .select('id')
     .eq('user_id', userId)
     .maybeSingle()
+
+  if (partnerError) return NextResponse.json({ error: 'PARTNER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
+
+  const query = db.from('developer_profiles').select(safeSelect)
+  const { data, error } = partner
+    ? await query.eq('partner_profile_id', partner.id).maybeSingle()
+    : await query.eq('user_id', userId).maybeSingle()
 
   if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
   return NextResponse.json({ developer: data }, { headers: { 'Cache-Control': 'no-store' } })
@@ -80,6 +87,12 @@ export async function POST(request: Request) {
   if (existing) {
     // The profile is reached through the caller's own partner_profiles row;
     // partner_profile_id is unique, so this lookup cannot select another partner's company.
+    if (!existing.user_id) {
+      const { error: linkError } = await db.from('developer_profiles')
+        .update({ user_id: userId })
+        .eq('id', existing.id)
+      if (linkError) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LINK_FAILED' }, { status: 500 })
+    }
     return NextResponse.json({ developer: existing, alreadyExists: true }, { status: 200 })
   }
 
