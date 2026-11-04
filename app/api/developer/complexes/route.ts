@@ -43,7 +43,7 @@ export async function GET() {
   if ('error' in context) return context.error
   const { data, error } = await context.db
     .from('residential_complexes')
-    .select('id,name,slug,city,district,address,status,completion_year,is_verified,latitude,longitude,map_data,created_at')
+    .select('id,name,slug,city,district,address,status,completion_year,is_verified,moderation_status,moderation_note,moderated_at,latitude,longitude,map_data,created_at')
     .eq('developer_id', context.developer.id)
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: 'COMPLEX_LIST_FAILED' }, { status: 500 })
