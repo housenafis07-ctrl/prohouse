@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
-const safeSelect = 'id,developer_name,description,logo_url,website,phone,verification_status,created_at'
+const safeSelect = 'id,developer_name,description,logo_url,website,phone,verification_status,metadata,created_at'
 
 async function getSignedUserId() {
   const cookieStore = await cookies()
