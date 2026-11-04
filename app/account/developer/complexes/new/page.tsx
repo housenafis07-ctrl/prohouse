@@ -54,7 +54,7 @@ export default function NewComplexPage() {
         setError(messages[result.error] || 'Majmuani yaratib bo‘lmadi. Qayta urinib ko‘ring.')
         return
       }
-      router.replace('/account/developer')
+      router.replace(`/account/developer/complexes/${result.complex.id}/buildings`)
       router.refresh()
     } catch {
       setError('Server bilan bog‘lanib bo‘lmadi.')
@@ -71,8 +71,7 @@ export default function NewComplexPage() {
           <p className="text-xs font-black uppercase tracking-widest text-emerald-600">Royalhouse · Developer</p>
           <h1 className="mt-2 text-3xl font-black text-slate-900">Yangi turar joy majmuasi</h1>
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            Dastlab asosiy ma’lumotlarni kiriting. Majmua hozircha rejalashtirish holatida saqlanadi;
-            ommaviy e’lon sifatida avtomatik nashr qilinmaydi.
+            Majmua avval qoralama sifatida saqlanadi. Korpuslar va xonadonlar inventarini to‘ldirib bo‘lgach, yakuniy ma’lumotlarni admin moderatsiyasiga yuborasiz.
           </p>
           <form onSubmit={submit} className="mt-7 space-y-5">
             <label className="block">
@@ -121,7 +120,7 @@ export default function NewComplexPage() {
                         {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             <button type="submit" disabled={loading}
               className="w-full rounded-xl bg-emerald-600 px-5 py-3.5 font-black text-white hover:bg-emerald-700 disabled:opacity-60">
-              {loading ? 'Saqlanmoqda...' : 'Majmuani yaratish'}
+              {loading ? 'Saqlanmoqda...' : 'Qoralamani saqlash va korpuslarni kiritish'}
             </button>
           </form>
         </section>
