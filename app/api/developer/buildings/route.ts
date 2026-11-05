@@ -59,8 +59,8 @@ export async function POST(request: Request) {
     elevator_count: body.elevator_count === '' || body.elevator_count == null ? null : Number(body.elevator_count),
     parking_type: ['none', 'ground', 'underground', 'both'].includes(body.parking_type) ? body.parking_type : 'none',
     construction_start_date: typeof body.construction_start_date === 'string' && body.construction_start_date ? body.construction_start_date : null,
-  if (body.parking_type != null && !['none', 'ground', 'underground', 'both'].includes(body.parking_type)) return NextResponse.json({ error: 'PARKING_TYPE_INVALID' }, { status: 400 })
   }
+  if (body.parking_type != null && !['none', 'ground', 'underground', 'both'].includes(body.parking_type)) return NextResponse.json({ error: 'PARKING_TYPE_INVALID' }, { status: 400 })
   if (!complexId) return NextResponse.json({ error: 'COMPLEX_ID_REQUIRED' }, { status: 400 })
   if (name.length < 1 || name.length > 120 || buildingNo.length > 40) return NextResponse.json({ error: 'BUILDING_NAME_INVALID' }, { status: 400 })
   if (floors !== null && (!Number.isInteger(floors) || floors < 1 || floors > 200)) return NextResponse.json({ error: 'FLOORS_INVALID' }, { status: 400 })
