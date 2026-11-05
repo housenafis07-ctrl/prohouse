@@ -122,10 +122,10 @@ export default function ComplexPublicMap({ mapData, latitude, longitude, buildin
       if(pts.length<3)return[]
       const center=[pts.reduce((a:number,p:number[])=>a+p[0],0)/pts.length,pts.reduce((a:number,p:number[])=>a+p[1],0)/pts.length]
       const sun=(window as any).SunCalc.getPosition(dt,center[1],center[0]);if(sun.altitude<=0.01)return[]
-      const height=Math.max(1,Number(feature.properties?.height)||12),len=Math.min(1500,height/Math.tan(sun.altitude)),dx=len*Math.sin(sun.azimuth),dy=-len*Math.cos(sun.azimuth)
+      const height=Math.max(1,Number(feature.properties?.height)||12),len=Math.min(1500,height/Math.tan(sun.altitude)),dx=-len*Math.sin(sun.azimuth),dy=len*Math.cos(sun.azimuth)
       const latScale=1/111320,lngScale=1/(111320*Math.max(.1,Math.cos(center[1]*Math.PI/180)))
       const all=pts.concat(pts.map((p:number[])=>[p[0]+dx*lngScale,p[1]+dy*latScale]))
-      const sorted=all.slice().sort((a:number[],b:number[])=>a[0]-b[0]||a[1]-b[1]),cross=(o:number[],a:number[],b:number[])=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo:number[][]=[],up:number[][]
+      const sorted=all.slice().sort((a:number[],b:number[])=>a[0]-b[0]||a[1]-b[1]),cross=(o:number[],a:number[],b:number[])=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo:number[][]=[],up:number[][]=[]
       for(const p of sorted){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
       for(const p of sorted.slice().reverse()){while(up.length>=2&&cross(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
       lo.pop();up.pop();const hull=lo.concat(up);if(hull.length<3)return[];hull.push(hull[0])
