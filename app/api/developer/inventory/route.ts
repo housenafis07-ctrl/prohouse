@@ -107,7 +107,7 @@ export async function PATCH(request: Request) {
     if (area !== null && (!Number.isFinite(area) || area <= 0 || area > 10000)) return NextResponse.json({ error: 'AREA_INVALID' }, { status: 400 })
     if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000000)) return NextResponse.json({ error: 'PRICE_INVALID' }, { status: 400 })
     if (!['USD', 'UZS', 'EUR'].includes(currency)) return NextResponse.json({ error: 'CURRENCY_INVALID' }, { status: 400 })
-    if (planUrl && (!/^https?:\\/\\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
+    if (planUrl && (!/^https?:\/\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
     const parsed = parseUnitDetails(body)
     if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
     Object.assign(update, { unit_no: unitNo || null, floor, rooms, area_m2: area, price, currency, plan_url: planUrl || null, details: parsed.value })
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
   if (area !== null && (!Number.isFinite(area) || area <= 0 || area > 10000)) return NextResponse.json({ error: 'AREA_INVALID' }, { status: 400 })
   if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000000)) return NextResponse.json({ error: 'PRICE_INVALID' }, { status: 400 })
   if (!['USD', 'UZS', 'EUR'].includes(currency)) return NextResponse.json({ error: 'CURRENCY_INVALID' }, { status: 400 })
-  if (planUrl && (!/^https?:\\/\\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
+  if (planUrl && (!/^https?:\/\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
   const parsed = parseUnitDetails(body)
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
