@@ -155,10 +155,10 @@ export async function PUT(request: Request) {
     responsible_position: typeof body.responsible_position === 'string' ? body.responsible_position.trim() : '',
     registration_date: typeof body.registration_date === 'string' ? body.registration_date.trim() : '',
   }
-  if (companyDetails.tax_id && !/^\\d{9}$/.test(companyDetails.tax_id)) return NextResponse.json({ error: 'TAX_ID_INVALID' }, { status: 400 })
-  if (companyDetails.contact_email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(companyDetails.contact_email)) return NextResponse.json({ error: 'CONTACT_EMAIL_INVALID' }, { status: 400 })
+  if (companyDetails.tax_id && !/^\d{9}$/.test(companyDetails.tax_id)) return NextResponse.json({ error: 'TAX_ID_INVALID' }, { status: 400 })
+  if (companyDetails.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyDetails.contact_email)) return NextResponse.json({ error: 'CONTACT_EMAIL_INVALID' }, { status: 400 })
   if (Object.values(companyDetails).some(value => value.length > 240)) return NextResponse.json({ error: 'FIELD_TOO_LONG' }, { status: 400 })
-  if (companyDetails.registration_date && !/^\\d{4}-\\d{2}-\\d{2}$/.test(companyDetails.registration_date)) return NextResponse.json({ error: 'REGISTRATION_DATE_INVALID' }, { status: 400 })
+  if (companyDetails.registration_date && !/^\d{4}-\d{2}-\d{2}$/.test(companyDetails.registration_date)) return NextResponse.json({ error: 'REGISTRATION_DATE_INVALID' }, { status: 400 })
 
   const db = serviceClient()
   const { data: partner, error: partnerError } = await db.from('partner_profiles')
