@@ -47,7 +47,21 @@ export async function GET() {
     .eq('developer_id', context.developer.id)
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: 'DEVELOPER_LEADS_LOAD_FAILED' }, { status: 500 })
-  return NextResponse.json({ leads: data || [] }, { headers: { 'Cache-Control': 'no-store' } })
+  const leads = data || []
+  const complexIds = [...new Set(leads.map((lead: any) => lead.complex_id).filter((id: unknown): id is string => typeof id === 'string'))]
+  let complexById = new Map<string, { name: string; slug: string; city: string; district: string | null; is_verified: boolean }>()
+  if (complexIds.length) {
+    const { data: complexes, error: complexesError } = await context.db
+      .from('residential_complexes')
+      .select('id,name,slug,city,district,is_verified')
+      .eq('developer_id', context.developer.id)
+      .in('id', complexIds)
+    if (complexesError) return NextResponse.json({ error: 'LEAD_COMPLEX_DETAILS_LOAD_FAILED' }, { status: 500 })
+    complexById = new Map((complexes || []).map((complex: any) => [complex.id, complex]))
+  }
+  return NextResponse.json({
+    leads: leads.map((lead: any) => ({ ...lead, complex: lead.complex_id ? complexById.get(lead.complex_id) || null : null })),
+  }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(request: Request) {
