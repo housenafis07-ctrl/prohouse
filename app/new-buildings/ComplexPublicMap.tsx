@@ -14,6 +14,9 @@ type Props = {
 export default function ComplexPublicMap({ mapData, latitude, longitude, buildings }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<any>(null)
+  const [shadowEnabled, setShadowEnabled] = useState(true)
+  const [shadowDate, setShadowDate] = useState(new Date().toISOString().slice(0, 10))
+  const [shadowTime, setShadowTime] = useState('15:00')
   const [selected, setSelected] = useState<{ id: string; name: string; units: number } | null>(null)
   const features = (mapData?.features || []).filter(feature =>
     feature?.type === 'Feature' &&
@@ -40,6 +43,8 @@ export default function ComplexPublicMap({ mapData, latitude, longitude, buildin
       m.on('load', () => {
         if (disposed) return
         m.addSource('complex-public-data', { type: 'geojson', data })
+        m.addSource('complex-public-shadows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+        m.addLayer({ id: 'complex-public-shadow-fill', type: 'fill', source: 'complex-public-shadows', paint: { 'fill-color': '#111827', 'fill-opacity': 0.38 } })
         m.addLayer({
           id: 'complex-public-fill', type: 'fill', source: 'complex-public-data',
           filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['in', ['get', 'kind'], ['literal', ['complex', 'building']]]],
@@ -60,6 +65,7 @@ export default function ComplexPublicMap({ mapData, latitude, longitude, buildin
           filter: ['==', ['get', 'kind'], 'infrastructure'],
           paint: { 'circle-radius': 6, 'circle-color': '#2563eb', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
         })
+        loadSunCalc().then(() => updateShadows(m)).catch(() => {})
         m.on('click', 'complex-public-fill', (event: any) => {
           const feature = event.features?.find((item: any) => item.properties?.kind === 'building' && item.properties?.building_id)
           if (!feature) { setSelected(null); return }
@@ -94,11 +100,47 @@ export default function ComplexPublicMap({ mapData, latitude, longitude, buildin
     return () => { disposed = true; map.current?.remove(); map.current = null }
   }, [])
 
+  function loadSunCalc(): Promise<void> {
+    if ((window as any).SunCalc) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-royalhouse-suncalc]') as HTMLScriptElement | null
+      if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('SunCalc load failed')), { once: true }); return }
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js'
+      script.dataset.royalhouseSuncalc = 'true'; script.onload = () => resolve(); script.onerror = () => reject(new Error('SunCalc load failed')); document.head.appendChild(script)
+    })
+  }
+  function updateShadows(m = map.current) {
+    const source = m?.getSource('complex-public-shadows')
+    if (!source || !(window as any).SunCalc) return
+    if (!shadowEnabled) { source.setData({ type: 'FeatureCollection', features: [] }); return }
+    const [y,mo,d]=shadowDate.split('-').map(Number),[h,mi]=shadowTime.split(':').map(Number)
+    if (![y,mo,d,h,mi].every(Number.isFinite)) return
+    const dt=new Date(y,mo-1,d,h,mi)
+    const shadows=features.filter(f=>f.properties?.kind==='building'&&f.geometry?.type==='Polygon').flatMap(feature=>{
+      const ring=feature.geometry.coordinates?.[0]||[],pts=ring.slice(0,-1)
+      if(pts.length<3)return[]
+      const center=[pts.reduce((a:number,p:number[])=>a+p[0],0)/pts.length,pts.reduce((a:number,p:number[])=>a+p[1],0)/pts.length]
+      const sun=(window as any).SunCalc.getPosition(dt,center[1],center[0]);if(sun.altitude<=0.01)return[]
+      const height=Math.max(1,Number(feature.properties?.height)||12),len=Math.min(1500,height/Math.tan(sun.altitude)),dx=len*Math.sin(sun.azimuth),dy=-len*Math.cos(sun.azimuth)
+      const latScale=1/111320,lngScale=1/(111320*Math.max(.1,Math.cos(center[1]*Math.PI/180)))
+      const all=pts.concat(pts.map((p:number[])=>[p[0]+dx*lngScale,p[1]+dy*latScale]))
+      const sorted=all.slice().sort((a:number[],b:number[])=>a[0]-b[0]||a[1]-b[1]),cross=(o:number[],a:number[],b:number[])=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo:number[][]=[],up:number[][]
+      for(const p of sorted){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+      for(const p of sorted.slice().reverse()){while(up.length>=2&&cross(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+      lo.pop();up.pop();const hull=lo.concat(up);if(hull.length<3)return[];hull.push(hull[0])
+      return[{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[hull]}}]
+    })
+    source.setData({type:'FeatureCollection',features:shadows})
+  }
+  useEffect(()=>{if(!map.current)return;loadSunCalc().then(()=>updateShadows()).catch(()=>{})},[shadowEnabled,shadowDate,shadowTime,mapData])
+
   return <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
     <div className="flex items-center justify-between gap-3 p-5">
       <div><h2 className="text-xl font-black">Majmua xaritasi</h2><p className="mt-1 text-sm text-slate-500">Korpusni tanlab, xonadonlarini ko‘ring</p></div>
-      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Interaktiv 2D / 3D</span>
+      <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Interaktiv 2D / 3D</span><button type="button" onClick={()=>setShadowEnabled(v=>!v)} className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{shadowEnabled?'Soyani yashirish':'Soyani ko‘rsatish'}</button></div>
     </div>
+    <div className="flex flex-wrap gap-3 border-t bg-slate-50 px-4 py-3"><label className="text-xs font-bold text-slate-600">Sana <input type="date" value={shadowDate} onChange={e=>setShadowDate(e.target.value)} className="ml-2 rounded-lg border px-2 py-1"/></label><label className="text-xs font-bold text-slate-600">Vaqt <input type="time" value={shadowTime} onChange={e=>setShadowTime(e.target.value)} className="ml-2 rounded-lg border px-2 py-1"/></label><span className="self-center text-xs text-slate-500">Quyosh yo‘nalishi bo‘yicha hisoblangan soya</span></div>
     <div ref={container} className="h-[420px] w-full bg-slate-100" />
     {selected && <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-amber-50 p-4">
       <div><p className="font-black text-slate-900">{selected.name}</p><p className="text-xs text-slate-600">{selected.units} ta xonadon (reja)</p></div>
