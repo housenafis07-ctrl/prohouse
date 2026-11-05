@@ -60,6 +60,23 @@ export async function GET() {
   return NextResponse.json({ complexes, buildings: buildings || [], units: units || [] }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
+
+function parseUnitDetails(body: any) {
+  const balconyType = typeof body.balcony_type === 'string' ? body.balcony_type : 'none'
+  const bathroomCount = body.bathroom_count === '' || body.bathroom_count == null ? null : Number(body.bathroom_count)
+  const finishingStatus = typeof body.finishing_status === 'string' ? body.finishing_status : 'shell'
+  const downPayment = body.down_payment === '' || body.down_payment == null ? null : Number(body.down_payment)
+  const installmentMonths = body.installment_months === '' || body.installment_months == null ? null : Number(body.installment_months)
+  const installmentNote = typeof body.installment_note === 'string' ? body.installment_note.trim() : ''
+  if (!['none', 'balcony', 'loggia'].includes(balconyType)) return { error: 'BALCONY_TYPE_INVALID' }
+  if (bathroomCount !== null && (!Number.isInteger(bathroomCount) || bathroomCount < 0 || bathroomCount > 10)) return { error: 'BATHROOM_COUNT_INVALID' }
+  if (!['shell', 'white_box', 'renovated'].includes(finishingStatus)) return { error: 'FINISHING_STATUS_INVALID' }
+  if (downPayment !== null && (!Number.isFinite(downPayment) || downPayment < 0 || downPayment > 1000000000000)) return { error: 'DOWN_PAYMENT_INVALID' }
+  if (installmentMonths !== null && (!Number.isInteger(installmentMonths) || installmentMonths < 0 || installmentMonths > 360)) return { error: 'INSTALLMENT_MONTHS_INVALID' }
+  if (installmentNote.length > 500) return { error: 'INSTALLMENT_NOTE_TOO_LONG' }
+  return { value: { balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote || null } }
+}
+
 export async function PATCH(request: Request) {
   const context = await getDeveloper()
   if ('error' in context) return context.error
@@ -81,42 +98,18 @@ export async function PATCH(request: Request) {
     const rooms = body.rooms === '' || body.rooms == null ? null : Number(body.rooms)
     const area = body.area_m2 === '' || body.area_m2 == null ? null : Number(body.area_m2)
     const price = body.price === '' || body.price == null ? null : Number(body.price)
-    const currency = typeof body.currency === 'string' ? body.currency : ''
+    const currency = typeof body.currency === 'string' ? body.currency : 'USD'
+    const planUrl = typeof body.plan_url === 'string' ? body.plan_url.trim() : ''
     if (unitNo.length > 40) return NextResponse.json({ error: 'UNIT_NUMBER_INVALID' }, { status: 400 })
     if (floor !== null && (!Number.isInteger(floor) || floor < 0 || floor > 250)) return NextResponse.json({ error: 'FLOOR_INVALID' }, { status: 400 })
     if (rooms !== null && (!Number.isFinite(rooms) || rooms <= 0 || rooms > 20)) return NextResponse.json({ error: 'ROOMS_INVALID' }, { status: 400 })
     if (area !== null && (!Number.isFinite(area) || area <= 0 || area > 10000)) return NextResponse.json({ error: 'AREA_INVALID' }, { status: 400 })
     if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000000)) return NextResponse.json({ error: 'PRICE_INVALID' }, { status: 400 })
     if (!['USD', 'UZS', 'EUR'].includes(currency)) return NextResponse.json({ error: 'CURRENCY_INVALID' }, { status: 400 })
-    Object.assign(update, { unit_no: unitNo || null, floor, rooms, area_m2: area, price, currency })
-    const planUrl = typeof body.plan_url === 'string' ? body.plan_url.trim() : ''
-  const balconyType = typeof body.balcony_type === 'string' ? body.balcony_type : 'none'
-  const bathroomCount = body.bathroom_count === '' || body.bathroom_count == null ? null : Number(body.bathroom_count)
-  const finishingStatus = typeof body.finishing_status === 'string' ? body.finishing_status : 'shell'
-  const downPayment = body.down_payment === '' || body.down_payment == null ? null : Number(body.down_payment)
-  const installmentMonths = body.installment_months === '' || body.installment_months == null ? null : Number(body.installment_months)
-  const installmentNote = typeof body.installment_note === 'string' ? body.installment_note.trim() : ''
-    const balconyType = typeof body.balcony_type === 'string' ? body.balcony_type : 'none'
-    const bathroomCount = body.bathroom_count === '' || body.bathroom_count == null ? null : Number(body.bathroom_count)
-    const finishingStatus = typeof body.finishing_status === 'string' ? body.finishing_status : 'shell'
-    const downPayment = body.down_payment === '' || body.down_payment == null ? null : Number(body.down_payment)
-    const installmentMonths = body.installment_months === '' || body.installment_months == null ? null : Number(body.installment_months)
-    const installmentNote = typeof body.installment_note === 'string' ? body.installment_note.trim() : ''
     if (planUrl && (!/^https?:\\/\\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
-  if (!['none', 'balcony', 'loggia'].includes(balconyType)) return NextResponse.json({ error: 'BALCONY_TYPE_INVALID' }, { status: 400 })
-  if (bathroomCount !== null && (!Number.isInteger(bathroomCount) || bathroomCount < 0 || bathroomCount > 10)) return NextResponse.json({ error: 'BATHROOM_COUNT_INVALID' }, { status: 400 })
-  if (!['shell', 'white_box', 'renovated'].includes(finishingStatus)) return NextResponse.json({ error: 'FINISHING_STATUS_INVALID' }, { status: 400 })
-  if (downPayment !== null && (!Number.isFinite(downPayment) || downPayment < 0 || downPayment > 1000000000000)) return NextResponse.json({ error: 'DOWN_PAYMENT_INVALID' }, { status: 400 })
-  if (installmentMonths !== null && (!Number.isInteger(installmentMonths) || installmentMonths < 0 || installmentMonths > 360)) return NextResponse.json({ error: 'INSTALLMENT_MONTHS_INVALID' }, { status: 400 })
-  if (installmentNote.length > 500) return NextResponse.json({ error: 'INSTALLMENT_NOTE_TOO_LONG' }, { status: 400 })
-    if (!['none', 'balcony', 'loggia'].includes(balconyType)) return NextResponse.json({ error: 'BALCONY_TYPE_INVALID' }, { status: 400 })
-    if (bathroomCount !== null && (!Number.isInteger(bathroomCount) || bathroomCount < 0 || bathroomCount > 10)) return NextResponse.json({ error: 'BATHROOM_COUNT_INVALID' }, { status: 400 })
-    if (!['shell', 'white_box', 'renovated'].includes(finishingStatus)) return NextResponse.json({ error: 'FINISHING_STATUS_INVALID' }, { status: 400 })
-    if (downPayment !== null && (!Number.isFinite(downPayment) || downPayment < 0 || downPayment > 1000000000000)) return NextResponse.json({ error: 'DOWN_PAYMENT_INVALID' }, { status: 400 })
-    if (installmentMonths !== null && (!Number.isInteger(installmentMonths) || installmentMonths < 0 || installmentMonths > 360)) return NextResponse.json({ error: 'INSTALLMENT_MONTHS_INVALID' }, { status: 400 })
-    if (installmentNote.length > 500) return NextResponse.json({ error: 'INSTALLMENT_NOTE_TOO_LONG' }, { status: 400 })
-    update.plan_url = planUrl || null
-    update.details = { balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote || null }
+    const parsed = parseUnitDetails(body)
+    if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    Object.assign(update, { unit_no: unitNo || null, floor, rooms, area_m2: area, price, currency, plan_url: planUrl || null, details: parsed.value })
   }
   if (!Object.keys(update).length) return NextResponse.json({ error: 'NO_UNIT_FIELDS_TO_UPDATE' }, { status: 400 })
 
@@ -145,7 +138,6 @@ export async function POST(request: Request) {
   const price = body.price === '' || body.price == null ? null : Number(body.price)
   const currency = typeof body.currency === 'string' ? body.currency : 'USD'
   const planUrl = typeof body.plan_url === 'string' ? body.plan_url.trim() : ''
-
   if (!buildingId) return NextResponse.json({ error: 'BUILDING_REQUIRED' }, { status: 400 })
   if (unitNo.length > 40) return NextResponse.json({ error: 'UNIT_NUMBER_INVALID' }, { status: 400 })
   if (floor !== null && (!Number.isInteger(floor) || floor < 0 || floor > 250)) return NextResponse.json({ error: 'FLOOR_INVALID' }, { status: 400 })
@@ -153,23 +145,17 @@ export async function POST(request: Request) {
   if (area !== null && (!Number.isFinite(area) || area <= 0 || area > 10000)) return NextResponse.json({ error: 'AREA_INVALID' }, { status: 400 })
   if (price !== null && (!Number.isFinite(price) || price < 0 || price > 1000000000000)) return NextResponse.json({ error: 'PRICE_INVALID' }, { status: 400 })
   if (!['USD', 'UZS', 'EUR'].includes(currency)) return NextResponse.json({ error: 'CURRENCY_INVALID' }, { status: 400 })
-  if (planUrl && (!/^https?:\/\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
+  if (planUrl && (!/^https?:\\/\\//i.test(planUrl) || planUrl.length > 1000)) return NextResponse.json({ error: 'PLAN_URL_INVALID' }, { status: 400 })
+  const parsed = parseUnitDetails(body)
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
   const owned = await getOwnedBuildingIds(context.db, context.developer.id)
   if ('error' in owned) return NextResponse.json({ error: 'INVENTORY_OWNERSHIP_CHECK_FAILED' }, { status: 500 })
   if (!owned.ids.includes(buildingId)) return NextResponse.json({ error: 'BUILDING_NOT_FOUND' }, { status: 404 })
 
   const { data, error } = await context.db.from('complex_units').insert({
-    building_id: buildingId,
-    unit_no: unitNo || null,
-    floor,
-    rooms,
-    area_m2: area,
-    price,
-    currency,
-    plan_url: planUrl || null,
-    details: { balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote || null },
-    status: 'available',
+    building_id: buildingId, unit_no: unitNo || null, floor, rooms, area_m2: area, price, currency,
+    plan_url: planUrl || null, details: parsed.value, status: 'available',
   }).select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id,plan_url,details').single()
   if (error) return NextResponse.json({ error: 'UNIT_CREATE_FAILED' }, { status: 500 })
   return NextResponse.json({ unit: data }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
