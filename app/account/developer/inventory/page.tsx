@@ -42,6 +42,7 @@ export default function InventoryPage() {
   const ru = lang === 'ru'
   const tx = (uz: string, rr: string) => ru ? rr : uz
   const [complexes, setComplexes] = useState<Complex[]>([])
+  const [projectComplexId, setProjectComplexId] = useState('')
   const [buildings, setBuildings] = useState<Building[]>([])
   const [units, setUnits] = useState<Unit[]>([])
   const [selected, setSelected] = useState('')
@@ -72,8 +73,9 @@ export default function InventoryPage() {
   const [editPlanFile, setEditPlanFile] = useState<File | null>(null)
   const [error, setError] = useState('')
 
-  async function refreshInventory() {
-    const response = await fetch('/api/developer/inventory', { cache: 'no-store' })
+  async function refreshInventory(complexId = projectComplexId) {
+    const query = complexId ? `?complex_id=${encodeURIComponent(complexId)}` : ''
+    const response = await fetch(`/api/developer/inventory${query}`, { cache: 'no-store' })
     const result = await response.json()
     if (!response.ok) throw new Error(result.error || 'Inventarni yuklab bo‘lmadi')
     setComplexes(result.complexes || [])
@@ -83,7 +85,9 @@ export default function InventoryPage() {
   }
 
   useEffect(() => {
-    refreshInventory()
+    const complexId = new URLSearchParams(window.location.search).get('complex_id') || ''
+    setProjectComplexId(complexId)
+    refreshInventory(complexId)
       .catch(e => setError(e instanceof Error ? e.message : 'Inventarni yuklab bo‘lmadi'))
       .finally(() => setLoading(false))
   }, [])
@@ -230,7 +234,10 @@ export default function InventoryPage() {
     else setError(tx('Xonadon holatini yangilab bo‘lmadi.', 'Не удалось обновить статус квартиры.'))
   }
 
-  const filtered = selected ? units.filter(unit => unit.building_id === selected) : units
+  const scopedBuildings = projectComplexId ? buildings.filter(building => building.complex_id === projectComplexId) : buildings
+  const scopedBuildingIds = new Set(scopedBuildings.map(building => building.id))
+  const scopedUnits = projectComplexId ? units.filter(unit => scopedBuildingIds.has(unit.building_id)) : units
+  const filtered = selected ? scopedUnits.filter(unit => unit.building_id === selected) : scopedUnits
   const buildingLabel = (building: Building) => {
     const complex = complexes.find(item => item.id === building.complex_id)
     return complex ? `${complex.name} · ${building.name}` : building.name
@@ -242,21 +249,21 @@ export default function InventoryPage() {
     <main className="min-h-screen bg-slate-50 px-4 py-6">
       <div className="mx-auto max-w-7xl">
         <header className="flex items-center justify-between">
-          <Link href="/account/developer" className="font-bold text-emerald-700">← {tx('Developer kabineti', 'Кабинет девелопера')}</Link>
+          <Link href={projectComplexId ? `/account/developer/complexes/${projectComplexId}` : '/account/developer'} className="font-bold text-emerald-700">← {projectComplexId ? tx('Loyiha boshqaruviga qaytish', 'К управлению проектом') : tx('Developer kabineti', 'Кабинет девелопера')}</Link>
           <span className="text-sm font-bold text-slate-500">Inventory</span>
         </header>
 
         <section className="mt-5 rounded-3xl bg-slate-900 p-7 text-white">
-          <h1 className="text-3xl font-black">{tx('Xonadonlar inventari', 'Инвентарь квартир')}</h1>
+          <h1 className="text-3xl font-black">{projectComplexId ? (complexes.find(item => item.id === projectComplexId)?.name || tx('Loyiha xonadonlari', 'Квартиры проекта')) : tx('Xonadonlar inventari', 'Инвентарь квартир')}</h1>
           <p className="mt-2 text-sm text-slate-300">{tx('Xonadonlarni qo‘shing, Excel orqali ommaviy yuklang va holatlarini boshqaring.', 'Добавляйте квартиры, загружайте их из Excel и управляйте статусами.')}</p>
         </section>
 
         {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl bg-white p-5"><p className="text-xs font-bold text-slate-400">{tx('JAMI', 'ВСЕГО')}</p><p className="mt-1 text-2xl font-black">{units.length}</p></div>
+          <div className="rounded-2xl bg-white p-5"><p className="text-xs font-bold text-slate-400">{tx('JAMI', 'ВСЕГО')}</p><p className="mt-1 text-2xl font-black">{scopedUnits.length}</p></div>
           {(['available', 'reserved', 'sold'] as const).map(status => (
-            <div key={status} className="rounded-2xl bg-white p-5"><p className="text-xs font-bold text-slate-400">{statusLabels[status][ru ? 1 : 0].toUpperCase()}</p><p className="mt-1 text-2xl font-black">{units.filter(unit => unit.status === status).length}</p></div>
+            <div key={status} className="rounded-2xl bg-white p-5"><p className="text-xs font-bold text-slate-400">{statusLabels[status][ru ? 1 : 0].toUpperCase()}</p><p className="mt-1 text-2xl font-black">{scopedUnits.filter(unit => unit.status === status).length}</p></div>
           ))}
         </div>
 
@@ -269,7 +276,7 @@ export default function InventoryPage() {
             <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Majmua / korpus', 'Комплекс / корпус')} *</span>
               <select value={selectedBuilding} onChange={e => { setSelectedBuilding(e.target.value); setImportResult(null) }} className="h-12 w-full rounded-xl border border-slate-200 px-3">
                 <option value="">{tx('Korpusni tanlang', 'Выберите корпус')}</option>
-                {buildings.map(building => <option key={building.id} value={building.id}>{buildingLabel(building)}</option>)}
+                {buildings.filter(building => !projectComplexId || building.complex_id === projectComplexId).map(building => <option key={building.id} value={building.id}>{buildingLabel(building)}</option>)}
               </select>
             </label>
             <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Excel fayli (.xlsx)', 'Файл Excel (.xlsx)')}</span>
