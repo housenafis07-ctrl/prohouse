@@ -12,7 +12,7 @@ type MapFeature = {
   geometry: { type: 'Polygon' | 'Point'; coordinates: any }
 }
 type MapData = { type: 'FeatureCollection'; features: MapFeature[] }
-type Mode = 'complex' | 'building' | 'select' | 'infrastructure'
+type Mode = 'complex' | 'building' | 'infrastructure'
 type Props = {
   value: MapData
   onChange: (value: MapData, center: { latitude: number; longitude: number }) => void
@@ -38,7 +38,7 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
   const [mode, setMode] = useState<Mode>('complex')
   const [points, setPoints] = useState<Position[]>([])
   const [ready, setReady] = useState(false)
-  const [message, setMessage] = useState('Majmua hududini chizish uchun xaritada kamida 3 nuqtani belgilang.')
+  const [message, setMessage] = useState('Xaritada 3 yoki undan ko‘p nuqtani bosing, so‘ng kontur yaratishni tasdiqlang.')
   const [name, setName] = useState('')
   const [category, setCategory] = useState('school')
   const modeRef = useRef<Mode>('complex')
@@ -47,12 +47,7 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
   modeRef.current = mode
   categoryRef.current = category
   nameRef.current = name
-  const [is3d, setIs3d] = useState(true)
-  const [shadowEnabled, setShadowEnabled] = useState(true)
-  const [shadowDate, setShadowDate] = useState(new Date().toISOString().slice(0, 10))
-  const [shadowTime, setShadowTime] = useState('15:00')
   const [showInfrastructure, setShowInfrastructure] = useState(true)
-  const [selectedBuilding, setSelectedBuilding] = useState<{ name: string; height: number; source: string } | null>(null)
 
   useEffect(() => {
     data.current = value || empty
@@ -82,8 +77,8 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
         style: 'https://tiles.openfreemap.org/styles/liberty',
         center: [longitude ?? 69.2401, latitude ?? 41.2995],
         zoom: latitude != null && longitude != null ? 16 : 12,
-        pitch: 55,
-        bearing: -17,
+        pitch: 0,
+        bearing: 0,
         antialias: true,
       })
       map.current = m
@@ -91,8 +86,6 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
       m.on('load', () => {
         if (disposed) return
         m.addSource('developer-polygons', { type: 'geojson', data: data.current })
-        m.addSource('developer-building-shadows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-        m.addLayer({ id: 'developer-building-shadows-fill', type: 'fill', source: 'developer-building-shadows', paint: { 'fill-color': '#111827', 'fill-opacity': 0.38 } })
         m.addLayer({
           id: 'developer-complex-fill', type: 'fill', source: 'developer-polygons',
           filter: ['==', ['geometry-type'], 'Polygon'],
@@ -124,12 +117,9 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
           layout: { 'text-field': ['get', 'name'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-allow-overlap': false },
           paint: { 'text-color': '#1e3a8a', 'text-halo-color': '#fff', 'text-halo-width': 1.5 },
         })
+        m.doubleClickZoom.disable()
         m.on('click', (event: any) => {
           const point: Position = [event.lngLat.lng, event.lngLat.lat]
-          if (modeRef.current === 'select') {
-            selectExistingBuilding(event.point, point)
-            return
-          }
           if (modeRef.current === 'infrastructure') {
             const item = categories.find(x => x.value === categoryRef.current)
             const feature: MapFeature = {
@@ -145,12 +135,11 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
             return
           }
           draft.current = [...draft.current, point]
-          setPoints(draft.current)
+          setPoints([...draft.current])
           onChange(data.current, { latitude: point[1], longitude: point[0] })
-          setMessage(`Chizilayotgan kontur nuqtalari: ${draft.current.length}. Kamida 3 ta nuqta belgilang.`)
+          setMessage(`${modeRef.current === 'building' ? 'Korpus' : 'Majmua'} konturi: ${draft.current.length} ta nuqta. ${draft.current.length < 3 ? 'Yana nuqta belgilang.' : 'Endi yashil tugmani bosing.'}`)
         })
         setReady(true)
-        loadSunCalc().then(() => updateBuildingShadows(m)).catch(() => setMessage('Soya hisoblash kutubxonasi yuklanmadi. Internetni tekshiring.'))
       })
     }
     loadCss()
@@ -169,65 +158,6 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     return () => { disposed = true; map.current?.remove(); map.current = null }
   }, [])
 
-  function loadSunCalc(): Promise<void> {
-    if ((window as any).SunCalc) return Promise.resolve()
-    return new Promise((resolve, reject) => {
-      const existing = document.querySelector('script[data-royalhouse-suncalc]') as HTMLScriptElement | null
-      if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('SunCalc load failed')), { once: true }); return }
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js'
-      script.dataset.royalhouseSuncalc = 'true'
-      script.onload = () => resolve()
-      script.onerror = () => reject(new Error('SunCalc load failed'))
-      document.head.appendChild(script)
-    })
-  }
-  function updateBuildingShadows(m = map.current) {
-    const source = m?.getSource('developer-building-shadows')
-    if (!source || !(window as any).SunCalc) return
-    if (!shadowEnabled) { source.setData({ type: 'FeatureCollection', features: [] }); return }
-    const [year, month, day] = shadowDate.split('-').map(Number)
-    const [hour, minute] = shadowTime.split(':').map(Number)
-    if (![year, month, day, hour, minute].every(Number.isFinite)) return
-    const dt = new Date(year, month - 1, day, hour, minute)
-    const features = data.current.features.filter(f => f.properties.kind === 'building' && f.geometry.type === 'Polygon')
-    const shadows = features.flatMap(feature => {
-      const ring: Position[] = feature.geometry.coordinates?.[0] || []
-      const points = ring.slice(0, -1)
-      if (points.length < 3) return []
-      const center: Position = [points.reduce((a,p)=>a+p[0],0)/points.length,points.reduce((a,p)=>a+p[1],0)/points.length]
-      const sun = (window as any).SunCalc.getPosition(dt, center[1], center[0])
-      if (sun.altitude <= 0.01) return []
-      const height = Math.max(1, Number(feature.properties.height) || 12)
-      const length = Math.min(1500, height / Math.tan(sun.altitude))
-      const azimuth = sun.azimuth
-      const dx = -length * Math.sin(azimuth), dy = length * Math.cos(azimuth)
-      const latScale = 1 / 111320, lngScale = 1 / (111320 * Math.max(0.1, Math.cos(center[1] * Math.PI / 180)))
-      const moved = points.map(([lng,lat]) => [lng + dx * lngScale, lat + dy * latScale] as Position)
-      const all = points.concat(moved)
-      const sorted = all.slice().sort((a,b)=>a[0]-b[0] || a[1]-b[1])
-      const cross=(o:Position,a:Position,b:Position)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0])
-      const lower:Position[]=[],upper:Position[]=[]
-      for(const p of sorted){while(lower.length>=2&&cross(lower[lower.length-2],lower[lower.length-1],p)<=0)lower.pop();lower.push(p)}
-      for(const p of sorted.slice().reverse()){while(upper.length>=2&&cross(upper[upper.length-2],upper[upper.length-1],p)<=0)upper.pop();upper.push(p)}
-      lower.pop();upper.pop();const hull=lower.concat(upper)
-      if(hull.length<3)return []
-      hull.push(hull[0])
-      return [{type:'Feature' as const,properties:{name:feature.properties.name},geometry:{type:'Polygon' as const,coordinates:[hull]}}]
-    })
-    source.setData({ type: 'FeatureCollection', features: shadows })
-  }
-
-  useEffect(() => {
-    if (!ready || !map.current) return
-    loadSunCalc().then(() => updateBuildingShadows()).catch(() => {})
-  }, [ready, shadowEnabled, shadowDate, shadowTime, value])
-
-  useEffect(() => {
-    if (!map.current || !ready) return
-    map.current.easeTo({ pitch: is3d ? 55 : 0, bearing: is3d ? -17 : 0, duration: 450 })
-  }, [is3d, ready])
-
   useEffect(() => {
     const m = map.current
     if (!m || !ready) return
@@ -242,48 +172,14 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     }
   }, [showInfrastructure, ready])
 
-  function selectExistingBuilding(screenPoint: any, click: Position) {
-    const m = map.current
-    if (!m) return
-    const features = m.queryRenderedFeatures([
-      [screenPoint.x - 5, screenPoint.y - 5],
-      [screenPoint.x + 5, screenPoint.y + 5],
-    ])
-    const candidate = features.find((feature: any) => {
-      const p = feature.properties || {}
-      return feature.geometry && ['Polygon', 'MultiPolygon'].includes(feature.geometry.type) &&
-        (feature.sourceLayer === 'building' || p.render_height != null || p.height != null)
-    })
-    if (!candidate) {
-      setMessage('Bu nuqtada bino topilmadi. Xaritani yaqinlashtirib, bino ustiga bosing.')
-      return
-    }
-    const p = candidate.properties || {}
-    const parsedHeight = Number.parseFloat(String(p.render_height ?? p.height ?? ''))
-    const height = Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : 9
-    const geometry = candidate.geometry.type === 'Polygon'
-      ? candidate.geometry
-      : { type: 'Polygon', coordinates: candidate.geometry.coordinates[0] }
-    const feature: MapFeature = {
-      type: 'Feature',
-      properties: { kind: 'building', name: nameRef.current.trim() || p.name || 'Xaritadan tanlangan korpus', height, source: parsedHeight > 0 ? 'map-height' : 'estimated-height' },
-      geometry,
-    }
-    const next = { type: 'FeatureCollection' as const, features: [...data.current.features, feature] }
-    data.current = next
-    m.getSource('developer-polygons')?.setData(next)
-    onChange(next, { latitude: click[1], longitude: click[0] })
-    setSelectedBuilding({ name: feature.properties.name, height, source: parsedHeight > 0 ? 'Xarita ma’lumoti' : 'Taxminiy balandlik: 3 qavat' })
-    setMessage('Xaritadagi mavjud bino tanlandi va korpus konturi sifatida saqlandi.')
-  }
-
   function finishPolygon() {
+    const activeMode = modeRef.current
     if (draft.current.length < 3) { setMessage('Kontur uchun kamida 3 ta nuqta kerak.'); return }
     const ring = [...draft.current, draft.current[0]]
-    const isComplex = mode === 'complex'
+    const isComplex = activeMode === 'complex'
     const feature: MapFeature = {
       type: 'Feature',
-      properties: { kind: mode as 'complex' | 'building', name: name.trim() || (isComplex ? 'Majmua hududi' : `Korpus ${data.current.features.filter(x => x.properties.kind === 'building').length + 1}`), height: isComplex ? undefined : 12 },
+      properties: { kind: activeMode as 'complex' | 'building', name: nameRef.current.trim() || (isComplex ? 'Majmua hududi' : `Korpus ${data.current.features.filter(x => x.properties.kind === 'building').length + 1}`), height: isComplex ? undefined : 12 },
       geometry: { type: 'Polygon', coordinates: [ring] },
     }
     const next = {
@@ -295,16 +191,15 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     onChange(next, { latitude: ring[0][1], longitude: ring[0][0] })
     draft.current = []
     setPoints([])
-    setMessage(isComplex ? 'Majmua hududi saqlandi. Endi korpuslarni chizing yoki xaritadagi mavjud binoni tanlang.' : 'Korpus konturi saqlandi.')
+    setMessage(isComplex ? 'Majmua hududi chizmaga qo‘shildi. Endi “Korpus chizish” rejimini tanlang.' : 'Korpus xaritada joylashtirildi. Umumiy saqlash tugmasini bosing.')
   }
 
-  function undoPoint() { draft.current = draft.current.slice(0, -1); setPoints(draft.current); setMessage(`Nuqtalar: ${draft.current.length}`) }
-  function clearDraft() { draft.current = []; setPoints([]); setMessage('Yangi kontur chizish uchun xaritani bosing.') }
+  function undoPoint() { draft.current = draft.current.slice(0, -1); setPoints([...draft.current]); setMessage(`Chizilayotgan nuqtalar: ${draft.current.length}`) }
+  function clearDraft() { draft.current = []; setPoints([]); setMessage('Xaritada nuqtalarni belgilang. Kamida 3 ta nuqta kerak.') }
 
   const modes: { value: Mode; label: string }[] = [
     { value: 'complex', label: 'Majmua hududi' },
     { value: 'building', label: 'Korpus chizish' },
-    { value: 'select', label: 'Mavjud binoni tanlash' },
     { value: 'infrastructure', label: 'Infratuzilma qo‘shish' },
   ]
 
@@ -312,22 +207,18 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4">
       <div><h2 className="font-black text-slate-900">Majmua xaritasi</h2><p className="mt-1 text-xs text-slate-500">Soya loyihasidagi MapLibre va OpenFreeMap texnologiyasi asosida</p></div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => setIs3d(v => !v)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white">{is3d ? '2D ko‘rinish' : '3D ko‘rinish'}</button>
-        <button type="button" onClick={() => setShadowEnabled(v => !v)} className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{shadowEnabled ? 'Soyani yashirish' : 'Soyani ko‘rsatish'}</button>
         <button type="button" onClick={() => setShowInfrastructure(v => !v)} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">{showInfrastructure ? 'Infratuzilmani yashirish' : 'Infratuzilmani ko‘rsatish'}</button>
       </div>
     </div>
-    <div className="flex flex-wrap gap-2 border-t bg-white px-4 py-3">
+    <div className="flex flex-wrap gap-2 border-t bg-white px-4 py-3"><span className="self-center text-xs font-bold text-slate-500">Chizish rejimi:</span>
       {modes.map(item => <button key={item.value} type="button" onClick={() => { setMode(item.value); clearDraft() }} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === item.value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{item.label}</button>)}
     </div>
-    <div className="flex flex-wrap items-center gap-3 border-t bg-slate-50 px-4 py-3"><label className="text-xs font-bold text-slate-600">Sana <input type="date" value={shadowDate} onChange={e=>setShadowDate(e.target.value)} className="ml-2 rounded-lg border px-2 py-1" /></label><label className="text-xs font-bold text-slate-600">Vaqt <input type="time" value={shadowTime} onChange={e=>setShadowTime(e.target.value)} className="ml-2 rounded-lg border px-2 py-1" /></label><span className="text-xs text-slate-500">Quyosh holati bo‘yicha taxminiy geometrik soya</span></div>
     <div className="relative"><div ref={container} className="h-[440px] w-full bg-slate-100" />{!ready && <div className="absolute inset-0 grid place-items-center bg-slate-100/90 text-sm text-slate-600">Xarita yuklanmoqda...</div>}</div>
     {(mode === 'complex' || mode === 'building' || mode === 'infrastructure') && <div className="flex flex-wrap items-center gap-2 bg-white p-4">
       {mode === 'infrastructure' && <select value={category} onChange={e => setCategory(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">{categories.map(item => <option key={item.value} value={item.value}>{item.emoji} {item.label}</option>)}</select>}
       <input value={name} onChange={e => setName(e.target.value)} placeholder={mode === 'complex' ? 'Majmua hududi nomi' : mode === 'building' ? 'Korpus nomi (masalan, 1-korpus)' : 'Obyekt nomi (masalan, 12-maktab)'} className="min-w-[190px] flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
       {mode !== 'infrastructure' && <><button type="button" onClick={finishPolygon} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white">Kontur tugatish</button><button type="button" onClick={undoPoint} disabled={!points.length} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold disabled:opacity-40">Orqaga</button><button type="button" onClick={clearDraft} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold">Tozalash</button></>}
     </div>}
-    {selectedBuilding && <div className="border-t bg-amber-50 px-4 py-3 text-xs text-amber-900">Tanlangan bino: <b>{selectedBuilding.name}</b> · Balandligi: <b>{selectedBuilding.height.toFixed(1)} m</b> · {selectedBuilding.source}</div>}
-    <p className="border-t bg-slate-50 px-4 py-3 text-xs text-slate-600">{message} Saqlangan konturlar va nuqtalar: {data.current.features.length} ta.</p>
+    <p className="border-t bg-slate-50 px-4 py-3 text-xs text-slate-600"><b>{message}</b><span className="ml-2">Saqlangan konturlar: {data.current.features.filter(item => item.properties.kind !== 'infrastructure').length} ta · Joriy chizma nuqtalari: {points.length} ta.</span></p>
   </section>
 }
