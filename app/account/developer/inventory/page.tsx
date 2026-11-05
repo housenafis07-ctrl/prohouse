@@ -97,7 +97,7 @@ export default function InventoryPage() {
       const response = await fetch('/api/developer/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ building_id: selectedBuilding, unit_no: unitNo, floor, rooms, area_m2: area, price, currency, plan_url: planUrl, balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote }),
+        body: JSON.stringify({ building_id: selectedBuilding, unit_no: unitNo, floor, rooms, area_m2: area, price, currency, plan_url: planUrl, balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, installment_enabled: hasInstallment, down_payment: hasInstallment ? downPayment : '', installment_months: hasInstallment ? installmentMonths : '', installment_note: hasInstallment ? installmentNote : '' }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Xonadonni yaratib bo‘lmadi')
