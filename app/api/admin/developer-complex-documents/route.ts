@@ -6,7 +6,7 @@ export async function GET() {
   if (error || !admin) return NextResponse.json({ error: error || 'Unauthorized' }, { status: error === 'Forbidden' ? 403 : 401 })
   const db = serviceClient()
   const { data, error: queryError } = await db.from('developer_complex_documents')
-    .select('id,complex_id,developer_id,uploaded_by,document_type,title,document_number,issued_at,expires_at,storage_path,mime_type,file_size_bytes,moderation_status,moderation_note,created_at')
+    .select('id,complex_id,developer_id,uploaded_by,document_type,title,document_number,issued_at,expires_at,mime_type,file_size_bytes,moderation_status,moderation_note,created_at')
     .eq('moderation_status', 'pending').order('created_at', { ascending: true })
   if (queryError) return NextResponse.json({ error: 'DOCUMENTS_LOAD_FAILED' }, { status: 500 })
   const complexIds = [...new Set((data || []).map(item => item.complex_id))]
