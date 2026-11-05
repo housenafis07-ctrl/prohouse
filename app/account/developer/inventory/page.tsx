@@ -88,8 +88,17 @@ export default function InventoryPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  function validatePlanFile(file: File | null): string | null {
+    if (!file) return null
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return tx('Reja rasmi JPG, PNG yoki WebP formatida bo‘lishi kerak.', 'Планировка должна быть в формате JPG, PNG или WebP.')
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) return tx('Reja rasmi hajmi 10 MB dan oshmasligi kerak.', 'Размер изображения не должен превышать 10 МБ.')
+    return null
+  }
+
   async function addUnit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const planFileError = validatePlanFile(planFile)
+    if (planFileError) { setError(planFileError); return }
     if (!selectedBuilding) return
     setSaving(true)
     setError('')
@@ -182,6 +191,8 @@ export default function InventoryPage() {
 
   async function saveUnitEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const planFileError = validatePlanFile(editPlanFile)
+    if (planFileError) { setError(planFileError); return }
     if (!editingUnit) return
     setEditSaving(true)
     setError('')
@@ -298,7 +309,7 @@ export default function InventoryPage() {
               </div>
               <div className="border-t border-slate-100 pt-4 sm:col-span-2 lg:col-span-4"><h3 className="font-black text-slate-900">{tx('Qo‘shimcha xususiyatlar','Дополнительные характеристики')}</h3><p className="mt-1 text-xs text-slate-500">{tx('Reja rasmi havolasi va xonadonning boshqa tafsilotlari.','Ссылка на планировку и другие параметры квартиры.')}</p></div>
               <label className="block lg:col-span-2"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Xonadon reja rasmi URL','URL планировки квартиры')}</span><input type="url" maxLength={1000} value={planUrl} onChange={e=>setPlanUrl(e.target.value)} placeholder="https://..." className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
-              <label className="block lg:col-span-2"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Yoki reja rasmini yuklang (JPG, PNG, WebP · 10 MB gacha)','Или загрузите планировку (JPG, PNG, WebP · до 10 МБ)')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setPlanFile(e.target.files?.[0] || null)} className="block w-full rounded-xl border border-slate-200 p-2 text-sm" />{planFile&&<span className="mt-1 block text-xs text-emerald-700">{planFile.name}</span>}</label>
+              <label className="block lg:col-span-2"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Yoki reja rasmini yuklang (JPG, PNG, WebP · 10 MB gacha)','Или загрузите планировку (JPG, PNG, WebP · до 10 МБ)')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{setPlanFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setPlanUrl('')}} className="block w-full rounded-xl border border-slate-200 p-2 text-sm" />{planFile&&<span className="mt-1 block text-xs text-emerald-700">{planFile.name}</span>}</label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Balkon / lodjiya','Балкон / лоджия')}</span><select value={balconyType} onChange={e=>setBalconyType(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-3"><option value="none">{tx('Yo‘q / ko‘rsatilmagan','Нет / не указано')}</option><option value="balcony">{tx('Balkon','Балкон')}</option><option value="loggia">{tx('Lodjiya','Лоджия')}</option></select></label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Sanuzel soni','Количество санузлов')}</span><input type="number" min="0" max="10" step="1" value={bathroomCount} onChange={e=>setBathroomCount(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Ta’mir holati','Состояние отделки')}</span><select value={finishingStatus} onChange={e=>setFinishingStatus(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-3"><option value="shell">{tx('Qora suvoq','Черновая')}</option><option value="white_box">{tx('White box','White box')}</option><option value="renovated">{tx('Tayyor ta’mir','С ремонтом')}</option></select></label>
@@ -324,7 +335,7 @@ export default function InventoryPage() {
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Narx', 'Цена')}</span><input type="number" min="0" max="1000000000000" value={editDraft.price} onChange={e => setEditDraft(d => ({ ...d, price: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Valyuta', 'Валюта')}</span><select value={editDraft.currency} onChange={e => setEditDraft(d => ({ ...d, currency: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"><option value="USD">USD</option><option value="UZS">UZS</option><option value="EUR">EUR</option></select></label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Reja rasmi URL','URL планировки')}</span><input type="url" maxLength={1000} value={editDraft.plan_url} onChange={e=>setEditDraft(d=>({...d,plan_url:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
-            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-bold">{tx('Yoki reja rasmini yuklang (10 MB gacha)','Или загрузите планировку (до 10 МБ)')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setEditPlanFile(e.target.files?.[0] || null)} className="block w-full rounded-xl border border-slate-200 bg-white p-2 text-sm" />{editPlanFile&&<span className="mt-1 block text-xs text-emerald-700">{editPlanFile.name}</span>}</label>
+            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-bold">{tx('Yoki reja rasmini yuklang (10 MB gacha)','Или загрузите планировку (до 10 МБ)')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>{setEditPlanFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setEditDraft(d=>({...d,plan_url:''}))}} className="block w-full rounded-xl border border-slate-200 bg-white p-2 text-sm" />{editPlanFile&&<span className="mt-1 block text-xs text-emerald-700">{editPlanFile.name}</span>}</label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Balkon / lodjiya','Балкон / лоджия')}</span><select value={editDraft.balcony_type} onChange={e=>setEditDraft(d=>({...d,balcony_type:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"><option value="none">{tx('Yo‘q / ko‘rsatilmagan','Нет / не указано')}</option><option value="balcony">{tx('Balkon','Балкон')}</option><option value="loggia">{tx('Lodjiya','Лоджия')}</option></select></label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Sanuzel soni','Количество санузлов')}</span><input type="number" min="0" max="10" value={editDraft.bathroom_count} onChange={e=>setEditDraft(d=>({...d,bathroom_count:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Ta’mir holati','Состояние отделки')}</span><select value={editDraft.finishing_status} onChange={e=>setEditDraft(d=>({...d,finishing_status:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"><option value="shell">{tx('Qora suvoq','Черновая')}</option><option value="white_box">White box</option><option value="renovated">{tx('Tayyor ta’mir','С ремонтом')}</option></select></label>
