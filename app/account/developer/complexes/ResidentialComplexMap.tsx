@@ -86,6 +86,8 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
       m.on('load', () => {
         if (disposed) return
         m.addSource('developer-polygons', { type: 'geojson', data: data.current })
+        m.addSource('developer-draft-points', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+        m.addLayer({ id: 'developer-draft-points-layer', type: 'circle', source: 'developer-draft-points', paint: { 'circle-radius': 6, 'circle-color': '#0f766e', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } })
         m.addLayer({
           id: 'developer-complex-fill', type: 'fill', source: 'developer-polygons',
           filter: ['==', ['geometry-type'], 'Polygon'],
@@ -136,6 +138,7 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
           }
           draft.current = [...draft.current, point]
           setPoints([...draft.current])
+          m.getSource('developer-draft-points')?.setData({ type: 'FeatureCollection', features: draft.current.map(coordinates => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates } })) })
           onChange(data.current, { latitude: point[1], longitude: point[0] })
           setMessage(`${modeRef.current === 'building' ? 'Korpus' : 'Majmua'} konturi: ${draft.current.length} ta nuqta. ${draft.current.length < 3 ? 'Yana nuqta belgilang.' : 'Endi yashil tugmani bosing.'}`)
         })
@@ -191,11 +194,12 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     onChange(next, { latitude: ring[0][1], longitude: ring[0][0] })
     draft.current = []
     setPoints([])
+    map.current?.getSource('developer-draft-points')?.setData({ type: 'FeatureCollection', features: [] })
     setMessage(isComplex ? 'Majmua hududi chizmaga qo‘shildi. Endi “Korpus chizish” rejimini tanlang.' : 'Korpus xaritada joylashtirildi. Umumiy saqlash tugmasini bosing.')
   }
 
-  function undoPoint() { draft.current = draft.current.slice(0, -1); setPoints([...draft.current]); setMessage(`Chizilayotgan nuqtalar: ${draft.current.length}`) }
-  function clearDraft() { draft.current = []; setPoints([]); setMessage('Xaritada nuqtalarni belgilang. Kamida 3 ta nuqta kerak.') }
+  function undoPoint() { draft.current = draft.current.slice(0, -1); setPoints([...draft.current]); map.current?.getSource('developer-draft-points')?.setData({ type: 'FeatureCollection', features: draft.current.map(coordinates => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates } })) }); setMessage(`Chizilayotgan nuqtalar: ${draft.current.length}`) }
+  function clearDraft() { draft.current = []; setPoints([]); map.current?.getSource('developer-draft-points')?.setData({ type: 'FeatureCollection', features: [] }); setMessage('Xaritada nuqtalarni belgilang. Kamida 3 ta nuqta kerak.') }
 
   const modes: { value: Mode; label: string }[] = [
     { value: 'complex', label: 'Majmua hududi' },
@@ -205,19 +209,19 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
 
   return <section className="overflow-hidden rounded-2xl border border-slate-200">
     <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4">
-      <div><h2 className="font-black text-slate-900">Majmua xaritasi</h2><p className="mt-1 text-xs text-slate-500">Soya loyihasidagi MapLibre va OpenFreeMap texnologiyasi asosida</p></div>
+      <div><h2 className="font-black text-slate-900">Majmua xaritasi</h2><p className="mt-1 text-xs text-slate-500">Xaritada nuqtalarni belgilang va kontur orqali majmua hududi yoki korpusni joylashtiring</p></div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => setShowInfrastructure(v => !v)} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">{showInfrastructure ? 'Infratuzilmani yashirish' : 'Infratuzilmani ko‘rsatish'}</button>
       </div>
     </div>
     <div className="flex flex-wrap gap-2 border-t bg-white px-4 py-3"><span className="self-center text-xs font-bold text-slate-500">Chizish rejimi:</span>
-      {modes.map(item => <button key={item.value} type="button" onClick={() => { setMode(item.value); clearDraft() }} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === item.value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{item.label}</button>)}
+      {modes.map(item => <button key={item.value} type="button" onClick={() => { modeRef.current = item.value; setMode(item.value); clearDraft() }} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === item.value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{item.label}</button>)}
     </div>
     <div className="relative"><div ref={container} className="h-[440px] w-full bg-slate-100" />{!ready && <div className="absolute inset-0 grid place-items-center bg-slate-100/90 text-sm text-slate-600">Xarita yuklanmoqda...</div>}</div>
     {(mode === 'complex' || mode === 'building' || mode === 'infrastructure') && <div className="flex flex-wrap items-center gap-2 bg-white p-4">
       {mode === 'infrastructure' && <select value={category} onChange={e => setCategory(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">{categories.map(item => <option key={item.value} value={item.value}>{item.emoji} {item.label}</option>)}</select>}
       <input value={name} onChange={e => setName(e.target.value)} placeholder={mode === 'complex' ? 'Majmua hududi nomi' : mode === 'building' ? 'Korpus nomi (masalan, 1-korpus)' : 'Obyekt nomi (masalan, 12-maktab)'} className="min-w-[190px] flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-      {mode !== 'infrastructure' && <><button type="button" onClick={finishPolygon} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white">Kontur tugatish</button><button type="button" onClick={undoPoint} disabled={!points.length} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold disabled:opacity-40">Orqaga</button><button type="button" onClick={clearDraft} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold">Tozalash</button></>}
+      {mode !== 'infrastructure' && <><button type="button" onClick={finishPolygon} disabled={points.length < 3} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">{mode === 'building' ? 'Korpusni joylashtirish' : 'Hudud konturini saqlash'}</button><button type="button" onClick={undoPoint} disabled={!points.length} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold disabled:opacity-40">Orqaga</button><button type="button" onClick={clearDraft} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold">Tozalash</button></>}
     </div>}
     <p className="border-t bg-slate-50 px-4 py-3 text-xs text-slate-600"><b>{message}</b><span className="ml-2">Saqlangan konturlar: {data.current.features.filter(item => item.properties.kind !== 'infrastructure').length} ta · Joriy chizma nuqtalari: {points.length} ta.</span></p>
   </section>
