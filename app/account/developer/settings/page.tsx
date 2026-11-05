@@ -102,7 +102,7 @@ export default function DeveloperSettingsPage() {
                 <p className="mt-1 text-sm text-slate-500">Yuridik va mas’ul shaxs ma’lumotlari. Kiritilmagan maydonlarni bo‘sh qoldirishingiz mumkin.</p>
               </div>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">STIR (INN)</span>
-                <input inputMode="numeric" pattern="[0-9]{9}" maxLength={9} value={taxId} onChange={e => setTaxId(e.target.value.replace(/\\D/g, '').slice(0, 9))} placeholder="9 xonali STIR" className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+                <input inputMode="numeric" pattern="[0-9]{9}" maxLength={9} value={taxId} onChange={e => setTaxId(e.target.value.replace(/\D/g, '').slice(0, 9))} placeholder="9 xonali STIR" className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
               </label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Yuridik manzil</span>
                 <input maxLength={240} value={legalAddress} onChange={e => setLegalAddress(e.target.value)} placeholder="Toshkent shahri, ..." className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
