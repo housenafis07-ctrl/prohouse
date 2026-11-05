@@ -101,13 +101,18 @@ export async function POST(request: Request) {
 
   const mediaType = mimeType.startsWith('video/') ? 'video' : 'image'
   const stage = typeof body.construction_stage === 'string' ? body.construction_stage : ''
+  const buildingId = typeof body.building_id === 'string' ? body.building_id : null
+  if (buildingId) {
+    const { data: building } = await ctx.db.from('residential_buildings').select('id').eq('id', buildingId).eq('complex_id', complexId).maybeSingle()
+    if (!building) return NextResponse.json({ error: 'BUILDING_NOT_FOUND_FOR_COMPLEX' }, { status: 400 })
+  }
   if (!STAGES.includes(stage) || !MEDIA_MIMES.includes(mimeType) || !Number.isFinite(size) || size <= 0 || size > 500 * 1024 * 1024) {
     return NextResponse.json({ error: 'CONSTRUCTION_METADATA_INVALID' }, { status: 400 })
   }
   const publicUrl = ctx.db.storage.from(bucket).getPublicUrl(path).data.publicUrl
   const { data, error } = await ctx.db.from('developer_construction_updates').insert({
     complex_id: complexId, developer_id: ctx.developer.id, uploaded_by: ctx.userId,
-    building_id: typeof body.building_id === 'string' ? body.building_id : null,
+    building_id: buildingId,
     media_type: mediaType, storage_path: path, public_url: publicUrl,
     caption: typeof body.caption === 'string' ? body.caption.slice(0,1200) : null,
     construction_stage: stage, captured_at: body.captured_at || new Date().toISOString().slice(0,10),
