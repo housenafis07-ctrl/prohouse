@@ -125,7 +125,7 @@ export async function PATCH(request: Request) {
   if (!owned.ids.length) return NextResponse.json({ error: 'UNIT_NOT_FOUND' }, { status: 404 })
   const { data, error } = await context.db.from('complex_units').update(update)
     .eq('id', id).in('building_id', owned.ids)
-    .select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id').maybeSingle()
+    .select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id,plan_url,details').maybeSingle()
   if (error) return NextResponse.json({ error: 'UNIT_UPDATE_FAILED' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'UNIT_NOT_FOUND' }, { status: 404 })
   return NextResponse.json({ unit: data }, { headers: { 'Cache-Control': 'no-store' } })
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
     plan_url: planUrl || null,
     details: { balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote || null },
     status: 'available',
-  }).select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id').single()
+  }).select('id,unit_no,floor,rooms,area_m2,price,currency,status,building_id,plan_url,details').single()
   if (error) return NextResponse.json({ error: 'UNIT_CREATE_FAILED' }, { status: 500 })
   return NextResponse.json({ unit: data }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
 }
