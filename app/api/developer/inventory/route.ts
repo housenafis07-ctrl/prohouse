@@ -91,7 +91,7 @@ export async function PATCH(request: Request) {
     update.status = body.status
   }
 
-  const editingFields = ['unit_no', 'floor', 'rooms', 'area_m2', 'price', 'currency', 'plan_url', 'balcony_type', 'bathroom_count', 'finishing_status', 'down_payment', 'installment_months', 'installment_note']
+  const editingFields = ['unit_no', 'floor', 'rooms', 'area_m2', 'price', 'currency', 'plan_url', 'balcony_type', 'bathroom_count', 'finishing_status', 'installment_enabled', 'down_payment', 'installment_months', 'installment_note']
   const isEditing = editingFields.some(field => Object.prototype.hasOwnProperty.call(body, field))
   if (isEditing) {
     const unitNo = typeof body.unit_no === 'string' ? body.unit_no.trim() : ''
