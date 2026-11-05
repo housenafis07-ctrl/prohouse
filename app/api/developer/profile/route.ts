@@ -29,9 +29,10 @@ export async function GET() {
     : await query.eq('user_id', userId).maybeSingle()
 
   if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
-  const adminReview = data?.metadata && typeof data.metadata === 'object' ? (data.metadata as Record<string, any>).admin_review : null
+  const metadata = data?.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, any> : {}
+  const adminReview = metadata.admin_review
   const publicReview = adminReview ? { status: adminReview.status, reason: adminReview.reason || null, reviewed_at: adminReview.reviewed_at || null } : null
-  const developer = data ? { ...data, metadata: publicReview ? { admin_review: publicReview } : null } : null
+  const developer = data ? { ...data, company_details: metadata.company_details || {}, metadata: publicReview ? { admin_review: publicReview } : null } : null
   return NextResponse.json({ developer }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -146,6 +147,19 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'WEBSITE_MUST_INCLUDE_PROTOCOL' }, { status: 400 })
   }
 
+  const companyDetails = {
+    tax_id: typeof body.tax_id === 'string' ? body.tax_id.trim() : '',
+    legal_address: typeof body.legal_address === 'string' ? body.legal_address.trim() : '',
+    contact_email: typeof body.contact_email === 'string' ? body.contact_email.trim().toLowerCase() : '',
+    responsible_name: typeof body.responsible_name === 'string' ? body.responsible_name.trim() : '',
+    responsible_position: typeof body.responsible_position === 'string' ? body.responsible_position.trim() : '',
+    registration_date: typeof body.registration_date === 'string' ? body.registration_date.trim() : '',
+  }
+  if (companyDetails.tax_id && !/^\\d{9}$/.test(companyDetails.tax_id)) return NextResponse.json({ error: 'TAX_ID_INVALID' }, { status: 400 })
+  if (companyDetails.contact_email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(companyDetails.contact_email)) return NextResponse.json({ error: 'CONTACT_EMAIL_INVALID' }, { status: 400 })
+  if (Object.values(companyDetails).some(value => value.length > 240)) return NextResponse.json({ error: 'FIELD_TOO_LONG' }, { status: 400 })
+  if (companyDetails.registration_date && !/^\\d{4}-\\d{2}-\\d{2}$/.test(companyDetails.registration_date)) return NextResponse.json({ error: 'REGISTRATION_DATE_INVALID' }, { status: 400 })
+
   const db = serviceClient()
   const { data: partner, error: partnerError } = await db.from('partner_profiles')
     .select('id').eq('user_id', userId).maybeSingle()
@@ -160,13 +174,18 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'DEVELOPER_PROFILE_ACCESS_DENIED' }, { status: 403 })
   }
 
+  const { data: current, error: currentError } = await db.from('developer_profiles').select('metadata').eq('id', existing.id).single()
+  if (currentError) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
+  const currentMetadata = current?.metadata && typeof current.metadata === 'object' ? current.metadata as Record<string, any> : {}
+  const nextMetadata = { ...currentMetadata, company_details: companyDetails }
   const { data, error } = await db.from('developer_profiles').update({
     user_id: existing.user_id || userId,
     developer_name: developerName,
     description: description || null,
     website: website || null,
     phone: phone || null,
+    metadata: nextMetadata,
   }).eq('id', existing.id).select(safeSelect).single()
   if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_UPDATE_FAILED' }, { status: 500 })
-  return NextResponse.json({ developer: data }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ developer: { ...data, company_details: companyDetails } }, { headers: { 'Cache-Control': 'no-store' } })
 }
