@@ -59,8 +59,31 @@ export async function GET() {
     if (complexesError) return NextResponse.json({ error: 'LEAD_COMPLEX_DETAILS_LOAD_FAILED' }, { status: 500 })
     complexById = new Map((complexes || []).map((complex: any) => [complex.id, complex]))
   }
+  const ownedComplexIds = [...complexById.keys()]
+  const buildingById = new Map<string, { name: string; building_no: string | null }>()
+  if (ownedComplexIds.length) {
+    const { data: buildings, error: buildingsError } = await context.db.from('residential_buildings')
+      .select('id,complex_id,name,building_no')
+      .in('complex_id', ownedComplexIds)
+    if (buildingsError) return NextResponse.json({ error: 'LEAD_BUILDING_DETAILS_LOAD_FAILED' }, { status: 500 })
+    for (const building of buildings || []) buildingById.set(building.id, building)
+  }
+  const unitIds = [...new Set(leads.map((lead: any) => lead.unit_id).filter((id: unknown): id is string => typeof id === 'string'))]
+  const unitById = new Map<string, any>()
+  const validBuildingIds = [...buildingById.keys()]
+  if (unitIds.length && validBuildingIds.length) {
+    const { data: units, error: unitsError } = await context.db.from('complex_units')
+      .select('id,building_id,unit_no,floor,rooms,area_m2,price,currency,status')
+      .in('id', unitIds).in('building_id', validBuildingIds)
+    if (unitsError) return NextResponse.json({ error: 'LEAD_UNIT_DETAILS_LOAD_FAILED' }, { status: 500 })
+    for (const unit of units || []) unitById.set(unit.id, { ...unit, building: buildingById.get(unit.building_id) || null })
+  }
   return NextResponse.json({
-    leads: leads.map((lead: any) => ({ ...lead, complex: lead.complex_id ? complexById.get(lead.complex_id) || null : null })),
+    leads: leads.map((lead: any) => ({
+      ...lead,
+      complex: lead.complex_id ? complexById.get(lead.complex_id) || null : null,
+      unit: lead.unit_id ? unitById.get(lead.unit_id) || null : null,
+    })),
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
