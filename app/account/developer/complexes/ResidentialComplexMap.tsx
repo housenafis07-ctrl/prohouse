@@ -196,7 +196,7 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
       const height = Math.max(1, Number(feature.properties.height) || 12)
       const length = Math.min(1500, height / Math.tan(sun.altitude))
       const azimuth = sun.azimuth
-      const dx = length * Math.sin(azimuth), dy = -length * Math.cos(azimuth)
+      const dx = -length * Math.sin(azimuth), dy = length * Math.cos(azimuth)
       const latScale = 1 / 111320, lngScale = 1 / (111320 * Math.max(0.1, Math.cos(center[1] * Math.PI / 180)))
       const moved = points.map(([lng,lat]) => [lng + dx * lngScale, lat + dy * latScale] as Position)
       const all = points.concat(moved)
