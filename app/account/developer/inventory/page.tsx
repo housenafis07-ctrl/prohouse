@@ -308,7 +308,7 @@ export default function InventoryPage() {
           ) : (
             <form onSubmit={addUnit} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <label className="block lg:col-span-2"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Majmua / korpus', 'Комплекс / корпус')} *</span>
-                <select required value={selectedBuilding} onChange={e => setSelectedBuilding(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-3">{buildings.map(building => <option key={building.id} value={building.id}>{buildingLabel(building)}</option>)}</select>
+                <select required value={selectedBuilding} onChange={e => setSelectedBuilding(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-3">{scopedBuildings.map(building => <option key={building.id} value={building.id}>{buildingLabel(building)}</option>)}</select>
               </label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Xonadon raqami', 'Номер квартиры')}</span><input maxLength={40} value={unitNo} onChange={e => setUnitNo(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" placeholder="12-A" /></label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Qavat', 'Этаж')}</span><input type="number" min="0" max="250" value={floor} onChange={e => setFloor(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
@@ -361,7 +361,7 @@ export default function InventoryPage() {
         </section>}
 
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-black">{tx('Inventar', 'Инвентарь')}</h2><select value={selected} onChange={e => setSelected(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><option value="">{tx('Barcha korpuslar', 'Все корпуса')}</option>{buildings.map(building => <option key={building.id} value={building.id}>{buildingLabel(building)}</option>)}</select></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-black">{tx('Inventar', 'Инвентарь')}</h2><select value={selected} onChange={e => setSelected(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><option value="">{tx('Barcha korpuslar', 'Все корпуса')}</option>{scopedBuildings.map(building => <option key={building.id} value={building.id}>{buildingLabel(building)}</option>)}</select></div>
           <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
             <thead><tr className="border-b text-xs uppercase text-slate-400"><th className="p-3">{tx('Xonadon', 'Квартира')}</th><th className="p-3">{tx('Korpus', 'Корпус')}</th><th className="p-3">{tx('Qavat', 'Этаж')}</th><th className="p-3">{tx('Xona', 'Комнаты')}</th><th className="p-3">{tx('Maydon', 'Площадь')}</th><th className="p-3">{tx('Narx', 'Цена')}</th><th className="p-3">{tx('Holat', 'Статус')}</th><th className="p-3">{tx('Amal', 'Действие')}</th></tr></thead>
             <tbody>{filtered.map(unit => {
