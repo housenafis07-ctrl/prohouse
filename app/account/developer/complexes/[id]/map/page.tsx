@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import ResidentialComplexMap from '../../ResidentialComplexMap'
 
-type MapData={type:'FeatureCollection';features:Array<{type:'Feature';properties:{kind:'complex'|'building'|'infrastructure';name:string;category?:string;height?:number;source?:string};geometry:{type:'Polygon'|'Point';coordinates:any}}}
+type MapData={type:'FeatureCollection';features:Array<{type:'Feature';properties:{kind:'complex'|'building'|'infrastructure';name:string;category?:string;height?:number;source?:string};geometry:{type:'Polygon'|'Point';coordinates:any}}>}
 type Complex={id:string;name:string;latitude:number|null;longitude:number|null;map_data:MapData}
 const empty:MapData={type:'FeatureCollection',features:[]}
 export default function ComplexMapEditor({params}:{params:Promise<{id:string}>}){
