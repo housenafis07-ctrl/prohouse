@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 
-type Profile = { developer_name: string; description: string | null; website: string | null; phone: string | null }
+type CompanyDetails = { tax_id?: string; legal_address?: string; contact_email?: string; responsible_name?: string; responsible_position?: string; registration_date?: string }
+type Profile = { developer_name: string; description: string | null; website: string | null; phone: string | null; company_details?: CompanyDetails }
 const errors: Record<string, string> = {
   AUTH_REQUIRED: 'Tizimga qayta kiring.',
   PARTNER_PROFILE_REQUIRED: 'Hamkor profilingiz topilmadi.',
@@ -11,6 +12,9 @@ const errors: Record<string, string> = {
   COMPANY_NAME_INVALID: 'Kompaniya nomini tekshiring.',
   FIELD_TOO_LONG: 'Kiritilgan maydonlardan biri juda uzun.',
   WEBSITE_MUST_INCLUDE_PROTOCOL: 'Sayt manzilini https:// bilan kiriting.',
+  TAX_ID_INVALID: 'STIR 9 ta raqamdan iborat bo‘lishi kerak.',
+  CONTACT_EMAIL_INVALID: 'Elektron pochta manzilini tekshiring.',
+  REGISTRATION_DATE_INVALID: 'Ro‘yxatdan o‘tgan sanani tekshiring.',
 }
 
 export default function DeveloperSettingsPage() {
@@ -19,6 +23,12 @@ export default function DeveloperSettingsPage() {
   const [description, setDescription] = useState('')
   const [website, setWebsite] = useState('')
   const [phone, setPhone] = useState('')
+  const [taxId, setTaxId] = useState('')
+  const [legalAddress, setLegalAddress] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [responsibleName, setResponsibleName] = useState('')
+  const [responsiblePosition, setResponsiblePosition] = useState('')
+  const [registrationDate, setRegistrationDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -34,6 +44,13 @@ export default function DeveloperSettingsPage() {
         setDescription(result.developer.description || '')
         setWebsite(result.developer.website || '')
         setPhone(result.developer.phone || '')
+        const details = result.developer.company_details || {}
+        setTaxId(details.tax_id || '')
+        setLegalAddress(details.legal_address || '')
+        setContactEmail(details.contact_email || '')
+        setResponsibleName(details.responsible_name || '')
+        setResponsiblePosition(details.responsible_position || '')
+        setRegistrationDate(details.registration_date || '')
       })
       .catch(e => setError(e instanceof Error ? e.message : 'Xatolik yuz berdi.'))
       .finally(() => setLoading(false))
@@ -46,7 +63,7 @@ export default function DeveloperSettingsPage() {
       const response = await fetch('/api/developer/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ developer_name: name, description, website, phone }),
+        body: JSON.stringify({ developer_name: name, description, website, phone, tax_id: taxId, legal_address: legalAddress, contact_email: contactEmail, responsible_name: responsibleName, responsible_position: responsiblePosition, registration_date: registrationDate }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(errors[result.error] || 'Ma’lumotlarni saqlab bo‘lmadi.')
@@ -79,6 +96,30 @@ export default function DeveloperSettingsPage() {
               </label>
               <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Telefon</span>
                 <input type="tel" maxLength={40} value={phone} onChange={e => setPhone(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+              </label>
+              <div className="border-t border-slate-100 pt-5">
+                <h2 className="text-lg font-black text-slate-900">Kompaniya rekvizitlari</h2>
+                <p className="mt-1 text-sm text-slate-500">Yuridik va mas’ul shaxs ma’lumotlari. Kiritilmagan maydonlarni bo‘sh qoldirishingiz mumkin.</p>
+              </div>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">STIR (INN)</span>
+                <input inputMode="numeric" pattern="[0-9]{9}" maxLength={9} value={taxId} onChange={e => setTaxId(e.target.value.replace(/\\D/g, '').slice(0, 9))} placeholder="9 xonali STIR" className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+              </label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Yuridik manzil</span>
+                <input maxLength={240} value={legalAddress} onChange={e => setLegalAddress(e.target.value)} placeholder="Toshkent shahri, ..." className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+              </label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Kompaniya elektron pochtasi</span>
+                <input type="email" maxLength={240} value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="info@company.uz" className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+              </label>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Mas’ul shaxs F.I.Sh.</span>
+                  <input maxLength={240} value={responsibleName} onChange={e => setResponsibleName(e.target.value)} placeholder="Ism Familiya" className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+                </label>
+                <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Lavozimi</span>
+                  <input maxLength={240} value={responsiblePosition} onChange={e => setResponsiblePosition(e.target.value)} placeholder="Direktor" className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
+                </label>
+              </div>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">Kompaniya ro‘yxatdan o‘tgan sana</span>
+                <input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-emerald-500" />
               </label>
               {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
               {saved && <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Ma’lumotlar saqlandi.</p>}
