@@ -59,6 +59,7 @@ export async function POST(request: Request) {
     elevator_count: body.elevator_count === '' || body.elevator_count == null ? null : Number(body.elevator_count),
     parking_type: ['none', 'ground', 'underground', 'both'].includes(body.parking_type) ? body.parking_type : 'none',
     construction_start_date: typeof body.construction_start_date === 'string' && body.construction_start_date ? body.construction_start_date : null,
+  if (body.parking_type != null && !['none', 'ground', 'underground', 'both'].includes(body.parking_type)) return NextResponse.json({ error: 'PARKING_TYPE_INVALID' }, { status: 400 })
   }
   if (!complexId) return NextResponse.json({ error: 'COMPLEX_ID_REQUIRED' }, { status: 400 })
   if (name.length < 1 || name.length > 120 || buildingNo.length > 40) return NextResponse.json({ error: 'BUILDING_NAME_INVALID' }, { status: 400 })
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   if (technicalDetails.height_m !== null && (!Number.isFinite(technicalDetails.height_m) || technicalDetails.height_m <= 0 || technicalDetails.height_m > 1000)) return NextResponse.json({ error: 'BUILDING_HEIGHT_INVALID' }, { status: 400 })
   if (technicalDetails.entrance_count !== null && (!Number.isInteger(technicalDetails.entrance_count) || technicalDetails.entrance_count < 0 || technicalDetails.entrance_count > 100)) return NextResponse.json({ error: 'ENTRANCE_COUNT_INVALID' }, { status: 400 })
   if (technicalDetails.elevator_count !== null && (!Number.isInteger(technicalDetails.elevator_count) || technicalDetails.elevator_count < 0 || technicalDetails.elevator_count > 100)) return NextResponse.json({ error: 'ELEVATOR_COUNT_INVALID' }, { status: 400 })
-  if (technicalDetails.construction_start_date && !/^\\d{4}-\\d{2}-\\d{2}$/.test(technicalDetails.construction_start_date)) return NextResponse.json({ error: 'CONSTRUCTION_START_DATE_INVALID' }, { status: 400 })
+  if (technicalDetails.construction_start_date && !/^\d{4}-\d{2}-\d{2}$/.test(technicalDetails.construction_start_date)) return NextResponse.json({ error: 'CONSTRUCTION_START_DATE_INVALID' }, { status: 400 })
 
   const mapFeatureIndex = body.map_feature_index == null || body.map_feature_index === '' ? null : Number(body.map_feature_index)
   if (mapFeatureIndex !== null && (!Number.isInteger(mapFeatureIndex) || mapFeatureIndex < 0 || mapFeatureIndex > 99)) {
