@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
-const PLAN_BUCKET = 'developer-construction-media'
+const PLAN_BUCKET = 'developer-apartment-plans'
 const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp']
 
 async function getDeveloper() {
