@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useI18n } from '@/app/components/I18nProvider'
 
-type Unit = { id: string; unit_no: string | null; floor: number | null; rooms: number | null; area_m2: number | null; price: number | null; currency: string; status: string; building_id: string }
+type Unit = { id: string; unit_no: string | null; floor: number | null; rooms: number | null; area_m2: number | null; price: number | null; currency: string; status: string; building_id: string; plan_url?: string | null; details?: { balcony_type?: string; bathroom_count?: number | null; finishing_status?: string; down_payment?: number | null; installment_months?: number | null; installment_note?: string | null } | null }
 type Building = { id: string; name: string; complex_id: string }
 type Complex = { id: string; name: string }
 type ImportResult = {
@@ -51,13 +51,20 @@ export default function InventoryPage() {
   const [area, setArea] = useState('')
   const [price, setPrice] = useState('')
   const [currency, setCurrency] = useState('USD')
+  const [planUrl, setPlanUrl] = useState('')
+  const [balconyType, setBalconyType] = useState('none')
+  const [bathroomCount, setBathroomCount] = useState('')
+  const [finishingStatus, setFinishingStatus] = useState('shell')
+  const [downPayment, setDownPayment] = useState('')
+  const [installmentMonths, setInstallmentMonths] = useState('')
+  const [installmentNote, setInstallmentNote] = useState('')
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [importBusy, setImportBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null)
-  const [editDraft, setEditDraft] = useState({ unit_no: '', floor: '', rooms: '', area_m2: '', price: '', currency: 'USD' })
+  const [editDraft, setEditDraft] = useState({ unit_no: '', floor: '', rooms: '', area_m2: '', price: '', currency: 'USD', plan_url: '', balcony_type: 'none', bathroom_count: '', finishing_status: 'shell', down_payment: '', installment_months: '', installment_note: '' })
   const [editSaving, setEditSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -86,12 +93,12 @@ export default function InventoryPage() {
       const response = await fetch('/api/developer/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ building_id: selectedBuilding, unit_no: unitNo, floor, rooms, area_m2: area, price, currency }),
+        body: JSON.stringify({ building_id: selectedBuilding, unit_no: unitNo, floor, rooms, area_m2: area, price, currency, plan_url: planUrl, balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Xonadonni yaratib bo‘lmadi')
       setUnits(current => [...current, result.unit])
-      setUnitNo(''); setFloor(''); setRooms(''); setArea(''); setPrice('')
+      setUnitNo(''); setFloor(''); setRooms(''); setArea(''); setPrice(''); setPlanUrl(''); setBalconyType('none'); setBathroomCount(''); setFinishingStatus('shell'); setDownPayment(''); setInstallmentMonths(''); setInstallmentNote('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Xonadonni saqlab bo‘lmadi')
     } finally {
@@ -139,6 +146,13 @@ export default function InventoryPage() {
       area_m2: unit.area_m2 == null ? '' : String(unit.area_m2),
       price: unit.price == null ? '' : String(unit.price),
       currency: unit.currency || 'USD',
+      plan_url: unit.plan_url || '',
+      balcony_type: unit.details?.balcony_type || 'none',
+      bathroom_count: unit.details?.bathroom_count == null ? '' : String(unit.details.bathroom_count),
+      finishing_status: unit.details?.finishing_status || 'shell',
+      down_payment: unit.details?.down_payment == null ? '' : String(unit.details.down_payment),
+      installment_months: unit.details?.installment_months == null ? '' : String(unit.details.installment_months),
+      installment_note: unit.details?.installment_note || '',
     })
     setError('')
   }
@@ -256,6 +270,14 @@ export default function InventoryPage() {
                 <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Narx', 'Цена')}</span><input type="number" min="0" max="1000000000000" value={price} onChange={e => setPrice(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
                 <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Valyuta', 'Валюта')}</span><select value={currency} onChange={e => setCurrency(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-2"><option value="USD">USD</option><option value="UZS">UZS</option><option value="EUR">EUR</option></select></label>
               </div>
+              <div className="border-t border-slate-100 pt-4 sm:col-span-2 lg:col-span-4"><h3 className="font-black text-slate-900">{tx('Qo‘shimcha xususiyatlar','Дополнительные характеристики')}</h3><p className="mt-1 text-xs text-slate-500">{tx('Reja rasmi havolasi va xonadonning boshqa tafsilotlari.','Ссылка на планировку и другие параметры квартиры.')}</p></div>
+              <label className="block lg:col-span-2"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Xonadon reja rasmi URL','URL планировки квартиры')}</span><input type="url" maxLength={1000} value={planUrl} onChange={e=>setPlanUrl(e.target.value)} placeholder="https://..." className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Balkon / lodjiya','Балкон / лоджия')}</span><select value={balconyType} onChange={e=>setBalconyType(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-3"><option value="none">{tx('Yo‘q / ko‘rsatilmagan','Нет / не указано')}</option><option value="balcony">{tx('Balkon','Балкон')}</option><option value="loggia">{tx('Lodjiya','Лоджия')}</option></select></label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Sanuzel soni','Количество санузлов')}</span><input type="number" min="0" max="10" step="1" value={bathroomCount} onChange={e=>setBathroomCount(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Ta’mir holati','Состояние отделки')}</span><select value={finishingStatus} onChange={e=>setFinishingStatus(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-3"><option value="shell">{tx('Qora suvoq','Черновая')}</option><option value="white_box">{tx('White box','White box')}</option><option value="renovated">{tx('Tayyor ta’mir','С ремонтом')}</option></select></label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Boshlang‘ich to‘lov','Первоначальный взнос')}</span><input type="number" min="0" max="1000000000000" value={downPayment} onChange={e=>setDownPayment(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
+              <label className="block"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('Bo‘lib to‘lash (oy)','Рассрочка (месяцев)')}</span><input type="number" min="0" max="360" value={installmentMonths} onChange={e=>setInstallmentMonths(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4" /></label>
+              <label className="block sm:col-span-2 lg:col-span-4"><span className="mb-2 block text-sm font-bold text-slate-700">{tx('To‘lov shartlari izohi','Комментарий об условиях оплаты')}</span><textarea maxLength={500} value={installmentNote} onChange={e=>setInstallmentNote(e.target.value)} rows={2} className="w-full rounded-xl border border-slate-200 px-4 py-3" placeholder={tx('Masalan: 30% boshlang‘ich to‘lov, 24 oyga bo‘lib to‘lash','Например: 30% первоначальный взнос, рассрочка на 24 месяца')} /></label>
               <div className="flex items-end lg:col-span-4"><button disabled={saving} className="w-full rounded-xl bg-emerald-600 px-5 py-3.5 font-black text-white disabled:opacity-60 sm:w-auto">{saving ? tx('Saqlanmoqda...', 'Сохранение...') : tx('Xonadonni qo‘shish', 'Добавить квартиру')}</button></div>
             </form>
           )}
@@ -271,6 +293,13 @@ export default function InventoryPage() {
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Maydon (m²)', 'Площадь (м²)')}</span><input type="number" min="0.1" max="10000" step="0.01" value={editDraft.area_m2} onChange={e => setEditDraft(d => ({ ...d, area_m2: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Narx', 'Цена')}</span><input type="number" min="0" max="1000000000000" value={editDraft.price} onChange={e => setEditDraft(d => ({ ...d, price: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
             <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Valyuta', 'Валюта')}</span><select value={editDraft.currency} onChange={e => setEditDraft(d => ({ ...d, currency: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"><option value="USD">USD</option><option value="UZS">UZS</option><option value="EUR">EUR</option></select></label>
+            <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Reja rasmi URL','URL планировки')}</span><input type="url" maxLength={1000} value={editDraft.plan_url} onChange={e=>setEditDraft(d=>({...d,plan_url:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
+            <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Balkon / lodjiya','Балкон / лоджия')}</span><select value={editDraft.balcony_type} onChange={e=>setEditDraft(d=>({...d,balcony_type:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"><option value="none">{tx('Yo‘q / ko‘rsatilmagan','Нет / не указано')}</option><option value="balcony">{tx('Balkon','Балкон')}</option><option value="loggia">{tx('Lodjiya','Лоджия')}</option></select></label>
+            <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Sanuzel soni','Количество санузлов')}</span><input type="number" min="0" max="10" value={editDraft.bathroom_count} onChange={e=>setEditDraft(d=>({...d,bathroom_count:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
+            <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Ta’mir holati','Состояние отделки')}</span><select value={editDraft.finishing_status} onChange={e=>setEditDraft(d=>({...d,finishing_status:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3"><option value="shell">{tx('Qora suvoq','Черновая')}</option><option value="white_box">White box</option><option value="renovated">{tx('Tayyor ta’mir','С ремонтом')}</option></select></label>
+            <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Boshlang‘ich to‘lov','Первоначальный взнос')}</span><input type="number" min="0" max="1000000000000" value={editDraft.down_payment} onChange={e=>setEditDraft(d=>({...d,down_payment:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
+            <label className="block"><span className="mb-1 block text-sm font-bold">{tx('Bo‘lib to‘lash (oy)','Рассрочка (месяцев)')}</span><input type="number" min="0" max="360" value={editDraft.installment_months} onChange={e=>setEditDraft(d=>({...d,installment_months:e.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3" /></label>
+            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-bold">{tx('To‘lov shartlari izohi','Комментарий об условиях оплаты')}</span><textarea maxLength={500} rows={2} value={editDraft.installment_note} onChange={e=>setEditDraft(d=>({...d,installment_note:e.target.value}))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2" /></label>
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3"><button disabled={editSaving} className="rounded-xl bg-emerald-600 px-5 py-3 font-black text-white disabled:opacity-50">{editSaving ? tx('Saqlanmoqda...', 'Сохранение...') : tx('O‘zgarishlarni saqlash', 'Сохранить изменения')}</button></div>
           </form>
         </section>}
