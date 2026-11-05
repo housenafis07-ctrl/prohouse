@@ -60,6 +60,11 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
   }, [value])
 
   useEffect(() => {
+    if (!ready || latitude == null || longitude == null || !map.current) return
+    map.current.easeTo({ center: [longitude, latitude], zoom: 16, duration: 500 })
+  }, [latitude, longitude, ready])
+
+  useEffect(() => {
     let disposed = false
     const loadCss = () => {
       if (!document.querySelector('link[data-residential-maplibre]')) {

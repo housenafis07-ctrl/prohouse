@@ -137,3 +137,31 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ complex: data }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
 }
+
+
+export async function PATCH(request: Request) {
+  const context = await getDeveloper()
+  if ('error' in context) return context.error
+  const body = await request.json().catch(() => null)
+  const id = typeof body?.id === 'string' ? body.id : ''
+  const mapData = body?.map_data
+  const latitude = body?.latitude == null ? null : Number(body.latitude)
+  const longitude = body?.longitude == null ? null : Number(body.longitude)
+  if (!id || !body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_COMPLEX_MAP_UPDATE' }, { status: 400 })
+  if ((latitude === null) !== (longitude === null) || (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) || (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))) return NextResponse.json({ error: 'MAP_COORDINATES_INVALID' }, { status: 400 })
+  const validPosition = (position: unknown) => Array.isArray(position) && position.length >= 2 && Number.isFinite(Number(position[0])) && Number(position[0]) >= -180 && Number(position[0]) <= 180 && Number.isFinite(Number(position[1])) && Number(position[1]) >= -90 && Number(position[1]) <= 90
+  const validFeature = (feature: any) => {
+    if (!feature || feature.type !== 'Feature' || !feature.properties || typeof feature.properties !== 'object') return false
+    const kind = feature.properties.kind
+    if (!['complex', 'building', 'infrastructure'].includes(kind) || typeof feature.properties.name !== 'string' || feature.properties.name.length > 160) return false
+    if (feature.geometry?.type === 'Point' && kind === 'infrastructure') return validPosition(feature.geometry.coordinates)
+    if (feature.geometry?.type !== 'Polygon' || !Array.isArray(feature.geometry.coordinates)) return false
+    const rings = feature.geometry.coordinates
+    return rings.length > 0 && rings.every((ring: unknown) => Array.isArray(ring) && ring.length >= 4 && ring.length <= 500 && ring.every(validPosition))
+  }
+  if (!mapData || mapData.type !== 'FeatureCollection' || !Array.isArray(mapData.features) || mapData.features.length > 100 || !mapData.features.every(validFeature)) return NextResponse.json({ error: 'MAP_DATA_INVALID' }, { status: 400 })
+  const { data, error } = await context.db.from('residential_complexes').update({ map_data: mapData, latitude, longitude, moderation_status: 'draft', is_verified: false }).eq('id', id).eq('developer_id', context.developer.id).select('id,name,map_data,latitude,longitude,moderation_status,is_verified').maybeSingle()
+  if (error) return NextResponse.json({ error: 'COMPLEX_MAP_UPDATE_FAILED' }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
+  return NextResponse.json({ complex: data }, { headers: { 'Cache-Control': 'no-store' } })
+}

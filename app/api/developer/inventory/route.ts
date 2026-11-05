@@ -40,11 +40,13 @@ async function getOwnedBuildingIds(db: ReturnType<typeof serviceClient>, develop
   return { ids: (buildings || []).map(x => x.id) }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await getDeveloper()
   if ('error' in context) return context.error
-  const { data: complexes, error: complexError } = await context.db.from('residential_complexes')
-    .select('id,name').eq('developer_id', context.developer.id)
+  const requestedComplexId = new URL(request.url).searchParams.get('complex_id')
+  let complexQuery = context.db.from('residential_complexes').select('id,name').eq('developer_id', context.developer.id)
+  if (requestedComplexId) complexQuery = complexQuery.eq('id', requestedComplexId)
+  const { data: complexes, error: complexError } = await complexQuery
   if (complexError) return NextResponse.json({ error: 'COMPLEX_LIST_FAILED' }, { status: 500 })
   const complexIds = (complexes || []).map(x => x.id)
   if (!complexIds.length) return NextResponse.json({ complexes: [], buildings: [], units: [] })
