@@ -111,8 +111,12 @@ export default function InventoryPage() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Xonadonni yaratib bo‘lmadi')
       let createdUnit = result.unit
-      if (planFile) createdUnit = { ...createdUnit, plan_url: await uploadPlanImage(createdUnit.id, planFile) }
       setUnits(current => [...current, createdUnit])
+      if (planFile) {
+        const uploadedPlanUrl = await uploadPlanImage(createdUnit.id, planFile)
+        createdUnit = { ...createdUnit, plan_url: uploadedPlanUrl }
+        setUnits(current => current.map(unit => unit.id === createdUnit.id ? createdUnit : unit))
+      }
       setPlanFile(null)
       setHasInstallment(false)
       setUnitNo(''); setFloor(''); setRooms(''); setArea(''); setPrice(''); setPlanUrl(''); setPlanFile(null); setBalconyType('none'); setBathroomCount(''); setFinishingStatus('shell'); setDownPayment(''); setInstallmentMonths(''); setInstallmentNote('')
@@ -200,7 +204,7 @@ export default function InventoryPage() {
       const response = await fetch('/api/developer/inventory', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingUnit.id, ...editDraft, down_payment: editDraft.installment_enabled ? editDraft.down_payment : '', installment_months: editDraft.installment_enabled ? editDraft.installment_months : '', installment_note: editDraft.installment_enabled ? editDraft.installment_note : '' }),
+        body: JSON.stringify({ id: editingUnit.id, ...editDraft, plan_url: editPlanFile ? (editingUnit.plan_url || '') : editDraft.plan_url, down_payment: editDraft.installment_enabled ? editDraft.down_payment : '', installment_months: editDraft.installment_enabled ? editDraft.installment_months : '', installment_note: editDraft.installment_enabled ? editDraft.installment_note : '' }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || tx('Xonadon ma’lumotlarini saqlab bo‘lmadi.', 'Не удалось сохранить данные квартиры.'))
