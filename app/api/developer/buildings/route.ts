@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   if (complexError) return NextResponse.json({ error: 'COMPLEX_LOOKUP_FAILED' }, { status: 500 })
   if (!complex) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
   const { data, error } = await context.db.from('residential_buildings')
-    .select('id,name,building_no,floors,units_total,completion_date,status,created_at')
+    .select('id,name,building_no,floors,units_total,completion_date,status,technical_details,created_at')
     .eq('complex_id', complexId).order('created_at', { ascending: true })
   if (error) return NextResponse.json({ error: 'BUILDINGS_LOAD_FAILED' }, { status: 500 })
   return NextResponse.json({ complex, buildings: data || [] }, { headers: { 'Cache-Control': 'no-store' } })
@@ -53,11 +53,23 @@ export async function POST(request: Request) {
   const floors = body.floors === '' || body.floors == null ? null : Number(body.floors)
   const unitsTotal = body.units_total === '' || body.units_total == null ? null : Number(body.units_total)
   const completionDate = typeof body.completion_date === 'string' && body.completion_date ? body.completion_date : null
+  const technicalDetails = {
+    height_m: body.height_m === '' || body.height_m == null ? null : Number(body.height_m),
+    entrance_count: body.entrance_count === '' || body.entrance_count == null ? null : Number(body.entrance_count),
+    elevator_count: body.elevator_count === '' || body.elevator_count == null ? null : Number(body.elevator_count),
+    parking_type: ['none', 'ground', 'underground', 'both'].includes(body.parking_type) ? body.parking_type : 'none',
+    construction_start_date: typeof body.construction_start_date === 'string' && body.construction_start_date ? body.construction_start_date : null,
+  }
+  if (body.parking_type != null && !['none', 'ground', 'underground', 'both'].includes(body.parking_type)) return NextResponse.json({ error: 'PARKING_TYPE_INVALID' }, { status: 400 })
   if (!complexId) return NextResponse.json({ error: 'COMPLEX_ID_REQUIRED' }, { status: 400 })
   if (name.length < 1 || name.length > 120 || buildingNo.length > 40) return NextResponse.json({ error: 'BUILDING_NAME_INVALID' }, { status: 400 })
   if (floors !== null && (!Number.isInteger(floors) || floors < 1 || floors > 200)) return NextResponse.json({ error: 'FLOORS_INVALID' }, { status: 400 })
   if (unitsTotal !== null && (!Number.isInteger(unitsTotal) || unitsTotal < 0 || unitsTotal > 10000)) return NextResponse.json({ error: 'UNITS_TOTAL_INVALID' }, { status: 400 })
   if (completionDate && !/^\d{4}-\d{2}-\d{2}$/.test(completionDate)) return NextResponse.json({ error: 'COMPLETION_DATE_INVALID' }, { status: 400 })
+  if (technicalDetails.height_m !== null && (!Number.isFinite(technicalDetails.height_m) || technicalDetails.height_m <= 0 || technicalDetails.height_m > 1000)) return NextResponse.json({ error: 'BUILDING_HEIGHT_INVALID' }, { status: 400 })
+  if (technicalDetails.entrance_count !== null && (!Number.isInteger(technicalDetails.entrance_count) || technicalDetails.entrance_count < 0 || technicalDetails.entrance_count > 100)) return NextResponse.json({ error: 'ENTRANCE_COUNT_INVALID' }, { status: 400 })
+  if (technicalDetails.elevator_count !== null && (!Number.isInteger(technicalDetails.elevator_count) || technicalDetails.elevator_count < 0 || technicalDetails.elevator_count > 100)) return NextResponse.json({ error: 'ELEVATOR_COUNT_INVALID' }, { status: 400 })
+  if (technicalDetails.construction_start_date && !/^\d{4}-\d{2}-\d{2}$/.test(technicalDetails.construction_start_date)) return NextResponse.json({ error: 'CONSTRUCTION_START_DATE_INVALID' }, { status: 400 })
 
   const mapFeatureIndex = body.map_feature_index == null || body.map_feature_index === '' ? null : Number(body.map_feature_index)
   if (mapFeatureIndex !== null && (!Number.isInteger(mapFeatureIndex) || mapFeatureIndex < 0 || mapFeatureIndex > 99)) {
@@ -83,8 +95,9 @@ export async function POST(request: Request) {
     floors,
     units_total: unitsTotal,
     completion_date: completionDate,
+    technical_details: technicalDetails,
     status: 'construction',
-  }).select('id,name,building_no,floors,units_total,completion_date,status,created_at').single()
+  }).select('id,name,building_no,floors,units_total,completion_date,status,technical_details,created_at').single()
   if (error) return NextResponse.json({ error: 'BUILDING_CREATE_FAILED' }, { status: 500 })
   if (mapFeatureIndex !== null) {
     features[mapFeatureIndex] = { ...features[mapFeatureIndex], properties: { ...features[mapFeatureIndex].properties, building_id: data.id, building_name: data.name } }

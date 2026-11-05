@@ -48,6 +48,9 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
   categoryRef.current = category
   nameRef.current = name
   const [is3d, setIs3d] = useState(true)
+  const [shadowEnabled, setShadowEnabled] = useState(true)
+  const [shadowDate, setShadowDate] = useState(new Date().toISOString().slice(0, 10))
+  const [shadowTime, setShadowTime] = useState('15:00')
   const [showInfrastructure, setShowInfrastructure] = useState(true)
   const [selectedBuilding, setSelectedBuilding] = useState<{ name: string; height: number; source: string } | null>(null)
 
@@ -55,6 +58,11 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     data.current = value || empty
     map.current?.getSource('developer-polygons')?.setData(data.current)
   }, [value])
+
+  useEffect(() => {
+    if (!ready || latitude == null || longitude == null || !map.current) return
+    map.current.easeTo({ center: [longitude, latitude], zoom: 16, duration: 500 })
+  }, [latitude, longitude, ready])
 
   useEffect(() => {
     let disposed = false
@@ -83,6 +91,8 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
       m.on('load', () => {
         if (disposed) return
         m.addSource('developer-polygons', { type: 'geojson', data: data.current })
+        m.addSource('developer-building-shadows', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+        m.addLayer({ id: 'developer-building-shadows-fill', type: 'fill', source: 'developer-building-shadows', paint: { 'fill-color': '#111827', 'fill-opacity': 0.38 } })
         m.addLayer({
           id: 'developer-complex-fill', type: 'fill', source: 'developer-polygons',
           filter: ['==', ['geometry-type'], 'Polygon'],
@@ -140,6 +150,7 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
           setMessage(`Chizilayotgan kontur nuqtalari: ${draft.current.length}. Kamida 3 ta nuqta belgilang.`)
         })
         setReady(true)
+        loadSunCalc().then(() => updateBuildingShadows(m)).catch(() => setMessage('Soya hisoblash kutubxonasi yuklanmadi. Internetni tekshiring.'))
       })
     }
     loadCss()
@@ -157,6 +168,60 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
     }
     return () => { disposed = true; map.current?.remove(); map.current = null }
   }, [])
+
+  function loadSunCalc(): Promise<void> {
+    if ((window as any).SunCalc) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-royalhouse-suncalc]') as HTMLScriptElement | null
+      if (existing) { existing.addEventListener('load', () => resolve(), { once: true }); existing.addEventListener('error', () => reject(new Error('SunCalc load failed')), { once: true }); return }
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js'
+      script.dataset.royalhouseSuncalc = 'true'
+      script.onload = () => resolve()
+      script.onerror = () => reject(new Error('SunCalc load failed'))
+      document.head.appendChild(script)
+    })
+  }
+  function updateBuildingShadows(m = map.current) {
+    const source = m?.getSource('developer-building-shadows')
+    if (!source || !(window as any).SunCalc) return
+    if (!shadowEnabled) { source.setData({ type: 'FeatureCollection', features: [] }); return }
+    const [year, month, day] = shadowDate.split('-').map(Number)
+    const [hour, minute] = shadowTime.split(':').map(Number)
+    if (![year, month, day, hour, minute].every(Number.isFinite)) return
+    const dt = new Date(year, month - 1, day, hour, minute)
+    const features = data.current.features.filter(f => f.properties.kind === 'building' && f.geometry.type === 'Polygon')
+    const shadows = features.flatMap(feature => {
+      const ring: Position[] = feature.geometry.coordinates?.[0] || []
+      const points = ring.slice(0, -1)
+      if (points.length < 3) return []
+      const center: Position = [points.reduce((a,p)=>a+p[0],0)/points.length,points.reduce((a,p)=>a+p[1],0)/points.length]
+      const sun = (window as any).SunCalc.getPosition(dt, center[1], center[0])
+      if (sun.altitude <= 0.01) return []
+      const height = Math.max(1, Number(feature.properties.height) || 12)
+      const length = Math.min(1500, height / Math.tan(sun.altitude))
+      const azimuth = sun.azimuth
+      const dx = -length * Math.sin(azimuth), dy = length * Math.cos(azimuth)
+      const latScale = 1 / 111320, lngScale = 1 / (111320 * Math.max(0.1, Math.cos(center[1] * Math.PI / 180)))
+      const moved = points.map(([lng,lat]) => [lng + dx * lngScale, lat + dy * latScale] as Position)
+      const all = points.concat(moved)
+      const sorted = all.slice().sort((a,b)=>a[0]-b[0] || a[1]-b[1])
+      const cross=(o:Position,a:Position,b:Position)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0])
+      const lower:Position[]=[],upper:Position[]=[]
+      for(const p of sorted){while(lower.length>=2&&cross(lower[lower.length-2],lower[lower.length-1],p)<=0)lower.pop();lower.push(p)}
+      for(const p of sorted.slice().reverse()){while(upper.length>=2&&cross(upper[upper.length-2],upper[upper.length-1],p)<=0)upper.pop();upper.push(p)}
+      lower.pop();upper.pop();const hull=lower.concat(upper)
+      if(hull.length<3)return []
+      hull.push(hull[0])
+      return [{type:'Feature' as const,properties:{name:feature.properties.name},geometry:{type:'Polygon' as const,coordinates:[hull]}}]
+    })
+    source.setData({ type: 'FeatureCollection', features: shadows })
+  }
+
+  useEffect(() => {
+    if (!ready || !map.current) return
+    loadSunCalc().then(() => updateBuildingShadows()).catch(() => {})
+  }, [ready, shadowEnabled, shadowDate, shadowTime, value])
 
   useEffect(() => {
     if (!map.current || !ready) return
@@ -248,12 +313,14 @@ export default function ResidentialComplexMap({ value, onChange, latitude, longi
       <div><h2 className="font-black text-slate-900">Majmua xaritasi</h2><p className="mt-1 text-xs text-slate-500">Soya loyihasidagi MapLibre va OpenFreeMap texnologiyasi asosida</p></div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => setIs3d(v => !v)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white">{is3d ? '2D ko‘rinish' : '3D ko‘rinish'}</button>
+        <button type="button" onClick={() => setShadowEnabled(v => !v)} className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900">{shadowEnabled ? 'Soyani yashirish' : 'Soyani ko‘rsatish'}</button>
         <button type="button" onClick={() => setShowInfrastructure(v => !v)} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">{showInfrastructure ? 'Infratuzilmani yashirish' : 'Infratuzilmani ko‘rsatish'}</button>
       </div>
     </div>
     <div className="flex flex-wrap gap-2 border-t bg-white px-4 py-3">
       {modes.map(item => <button key={item.value} type="button" onClick={() => { setMode(item.value); clearDraft() }} className={`rounded-lg px-3 py-2 text-xs font-bold ${mode === item.value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{item.label}</button>)}
     </div>
+    <div className="flex flex-wrap items-center gap-3 border-t bg-slate-50 px-4 py-3"><label className="text-xs font-bold text-slate-600">Sana <input type="date" value={shadowDate} onChange={e=>setShadowDate(e.target.value)} className="ml-2 rounded-lg border px-2 py-1" /></label><label className="text-xs font-bold text-slate-600">Vaqt <input type="time" value={shadowTime} onChange={e=>setShadowTime(e.target.value)} className="ml-2 rounded-lg border px-2 py-1" /></label><span className="text-xs text-slate-500">Quyosh holati bo‘yicha taxminiy geometrik soya</span></div>
     <div className="relative"><div ref={container} className="h-[440px] w-full bg-slate-100" />{!ready && <div className="absolute inset-0 grid place-items-center bg-slate-100/90 text-sm text-slate-600">Xarita yuklanmoqda...</div>}</div>
     {(mode === 'complex' || mode === 'building' || mode === 'infrastructure') && <div className="flex flex-wrap items-center gap-2 bg-white p-4">
       {mode === 'infrastructure' && <select value={category} onChange={e => setCategory(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">{categories.map(item => <option key={item.value} value={item.value}>{item.emoji} {item.label}</option>)}</select>}

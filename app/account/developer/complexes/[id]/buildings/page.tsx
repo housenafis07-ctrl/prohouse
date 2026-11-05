@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 
-type Building = { id: string; name: string; building_no: string | null; floors: number | null; units_total: number | null; completion_date: string | null; status: string }
+type Building = { id: string; name: string; building_no: string | null; floors: number | null; units_total: number | null; completion_date: string | null; status: string; technical_details?: { height_m?: number | null; entrance_count?: number | null; elevator_count?: number | null; parking_type?: string | null; construction_start_date?: string | null } | null }
 type MapFeature = { type: 'Feature'; properties?: { kind?: string; name?: string; building_id?: string }; geometry?: { type?: string } }
 type Complex = { id: string; name: string; map_data?: { features?: MapFeature[] } }
 
@@ -16,6 +16,11 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
   const [floors, setFloors] = useState('')
   const [unitsTotal, setUnitsTotal] = useState('')
   const [completionDate, setCompletionDate] = useState('')
+  const [heightM, setHeightM] = useState('')
+  const [entranceCount, setEntranceCount] = useState('')
+  const [elevatorCount, setElevatorCount] = useState('')
+  const [parkingType, setParkingType] = useState('none')
+  const [constructionStartDate, setConstructionStartDate] = useState('')
   const [mapFeatureIndex, setMapFeatureIndex] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -51,13 +56,18 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
           complex_id: complexId, name, building_no: buildingNo,
           floors: floors || null, units_total: unitsTotal || null,
           completion_date: completionDate || null,
+          height_m: heightM || null,
+          entrance_count: entranceCount || null,
+          elevator_count: elevatorCount || null,
+          parking_type: parkingType,
+          construction_start_date: constructionStartDate || null,
           map_feature_index: mapFeatureIndex || null,
         }),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || 'Korpusni yaratib bo‘lmadi')
       setBuildings(current => [...current, result.building])
-      setName(''); setBuildingNo(''); setFloors(''); setUnitsTotal(''); setCompletionDate(''); setMapFeatureIndex('')
+      setName(''); setBuildingNo(''); setFloors(''); setUnitsTotal(''); setCompletionDate(''); setHeightM(''); setEntranceCount(''); setElevatorCount(''); setParkingType('none'); setConstructionStartDate(''); setMapFeatureIndex('')
       await load(complexId)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Server bilan bog‘lanib bo‘lmadi')
@@ -97,6 +107,32 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
               <label className="block"><span className="mb-2 block text-sm font-bold">Topshirish sanasi</span>
                 <input type="date" value={completionDate} onChange={e => setCompletionDate(e.target.value)} className="h-12 w-full rounded-xl border px-4" />
               </label>
+              <div className="border-t border-slate-100 pt-4">
+                <h3 className="font-black text-slate-900">Korpusning texnik ma’lumotlari</h3>
+                <p className="mt-1 text-xs text-slate-500">Bu maydonlar ixtiyoriy. Hozir ma’lum bo‘lmasa, keyin to‘ldirishingiz mumkin.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block"><span className="mb-2 block text-sm font-bold">Balandligi (metr)</span>
+                  <input type="number" min="0.1" max="1000" step="0.1" value={heightM} onChange={e => setHeightM(e.target.value)} className="h-12 w-full rounded-xl border px-4" placeholder="63" />
+                </label>
+                <label className="block"><span className="mb-2 block text-sm font-bold">Kirish yo‘laklari</span>
+                  <input type="number" min="0" max="100" value={entranceCount} onChange={e => setEntranceCount(e.target.value)} className="h-12 w-full rounded-xl border px-4" placeholder="2" />
+                </label>
+                <label className="block"><span className="mb-2 block text-sm font-bold">Liftlar soni</span>
+                  <input type="number" min="0" max="100" value={elevatorCount} onChange={e => setElevatorCount(e.target.value)} className="h-12 w-full rounded-xl border px-4" placeholder="2" />
+                </label>
+                <label className="block"><span className="mb-2 block text-sm font-bold">Parking turi</span>
+                  <select value={parkingType} onChange={e => setParkingType(e.target.value)} className="h-12 w-full rounded-xl border bg-white px-3">
+                    <option value="none">Ko‘rsatilmagan</option>
+                    <option value="ground">Ochiq parking</option>
+                    <option value="underground">Yerosti parking</option>
+                    <option value="both">Ochiq va yerosti</option>
+                  </select>
+                </label>
+              </div>
+              <label className="block"><span className="mb-2 block text-sm font-bold">Qurilish boshlangan sana</span>
+                <input type="date" value={constructionStartDate} onChange={e => setConstructionStartDate(e.target.value)} className="h-12 w-full rounded-xl border px-4" />
+              </label>
               <label className="block"><span className="mb-2 block text-sm font-bold">Xaritadagi korpus konturi</span>
                 <select value={mapFeatureIndex} onChange={e => setMapFeatureIndex(e.target.value)} className="h-12 w-full rounded-xl border bg-white px-4">
                   <option value="">Konturga bog‘lamaslik</option>
@@ -115,6 +151,13 @@ export default function ComplexBuildingsPage({ params }: { params: Promise<{ id:
               {buildings.map(building => <div key={building.id} className="rounded-2xl border border-slate-100 p-4">
                 <div className="flex items-start justify-between gap-3"><div><h3 className="font-black">{building.name}</h3><p className="mt-1 text-xs text-slate-500">{building.building_no || 'Raqam belgilanmagan'}</p></div><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{building.status}</span></div>
                 <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500"><span>{building.floors ?? '—'} qavat</span><span>{building.units_total ?? '—'} xonadon</span><span>{building.completion_date || 'Sana belgilanmagan'}</span></div>
+                {building.technical_details && <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                  {building.technical_details.height_m != null && <span>{building.technical_details.height_m} m</span>}
+                  {building.technical_details.entrance_count != null && <span>{building.technical_details.entrance_count} ta kirish</span>}
+                  {building.technical_details.elevator_count != null && <span>{building.technical_details.elevator_count} ta lift</span>}
+                  {building.technical_details.parking_type && building.technical_details.parking_type !== 'none' && <span>{building.technical_details.parking_type === 'underground' ? 'Yerosti parking' : building.technical_details.parking_type === 'ground' ? 'Ochiq parking' : 'Ochiq + yerosti parking'}</span>}
+                  {building.technical_details.construction_start_date && <span>Boshlangan: {building.technical_details.construction_start_date}</span>}
+                </div>}
               </div>)}
             </div>}
           </section>
