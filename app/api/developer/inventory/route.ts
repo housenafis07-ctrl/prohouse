@@ -68,13 +68,14 @@ function parseUnitDetails(body: any) {
   const downPayment = body.down_payment === '' || body.down_payment == null ? null : Number(body.down_payment)
   const installmentMonths = body.installment_months === '' || body.installment_months == null ? null : Number(body.installment_months)
   const installmentNote = typeof body.installment_note === 'string' ? body.installment_note.trim() : ''
+  const installmentEnabled = body.installment_enabled === true
   if (!['none', 'balcony', 'loggia'].includes(balconyType)) return { error: 'BALCONY_TYPE_INVALID' }
   if (bathroomCount !== null && (!Number.isInteger(bathroomCount) || bathroomCount < 0 || bathroomCount > 10)) return { error: 'BATHROOM_COUNT_INVALID' }
   if (!['shell', 'white_box', 'renovated'].includes(finishingStatus)) return { error: 'FINISHING_STATUS_INVALID' }
   if (downPayment !== null && (!Number.isFinite(downPayment) || downPayment < 0 || downPayment > 1000000000000)) return { error: 'DOWN_PAYMENT_INVALID' }
   if (installmentMonths !== null && (!Number.isInteger(installmentMonths) || installmentMonths < 0 || installmentMonths > 360)) return { error: 'INSTALLMENT_MONTHS_INVALID' }
   if (installmentNote.length > 500) return { error: 'INSTALLMENT_NOTE_TOO_LONG' }
-  return { value: { balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, down_payment: downPayment, installment_months: installmentMonths, installment_note: installmentNote || null } }
+  return { value: { balcony_type: balconyType, bathroom_count: bathroomCount, finishing_status: finishingStatus, installment_enabled: installmentEnabled, down_payment: installmentEnabled ? downPayment : null, installment_months: installmentEnabled ? installmentMonths : null, installment_note: installmentEnabled ? (installmentNote || null) : null } }
 }
 
 export async function PATCH(request: Request) {
