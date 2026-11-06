@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const db = serviceClient()
   const { data, error: insertError } = await db.from('admin_developer_page_drafts')
-    .insert({ ...parsed.value, created_by: admin.user.id, updated_by: admin.user.id })
+    .insert({ ...parsed.value, status: body.status === 'ready' ? 'ready' : 'draft', created_by: admin.user.id, updated_by: admin.user.id })
     .select('id,company_name,contact_email,contact_phone,page_content,status,created_at,updated_at').single()
   if (insertError) return NextResponse.json({ error: 'DEVELOPER_PAGE_DRAFT_CREATE_FAILED' }, { status: 500 })
   return NextResponse.json({ draft: data }, { status: 201 })
