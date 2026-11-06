@@ -274,7 +274,7 @@ export async function POST(request: Request) {
 
   if (status !== 'moderation') {
     try {
-      await persistAttributeValues(supabase, updated.id, taxonomyCode, attributes)
+      await persistAttributeValues(supabase, updated.id, taxonomyCode, attributeValues)
     } catch (attributeError) {
       return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
     }
