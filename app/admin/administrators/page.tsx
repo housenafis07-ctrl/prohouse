@@ -11,6 +11,7 @@ const PERMISSION_RU:Record<string,string> = {
   manage_users:'Управление пользователями',
   view_users:'Просмотр пользователей',
   manage_settings:'Управление настройками системы',
+  'developer_pages.manage':'Создание и передача страниц девелопера',
 }
 const PERMISSION_NAME_RU:Record<string,string> = {
   "Adminlarni ko‘rish": 'Просмотр администраторов',
@@ -24,6 +25,7 @@ const PERMISSION_NAME_RU:Record<string,string> = {
   "Foydalanuvchilarni ko‘rish": 'Просмотр пользователей',
   "Foydalanuvchilarni ko'rish": 'Просмотр пользователей',
   "Tizim sozlamalarini boshqarish": 'Управление настройками системы',
+  "Developer sahifalarini yaratish va topshirish": 'Создание и передача страниц девелопера',
 }
 
 type Permission={id:string;code:string;name_uz:string;name_ru?:string}; type Admin={id:string;email:string;role:string;is_active:boolean;permissions:string[]}
