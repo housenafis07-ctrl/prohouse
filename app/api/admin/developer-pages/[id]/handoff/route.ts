@@ -16,6 +16,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (draftError) return NextResponse.json({ error: 'DRAFT_LOOKUP_FAILED' }, { status: 500 })
   if (!draft) return NextResponse.json({ error: 'DRAFT_NOT_FOUND' }, { status: 404 })
   if (draft.status === 'handed_off') return NextResponse.json({ error: 'DRAFT_ALREADY_HANDED_OFF' }, { status: 409 })
+  if (draft.status !== 'ready') return NextResponse.json({ error: 'DRAFT_MUST_BE_READY_BEFORE_HANDOFF' }, { status: 409 })
 
   const email = typeof draft.contact_email === 'string' ? draft.contact_email.trim().toLowerCase() : ''
   const phone = typeof draft.contact_phone === 'string' ? draft.contact_phone.replace(/\D/g, '') : ''
