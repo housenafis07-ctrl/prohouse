@@ -106,7 +106,7 @@ export async function GET() {
     const normalized = listings.map(item => {
       const draft = item.draft_data && typeof item.draft_data === 'object' ? item.draft_data : {}
       const attributes = draft.attributes && typeof draft.attributes === 'object' ? draft.attributes : {}
-      const profile = profiles.get(item.owner_id) ?? null
+      let rentalBooking: AnyRow | null = null\n      const rawRentalBooking = attributes.rental_booking\n      if (rawRentalBooking && typeof rawRentalBooking === 'object' && !Array.isArray(rawRentalBooking)) rentalBooking = rawRentalBooking as AnyRow\n      else if (typeof rawRentalBooking === 'string' && rawRentalBooking.trim()) { try { const parsed = JSON.parse(rawRentalBooking); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) rentalBooking = parsed as AnyRow } catch { rentalBooking = null } }\n      const profile = profiles.get(item.owner_id) ?? null
       const partner = partners.get(item.owner_id) ?? null
       const ownershipType = item.ownership_type || draft.ownership_type || attributes.ownership_type || null
       const isOwner = ownershipType === 'owner'
@@ -132,7 +132,7 @@ export async function GET() {
         partner_listing_stats: stats.get(item.owner_id) ?? { total:0,draft:0,moderation:0,active:0,rejected:0,sold:0,rented:0 },
         verification_documents: documents.get(item.owner_id) ?? [],
         moderation_history: history.get(item.id) ?? [],
-        listing_video: video,\n        listing_attributes: listingAttributes.get(item.id) ?? [],
+        listing_video: video,\n        listing_attributes: listingAttributes.get(item.id) ?? [],\n        rental_booking: rentalBooking,
       }
     })
 
