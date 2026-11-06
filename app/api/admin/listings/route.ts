@@ -32,6 +32,42 @@ export async function GET() {
     const documents = new Map<string, AnyRow[]>()
     const history = new Map<string, AnyRow[]>()
     const stats = new Map<string, AnyRow>()
+    const listingAttributes = new Map<string, AnyRow[]>()
+
+    if (listingIds.length) {
+      const { data: valueRows, error: valueError } = await db
+        .from('listing_attribute_values')
+        .select('id,listing_id,attribute_id,value_jsonb,updated_at')
+        .in('listing_id', listingIds)
+      if (valueError) throw valueError
+      const attributeIds = [...new Set((valueRows ?? []).map(row => row.attribute_id).filter(Boolean))]
+      const definitions = new Map<string, AnyRow>()
+      if (attributeIds.length) {
+        const { data: definitionRows, error: definitionError } = await db
+          .from('category_attributes')
+          .select('id,code,name_uz,name_ru,data_type,unit,sort_order')
+          .in('id', attributeIds)
+        if (definitionError) throw definitionError
+        for (const row of definitionRows ?? []) definitions.set(row.id, row)
+      }
+      // Some older saves created duplicate value rows. Keep the latest value for
+      // each listing + attribute code so the admin sees one authoritative field.
+      const latest = new Map<string, AnyRow>()
+      for (const row of valueRows ?? []) {
+        const definition = definitions.get(row.attribute_id)
+        if (!definition?.code) continue
+        const key = `${row.listing_id}:${definition.code}`
+        const previous = latest.get(key)
+        if (!previous || new Date(row.updated_at ?? 0).getTime() >= new Date(previous.updated_at ?? 0).getTime()) {
+          latest.set(key, { ...definition, value_jsonb: row.value_jsonb, updated_at: row.updated_at })
+        }
+      }
+      for (const [key, row] of latest) {
+        const listingId = key.slice(0, key.indexOf(':'))
+        listingAttributes.set(listingId, [...(listingAttributes.get(listingId) ?? []), row])
+      }
+      for (const rows of listingAttributes.values()) rows.sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    }
 
     if (ownerIds.length) {
       const { data: profileRows } = await db.from('profiles').select('id,profile_code,full_name,phone,account_type,company_name,inn,created_at,updated_at').in('id', ownerIds)
@@ -96,7 +132,7 @@ export async function GET() {
         partner_listing_stats: stats.get(item.owner_id) ?? { total:0,draft:0,moderation:0,active:0,rejected:0,sold:0,rented:0 },
         verification_documents: documents.get(item.owner_id) ?? [],
         moderation_history: history.get(item.id) ?? [],
-        listing_video: video,
+        listing_video: video,\n        listing_attributes: listingAttributes.get(item.id) ?? [],
       }
     })
 
