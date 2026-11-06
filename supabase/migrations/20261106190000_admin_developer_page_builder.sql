@@ -25,5 +25,10 @@ revoke all on public.admin_developer_page_drafts from anon, authenticated;
 grant all on public.admin_developer_page_drafts to service_role;
 
 insert into public.admin_permissions (code, name_uz)
-values ('developer_pages.manage', 'Developer sahifalarini yaratish va topshirish')
+values
+  ('developer_pages.manage', 'Developer sahifalarini yaratish va topshirish'),
+  ('developers.moderate', 'Developer arizalarini moderatsiya qilish'),
+  ('developer_complexes.moderate', 'Turar-joy majmualarini moderatsiya qilish'),
+  ('developer_documents.moderate', 'Developer hujjatlarini moderatsiya qilish'),
+  ('developer_construction_media.manage', 'Qurilish foto va videolarini boshqarish')
 on conflict (code) do update set name_uz = excluded.name_uz;
