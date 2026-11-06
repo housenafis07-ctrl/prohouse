@@ -76,6 +76,7 @@ export async function POST(request: Request) {
   const attributes = data.attributes && typeof data.attributes === 'object' ? data.attributes : {}
   const ownershipRaw = data.ownership_type ?? attributes.ownership_type
   const ownershipType = typeof ownershipRaw === 'string' && ownershipTypes.has(ownershipRaw) ? ownershipRaw : null
+  const attributeValues = { ...attributes, ...(ownershipType ? { ownership_type: ownershipType } : {}) }
   const mortgageRaw = data.mortgage ?? attributes.mortgage
   const isMortgageAvailable = mortgageRaw === 'true' || mortgageRaw === true
   const areaValue = data.area_m2 ?? attributes.area_m2
@@ -100,6 +101,9 @@ export async function POST(request: Request) {
   const accountType = profile.account_type || 'individual'
   const taxonomyCode = typeof data.taxonomy_code === 'string' ? data.taxonomy_code : null
   const isServiceListing = data.listing_type === 'service' || data.property_type === 'service'
+  if (status === 'moderation' && taxonomyCode === 'sale_house' && !ownershipType) {
+    return NextResponse.json({ error: 'OWNERSHIP_TYPE_REQUIRED', message: 'Mulk egaligi turini tanlang: egasiman, ishonchnoma asosida yoki vakilman.' }, { status: 400 })
+  }
   if (isServiceListing) {
     if (profile.account_type !== 'partner') {
       return NextResponse.json({ error: 'SERVICE_PARTNER_REQUIRED', message: 'Xizmat e’loni joylashtirish uchun professional hamkor sifatida ro‘yxatdan o‘ting.' }, { status: 403 })
@@ -225,7 +229,7 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
     try {
-      await persistAttributeValues(supabase, created.id, taxonomyCode, attributes)
+      await persistAttributeValues(supabase, created.id, taxonomyCode, attributeValues)
     } catch (attributeError) {
       return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
     }
@@ -259,7 +263,7 @@ export async function POST(request: Request) {
   // Persist them before changing status so the trigger sees the latest values.
   if (status === 'moderation') {
     try {
-      await persistAttributeValues(supabase, listingId, taxonomyCode, attributes)
+      await persistAttributeValues(supabase, listingId, taxonomyCode, attributeValues)
     } catch (attributeError) {
       return NextResponse.json({ error: attributeError instanceof Error ? attributeError.message : 'ATTRIBUTE_PERSIST_FAILED', code: 'ATTRIBUTE_PERSIST_FAILED' }, { status: 400 })
     }
