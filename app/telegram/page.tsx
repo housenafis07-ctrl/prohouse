@@ -2,7 +2,6 @@
 
 import Script from 'next/script'
 import { FormEvent, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type NavItem = { label: string; icon: string; href: string }
@@ -50,9 +49,8 @@ export default function TelegramMiniApp() {
 
     setAccountStatus('linking')
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      const accountResponse = await fetch('/api/account/profile', { credentials: 'same-origin', cache: 'no-store' })
+      if (!accountResponse.ok) {
         setAccountStatus('needs_login')
         return
       }
@@ -88,9 +86,8 @@ export default function TelegramMiniApp() {
   }
   const openInMiniApp = (path: string) => { window.location.href = path }
   const handlePlaceAd = async () => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    openInMiniApp(user ? '/listings/new' : '/register?redirect=/listings/new')
+    const accountResponse = await fetch('/api/account/profile', { credentials: 'same-origin', cache: 'no-store' })
+    openInMiniApp(accountResponse.ok ? '/listings/new' : '/register?next=%2Flistings%2Fnew')
   }
   const search = (event: FormEvent) => {
     event.preventDefault()
