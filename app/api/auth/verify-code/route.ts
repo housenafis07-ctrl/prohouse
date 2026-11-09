@@ -31,32 +31,27 @@ export async function POST(request: Request) {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
-  const { data: otp, error: otpLookupError } = await admin
-    .from('sms_otp_codes')
-    .select('id, code_hash, expires_at, attempts')
-    .eq('phone', normalizedPhone)
-    .is('used_at', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const { data: consumeResult, error: consumeError } = await admin.rpc('consume_sms_otp', {
+    p_phone: normalizedPhone,
+    p_code_hash: hashOtp(normalizedCode),
+    p_max_attempts: MAX_ATTEMPTS,
+  })
+  if (consumeError) return NextResponse.json({ error: consumeError.message }, { status: 500 })
 
-  if (otpLookupError) return NextResponse.json({ error: otpLookupError.message }, { status: 500 })
-  if (!otp) return NextResponse.json({ error: 'Tasdiqlash kodi topilmadi. Yangi kod so‘rang.' }, { status: 401 })
-  if (new Date(otp.expires_at).getTime() <= Date.now()) return NextResponse.json({ error: 'Tasdiqlash kodi muddati tugagan. Yangi kod so‘rang.' }, { status: 401 })
-  if (otp.attempts >= MAX_ATTEMPTS) return NextResponse.json({ error: 'Urinishlar soni tugadi. Yangi kod so‘rang.' }, { status: 429 })
+  const otpStatus = Array.isArray(consumeResult) ? consumeResult[0]?.status : consumeResult?.status
+  if (otpStatus === 'NOT_FOUND') return NextResponse.json({ error: 'Tasdiqlash kodi topilmadi. Yangi kod so‘rang.' }, { status: 401 })
+  if (otpStatus === 'EXPIRED') return NextResponse.json({ error: 'Tasdiqlash kodi muddati tugagan. Yangi kod so‘rang.' }, { status: 401 })
+  if (otpStatus === 'LOCKED') return NextResponse.json({ error: 'Urinishlar soni tugadi. Yangi kod so‘rang.' }, { status: 429 })
+  if (otpStatus !== 'VERIFIED') return NextResponse.json({ error: 'Tasdiqlash kodi noto‘g‘ri.' }, { status: 401 })
 
-  if (hashOtp(normalizedCode) !== otp.code_hash) {
-    const nextAttempts = otp.attempts + 1
-    await admin.from('sms_otp_codes').update({ attempts: nextAttempts }).eq('id', otp.id)
-    return NextResponse.json({ error: 'Tasdiqlash kodi noto‘g‘ri.' }, { status: 401 })
-  }
-
-  const { error: usedError } = await admin
-    .from('sms_otp_codes')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', otp.id)
-    .is('used_at', null)
-  if (usedError) return NextResponse.json({ error: usedError.message }, { status: 500 })
+  // Persist a server-only proof of the successful SMS verification.
+  // Telegram linking accepts only a recent (30-day) proof for this exact phone.
+  const { error: claimError } = await admin.from('phone_verification_claims').upsert({
+    phone: normalizedPhone,
+    verified_at: new Date().toISOString(),
+    verification_method: 'sms_otp',
+  }, { onConflict: 'phone' })
+  if (claimError) return NextResponse.json({ error: claimError.message }, { status: 500 })
 
   const { data: existingProfile, error: profileLookupError } = await admin
     .from('profiles').select('id, phone').eq('phone', normalizedPhone).maybeSingle()

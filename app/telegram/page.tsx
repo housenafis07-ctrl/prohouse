@@ -2,7 +2,6 @@
 
 import Script from 'next/script'
 import { FormEvent, useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type NavItem = { label: string; icon: string; href: string }
@@ -50,31 +49,38 @@ export default function TelegramMiniApp() {
 
     setAccountStatus('linking')
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setAccountStatus('needs_login')
-        return
+      const statusResponse = await fetch('/api/account/telegram/link', { credentials: 'same-origin', cache: 'no-store' })
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json().catch(() => ({}))
+        if (statusData.linked) {
+          setAccountStatus('linked')
+          return
+        }
       }
+      // Telegram contact is the first-step identity proof for this flow.
+      // The bot will match it to an existing profile or continue registration.
+      setAccountStatus('needs_login')
+    } catch {
+      setAccountStatus('error')
+    }
+  }
 
-      const response = await fetch('/api/account/telegram/auto-link', {
+  const startTelegramContactLink = async () => {
+    const tg = (window as any).Telegram?.WebApp
+    const initData = typeof tg?.initData === 'string' ? tg.initData : ''
+    if (!initData) { setAccountStatus('error'); return }
+    setAccountStatus('linking')
+    try {
+      const response = await fetch('/api/account/telegram/start-contact-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
         cache: 'no-store',
         body: JSON.stringify({ initData }),
       })
       const data = await response.json().catch(() => ({}))
-      if (response.status === 409) {
-        setAccountStatus('conflict')
-        return
-      }
-      if (!response.ok) {
-        if (response.status === 401) setAccountStatus('needs_login')
-        else setAccountStatus('error')
-        return
-      }
-      setAccountStatus(data.linked ? 'linked' : 'error')
+      if (!response.ok || !data.botUrl) throw new Error(data.error || 'TELEGRAM_CONTACT_START_FAILED')
+      if (tg?.openTelegramLink) tg.openTelegramLink(data.botUrl)
+      else window.location.href = data.botUrl
     } catch {
       setAccountStatus('error')
     }
@@ -88,9 +94,8 @@ export default function TelegramMiniApp() {
   }
   const openInMiniApp = (path: string) => { window.location.href = path }
   const handlePlaceAd = async () => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    openInMiniApp(user ? '/listings/new' : '/register?redirect=/listings/new')
+    const accountResponse = await fetch('/api/account/profile', { credentials: 'same-origin', cache: 'no-store' })
+    openInMiniApp(accountResponse.ok ? '/listings/new' : '/register?next=%2Flistings%2Fnew')
   }
   const search = (event: FormEvent) => {
     event.preventDefault()
@@ -129,8 +134,8 @@ export default function TelegramMiniApp() {
           <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
             <h2 className="font-black">{lang === 'ru' ? 'Войдите или зарегистрируйтесь' : 'Kirish yoki ro‘yxatdan o‘tish'}</h2>
             <p className="mt-1 text-sm text-slate-500">{lang === 'ru' ? 'Подтвердите номер телефона по SMS. После входа Telegram привяжется автоматически.' : 'Telefon raqamingizni SMS kod orqali tasdiqlang. Kirganingizdan so‘ng Telegram avtomatik bog‘lanadi.'}</p>
-            <button type="button" onClick={() => openInMiniApp('/register?next=%2Ftelegram')} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">
-              {lang === 'ru' ? 'Продолжить по номеру телефона' : 'Telefon raqami orqali davom etish'}
+            <button type="button" onClick={() => { void startTelegramContactLink() }} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">
+              {lang === 'ru' ? 'Подтвердить номер в Telegram' : 'Telegram botda telefon raqamni tasdiqlash'}
             </button>
           </div>
         ) : accountStatus === 'conflict' ? (
