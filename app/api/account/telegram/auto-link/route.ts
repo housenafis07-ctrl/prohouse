@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 import { validateTelegramInitData } from '@/app/lib/telegram-miniapp'
 
 export const runtime = 'nodejs'
@@ -11,21 +12,15 @@ const CONFLICT_ERRORS = new Set([
 ])
 
 /**
- * Atomically links the Telegram identity opening the Mini App to the
- * already authenticated, phone-verified RoyalHouse profile.
- * No account merging, deletion, or Telegram-only authentication is performed.
+ * Links the verified Telegram Mini App identity to the phone-authenticated
+ * RoyalHouse profile identified by the signed cabinet session.
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await createClient()
-    const { data: { user: currentUser } } = await auth.auth.getUser()
-    if (!currentUser) {
+    const cookieStore = await cookies()
+    const profileId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+    if (!profileId) {
       return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
-    }
-
-    // Legacy Telegram-authenticated sessions are not eligible for this flow.
-    if (currentUser.user_metadata?.auth_provider === 'telegram') {
-      return NextResponse.json({ error: 'PHONE_AUTH_REQUIRED' }, { status: 403 })
     }
 
     const body = await request.json().catch(() => null)
@@ -41,7 +36,7 @@ export async function POST(request: NextRequest) {
     const db = serviceClient()
 
     const { error } = await db.rpc('link_telegram_identity', {
-      p_profile_id: currentUser.id,
+      p_profile_id: profileId,
       p_telegram_user_id: telegramUserId,
       p_chat_id: telegramUserId,
       p_telegram_username: telegramUsername,
@@ -53,11 +48,11 @@ export async function POST(request: NextRequest) {
       if (CONFLICT_ERRORS.has(message) || error.code === '23505') {
         return NextResponse.json({ error: message }, { status: 409 })
       }
-      if (message === 'PROFILE_NOT_FOUND') {
-        return NextResponse.json({ error: message }, { status: 404 })
+      if (message.includes('PROFILE_NOT_FOUND')) {
+        return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
       }
-      if (message === 'PHONE_VERIFICATION_REQUIRED') {
-        return NextResponse.json({ error: message }, { status: 403 })
+      if (message.includes('PHONE_VERIFICATION_REQUIRED')) {
+        return NextResponse.json({ error: 'PHONE_VERIFICATION_REQUIRED' }, { status: 403 })
       }
       throw error
     }
