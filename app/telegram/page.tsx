@@ -1,7 +1,7 @@
 'use client'
 
 import Script from 'next/script'
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
