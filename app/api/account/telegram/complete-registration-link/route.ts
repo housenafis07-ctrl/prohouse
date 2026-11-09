@@ -17,27 +17,23 @@ export async function POST(request: NextRequest) {
 
     const db = serviceClient()
     const { data: token, error: tokenError } = await db.from('telegram_link_tokens')
-      .select('token_hash,telegram_user_id,profile_id,expires_at,used_at')
+      .select('token_hash,telegram_user_id,profile_id,contact_phone,expires_at,used_at')
       .eq('token_hash', tokenHash).maybeSingle()
     if (tokenError) throw tokenError
-    if (!token || token.used_at || !token.telegram_user_id || token.profile_id || new Date(token.expires_at).getTime() <= Date.now()) {
+    if (!token || token.used_at || !token.telegram_user_id || token.profile_id || !token.contact_phone || new Date(token.expires_at).getTime() <= Date.now()) {
       return NextResponse.json({ error: 'LINK_TOKEN_EXPIRED_OR_USED' }, { status: 409 })
     }
 
     const { data: profile, error: profileError } = await db.from('profiles')
       .select('phone').eq('id', profileId).maybeSingle()
     if (profileError) throw profileError
-    if (!profile?.phone) return NextResponse.json({ error: 'PROFILE_PHONE_REQUIRED' }, { status: 400 })
+    if (!profile?.phone || profile.phone !== token.contact_phone) return NextResponse.json({ error: 'TELEGRAM_CONTACT_PHONE_MISMATCH' }, { status: 403 })
 
     const { data: claim, error: claimError } = await db.from('phone_verification_claims')
       .select('phone').eq('phone', profile.phone).gte('verified_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).maybeSingle()
     if (claimError) throw claimError
     if (!claim) return NextResponse.json({ error: 'PHONE_VERIFICATION_REQUIRED' }, { status: 403 })
 
-    const { error: bindError } = await db.from('telegram_link_tokens')
-      .update({ profile_id: profileId, auth_user_id: profileId })
-      .eq('token_hash', tokenHash).is('profile_id', null).is('used_at', null)
-    if (bindError) throw bindError
     const { error: linkError } = await db.rpc('link_telegram_identity', {
       p_profile_id: profileId,
       p_telegram_user_id: token.telegram_user_id,
@@ -47,9 +43,12 @@ export async function POST(request: NextRequest) {
     })
     if (linkError) throw linkError
 
-    const { error: consumeError } = await db.from('telegram_link_tokens')
-      .update({ used_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('used_at', null)
+    const { data: consumedToken, error: consumeError } = await db.from('telegram_link_tokens')
+      .update({ profile_id: profileId, auth_user_id: profileId, used_at: new Date().toISOString() })
+      .eq('token_hash', tokenHash).is('profile_id', null).is('used_at', null)
+      .select('token_hash').maybeSingle()
     if (consumeError) throw consumeError
+    if (!consumedToken) return NextResponse.json({ error: 'LINK_TOKEN_ALREADY_USED' }, { status: 409 })
     return NextResponse.json({ ok: true, linked: true })
   } catch (error) {
     console.error('[Telegram registration link] failed', error)
