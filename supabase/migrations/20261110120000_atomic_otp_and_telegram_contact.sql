@@ -15,7 +15,7 @@ as $$
 declare
   v_id uuid;
 begin
-  if p_phone !~ '^\+998[0-9]{9} or p_code_hash is null or p_expires_at <= now() then
+  if p_phone !~ '^\+998[0-9]{9}$' or p_code_hash is null or p_expires_at <= now() then
     raise exception 'INVALID_OTP_REQUEST';
   end if;
 
