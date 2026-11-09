@@ -158,10 +158,18 @@ export async function POST(request: NextRequest) {
       }
 
       if (profile?.id) {
-        const { error: tokenBindError } = await admin.from('telegram_link_tokens')
-          .update({ profile_id: profile.id, auth_user_id: profile.id })
-          .eq('token_hash', token.token_hash).is('profile_id', null).is('used_at', null)
-        if (tokenBindError) throw tokenBindError
+        if (!token.profile_id) {
+          const { data: boundToken, error: tokenBindError } = await admin.from('telegram_link_tokens')
+            .update({ profile_id: profile.id, auth_user_id: profile.id })
+            .eq('token_hash', token.token_hash).is('profile_id', null).is('used_at', null)
+            .select('token_hash').maybeSingle()
+          if (tokenBindError) throw tokenBindError
+          if (!boundToken) {
+            await clearTelegramKeyboard(chatId)
+            await sendTelegramMessage(chatId, '❌ Bu ulash jarayoni boshqa so‘rovda ishlatilgan. Mini App’dan qayta boshlang.')
+            return NextResponse.json({ ok: true })
+          }
+        }
 
         const { error: claimError } = await admin.from('phone_verification_claims').upsert({
           phone: normalizedPhone,
