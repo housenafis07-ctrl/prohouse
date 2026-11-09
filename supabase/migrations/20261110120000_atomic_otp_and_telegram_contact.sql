@@ -1,6 +1,7 @@
 begin;
 
 alter table public.telegram_link_tokens add column if not exists contact_phone text;
+alter table public.telegram_link_tokens add column if not exists contact_requested_at timestamptz;
 
 -- Atomic OTP reservation: serializes concurrent sends for the same phone.
 create or replace function public.reserve_sms_otp(
