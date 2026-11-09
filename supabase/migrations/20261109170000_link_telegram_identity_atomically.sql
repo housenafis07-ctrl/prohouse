@@ -15,6 +15,7 @@ declare
   v_phone text;
   v_existing_profile uuid;
   v_existing_auth_user uuid;
+  v_existing_telegram_id text;
   v_rows integer;
 begin
   if p_telegram_user_id is null or p_telegram_user_id = ''
@@ -41,10 +42,10 @@ begin
     raise exception 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE';
   end if;
 
-  select telegram_user_id into v_existing_profile
+  select telegram_user_id into v_existing_telegram_id
   from public.telegram_user_links
   where profile_id = p_profile_id;
-  if v_existing_profile is not null and v_existing_profile <> p_telegram_user_id then
+  if v_existing_telegram_id is not null and v_existing_telegram_id <> p_telegram_user_id then
     raise exception 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM';
   end if;
 
@@ -57,10 +58,10 @@ begin
     raise exception 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE';
   end if;
 
-  select telegram_user_id into v_existing_profile
+  select telegram_user_id into v_existing_telegram_id
   from public.telegram_bot_users
   where auth_user_id = p_profile_id;
-  if v_existing_profile is not null and v_existing_profile <> p_telegram_user_id then
+  if v_existing_telegram_id is not null and v_existing_telegram_id <> p_telegram_user_id then
     raise exception 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM';
   end if;
 
