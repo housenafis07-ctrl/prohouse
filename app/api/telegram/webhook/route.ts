@@ -141,9 +141,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
       const normalizedPhone = `+${phoneDigits}`
-      const { data: profile, error: profileError } = await admin.from('profiles')
-        .select('id,phone').eq('phone', normalizedPhone).maybeSingle()
+      const { data: profile, error: profileError } = token.profile_id
+        ? await admin.from('profiles').select('id,phone').eq('id', token.profile_id).maybeSingle()
+        : await admin.from('profiles').select('id,phone').eq('phone', normalizedPhone).maybeSingle()
       if (profileError) throw profileError
+
+      if (token.profile_id && (!profile?.id || normalizePhone(profile.phone) !== phoneDigits)) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, '❌ Yuborilgan telefon raqami ushbu RoyalHouse profiliga mos kelmadi. Profilingizdagi raqamni yuboring.')
+        return NextResponse.json({ ok: true })
+      }
 
       if (profile?.id) {
         const { error: tokenBindError } = await admin.from('telegram_link_tokens')
