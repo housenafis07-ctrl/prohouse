@@ -125,8 +125,9 @@ export async function POST(request: NextRequest) {
       const { data: pendingTokens, error: pendingTokenError } = await admin.from('telegram_link_tokens')
         .select('token_hash,profile_id,auth_user_id,expires_at,used_at,telegram_user_id')
         .eq('telegram_user_id', telegramUserId).is('used_at', null)
+        .not('contact_requested_at', 'is', null)
         .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false }).limit(1)
+        .order('contact_requested_at', { ascending: false }).limit(1)
       if (pendingTokenError) throw pendingTokenError
       const token = pendingTokens?.[0]
       if (!token) {
@@ -244,6 +245,9 @@ export async function POST(request: NextRequest) {
           await sendTelegramMessage(chatId, 'Ulash havolasi eskirgan yoki boshqa Telegram akkauntiga tegishli. Mini App’dan qayta boshlang.')
           return NextResponse.json({ ok: true })
         }
+        const { error: requestStampError } = await admin.from('telegram_link_tokens')
+          .update({ contact_requested_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('used_at', null)
+        if (requestStampError) throw requestStampError
         await requestTelegramPhone(chatId)
         return NextResponse.json({ ok: true })
       }
@@ -254,7 +258,8 @@ export async function POST(request: NextRequest) {
       const { data: token, error: tokenError } = await admin.from('telegram_link_tokens').select('profile_id,auth_user_id,expires_at,used_at,telegram_user_id').eq('token_hash', tokenHash).maybeSingle(); if (tokenError) throw tokenError
       if (!token || token.used_at || new Date(token.expires_at).getTime() <= Date.now()) { await sendTelegramMessage(chatId, 'Ulash havolasi eskirgan yoki ishlatilgan. RoyalHouse shaxsiy kabinetidan yangi havola yarating.'); return NextResponse.json({ ok: true }) }
       if (token.telegram_user_id && token.telegram_user_id !== telegramUserId) { await sendTelegramMessage(chatId, '❌ Bu ulash havolasi boshqa Telegram akkauntida boshlangan. RoyalHouse shaxsiy kabinetidan yangi ulash havolasini oling.'); return NextResponse.json({ ok: true }) }
-      if (!token.telegram_user_id) { const { data: claimedToken, error: claimError } = await admin.from('telegram_link_tokens').update({ telegram_user_id: telegramUserId }).eq('token_hash', tokenHash).is('telegram_user_id', null).is('used_at', null).select('token_hash').maybeSingle(); if (claimError) throw claimError; if (!claimedToken) { await sendTelegramMessage(chatId, '❌ Ulash havolasi boshqa Telegram akkauntida boshlangan. RoyalHouse shaxsiy kabinetidan yangi havola oling.'); return NextResponse.json({ ok: true }) } }
+      if (!token.telegram_user_id) { const { data: claimedToken, error: claimError } = await admin.from('telegram_link_tokens').update({ telegram_user_id: telegramUserId, contact_requested_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('telegram_user_id', null).is('used_at', null).select('token_hash').maybeSingle(); if (claimError) throw claimError; if (!claimedToken) { await sendTelegramMessage(chatId, '❌ Ulash havolasi boshqa Telegram akkauntida boshlangan. RoyalHouse shaxsiy kabinetidan yangi havola oling.'); return NextResponse.json({ ok: true }) } }
+      else { const { error: stampError } = await admin.from('telegram_link_tokens').update({ contact_requested_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('used_at', null); if (stampError) throw stampError }
       await requestTelegramPhone(chatId); return NextResponse.json({ ok: true })
     }
 
