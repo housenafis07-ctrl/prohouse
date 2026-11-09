@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
@@ -13,11 +12,10 @@ export async function POST(request: NextRequest) {
     if (!profileId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
     const body = await request.json().catch(() => null)
-    const rawToken = typeof body?.token === 'string' ? body.token : ''
-    if (!/^[a-f0-9]{48}$/i.test(rawToken)) return NextResponse.json({ error: 'INVALID_LINK_TOKEN' }, { status: 400 })
+    const tokenHash = typeof body?.token === 'string' ? body.token : ''
+    if (!/^[a-f0-9]{64}$/i.test(tokenHash)) return NextResponse.json({ error: 'INVALID_LINK_TOKEN' }, { status: 400 })
 
     const db = serviceClient()
-    const tokenHash = createHash('sha256').update(rawToken).digest('hex')
     const { data: token, error: tokenError } = await db.from('telegram_link_tokens')
       .select('token_hash,telegram_user_id,profile_id,expires_at,used_at')
       .eq('token_hash', tokenHash).maybeSingle()
