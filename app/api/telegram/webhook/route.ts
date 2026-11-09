@@ -7,7 +7,6 @@ type TelegramUpdate = {
     text?: string
     chat?: { id?: number; type?: string }
     from?: { id?: number; username?: string; first_name?: string; last_name?: string; language_code?: string }
-    contact?: { user_id?: number; phone_number?: string; first_name?: string; last_name?: string }
   }
 }
 
@@ -130,7 +129,7 @@ export async function POST(request: NextRequest) {
         .order('contact_requested_at', { ascending: false }).limit(1)
       if (pendingTokenError) throw pendingTokenError
       const token = pendingTokens?.[0]
-      if (!token) {
+      if (!token || !token.profile_id) {
         await clearTelegramKeyboard(chatId)
         await sendTelegramMessage(chatId, 'Ulash jarayoni topilmadi yoki muddati tugagan. RoyalHouse Mini App’dan qayta boshlang.')
         return NextResponse.json({ ok: true })
@@ -203,16 +202,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
 
-      // No profile exists for this phone. Keep the one-time token pending so
-      // registration can attach this exact Telegram identity after completion.
       await clearTelegramKeyboard(chatId)
-      const registrationUrl = `${SITE_URL}/register?telegram_link=${encodeURIComponent(token.token_hash)}`
-      await telegramApi('sendMessage', {
-        chat_id: chatId,
-        text: '📱 Bu telefon raqami bilan RoyalHouse’da profil topilmadi. Ro‘yxatdan o‘tishni yakunlang — shundan so‘ng Telegram akkauntingiz yangi profilingizga ulanadi.',
-        reply_markup: { inline_keyboard: [[{ text: '📝 Ro‘yxatdan o‘tish', url: registrationUrl }]] },
-        disable_web_page_preview: true,
-      })
+      await sendTelegramMessage(chatId, '❌ RoyalHouse profili topilmadi. Avval sayt yoki ilovada telefon raqamingizni SMS OTP orqali tasdiqlang.')
       return NextResponse.json({ ok: true })
     }
 
@@ -225,8 +216,8 @@ export async function POST(request: NextRequest) {
           ? '🏠 Добро пожаловать в RoyalHouse!\n\nRoyalHouse — платформа недвижимости для поиска жилья, размещения объявлений, управления своими объявлениями и ипотечных сервисов.'
           : '🏠 RoyalHouse’ga xush kelibsiz!\n\nRoyalHouse — uy-joy platformasi: uy, kvartira va dachalarni topish, e’lon joylashtirish, e’lonlarni boshqarish va ipoteka xizmatlaridan foydalanish mumkin.'
         const guide = ru
-          ? '📱 Как пользоваться RoyalHouse?\n\n1️⃣ Нажмите «Royalhouse’ni ochish», чтобы открыть мини-приложение.\n\n2️⃣ Найдите нужный дом, квартиру или дачу.\n\n3️⃣ Чтобы разместить объявление, выберите «E’lon joylashtirish».\n\n4️⃣ В личном кабинете можно управлять объявлениями, смотреть статистику, продвигать объявления и настраивать профиль.\n\n5️⃣ Telegram не создаёт аккаунт RoyalHouse автоматически. Для входа через Telegram сначала зарегистрируйтесь на RoyalHouse и привяжите Telegram в личном кабинете.\n\n🔐 Политика конфиденциальности — по кнопке ниже.'
-          : '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing — Mini App ochiladi.\n\n2️⃣ Kerakli uy, kvartira yoki dachani qidiring.\n\n3️⃣ E’lon joylashtirish uchun «E’lon joylashtirish» bo‘limini tanlang.\n\n4️⃣ Shaxsiy kabinetda e’lonlarni boshqaring, statistika ko‘rsatkichlarini ko‘ring, e’lonlarni ilgari suring va profilingizni sozlang.\n\n5️⃣ Telegram orqali avtomatik RoyalHouse akkaunti yaratilmaydi. Telegram orqali kirish uchun avval RoyalHouse’da ro‘yxatdan o‘ting va shaxsiy kabinetdan Telegramni ulang.\n\n🔐 Maxfiylik siyosati bilan quyidagi tugma orqali tanishishingiz mumkin.'
+          ? '📱 Как пользоваться RoyalHouse?\n\n1️⃣ Нажмите «Royalhouse’ni ochish», чтобы открыть мини-приложение.\n\n2️⃣ Найдите нужный дом, квартиру или дачу.\n\n3️⃣ Чтобы разместить объявление, выберите «E’lon joylashtirish».\n\n4️⃣ В личном кабинете можно управлять объявлениями, смотреть статистику, продвигать объявления и настраивать профиль.\n\n5️⃣ Вход и регистрация доступны только по номеру телефона и SMS-коду OTP.\n\n🔐 Политика конфиденциальности — по кнопке ниже.'
+          : '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing — Mini App ochiladi.\n\n2️⃣ Kerakli uy, kvartira yoki dachani qidiring.\n\n3️⃣ E’lon joylashtirish uchun «E’lon joylashtirish» bo‘limini tanlang.\n\n4️⃣ Shaxsiy kabinetda e’lonlarni boshqaring, statistika ko‘rsatkichlarini ko‘ring, e’lonlarni ilgari suring va profilingizni sozlang.\n\n5️⃣ Kirish va ro‘yxatdan o‘tish faqat telefon raqami va SMS OTP kodi orqali amalga oshiriladi.\n\n🔐 Maxfiylik siyosati bilan quyidagi tugma orqali tanishishingiz mumkin.'
         await sendTelegramMessage(chatId, intro)
         await telegramApi('sendMessage', {
           chat_id: chatId,
@@ -239,24 +230,6 @@ export async function POST(request: NextRequest) {
             ],
           },
         })
-        return NextResponse.json({ ok: true })
-      }
-      if (payload.startsWith('connect_')) {
-        if (!from?.id) { await sendTelegramMessage(chatId, 'Telegram foydalanuvchisi aniqlanmadi.'); return NextResponse.json({ ok: true }) }
-        const rawToken = payload.slice('connect_'.length)
-        if (!/^[a-f0-9]{48}$/i.test(rawToken)) { await sendTelegramMessage(chatId, 'Ulash havolasi noto‘g‘ri. Mini App’dan qayta boshlang.'); return NextResponse.json({ ok: true }) }
-        const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-        const { data: pending, error: pendingError } = await admin.from('telegram_link_tokens')
-          .select('telegram_user_id,expires_at,used_at').eq('token_hash', tokenHash).maybeSingle()
-        if (pendingError) throw pendingError
-        if (!pending || pending.used_at || pending.telegram_user_id !== telegramUserId || new Date(pending.expires_at).getTime() <= Date.now()) {
-          await sendTelegramMessage(chatId, 'Ulash havolasi eskirgan yoki boshqa Telegram akkauntiga tegishli. Mini App’dan qayta boshlang.')
-          return NextResponse.json({ ok: true })
-        }
-        const { error: requestStampError } = await admin.from('telegram_link_tokens')
-          .update({ contact_requested_at: new Date().toISOString() }).eq('token_hash', tokenHash).is('used_at', null)
-        if (requestStampError) throw requestStampError
-        await requestTelegramPhone(chatId)
         return NextResponse.json({ ok: true })
       }
       if (payload.startsWith('share_')) { const listingId = payload.slice(6); if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(listingId)) { await sendTelegramMessage(chatId, 'E’lon ulashish havolasi noto‘g‘ri.'); return NextResponse.json({ ok: true }) }; await sendListingShare(chatId, listingId); return NextResponse.json({ ok: true }) }
