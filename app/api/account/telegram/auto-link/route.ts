@@ -74,71 +74,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, linked: true, merged: false })
     }
 
-    // If this Telegram identity belongs to another RoyalHouse profile, only
-    // merge when that profile is clearly a Telegram-only placeholder account.
-    // A real profile with a phone number is never silently merged.
+    // Never merge accounts automatically. A Telegram ID already owned by
+    // another RoyalHouse profile must be recovered manually by support.
     if (existingLink?.profile_id && existingLink.profile_id !== currentUser.id) {
-      const sourceProfileId = existingLink.profile_id
-      const { data: sourceProfile, error: sourceProfileError } = await db
-        .from('profiles')
-        .select('id,phone')
-        .eq('id', sourceProfileId)
-        .maybeSingle()
-      if (sourceProfileError) throw sourceProfileError
+      return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
+    }
 
-      const { data: sourceAuthUser, error: sourceAuthError } = await db.auth.admin.getUserById(sourceProfileId)
-      if (sourceAuthError) throw sourceAuthError
+    if (!targetProfile.phone) {
+      return NextResponse.json({ error: 'PHONE_VERIFICATION_REQUIRED' }, { status: 403 })
+    }
 
-      const sourceIsTelegramOnly =
-        sourceProfile &&
-        !sourceProfile.phone &&
-        sourceAuthUser.user?.user_metadata?.auth_provider === 'telegram' &&
-        String(sourceAuthUser.user.user_metadata?.telegram_user_id || '') === telegramUserId
+    const { data: existingBotIdentity, error: botIdentityError } = await db
+      .from('telegram_bot_users')
+      .select('profile_id,auth_user_id')
+      .eq('telegram_user_id', telegramUserId)
+      .maybeSingle()
+    if (botIdentityError) throw botIdentityError
+    if (
+      (existingBotIdentity?.profile_id && existingBotIdentity.profile_id !== currentUser.id) ||
+      (existingBotIdentity?.auth_user_id && existingBotIdentity.auth_user_id !== currentUser.id)
+    ) {
+      return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
+    }
 
-      if (!sourceIsTelegramOnly) {
-        return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
-      }
-
-      const { error: mergeError } = await db.rpc('merge_profile_accounts', {
-        source_profile_id: sourceProfileId,
-        target_profile_id: currentUser.id,
-      })
-      if (mergeError) throw mergeError
-
-      const { error: targetLinkError } = await db
-        .from('telegram_user_links')
-        .upsert({
-          profile_id: currentUser.id,
-          telegram_user_id: telegramUserId,
-          chat_id: existingLink.chat_id,
-          telegram_username: telegramUsername,
-          linked_at: now,
-          verified_at: now,
-          verification_method: 'telegram_mini_app_auto_link',
-        }, { onConflict: 'profile_id' })
-      if (targetLinkError) throw targetLinkError
-
-      const { error: botUpdateError } = await db
-        .from('telegram_bot_users')
-        .upsert({
-          telegram_user_id: telegramUserId,
-          chat_id: existingLink.chat_id,
-          profile_id: currentUser.id,
-          auth_user_id: currentUser.id,
-          username: telegramUsername,
-          is_active: true,
-          blocked_at: null,
-          last_interaction_at: now,
-          updated_at: now,
-        }, { onConflict: 'telegram_user_id' })
-      if (botUpdateError) throw botUpdateError
-
-      // The source account has been migrated. Remove only the obsolete
-      // Telegram-auth user; the current phone-auth account remains intact.
-      const { error: deleteSourceError } = await db.auth.admin.deleteUser(sourceProfileId)
-      if (deleteSourceError) throw deleteSourceError
-
-      return NextResponse.json({ ok: true, linked: true, merged: true })
+    const { data: existingAccountTelegram, error: accountTelegramError } = await db
+      .from('telegram_bot_users')
+      .select('telegram_user_id')
+      .eq('auth_user_id', currentUser.id)
+      .maybeSingle()
+    if (accountTelegramError) throw accountTelegramError
+    if (existingAccountTelegram?.telegram_user_id && existingAccountTelegram.telegram_user_id !== telegramUserId) {
+      return NextResponse.json({ error: 'PROFILE_ALREADY_LINKED_TO_ANOTHER_TELEGRAM' }, { status: 409 })
     }
 
     const { data: existingTargetLink, error: targetLinkLookupError } = await db
