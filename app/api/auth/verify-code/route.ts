@@ -58,6 +58,15 @@ export async function POST(request: Request) {
     .is('used_at', null)
   if (usedError) return NextResponse.json({ error: usedError.message }, { status: 500 })
 
+  // Persist a server-only proof of the successful SMS verification.
+  // Telegram linking accepts only a recent (30-day) proof for this exact phone.
+  const { error: claimError } = await admin.from('phone_verification_claims').upsert({
+    phone: normalizedPhone,
+    verified_at: new Date().toISOString(),
+    verification_method: 'sms_otp',
+  }, { onConflict: 'phone' })
+  if (claimError) return NextResponse.json({ error: claimError.message }, { status: 500 })
+
   const { data: existingProfile, error: profileLookupError } = await admin
     .from('profiles').select('id, phone').eq('phone', normalizedPhone).maybeSingle()
   if (profileLookupError) return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
