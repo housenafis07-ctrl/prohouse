@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => null)
     const initData = typeof body?.initData === 'string' ? body.initData : ''
-    const validated = validateTelegramInitData(initData)
+    const validated = validateTelegramInitData(initData, 10 * 60)
     if (!validated) return NextResponse.json({ error: 'INVALID_TELEGRAM_INIT_DATA' }, { status: 401 })
 
     const telegramUserId = String(validated.user.id)
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (targetProfileError) throw targetProfileError
     if (!targetProfile) return NextResponse.json({ error: 'PROFILE_NOT_FOUND' }, { status: 404 })
+    if (!targetProfile.phone) return NextResponse.json({ error: 'PHONE_VERIFICATION_REQUIRED' }, { status: 403 })
 
     const { data: existingLink, error: existingLinkError } = await db
       .from('telegram_user_links')
@@ -78,10 +79,6 @@ export async function POST(request: NextRequest) {
     // another RoyalHouse profile must be recovered manually by support.
     if (existingLink?.profile_id && existingLink.profile_id !== currentUser.id) {
       return NextResponse.json({ error: 'TELEGRAM_ALREADY_LINKED_TO_ANOTHER_PROFILE' }, { status: 409 })
-    }
-
-    if (!targetProfile.phone) {
-      return NextResponse.json({ error: 'PHONE_VERIFICATION_REQUIRED' }, { status: 403 })
     }
 
     const { data: existingBotIdentity, error: botIdentityError } = await db
