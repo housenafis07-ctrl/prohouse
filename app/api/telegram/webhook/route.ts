@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       }
 
       const phoneDigits = normalizePhone(message.contact.phone_number)
-      if (!/^998\\d{9}$/.test(phoneDigits)) {
+      if (!/^998\d{9}$/.test(phoneDigits)) {
         await sendTelegramMessage(chatId, '❌ O‘zbekiston telefon raqamini yuboring.')
         return NextResponse.json({ ok: true })
       }
