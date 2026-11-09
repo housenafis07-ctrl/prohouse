@@ -11,7 +11,7 @@ export default async function ComplexPage({params}:{params:Promise<{slug:string}
  const adminDb=serviceClient()
  const [{data:constructionUpdates},{data:approvedDocuments}]=await Promise.all([
   adminDb.from('developer_construction_updates').select('id,media_type,public_url,caption,construction_stage,captured_at').eq('complex_id',complex.id).eq('is_visible',true).order('captured_at',{ascending:false}).limit(100),
-  adminDb.from('developer_complex_documents').select('id,title,document_type,document_number,issued_at,storage_path,mime_type').eq('complex_id',complex.id).eq('moderation_status','approved').order('created_at',{ascending:false})
+  adminDb.from('developer_complex_documents').select('id,title,document_type,document_number,issued_at,storage_path,mime_type').eq('complex_id',complex.id).eq('moderation_status','approved').eq('visibility_scope','public').order('created_at',{ascending:false})
  ])
  const approvedDocs=await Promise.all((approvedDocuments||[]).map(async doc=>{const {data}=await adminDb.storage.from('developer-complex-documents').createSignedUrl(doc.storage_path,300,{download:false});return {...doc,url:data?.signedUrl||null}}))
  const {data:developer}=complex.developer_id?await db.from('developer_profiles').select('id,developer_name,verification_status').eq('id',complex.developer_id).maybeSingle():{data:null}
