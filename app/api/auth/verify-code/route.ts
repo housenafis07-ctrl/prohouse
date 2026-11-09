@@ -56,7 +56,10 @@ export async function POST(request: Request) {
     .update({ used_at: new Date().toISOString() })
     .eq('id', otp.id)
     .is('used_at', null)
+    .select('id')
+    .maybeSingle()
   if (usedError) return NextResponse.json({ error: usedError.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Tasdiqlash kodi avval ishlatilgan. Yangi kod so‘rang.' }, { status: 401 })
 
   // Persist a server-only proof of the successful SMS verification.
   // Telegram linking accepts only a recent (30-day) proof for this exact phone.
