@@ -61,7 +61,8 @@ export default function RegisterPage() {
 
       if(!mounted) return
       if(offerResult.data) setOffer(offerResult.data)
-      if(!loginPage && accountResponse?.ok){
+      const hasTelegramRegistrationToken = Boolean(new URLSearchParams(window.location.search).get('telegram_link'))
+      if(!loginPage && !hasTelegramRegistrationToken && accountResponse?.ok){
         router.replace(getRedirectTo())
       }
     }
