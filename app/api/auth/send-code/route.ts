@@ -138,36 +138,22 @@ export async function POST(request: Request) {
 
     admin = getAdminClient()
     const now = new Date()
-    const cooldownSince = new Date(now.getTime() - RESEND_COOLDOWN_SECONDS * 1000).toISOString()
-
-    const { data: recentCode, error: recentError } = await admin
-      .from('sms_otp_codes')
-      .select('created_at')
-      .eq('phone', normalizedPhone)
-      .gte('created_at', cooldownSince)
-      .is('used_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (recentError) throw new Error(recentError.message)
-    if (recentCode) {
-      return NextResponse.json(
-        { error: 'Yangi kodni 60 soniyadan keyin so‘rashingiz mumkin.' },
-        { status: 429 },
-      )
-    }
-
     const code = randomInt(100000, 1000000).toString()
     const expiresAt = new Date(now.getTime() + OTP_TTL_SECONDS * 1000).toISOString()
 
-    const { data: insertedOtp, error: insertError } = await admin.from('sms_otp_codes').insert({
-      phone: normalizedPhone,
-      code_hash: hashOtp(code),
-      expires_at: expiresAt,
-    }).select('id').single()
-    if (insertError) throw new Error(insertError.message)
-    insertedOtpId = insertedOtp.id
+    const { data: reservedOtp, error: reserveError } = await admin.rpc('reserve_sms_otp', {
+      p_phone: normalizedPhone,
+      p_code_hash: hashOtp(code),
+      p_expires_at: expiresAt,
+      p_cooldown_seconds: RESEND_COOLDOWN_SECONDS,
+    })
+    if (reserveError) {
+      if (reserveError.message?.includes('OTP_RESEND_COOLDOWN')) {
+        return NextResponse.json({ error: 'Yangi kodni 60 soniyadan keyin so‘rashingiz mumkin.' }, { status: 429 })
+      }
+      throw new Error(reserveError.message)
+    }
+    insertedOtpId = reservedOtp as string
 
     // Keep the approved Eskiz SMS template unchanged.
     // Do not append @/# WebOTP markers: they can cause Eskiz moderation to reject the text.
