@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const { data: complex } = await ctx.db.from('residential_complexes').select('id').eq('id', complexId).eq('developer_id', ctx.developer.id).maybeSingle()
   if (!complex) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
   const [{ data: documents, error: documentsError }, { data: updates, error: updatesError }] = await Promise.all([
-    ctx.db.from('developer_complex_documents').select('id,document_type,title,document_number,issued_at,expires_at,mime_type,file_size_bytes,moderation_status,moderation_note,created_at').eq('complex_id', complexId).order('created_at', { ascending: false }),
+    ctx.db.from('developer_complex_documents').select('id,document_type,title,document_number,issued_at,expires_at,mime_type,file_size_bytes,moderation_status,moderation_note,requested_visibility_scope,visibility_scope,created_at').eq('complex_id', complexId).order('created_at', { ascending: false }),
     ctx.db.from('developer_construction_updates').select('id,building_id,media_type,public_url,caption,construction_stage,captured_at,created_at,is_visible,moderation_note').eq('complex_id', complexId).order('captured_at', { ascending: false }),
   ])
   if (documentsError || updatesError) return NextResponse.json({ error: 'COMPLEX_MEDIA_LOAD_FAILED' }, { status: 500 })
@@ -86,7 +86,8 @@ export async function POST(request: Request) {
   if (kind === 'document') {
     const documentType = typeof body.document_type === 'string' ? body.document_type : ''
     const title = typeof body.title === 'string' ? body.title.trim() : ''
-    if (!DOCUMENT_TYPES.includes(documentType) || !title || title.length > 180 || !DOCUMENT_MIMES.includes(mimeType) || !Number.isFinite(size) || size <= 0 || size > 20 * 1024 * 1024) {
+    const requestedVisibility = body.requested_visibility_scope === 'public' ? 'public' : body.requested_visibility_scope === 'admin_only' ? 'admin_only' : null
+    if (!requestedVisibility || !DOCUMENT_TYPES.includes(documentType) || !title || title.length > 180 || !DOCUMENT_MIMES.includes(mimeType) || !Number.isFinite(size) || size <= 0 || size > 20 * 1024 * 1024) {
       return NextResponse.json({ error: 'DOCUMENT_METADATA_INVALID' }, { status: 400 })
     }
     const { data, error } = await ctx.db.from('developer_complex_documents').insert({
@@ -94,7 +95,8 @@ export async function POST(request: Request) {
       document_type: documentType, title, document_number: typeof body.document_number === 'string' ? body.document_number.slice(0,120) : null,
       issued_at: body.issued_at || null, expires_at: body.expires_at || null,
       storage_path: path, mime_type: mimeType, file_size_bytes: size, moderation_status: 'pending',
-    }).select('id,title,document_type,moderation_status,created_at').single()
+      requested_visibility_scope: requestedVisibility, visibility_scope: 'admin_only',
+    }).select('id,title,document_type,moderation_status,requested_visibility_scope,visibility_scope,created_at').single()
     if (error) return NextResponse.json({ error: 'DOCUMENT_REGISTER_FAILED' }, { status: 500 })
     return NextResponse.json({ document: data }, { status: 201 })
   }
