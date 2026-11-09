@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
       // No profile exists for this phone. Keep the one-time token pending so
       // registration can attach this exact Telegram identity after completion.
       await clearTelegramKeyboard(chatId)
-      const registrationUrl = `${SITE_URL}/register?telegram_link=${encodeURIComponent((await admin.from('telegram_link_tokens').select('token_hash').eq('token_hash', token.token_hash).single()).data?.token_hash || '')}`
+      const registrationUrl = `${SITE_URL}/register?telegram_link=${encodeURIComponent(token.token_hash)}`
       await telegramApi('sendMessage', {
         chat_id: chatId,
         text: '📱 Bu telefon raqami bilan RoyalHouse’da profil topilmadi. Ro‘yxatdan o‘tishni yakunlang — shundan so‘ng Telegram akkauntingiz yangi profilingizga ulanadi.',
