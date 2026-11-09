@@ -32,12 +32,53 @@ export default function TelegramMiniApp() {
   const [ready, setReady] = useState(false)
   const { lang, setLang } = useI18n()
   const [keyword, setKeyword] = useState('')
+  const [accountStatus, setAccountStatus] = useState<'checking' | 'needs_login' | 'linking' | 'linked' | 'conflict' | 'error'>('checking')
   const t = copy[lang]
 
-  useEffect(() => {
+  const connectTelegramAccount = async () => {
     const tg = (window as any).Telegram?.WebApp
-    if (tg) { tg.ready(); tg.expand(); setReady(true) }
-  }, [])
+    if (!tg) return
+    tg.ready()
+    tg.expand()
+    setReady(true)
+
+    const initData = typeof tg.initData === 'string' ? tg.initData : ''
+    if (!initData) {
+      setAccountStatus('error')
+      return
+    }
+
+    setAccountStatus('linking')
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setAccountStatus('needs_login')
+        return
+      }
+
+      const response = await fetch('/api/account/telegram/auto-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+        body: JSON.stringify({ initData }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (response.status === 409) {
+        setAccountStatus('conflict')
+        return
+      }
+      if (!response.ok) {
+        if (response.status === 401) setAccountStatus('needs_login')
+        else setAccountStatus('error')
+        return
+      }
+      setAccountStatus(data.linked ? 'linked' : 'error')
+    } catch {
+      setAccountStatus('error')
+    }
+  }
 
   const changeLanguage = (next: 'uz' | 'ru') => setLang(next)
   const openPath = (path: string) => {
@@ -68,7 +109,7 @@ export default function TelegramMiniApp() {
   ]
 
   return <>
-    <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" />
+    <Script src="https://telegram.org/js/telegram-web-app.js" strategy="afterInteractive" onReady={() => { void connectTelegramAccount() }} />
     <main data-no-global-i18n className="min-h-screen bg-[#f4f7fa] pb-24 text-slate-900">
       <section className="relative overflow-hidden bg-gradient-to-b from-[#4381c5] to-[#eef5fb] px-4 pb-8 pt-7">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10" />
@@ -78,6 +119,31 @@ export default function TelegramMiniApp() {
           <div className="mt-7 text-center text-white"><h1 className="text-[27px] font-black tracking-tight">{t.welcome}</h1><p className="mt-1 text-sm text-white/75">{t.subtitle}</p></div>
           <form onSubmit={search} className="mt-6 flex gap-2 rounded-2xl bg-white p-2 shadow-xl"><input value={keyword} onChange={event => setKeyword(event.target.value)} placeholder={t.searchPlaceholder} className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm font-medium outline-none placeholder:text-slate-400" aria-label={t.searchPlaceholder} /><button type="submit" className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-white">{t.searchButton}</button></form>
         </div>
+      </section>
+      <section className="mx-auto max-w-md px-4 pt-4">
+        {accountStatus === 'linked' ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+            {lang === 'ru' ? '✓ Telegram привязан к вашему аккаунту RoyalHouse.' : '✓ Telegram akkauntingiz RoyalHouse profilingizga bog‘landi.'}
+          </div>
+        ) : accountStatus === 'needs_login' ? (
+          <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <h2 className="font-black">{lang === 'ru' ? 'Войдите или зарегистрируйтесь' : 'Kirish yoki ro‘yxatdan o‘tish'}</h2>
+            <p className="mt-1 text-sm text-slate-500">{lang === 'ru' ? 'Подтвердите номер телефона по SMS. После входа Telegram привяжется автоматически.' : 'Telefon raqamingizni SMS kod orqali tasdiqlang. Kirganingizdan so‘ng Telegram avtomatik bog‘lanadi.'}</p>
+            <button type="button" onClick={() => openInMiniApp('/register?next=%2Ftelegram')} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">
+              {lang === 'ru' ? 'Продолжить по номеру телефона' : 'Telefon raqami orqali davom etish'}
+            </button>
+          </div>
+        ) : accountStatus === 'conflict' ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {lang === 'ru' ? 'Этот Telegram уже привязан к другому аккаунту. Автоматическое объединение отключено. Обратитесь в поддержку.' : 'Bu Telegram boshqa RoyalHouse akkauntiga bog‘langan. Avtomatik birlashtirish o‘chirilgan. Yordam xizmatiga murojaat qiling.'}
+          </div>
+        ) : accountStatus === 'error' ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {lang === 'ru' ? 'Не удалось проверить Telegram. Откройте Mini App из официального бота и попробуйте снова.' : 'Telegram ma’lumotlarini tekshirib bo‘lmadi. Mini App’ni rasmiy bot orqali ochib, qayta urinib ko‘ring.'}
+          </div>
+        ) : accountStatus === 'linking' ? (
+          <div className="rounded-2xl bg-white p-3 text-center text-sm text-slate-500">{lang === 'ru' ? 'Проверяем Telegram…' : 'Telegram tekshirilmoqda…'}</div>
+        ) : null}
       </section>
       <section className="mx-auto -mt-1 max-w-md px-4 pt-5">
         <h2 className="mb-4 text-lg font-black">{t.need}</h2>
