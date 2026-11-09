@@ -33,6 +33,19 @@ async function sendTelegramMessage(chatId: string | number, text: string, includ
   await telegramApi('sendMessage', body)
 }
 
+async function requestTelegramPhone(chatId: string | number) {
+  await telegramApi('sendMessage', { chat_id: chatId, text: '🔐 Telegram ulanishini tasdiqlash uchun shu akkauntingizning telefon raqamini yuboring. Bu raqam Royalhouse shaxsiy kabinetingizdagi raqam bilan mos kelishi kerak.', reply_markup: { keyboard: [[{ text: '📱 Telefon raqamimni yuborish', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true } })
+}
+
+async function clearTelegramKeyboard(chatId: string | number) { await telegramApi('sendMessage', { chat_id: chatId, text: 'Tekshiruv yakunlandi.', reply_markup: { remove_keyboard: true } }) }
+
+function normalizePhone(value: string | null | undefined) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (digits.startsWith('00')) return digits.slice(2)
+  if (digits.startsWith('998') && digits.length === 12) return digits
+  if (digits.length === 9) return `998${digits}`
+  return digits
+}
 function formatPrice(price: number | null | undefined, currency: string | null | undefined) { if (price == null) return ''; const amount = new Intl.NumberFormat('uz-UZ').format(price); return `${amount} ${currency === 'USD' ? '$' : currency === 'EUR' ? '€' : 'so‘m'}` }
 function listingCaption(listing: ShareListing) {
   const lines = [
@@ -100,6 +113,98 @@ export async function POST(request: NextRequest) {
       if (linkLookupError) throw linkLookupError
       const { error: botUserError } = await admin.from('telegram_bot_users').upsert({ telegram_user_id: telegramUserId, chat_id: String(chatId), profile_id: existingLink?.profile_id || null, username: from.username || null, first_name: from.first_name || null, last_name: from.last_name || null, language_code: from.language_code || null, is_active: true, blocked_at: null, last_interaction_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'telegram_user_id' })
       if (botUserError) throw botUserError
+    }
+
+    if (message.contact) {
+      if (!from?.id || !telegramUserId || message.contact.user_id !== from.id) {
+        await sendTelegramMessage(chatId, '❌ Iltimos, aynan shu Telegram akkauntingizning o‘z kontaktini yuboring.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const { data: pendingTokens, error: pendingTokenError } = await admin.from('telegram_link_tokens')
+        .select('token_hash,profile_id,auth_user_id,expires_at,used_at,telegram_user_id')
+        .eq('telegram_user_id', telegramUserId).is('used_at', null)
+        .not('contact_requested_at', 'is', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('contact_requested_at', { ascending: false }).limit(1)
+      if (pendingTokenError) throw pendingTokenError
+      const token = pendingTokens?.[0]
+      if (!token || !token.profile_id) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, 'Ulash jarayoni topilmadi yoki muddati tugagan. RoyalHouse Mini App’dan qayta boshlang.')
+        return NextResponse.json({ ok: true })
+      }
+
+      const phoneDigits = normalizePhone(message.contact.phone_number)
+      if (!/^998\d{9}$/.test(phoneDigits)) {
+        await sendTelegramMessage(chatId, '❌ O‘zbekiston telefon raqamini yuboring.')
+        return NextResponse.json({ ok: true })
+      }
+      const normalizedPhone = `+${phoneDigits}`
+      const { error: contactPhoneError } = await admin.from('telegram_link_tokens')
+        .update({ contact_phone: normalizedPhone })
+        .eq('token_hash', token.token_hash).is('used_at', null)
+      if (contactPhoneError) throw contactPhoneError
+      const { data: profile, error: profileError } = token.profile_id
+        ? await admin.from('profiles').select('id,phone').eq('id', token.profile_id).maybeSingle()
+        : await admin.from('profiles').select('id,phone').eq('phone', normalizedPhone).maybeSingle()
+      if (profileError) throw profileError
+
+      if (token.profile_id && (!profile?.id || normalizePhone(profile.phone) !== phoneDigits)) {
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, '❌ Yuborilgan telefon raqami ushbu RoyalHouse profiliga mos kelmadi. Profilingizdagi raqamni yuboring.')
+        return NextResponse.json({ ok: true })
+      }
+
+      if (profile?.id) {
+        if (!token.profile_id) {
+          const { data: boundToken, error: tokenBindError } = await admin.from('telegram_link_tokens')
+            .update({ profile_id: profile.id, auth_user_id: profile.id })
+            .eq('token_hash', token.token_hash).is('profile_id', null).is('used_at', null)
+            .select('token_hash').maybeSingle()
+          if (tokenBindError) throw tokenBindError
+          if (!boundToken) {
+            await clearTelegramKeyboard(chatId)
+            await sendTelegramMessage(chatId, '❌ Bu ulash jarayoni boshqa so‘rovda ishlatilgan. Mini App’dan qayta boshlang.')
+            return NextResponse.json({ ok: true })
+          }
+        }
+
+        const { error: claimError } = await admin.from('phone_verification_claims').upsert({
+          phone: normalizedPhone,
+          verified_at: new Date().toISOString(),
+          verification_method: 'telegram_contact',
+        }, { onConflict: 'phone' })
+        if (claimError) throw claimError
+
+        const { error: linkError } = await admin.rpc('link_telegram_identity', {
+          p_profile_id: profile.id,
+          p_telegram_user_id: telegramUserId,
+          p_chat_id: String(chatId),
+          p_telegram_username: from.username || null,
+          p_linked_at: new Date().toISOString(),
+        })
+        if (linkError) {
+          const reason = linkError.message || ''
+          await clearTelegramKeyboard(chatId)
+          if (reason.includes('ALREADY_LINKED')) {
+            await sendTelegramMessage(chatId, '❌ Bu Telegram yoki RoyalHouse profili boshqa akkauntga ulangan. Avtomatik birlashtirish mumkin emas. Yordam xizmatiga murojaat qiling.')
+            return NextResponse.json({ ok: true })
+          }
+          throw linkError
+        }
+
+        const { error: usedError } = await admin.from('telegram_link_tokens')
+          .update({ used_at: new Date().toISOString() }).eq('token_hash', token.token_hash).is('used_at', null)
+        if (usedError) throw usedError
+        await clearTelegramKeyboard(chatId)
+        await sendTelegramMessage(chatId, '✅ Telefon raqamingiz bo‘yicha mavjud RoyalHouse profilingiz topildi va Telegram akkauntingiz unga ulandi. Mini App’ni qayta ochishingiz mumkin.', true)
+        return NextResponse.json({ ok: true })
+      }
+
+      await clearTelegramKeyboard(chatId)
+      await sendTelegramMessage(chatId, '❌ RoyalHouse profili topilmadi. Avval sayt yoki ilovada telefon raqamingizni SMS OTP orqali tasdiqlang.')
+      return NextResponse.json({ ok: true })
     }
 
     if (!text) return NextResponse.json({ ok: true })
