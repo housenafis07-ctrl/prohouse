@@ -7,7 +7,7 @@ export async function GET() {
   const db = serviceClient()
   const { data, error: queryError } = await db.from('developer_complex_documents')
     .select('id,complex_id,developer_id,uploaded_by,document_type,title,document_number,issued_at,expires_at,mime_type,file_size_bytes,moderation_status,moderation_note,requested_visibility_scope,visibility_scope,created_at')
-    .eq('moderation_status', 'pending').order('created_at', { ascending: true })
+    .order('created_at', { ascending: false }).limit(200)
   if (queryError) return NextResponse.json({ error: 'DOCUMENTS_LOAD_FAILED' }, { status: 500 })
   const complexIds = [...new Set((data || []).map(item => item.complex_id))]
   const [{ data: complexes }, { data: developers }] = await Promise.all([
@@ -26,17 +26,30 @@ export async function PATCH(request: NextRequest) {
   if (error || !admin) return NextResponse.json({ error: error || 'Unauthorized' }, { status: error === 'Forbidden' ? 403 : 401 })
   const body = await request.json().catch(() => null)
   const id = typeof body?.documentId === 'string' ? body.documentId : ''
-  const status = typeof body?.status === 'string' ? body.status : ''
-  const note = typeof body?.note === 'string' ? body.note.trim() : ''
+  const action = body?.action === 'visibility' ? 'visibility' : 'review'
   const visibilityScope = body?.visibilityScope === 'public' ? 'public' : body?.visibilityScope === 'admin_only' ? 'admin_only' : null
-  if (!id || !['approved','rejected'].includes(status) || !visibilityScope) return NextResponse.json({ error: 'INVALID_REVIEW_REQUEST' }, { status: 400 })
-  if (status === 'rejected' && !note) return NextResponse.json({ error: 'REJECTION_REASON_REQUIRED' }, { status: 400 })
-  if (note.length > 2000) return NextResponse.json({ error: 'REVIEW_NOTE_TOO_LONG' }, { status: 400 })
+  if (!id || !visibilityScope) return NextResponse.json({ error: 'INVALID_REVIEW_REQUEST' }, { status: 400 })
   const db = serviceClient()
   const now = new Date().toISOString()
+
+  if (action === 'visibility') {
+    const { data, error: updateError } = await db.from('developer_complex_documents').update({
+      visibility_scope: visibilityScope, updated_at: now,
+    }).eq('id', id).eq('moderation_status', 'approved')
+      .select('id,moderation_status,visibility_scope,updated_at').maybeSingle()
+    if (updateError) return NextResponse.json({ error: 'DOCUMENT_VISIBILITY_UPDATE_FAILED' }, { status: 500 })
+    if (!data) return NextResponse.json({ error: 'APPROVED_DOCUMENT_NOT_FOUND' }, { status: 409 })
+    return NextResponse.json({ document: data }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
+  const status = typeof body?.status === 'string' ? body.status : ''
+  const note = typeof body?.note === 'string' ? body.note.trim() : ''
+  if (!['approved','rejected'].includes(status)) return NextResponse.json({ error: 'INVALID_REVIEW_REQUEST' }, { status: 400 })
+  if (status === 'rejected' && !note) return NextResponse.json({ error: 'REJECTION_REASON_REQUIRED' }, { status: 400 })
+  if (note.length > 2000) return NextResponse.json({ error: 'REVIEW_NOTE_TOO_LONG' }, { status: 400 })
   const { data, error: updateError } = await db.from('developer_complex_documents').update({
     moderation_status: status, moderation_note: note || null, visibility_scope: status === 'approved' ? visibilityScope : 'admin_only', moderated_by: admin.user.id, moderated_at: now, updated_at: now,
-  }).eq('id', id).eq('moderation_status', 'pending').select('id,moderation_status,moderation_note,moderated_at').maybeSingle()
+  }).eq('id', id).eq('moderation_status', 'pending').select('id,moderation_status,moderation_note,visibility_scope,moderated_at').maybeSingle()
   if (updateError) return NextResponse.json({ error: 'DOCUMENT_REVIEW_FAILED' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'DOCUMENT_NOT_PENDING' }, { status: 409 })
   return NextResponse.json({ document: data }, { headers: { 'Cache-Control': 'no-store' } })
