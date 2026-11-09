@@ -141,6 +141,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
       const normalizedPhone = `+${phoneDigits}`
+      const { error: contactPhoneError } = await admin.from('telegram_link_tokens')
+        .update({ contact_phone: normalizedPhone })
+        .eq('token_hash', token.token_hash).is('used_at', null)
+      if (contactPhoneError) throw contactPhoneError
       const { data: profile, error: profileError } = token.profile_id
         ? await admin.from('profiles').select('id,phone').eq('id', token.profile_id).maybeSingle()
         : await admin.from('profiles').select('id,phone').eq('phone', normalizedPhone).maybeSingle()
