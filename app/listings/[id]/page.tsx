@@ -37,6 +37,8 @@ type Listing = {
 function jsonLd(value: unknown) { return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') }
 
 async function getListing(id: string) {
+  // Dynamic [id] route must never send route slugs (for example "new") to a UUID column.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null
   const supabase = await createClient()
   const { data, error } = await supabase.from('listings').select('id,listing_code,owner_id,title,title_ru,description,listing_type,property_type,price,currency,area_m2,rooms,floor,floors_total,district,city,address,latitude,longitude,taxonomy_code,seller_type,seller_name,seller_phone,is_mortgage_available,is_verified,is_trusted_seller,is_featured,promotion_rank,promotion_badge,promoted_until,bumped_at,published_at,draft_data,listing_images(image_url,sort_order)').eq('id', id).eq('status', 'active').maybeSingle()
   if (error || !data) return null
