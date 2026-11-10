@@ -45,6 +45,18 @@ test('existing verified profiles bypass repeated name and SMS questions', () => 
   assert.match(wizard, /saveExistingAccountDraft/)
 })
 
+test('existing profile phone cannot be changed without verifying the new number', () => {
+  assert.match(profile, /currentPhoneDigits && requestedPhone && currentPhoneDigits !== requestedPhone/)
+  assert.match(profile, /yangi raqamni SMS orqali tasdiqlang/)
+})
+
+test('signed phone session takes priority over stale Supabase browser identity', () => {
+  assert.match(metadata, /const phoneSessionUserId = readAccountSession/)
+  assert.match(metadata, /let userId = phoneSessionUserId[\\s\\S]*if \(!userId\)/)
+  assert.match(draft, /const phoneSessionUserId = readAccountSession/)
+  assert.match(draft, /let userId = phoneSessionUserId[\\s\\S]*if \(!userId\)/)
+})
+
 test('profile initialization preserves existing account and partner data', () => {
   assert.match(profile, /currentProfile\?\.company_name/)
   assert.match(profile, /currentProfile\?\.account_type/)
