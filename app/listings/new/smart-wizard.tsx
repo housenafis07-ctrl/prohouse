@@ -166,30 +166,19 @@ export default function SmartListingWizard(){
    setOtpSent(true);setError('SMS kodi yuborildi. 6 xonali kodni kiriting.')
   }catch(e){setError(e instanceof Error?e.message:'SMS yuborishda xatolik.')}finally{setBusy(false)}
  }
- const verifyAndSaveDraft=async()=>{
-  if(!/^\d{6}$/.test(otp)){setError('SMS kodini 6 xonali kiriting.');return}
-  setBusy(true);setError('')
+ const createDraftAndUploadImages=async(userId:string)=>{
   const uploaded:string[]=[]
   let createdListingId:string|null=null
   try{
-   const verify=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:answers.phone,code:otp})})
-   const verifiedData=await verify.json();if(!verify.ok)throw new Error(verifiedData.error||'SMS tasdiqlanmadi.')
-   const {data:{user},error:userError}=await db.auth.getUser()
-   if(userError||!user)throw new Error('Tasdiqlangan foydalanuvchi sessiyasi topilmadi.')
-   const {data:existing,error:profileLookupError}=await db.from('profiles').select('id,account_type,full_name,phone').eq('id',user.id).maybeSingle()
-   if(profileLookupError)throw profileLookupError
-   const {error:profileError}=await db.from('profiles').upsert({
-    id:user.id,phone:answers.phone.replace(/\s/g,''),full_name:answers.fullName.trim(),account_type:existing?.account_type||'individual',
-   },{onConflict:'id'})
-   if(profileError)throw profileError
-   const draft=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:7,data:payload(),status:'draft'})})
-   const draftData=await draft.json();if(!draft.ok)throw new Error(draftData.message||draftData.error||'E’lon qoralamasi saqlanmadi.')
+   const draft=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({step:7,data:payload(),status:'draft'})})
+   const draftData=await draft.json()
+   if(!draft.ok)throw new Error(draftData.message||draftData.error||'E’lon qoralamasi saqlanmadi.')
    createdListingId=draftData.listing.id
    const ordered=[images[mainImage],...images.filter((_,i)=>i!==mainImage)]
    const rows=[]
    for(let i=0;i<ordered.length;i++){
     const file=ordered[i].file
-    const path=getListingImageStoragePath(user.id,createdListingId,file.name)
+    const path=getListingImageStoragePath(userId,createdListingId,file.name)
     const upload=await db.storage.from(LISTING_IMAGE_BUCKET).upload(path,file,{cacheControl:'31536000',upsert:false})
     if(upload.error)throw upload.error
     uploaded.push(path)
@@ -198,12 +187,45 @@ export default function SmartListingWizard(){
     rows.push({listing_id:createdListingId,image_url:publicUrl,storage_path:path,sort_order:i,width:dimensions.width,height:dimensions.height,size_bytes:file.size,mime_type:file.type})
    }
    if(rows.length){const {error:imageError}=await db.from('listing_images').insert(rows);if(imageError)throw imageError}
-   setListingId(createdListingId);setVerified(true);setSuccess('Telefon raqamingiz tasdiqlandi. Video qo‘shishingiz va e’lonni yuborishingiz mumkin.')
-  }catch(e){
+   setListingId(createdListingId)
+   return createdListingId
+  }catch(error){
    if(uploaded.length)await db.storage.from(LISTING_IMAGE_BUCKET).remove(uploaded)
-   if(createdListingId)await fetch('/api/listings/draft?listingId='+encodeURIComponent(createdListingId),{method:'DELETE'}).catch(()=>null)
-   setError(e instanceof Error?e.message:'E’lonni saqlashda xatolik.')
-  }finally{setBusy(false)}
+   if(createdListingId)await fetch('/api/listings/draft?listingId='+encodeURIComponent(createdListingId),{method:'DELETE',credentials:'same-origin'}).catch(()=>null)
+   throw error
+  }
+ }
+ const saveExistingAccountDraft=async()=>{
+  if(!accountProfile)return
+  setBusy(true);setError('')
+  try{
+   const {data:{user},error:userError}=await db.auth.getUser()
+   if(userError||!user||user.id!==accountProfile.user_id)throw new Error('Mavjud hisob sessiyasi yangilanmagan. Sahifani yangilang yoki SMS orqali qayta kiring.')
+   await createDraftAndUploadImages(user.id)
+   setVerified(true)
+   setSuccess('Mavjud profilingiz aniqlandi. E’lon qoralamasi saqlandi. Endi videoni qo‘shib yuborishingiz mumkin.')
+  }catch(error){setError(error instanceof Error?error.message:'E’lonni saqlashda xatolik.')}
+  finally{setBusy(false)}
+ }
+ const verifyAndSaveDraft=async()=>{
+  if(!/^\\d{6}$/.test(otp)){setError('SMS kodini 6 xonali kiriting.');return}
+  setBusy(true);setError('')
+  try{
+   const verify=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:answers.phone,code:otp})})
+   const verifiedData=await verify.json();if(!verify.ok)throw new Error(verifiedData.error||'SMS tasdiqlanmadi.')
+   const {data:{user},error:userError}=await db.auth.getUser()
+   if(userError||!user)throw new Error('Tasdiqlangan foydalanuvchi sessiyasi topilmadi.')
+   const {data:existing,error:profileLookupError}=await db.from('profiles').select('id,account_type,full_name,phone').eq('id',user.id).maybeSingle()
+   if(profileLookupError)throw profileLookupError
+   const {error:profileError}=await db.from('profiles').upsert({
+    id:user.id,phone:answers.phone.replace(/\\s/g,''),full_name:answers.fullName.trim(),account_type:existing?.account_type||'individual',
+   },{onConflict:'id'})
+   if(profileError)throw profileError
+   await createDraftAndUploadImages(user.id)
+   setVerified(true)
+   setSuccess('Telefon raqamingiz tasdiqlandi. E’lon qoralamasi saqlandi. Video qo‘shishingiz va e’lonni yuborishingiz mumkin.')
+  }catch(error){setError(error instanceof Error?error.message:'E’lonni saqlashda xatolik.')}
+  finally{setBusy(false)}
  }
  const publish=async()=>{
   if(!listingId)return
@@ -224,15 +246,21 @@ export default function SmartListingWizard(){
    if(!live)return
    const list=(meta.categories||[]) as Category[]
    const attrs=(meta.attributes||[]) as Attribute[]
-   const {data:{user}}=await db.auth.getUser()
+   const accountResponse=await fetch('/api/account/profile',{credentials:'same-origin',cache:'no-store'})
    let partnerType='owner'
-   if(user){
-    const {data:profile,error:profileError}=await db.from('profiles').select('account_type,partner_type').eq('id',user.id).maybeSingle()
-    if(profileError)throw profileError
-    if(profile?.account_type==='partner'){
-     const {data:partnerProfile}=await db.from('partner_profiles').select('partner_type').eq('user_id',user.id).maybeSingle()
-     partnerType=partnerProfile?.partner_type||(['owner','realtor','agency','developer','contractor','service_provider'].includes(profile.partner_type||'')?profile.partner_type!:'realtor')
+   if(accountResponse.ok){
+    const accountData=await accountResponse.json()
+    const profile=accountData.profile
+    if(profile?.user_id&&profile?.phone){
+     setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual'})
+     setAnswers(current=>({...current,phone:profile.phone,fullName:profile.full_name||''}))
+     if(profile.account_type==='partner'){
+      partnerType=profile.partner_type||'realtor'
+     }
     }
+   }else if(accountResponse.status!==401){
+    const accountError=await accountResponse.json().catch(()=>({}))
+    throw new Error(accountError.error||'Profilni tekshirishda xatolik. Sahifani yangilang.')
    }
    const {data:permissions,error:permissionError}=await db.from('partner_category_permissions').select('category_code').eq('partner_type',partnerType).eq('can_create',true)
    if(permissionError)throw permissionError
