@@ -23,7 +23,7 @@ export default function SmartListingWizard(){
  const db=useMemo(()=>createClient(),[])
  const [categories,setCategories]=useState<Category[]>([])
  const [attributes,setAttributes]=useState<Attribute[]>([])
- const [ownerAllowed,setOwnerAllowed]=useState<Set<string>>(new Set())
+ const [allowedCategories,setAllowedCategories]=useState<Set<string>>(new Set())
  const [loading,setLoading]=useState(true)
  const [selected,setSelected]=useState<Category|null>(null)
  const [answers,setAnswers]=useState<Answer>(initial)
@@ -37,7 +37,7 @@ export default function SmartListingWizard(){
  const [userId,setUserId]=useState('')
 
  const t=(uz:string)=>uz
- const requiredAttributes=useMemo(()=>attributes.filter(x=>x.category_code===selected?.code&&x.is_required),[attributes,selected])
+ const requiredAttributes=useMemo(()=>attributes.filter(x=>x.category_code===selected?.code&&x.is_required&&!['rooms','area_m2'].includes(x.code)),[attributes,selected])
  const questions=useMemo(()=>{
   const q=['category','location']
   if(selected && isResidential(selected)) q.push('rooms')
@@ -51,7 +51,7 @@ export default function SmartListingWizard(){
 
  useEffect(()=>{let live=true;(async()=>{
   try{
-   const [{data:cats,error:ce},{data:attrs,error:ae},{data:permissions,error:pe}]=await Promise.all([
+   const [{data:cats,error:ce},{data:attrs,error:ae},{data:{user}},{data:profile}]=await Promise.all([
     db.from('listing_categories').select('code,parent_code,name_uz,name_ru,section_code,listing_type,property_type,entity_type,is_listable,is_mortgage_filter,sort_order').eq('is_active',true).eq('is_listable',true).eq('entity_type','property').neq('section_code','services').order('sort_order'),
     db.from('category_attributes').select('id,category_code,code,name_uz,name_ru,data_type,options,unit,is_required,sort_order').eq('is_active',true).order('sort_order'),
     db.from('partner_category_permissions').select('category_code').eq('partner_type','owner').eq('can_create',true),
@@ -71,7 +71,7 @@ export default function SmartListingWizard(){
  useEffect(()=>()=>images.forEach(x=>URL.revokeObjectURL(x.preview)),[images])
 
  const set=(key:keyof Answer,value:string)=>setAnswers(x=>({...x,[key]:value}))
- const restricted=(c:Category)=>!ownerAllowed.has(c.code)
+ const restricted=(c:Category)=>!allowedCategories.has(c.code)
  const chooseCategory=(c:Category)=>{
   if(restricted(c)){
    const next='/listings/new/smart?taxonomy='+encodeURIComponent(c.code)
@@ -172,7 +172,7 @@ export default function SmartListingWizard(){
  const progress=Math.round(((question+1)/questions.length)*100)
  if(loading)return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-2xl rounded-3xl bg-white p-10 text-center">E’lon turlari yuklanmoqda…</div></main>
  return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-2xl">
-  <header className="mb-5 flex items-center justify-between"><Link href="/" className="text-lg font-black text-slate-900">Royal<span className="text-emerald-600">House</span></Link><Link href="/account" className="text-sm font-semibold text-slate-500">Shaxsiy kabinet</Link></header>
+  <header className="mb-5 flex items-center justify-between"><Link href="/" className="text-lg font-black text-slate-900">Royal<span className="text-emerald-600">House</span></Link><div className="flex items-center gap-3"><Link href="/listings/new/service" className="text-xs font-semibold text-emerald-700">Hamkorlar uchun xizmat e’loni</Link><Link href="/account" className="text-sm font-semibold text-slate-500">Shaxsiy kabinet</Link></div></header>
   <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
    <div className="border-b border-slate-100 px-5 py-5 sm:px-7"><div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>SMART E’LON YORDAMCHISI</span><span>{question+1}/{questions.length}</span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600 transition-all" style={{width:progress+'%'}}/></div><h1 className="mt-4 text-2xl font-black text-slate-950">E’loningizni birgalikda tayyorlaymiz</h1><p className="mt-1 text-sm text-slate-500">Uzun forma yo‘q — savollarga ketma-ket javob bering.</p></div>
    <div className="space-y-5 px-5 py-6 sm:px-7">
