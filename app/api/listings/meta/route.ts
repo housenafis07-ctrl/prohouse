@@ -61,12 +61,14 @@ export async function GET(request: Request) {
   }
 
   let partnerType: string | null = 'owner'
+  let accountProfile: { user_id: string; phone: string | null; full_name: string | null; account_type: string | null; partner_type: string | null } | null = null
   if (userId) {
     const { data: profile } = await admin
       .from('profiles')
-      .select('account_type,partner_type')
+      .select('phone,full_name,account_type,partner_type')
       .eq('id', userId)
       .maybeSingle()
+    if (profile) accountProfile = { user_id: userId, phone: profile.phone, full_name: profile.full_name, account_type: profile.account_type, partner_type: profile.partner_type }
 
     if (profile?.account_type === 'individual') {
       partnerType = 'owner'
@@ -108,7 +110,7 @@ export async function GET(request: Request) {
   const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
 
   return NextResponse.json(
-    { categories: filtered, attributes: filteredAttributes, partnerType, allowedCategoryCodes: Array.from(allowedCodes || []) },
+    { categories: filtered, attributes: filteredAttributes, partnerType, allowedCategoryCodes: Array.from(allowedCodes || []), accountProfile },
     { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
   )
 }
