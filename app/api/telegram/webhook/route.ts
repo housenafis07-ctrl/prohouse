@@ -106,13 +106,14 @@ export async function POST(request: NextRequest) {
     const update = (await request.json()) as TelegramUpdate
     const message = update.message; const text = String(message?.text || '').trim(); const chatId = message?.chat?.id
     if (!message || !chatId) return NextResponse.json({ ok: true })
-    const from = message.from; const admin = serviceClient(); const telegramUserId = from?.id ? String(from.id) : ''
+    const from = message.from; const telegramUserId = from?.id ? String(from.id) : ''
 
     // Telegram is for notifications and support only; account authentication
     // and phone verification must remain SMS OTP only.
     // Best-effort registration must never prevent /start from replying.
     if (from?.id && message.chat?.type === 'private') {
       try {
+        const admin = serviceClient()
         const { data: existingLink } = await admin.from('telegram_user_links')
           .select('profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
         const { error: botUserError } = await admin.from('telegram_bot_users').upsert({
@@ -165,6 +166,7 @@ export async function POST(request: NextRequest) {
     }
 
     const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
+    const admin = serviceClient()
     const { error: supportError } = await admin.from('support_messages').insert({ name: name || null, subject: 'Telegram murojaati', message: text.slice(0, 5000), source: 'telegram', telegram_user_id: String(from?.id || chatId), telegram_username: from?.username ? '@' + from.username : null })
     if (supportError) { console.error('telegram support insert failed', supportError); return NextResponse.json({ error: 'Database error' }, { status: 500 }) }
     await sendTelegramMessage(chatId, 'Xabaringiz RoyalHouse qo‘llab-quvvatlash xizmatiga yuborildi.', true); return NextResponse.json({ ok: true })
