@@ -130,9 +130,20 @@ export default function SmartListingWizard(){
   if(invalid){setError('Faqat JPG, PNG, WebP yoki GIF formatidagi, 10 MB gacha rasmlar yuklanadi.');return}
   setImages(old=>[...old,...files.map(file=>({file,preview:URL.createObjectURL(file)}))])
  }
- const removeImage=(index:number)=>setImages(old=>old.filter((_,i)=>i!==index))
+ const removeImage=(index:number)=>{setImages(old=>old.filter((_,i)=>i!==index));setMainImage(0)}
  const payload=()=>{
-  const attrs={...answers.attributes,...(answers.ownership_type?{ownership_type:answers.ownership_type}:{}),...(answers.mortgage?{mortgage:answers.mortgage}:{}),...(answers.rental_booking?{rental_booking:answers.rental_booking}:{})}
+  const attrs:Record<string,unknown>={}
+  for(const definition of categoryAttributes){
+   const raw=answers.attributes[definition.code]
+   if(raw===undefined||raw==='')continue
+   if(definition.data_type==='number')attrs[definition.code]=Number(raw)
+   else if(definition.data_type==='boolean')attrs[definition.code]=raw==='true'
+   else if(definition.data_type==='multiselect')attrs[definition.code]=raw.split(',').filter(Boolean)
+   else attrs[definition.code]=raw
+  }
+  if(answers.ownership_type)attrs.ownership_type=answers.ownership_type
+  if(answers.mortgage)attrs.mortgage=answers.mortgage==='true'
+  if(answers.rental_booking)attrs.rental_booking=answers.rental_booking
   return {
    taxonomy_code:selected?.code,listing_type:selected?.listing_type||'sale',property_type:selected?.property_type||'apartment',
    title:answers.title.trim()||titleFrom(selected,answers,categoryAttributes),
