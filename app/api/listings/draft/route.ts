@@ -62,10 +62,16 @@ async function persistAttributeValues(supabase: SupabaseClient, listingId: strin
 }
 
 export async function POST(request: Request) {
-  const authSupabase = await createClient()
-  const { data: { user } } = await authSupabase.auth.getUser()
   const cookieStore = await cookies()
-  const userId = user?.id || readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  const phoneSessionUserId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  let userId = phoneSessionUserId
+  let authPhone: string | null = null
+  if (!userId) {
+    const authSupabase = await createClient()
+    const { data: { user } } = await authSupabase.auth.getUser()
+    userId = user?.id || null
+    authPhone = user?.phone || null
+  }
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
   const supabase = serviceClient()
@@ -137,7 +143,7 @@ export async function POST(request: Request) {
   const sellerName = isServiceListing
     ? text(profile.company_name) || text(profile.full_name) || null
     : text(profile.company_name) || text(profile.full_name) || null
-  const sellerPhone = text(profile.phone) || user?.phone || null
+  const sellerPhone = text(profile.phone) || authPhone || null
 
   if (status === 'moderation' && !listingId) {
     // Prevent a realtor/owner from accidentally submitting an exact duplicate
@@ -288,10 +294,16 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const authSupabase = await createClient()
-  const { data: { user } } = await authSupabase.auth.getUser()
   const cookieStore = await cookies()
-  const userId = user?.id || readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  const phoneSessionUserId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  let userId = phoneSessionUserId
+  let authPhone: string | null = null
+  if (!userId) {
+    const authSupabase = await createClient()
+    const { data: { user } } = await authSupabase.auth.getUser()
+    userId = user?.id || null
+    authPhone = user?.phone || null
+  }
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
   const supabase = serviceClient()
   const url = new URL(request.url)
