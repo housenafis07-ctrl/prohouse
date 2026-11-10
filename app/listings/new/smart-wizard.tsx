@@ -243,17 +243,10 @@ export default function SmartListingWizard(){
    if(!live)return
    const list=(meta.categories||[]) as Category[]
    const attrs=(meta.attributes||[]) as Attribute[]
-   const accountResponse=await fetch('/api/account/profile',{credentials:'same-origin',cache:'no-store'})
-   if(accountResponse.ok){
-    const accountData=await accountResponse.json()
-    const profile=accountData.profile
-    if(profile?.user_id&&profile?.phone){
-     setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual'})
-     setAnswers(current=>({...current,phone:profile.phone,fullName:profile.full_name||''}))
-    }
-   }else if(accountResponse.status!==401){
-    const accountError=await accountResponse.json().catch(()=>({}))
-    throw new Error(accountError.error||'Profilni tekshirishda xatolik. Sahifani yangilang.')
+   const profile=meta.accountProfile
+   if(profile?.user_id&&profile?.phone){
+    setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual'})
+    setAnswers(current=>({...current,phone:profile.phone,fullName:profile.full_name||''}))
    }
    setCategories(list);setAttributes(attrs);setAllowedCategories(new Set((meta.allowedCategoryCodes||[]) as string[]))
    const requested=params.get('taxonomy')
