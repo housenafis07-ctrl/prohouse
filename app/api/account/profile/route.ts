@@ -48,6 +48,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
   const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''
+  const requestedPhone = typeof body.phone === 'string' ? body.phone.replace(/\\D/g, '') : ''
+  const normalizedPhone = requestedPhone.startsWith('998') && requestedPhone.length === 12 ? `+${requestedPhone}` : ''
   const accountType = body.account_type === 'partner' ? 'partner' : 'individual'
   const legalForm = typeof body.partner_type === 'string' && legalForms.has(body.partner_type) ? body.partner_type : null
   const companyName = typeof body.company_name === 'string' ? body.company_name.trim() : ''
@@ -69,7 +71,11 @@ export async function POST(request: Request) {
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: 'Email manzilini tekshiring.' }, { status: 400 })
 
   const db = serviceClient()
+  const { data: currentProfile, error: currentProfileError } = await db.from('profiles').select('phone').eq('id', userId).maybeSingle()
+  if (currentProfileError) return NextResponse.json({ error: currentProfileError.message }, { status: 400 })
   const profilePatch = {
+    id: userId,
+    phone: normalizedPhone || currentProfile?.phone || null,
     full_name: fullName,
     account_type: accountType,
     partner_type: accountType === 'partner' ? legalForm : null,
@@ -86,7 +92,7 @@ export async function POST(request: Request) {
     linkedin_url: linkedinUrl,
     telegram_url: telegramUrl,
   }
-  const { error: updateError } = await db.from('profiles').update(profilePatch).eq('id', userId)
+  const { error: updateError } = await db.from('profiles').upsert(profilePatch, { onConflict: 'id' })
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
 
   if (accountType === 'partner') {
