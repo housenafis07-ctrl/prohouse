@@ -172,3 +172,14 @@ test('listing detail route rejects non-UUID slugs before querying UUID columns',
   assert.notEqual(guard, -1)
   assert.ok(client > guard, 'UUID guard must run before creating a Supabase client or issuing a query')
 })
+
+
+const listingDetailLayout = await readFile(new URL('../app/listings/[id]/layout.tsx', import.meta.url), 'utf8')
+
+test('listing detail layout metadata rejects non-UUID slugs before querying listings', () => {
+  const guard = listingDetailLayout.indexOf('if (!UUID_PATTERN.test(id))')
+  const client = listingDetailLayout.indexOf('const supabase = await createClient()')
+  assert.notEqual(guard, -1)
+  assert.ok(client > guard, 'layout metadata must validate the route ID before querying Supabase')
+  assert.match(listingDetailLayout, /UUID_PATTERN\.test\(id\) && <ListingVideoPreview/)
+})
