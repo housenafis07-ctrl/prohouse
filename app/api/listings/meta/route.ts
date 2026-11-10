@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function GET(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const userId = authUser?.id || readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  const admin = serviceClient()
   const referer = request.headers.get('referer') || ''
   const requestedFlow = new URL(request.url).searchParams.get('flow')
   const flow = requestedFlow === 'service' || requestedFlow === 'property' ? requestedFlow : (referer.includes('/listings/new/service') ? 'service' : 'property')
@@ -35,13 +40,13 @@ export async function GET(request: Request) {
   // When editing, scope metadata from the listing itself rather than the
   // partner's create permissions. This preserves the taxonomy already saved
   // on the listing and prevents steps 1–2 from becoming empty.
-  if (editMatch && user) {
+  if (editMatch && userId) {
     const listingId = editMatch[1]
     const { data: listingForScope } = await supabase
       .from('listings')
       .select('taxonomy_code')
       .eq('id', listingId)
-      .eq('owner_id', user.id)
+      .eq('owner_id', userId)
       .maybeSingle()
 
     const existingCategory = (categories || []).find((c) => c.code === listingForScope?.taxonomy_code)
@@ -56,8 +61,8 @@ export async function GET(request: Request) {
   }
 
   let partnerType: string | null = 'owner'
-  if (user) {
-    const { data: profile } = await supabase
+  if (userId) {
+    const { data: profile } = await admin
       .from('profiles')
       .select('account_type,partner_type')
       .eq('id', user.id)
@@ -66,7 +71,7 @@ export async function GET(request: Request) {
     if (profile?.account_type === 'individual') {
       partnerType = 'owner'
     } else if (profile?.account_type === 'partner') {
-      const { data: partnerProfile } = await supabase
+      const { data: partnerProfile } = await admin
         .from('partner_profiles')
         .select('partner_type')
         .eq('user_id', user.id)
@@ -82,7 +87,7 @@ export async function GET(request: Request) {
 
   let allowedCodes: Set<string> | null = null
   if (partnerType) {
-    const { data: permissions } = await serviceClient()
+    const { data: permissions } = await admin
       .from('partner_category_permissions')
       .select('category_code')
       .eq('partner_type', partnerType)
