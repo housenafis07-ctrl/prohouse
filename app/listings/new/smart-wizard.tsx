@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
@@ -61,6 +61,7 @@ export default function SmartListingWizard(){
  const [restrictedSelection,setRestrictedSelection]=useState<Category|null>(null)
  const [answers,setAnswers]=useState<Answer>(initial)
  const [images,setImages]=useState<ImageItem[]>([])
+ const imagesRef=useRef<ImageItem[]>([])
  const [mainImage,setMainImage]=useState(0)
  const [question,setQuestion]=useState(0)
  const [error,setError]=useState('')
@@ -130,7 +131,7 @@ export default function SmartListingWizard(){
   if(invalid){setError('Faqat JPG, PNG, WebP yoki GIF formatidagi, 10 MB gacha rasmlar yuklanadi.');return}
   setImages(old=>[...old,...files.map(file=>({file,preview:URL.createObjectURL(file)}))])
  }
- const removeImage=(index:number)=>{setImages(old=>old.filter((_,i)=>i!==index));setMainImage(0)}
+ const removeImage=(index:number)=>{const removed=images[index];if(removed)URL.revokeObjectURL(removed.preview);setImages(old=>old.filter((_,i)=>i!==index));setMainImage(0)}
  const payload=()=>{
   const attrs:Record<string,unknown>={}
   for(const definition of categoryAttributes){
@@ -239,7 +240,8 @@ export default function SmartListingWizard(){
   }catch(e){if(live)setError(e instanceof Error?e.message:'E’lon turlarini yuklashda xatolik.')}
   finally{if(live)setLoading(false)}
  })();return()=>{live=false}},[db,params])
- useEffect(()=>()=>images.forEach(x=>URL.revokeObjectURL(x.preview)),[images])
+ useEffect(()=>{imagesRef.current=images},[images])
+ useEffect(()=>()=>imagesRef.current.forEach(x=>URL.revokeObjectURL(x.preview)),[])
 
  const optionList=currentAttribute?optionsFor(currentAttribute.options):[]
  const currentValue=currentAttribute?answers.attributes[currentAttribute.code]||'':''
