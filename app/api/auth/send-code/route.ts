@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server'
 import { createHash, randomInt } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
+// OTP generation uses node:crypto and the Eskiz integration uses Node-compatible
+// server APIs. Pin this endpoint to the Node.js runtime instead of relying on
+// deployment defaults (an Edge/runtime mismatch can fail before the handler
+// returns a JSON response).
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 30
+
 const ESKIZ_BASE_URL = 'https://notify.eskiz.uz'
 const OTP_TTL_SECONDS = 5 * 60
 const RESEND_COOLDOWN_SECONDS = 60
@@ -129,7 +137,11 @@ export async function POST(request: Request) {
   let insertedOtpId: string | null = null
 
   try {
-    const { phone } = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'So‘rov ma’lumotlari noto‘g‘ri.' }, { status: 400 })
+    }
+    const { phone } = body as { phone?: unknown }
     const normalizedPhone = normalizePhone(phone)
 
     if (!/^\+998\d{9}$/.test(normalizedPhone)) {
@@ -162,15 +174,24 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, testMode: false, message: 'SMS kodi yuborildi.' })
   } catch (error) {
+    // Keep the failure visible in Vercel runtime logs without exposing secrets.
+    console.error('[auth/send-code] SMS request failed:', error)
+
     // If the provider rejected the send, do not leave a fresh unused OTP that
-    // blocks the user from immediately requesting another code.
+    // blocks the user from immediately requesting another code. Cleanup must
+    // never prevent the API from returning a structured error response.
     if (admin && insertedOtpId) {
-      await admin.from('sms_otp_codes').delete().eq('id', insertedOtpId).catch(() => {})
+      try {
+        const { error: cleanupError } = await admin.from('sms_otp_codes').delete().eq('id', insertedOtpId)
+        if (cleanupError) console.error('[auth/send-code] OTP cleanup failed:', cleanupError.message)
+      } catch (cleanupError) {
+        console.error('[auth/send-code] OTP cleanup threw:', cleanupError)
+      }
     }
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'SMS yuborilmadi.' },
-      { status: 502 },
+      { status: 502, headers: { 'Cache-Control': 'no-store' } },
     )
   }
 }
