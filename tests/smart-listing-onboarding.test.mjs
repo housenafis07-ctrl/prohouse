@@ -37,7 +37,10 @@ test('database attributes with predefined options render as selections', () => {
 test('existing verified profiles bypass repeated name and SMS questions', () => {
   assert.match(metadata, /accountProfile/)
   assert.match(metadata, /readAccountSession/)
-  assert.match(wizard, /if\(!accountProfile\)q\.push\('name','phone'\)/)
+  assert.match(wizard, /if\(!accountProfile\)\{q\.push\('phone'\);if\(phoneOtpVerified\)q\.push\('name'\)\}/)
+  assert.match(wizard, /const saveNewProfileAndDraft=async\(\)=>/)
+  assert.match(wizard, /Telefon raqamingiz tasdiqlandi\. Endi ism va familiyangizni kiriting\./)
+  assert.match(wizard, /current==='name'&&phoneOtpVerified/)
   assert.match(wizard, /saveExistingAccountDraft/)
 })
 
