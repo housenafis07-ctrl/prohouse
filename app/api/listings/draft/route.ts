@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 const allowedStatuses = new Set(['draft', 'moderation'])
 const ownershipTypes = new Set(['owner', 'power_of_attorney', 'representative'])
@@ -62,7 +64,9 @@ async function persistAttributeValues(supabase: SupabaseClient, listingId: strin
 export async function POST(request: Request) {
   const authSupabase = await createClient()
   const { data: { user } } = await authSupabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+  const cookieStore = await cookies()
+  const userId = user?.id || readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
 
   const supabase = serviceClient()
 
@@ -88,7 +92,7 @@ export async function POST(request: Request) {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('account_type,partner_type,full_name,phone,company_name,director_full_name')
-    .eq('id', user.id)
+    .eq('id', userId)
     .maybeSingle()
   if (profileError) return NextResponse.json({ error: profileError.message }, { status: 400 })
   if (!profile) {
@@ -133,7 +137,7 @@ export async function POST(request: Request) {
   const sellerName = isServiceListing
     ? text(profile.company_name) || text(profile.full_name) || null
     : text(profile.company_name) || text(profile.full_name) || null
-  const sellerPhone = text(profile.phone) || user.phone || null
+  const sellerPhone = text(profile.phone) || user?.phone || null
 
   if (status === 'moderation' && !listingId) {
     // Prevent a realtor/owner from accidentally submitting an exact duplicate
@@ -150,7 +154,7 @@ export async function POST(request: Request) {
       const { data: existingListings, error: duplicateLookupError } = await supabase
         .from('listings')
         .select('id,listing_code,title,price,city,district,address,area_m2,rooms,status')
-        .eq('owner_id', user.id)
+        .eq('owner_id', userId)
         .in('status', ['active', 'moderation'])
         .neq('id', listingId || '00000000-0000-0000-0000-000000000000')
         .limit(100)
@@ -209,7 +213,7 @@ export async function POST(request: Request) {
   if (!listingId) {
     if (!taxonomyCode) return NextResponse.json({ error: 'TAXONOMY_REQUIRED' }, { status: 400 })
     const insertData: Record<string, unknown> = {
-      owner_id: user.id,
+      owner_id: userId,
       taxonomy_code: taxonomyCode,
       title: text(data.title) || 'Qoralama e’lon',
       description: typeof data.description === 'string' ? data.description : null,
@@ -239,7 +243,7 @@ export async function POST(request: Request) {
         .from('listings')
         .update({ status: 'moderation', submitted_at: new Date().toISOString() })
         .eq('id', created.id)
-        .eq('owner_id', user.id)
+        .eq('owner_id', userId)
         .select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area')
         .single()
       if (submitError) return NextResponse.json({ error: submitError.message }, { status: 400 })
@@ -286,7 +290,9 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const authSupabase = await createClient()
   const { data: { user } } = await authSupabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
+  const cookieStore = await cookies()
+  const userId = user?.id || readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
   const supabase = serviceClient()
   const url = new URL(request.url)
   const listingId = url.searchParams.get('listingId')
