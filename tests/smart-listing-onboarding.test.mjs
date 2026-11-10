@@ -47,6 +47,21 @@ test('profile initialization preserves existing account and partner data', () =>
   assert.match(profile, /upsert\(profilePatch/)
 })
 
+
+test('SMS API responses handle empty and non-JSON bodies without JSON parse crashes', () => {
+  assert.match(wizard, /const readApiResponse=async\(response:Response\)=>/)
+  assert.match(wizard, /Server bo‘sh javob qaytardi/)
+  assert.match(wizard, /Server JSON formatida bo‘lmagan javob qaytardi/)
+  assert.doesNotMatch(wizard, /const data=await response\.json\(\);if\(!response\.ok\)throw new Error\(data\.error\|\|'SMS yuborilmadi\.'\)/)
+})
+
+test('SMS verification restores an existing phone profile without replacing its saved name', () => {
+  assert.match(wizard, /const existingProfileResponse=await fetch\('\/api\/account\/profile'/)
+  assert.match(wizard, /existingProfile\.full_name\|\|current\.fullName/)
+  assert.match(wizard, /if\(existingProfileResponse\.status===401\)/)
+  assert.match(wizard, /full_name:answers\.fullName\.trim\(\),account_type:'individual'/)
+})
+
 test('draft API accepts only the authenticated Supabase or signed account session identity', () => {
   assert.match(draft, /authSupabase\.auth\.getUser\(\)/)
   assert.match(draft, /readAccountSession\(cookieStore\.get\(ACCOUNT_SESSION_COOKIE\)\?\.value\)/)
