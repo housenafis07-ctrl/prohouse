@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { createClient } from '@/utils/supabase/client'
 import { useI18n } from '@/app/components/I18nProvider'
 
 const ICONS = {
@@ -189,21 +188,6 @@ export default function MobileMainNavigation() {
       link.innerHTML = `${ICONS[item.key]}<span>${item.label}</span>`
       link.setAttribute('aria-label', item.label)
       link.title = item.label
-
-      if (item.key === 'create') {
-        link.addEventListener('click', async (event) => {
-          event.preventDefault()
-          try {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-            window.location.href = user
-              ? '/listings/new'
-              : `/register?redirect=${encodeURIComponent('/listings/new')}`
-          } catch {
-            window.location.href = `/register?redirect=${encodeURIComponent('/listings/new')}`
-          }
-        })
-      }
 
       const isActive = item.key === 'home'
         ? currentPath === '/'

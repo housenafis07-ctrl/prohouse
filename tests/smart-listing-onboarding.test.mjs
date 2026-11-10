@@ -135,3 +135,12 @@ test('Telegram cannot authenticate or verify a phone number; account access rema
   assert.doesNotMatch(telegramWebhookPost, /verification_method: 'telegram_contact'/)
   assert.doesNotMatch(telegramWebhookPost, /requestTelegramPhone\(chatId\)/)
 })
+
+
+const mobileNavigation = await readFile(new URL('../app/components/MobileMainNavigation.tsx', import.meta.url), 'utf8')
+
+test('mobile create-listing navigation opens the Smart Listing Wizard without an upfront login redirect', () => {
+  assert.match(mobileNavigation, /key: 'create',[\s\S]*href: '\/listings\/new'/)
+  assert.doesNotMatch(mobileNavigation, /createClient\(\)\.auth\.getUser\(\)/)
+  assert.doesNotMatch(mobileNavigation, /register\?redirect=.*listings\/new/)
+})
