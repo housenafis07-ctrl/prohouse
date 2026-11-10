@@ -91,14 +91,28 @@ export async function GET(request: Request) {
     }
   }
 
-  let allowedCodes: Set<string> | null = null
-  if (partnerType) {
-    const { data: permissions } = await admin
+  // Individual-owner permissions are the baseline for every account.
+  // A logged-in partner must not lose access to categories that any
+  // individual can publish merely because their current partner role differs.
+  const { data: ownerPermissions } = await admin
+    .from('partner_category_permissions')
+    .select('category_code')
+    .eq('partner_type', 'owner')
+    .eq('can_create', true)
+  const allowedCodes = new Set((ownerPermissions || []).map((x) => x.category_code))
+
+  // Add the current partner role's extra permissions without replacing the
+  // individual-owner baseline. Categories restricted for both roles remain
+  // marked as partner-only in the wizard.
+  if (partnerType && partnerType !== 'owner') {
+    const { data: partnerPermissions } = await admin
       .from('partner_category_permissions')
       .select('category_code')
       .eq('partner_type', partnerType)
       .eq('can_create', true)
-    allowedCodes = new Set((permissions || []).map((x) => x.category_code))
+    for (const permission of partnerPermissions || []) {
+      allowedCodes.add(permission.category_code)
+    }
   }
 
   // These are separate listing flows. The property wizard must always receive
