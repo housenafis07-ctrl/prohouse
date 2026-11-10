@@ -8,10 +8,14 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
   const cookieStore = await cookies()
-  const userId = authUser?.id || readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  const phoneSessionUserId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  let userId = phoneSessionUserId
+  if (!userId) {
+    const supabase = await createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    userId = authUser?.id || null
+  }
   const admin = serviceClient()
   const referer = request.headers.get('referer') || ''
   const requestedFlow = new URL(request.url).searchParams.get('flow')
