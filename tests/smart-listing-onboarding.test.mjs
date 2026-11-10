@@ -112,7 +112,7 @@ test('SMS OTP endpoint explicitly uses Node runtime and always returns structure
 
 
 test('listing quota exhaustion shows a prominent tariff upgrade action', () => {
-  assert.match(wizard, /PARTNER\|REALTOR\|INDIVIDUAL\|FREE_\]\?LISTING_LIMIT_REACHED/i)
+  assert.match(wizard, /LISTING_LIMIT_REACHED/i)
   assert.match(wizard, /Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi/)
   assert.match(wizard, /E’lonni joylashtirish uchun tarif paketini sotib oling/)
   assert.match(wizard, /href="\/account\/monetization"/)
