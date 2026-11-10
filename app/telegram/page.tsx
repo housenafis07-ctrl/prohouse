@@ -48,9 +48,11 @@ export default function TelegramMiniApp() {
     else window.location.href = path
   }
   const openInMiniApp = (path: string) => { window.location.href = path }
-  const handlePlaceAd = async () => {
-    const accountResponse = await fetch('/api/account/profile', { credentials: 'same-origin', cache: 'no-store' })
-    openInMiniApp(accountResponse.ok ? '/listings/new' : '/register?next=%2Flistings%2Fnew')
+  const handlePlaceAd = () => {
+    // Start the Smart Listing Wizard first. It collects the listing details
+    // before requesting SMS OTP, so Telegram users are not sent to registration
+    // before they can begin preparing their listing.
+    openInMiniApp('/listings/new')
   }
   const search = (event: FormEvent) => {
     event.preventDefault()
