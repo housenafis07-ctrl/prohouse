@@ -118,3 +118,20 @@ test('listing quota exhaustion shows a prominent tariff upgrade action', () => {
   assert.match(wizard, /href="\/account\/monetization"/)
   assert.match(wizard, /Tarif paketlarini tanlash/)
 })
+
+
+const telegramWebhook = await readFile(new URL('../app/api/telegram/webhook/route.ts', import.meta.url), 'utf8')
+const telegramWebhookPost = telegramWebhook.slice(telegramWebhook.indexOf('export async function POST'))
+
+test('Telegram webhook keeps /start responsive when optional bot-user registration fails', () => {
+  assert.match(telegramWebhookPost, /Best-effort registration must never prevent \/start from replying/)
+  assert.match(telegramWebhookPost, /catch \(registrationError\)/)
+  assert.match(telegramWebhookPost, /if \(text\.startsWith\('\/start'\)\)/)
+})
+
+test('Telegram cannot authenticate or verify a phone number; account access remains SMS OTP only', () => {
+  assert.match(telegramWebhookPost, /Telegram orqali kirish va ro‘yxatdan o‘tish o‘chirilgan/)
+  assert.match(telegramWebhookPost, /Telegram kontaktini yuborish orqali kirish yoki ro‘yxatdan o‘tish mumkin emas/)
+  assert.doesNotMatch(telegramWebhookPost, /verification_method: 'telegram_contact'/)
+  assert.doesNotMatch(telegramWebhookPost, /requestTelegramPhone\(chatId\)/)
+})
