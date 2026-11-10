@@ -19,14 +19,14 @@ export async function GET(request: Request) {
   const editMatch = referer.match(/\/account\/listings\/([^/?#]+)\/edit(?:[/?#]|$)/)
 
   const [{ data: categories, error: categoryError }, { data: attributes, error: attributeError }] = await Promise.all([
-    supabase
+    admin
       .from('listing_categories')
       .select('code,parent_code,name_uz,name_ru,section_code,listing_type,property_type,entity_type,is_listable,is_mortgage_filter,is_new_construction_filter,sort_order')
       .eq('is_active', true)
       .eq('is_listable', true)
       .order('section_code')
       .order('sort_order'),
-    supabase
+    admin
       .from('category_attributes')
       .select('id,category_code,code,name_uz,name_ru,data_type,options,unit,is_required,sort_order')
       .eq('is_active', true)
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   // on the listing and prevents steps 1–2 from becoming empty.
   if (editMatch && userId) {
     const listingId = editMatch[1]
-    const { data: listingForScope } = await supabase
+    const { data: listingForScope } = await admin
       .from('listings')
       .select('taxonomy_code')
       .eq('id', listingId)
