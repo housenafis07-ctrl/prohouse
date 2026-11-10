@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
   const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''
-  const requestedPhone = typeof body.phone === 'string' ? body.phone.replace(/\\D/g, '') : ''
+  const requestedPhone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : ''
   const normalizedPhone = requestedPhone.startsWith('998') && requestedPhone.length === 12 ? `+${requestedPhone}` : ''
   const accountType = body.account_type === 'partner' ? 'partner' : 'individual'
   const legalForm = typeof body.partner_type === 'string' && legalForms.has(body.partner_type) ? body.partner_type : null
