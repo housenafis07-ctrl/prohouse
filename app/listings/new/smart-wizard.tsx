@@ -67,6 +67,7 @@ export default function SmartListingWizard(){
  const [error,setError]=useState('')
  const [busy,setBusy]=useState(false)
  const [otpSent,setOtpSent]=useState(false)
+ const [phoneOtpVerified,setPhoneOtpVerified]=useState(false)
  const [otp,setOtp]=useState('')
  const [verified,setVerified]=useState(false)
  const [listingId,setListingId]=useState<string|null>(null)
@@ -87,9 +88,9 @@ export default function SmartListingWizard(){
   if(!isShortRental(selected)&&(selected.is_mortgage_filter||selected.listing_type==='sale'||selected.listing_type==='new_building'))q.push('mortgage')
   if(isShortRental(selected))q.push('rental')
   q.push('images','review')
-  if(!accountProfile)q.push('name','phone')
+  if(!accountProfile){q.push('phone');if(phoneOtpVerified)q.push('name')}
   return q
- },[selected,categoryAttributes,accountProfile])
+ },[selected,categoryAttributes,accountProfile,phoneOtpVerified])
  const current=questions[question]||'section'
  const currentAttribute=current.startsWith('attr:')?categoryAttributes.find(x=>x.code===current.slice(5))||null:null
  const progress=Math.round(((question+1)/questions.length)*100)
@@ -236,17 +237,40 @@ export default function SmartListingWizard(){
      throw new Error('Tasdiqlangan raqam uchun profil ma’lumotlari topilmadi.')
     }
    }else if(existingProfileResponse.status===401){
-    const profileResponse=await fetch('/api/account/profile',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone,full_name:answers.fullName.trim(),account_type:'individual'})})
-    const profileData=await readApiResponse(profileResponse)
-    if(!profileResponse.ok)throw new Error(profileData.error||'Profilni saqlab bo‘lmadi.')
+    setPhoneOtpVerified(true)
+    setQuestion(question+1)
+    setSuccess('Telefon raqamingiz tasdiqlandi. Endi ism va familiyangizni kiriting.')
+    return
    }else{
     const existingProfileError=await readApiResponse(existingProfileResponse)
     throw new Error(existingProfileError.error||'Profilni tekshirishda xatolik.')
    }
    await createDraftAndUploadImages(user.id)
    setVerified(true)
+   setQuestion(questions.indexOf('review'))
    setSuccess('Telefon raqamingiz tasdiqlandi. E’lon qoralamasi saqlandi. Video qo‘shishingiz va e’lonni yuborishingiz mumkin.')
   }catch(error){setError(error instanceof Error?error.message:'E’lonni saqlashda xatolik.')}
+  finally{setBusy(false)}
+ }
+ const saveNewProfileAndDraft=async()=>{
+  if(!phoneOtpVerified)return
+  setBusy(true);setError('')
+  try{
+   const {data:{user},error:userError}=await db.auth.getUser()
+   if(userError||!user)throw new Error('SMS tasdiqlangan sessiya topilmadi. Telefonni qayta tasdiqlang.')
+   const profileResponse=await fetch('/api/account/profile',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone,full_name:answers.fullName.trim(),account_type:'individual'})})
+   const profileData=await readApiResponse(profileResponse)
+   if(!profileResponse.ok)throw new Error(profileData.error||'Profilni saqlab bo‘lmadi.')
+   const savedProfileResponse=await fetch('/api/account/profile',{credentials:'same-origin',cache:'no-store'})
+   const savedProfileData=await readApiResponse(savedProfileResponse)
+   if(!savedProfileResponse.ok||savedProfileData.profile?.user_id!==user.id)throw new Error('Yangi profilni qayta tekshirishda xatolik.')
+   setAccountProfile({user_id:user.id,phone:savedProfileData.profile.phone,full_name:savedProfileData.profile.full_name||answers.fullName.trim(),account_type:savedProfileData.profile.account_type||'individual'})
+   await createDraftAndUploadImages(user.id)
+   setVerified(true)
+   setPhoneOtpVerified(false)
+   setQuestion(questions.indexOf('review'))
+   setSuccess('Profil yaratildi. E’lon qoralamasi saqlandi. Endi videoni qo‘shib, e’lonni yuborishingiz mumkin.')
+  }catch(error){setError(error instanceof Error?error.message:'Profilni saqlashda xatolik.')}
   finally{setBusy(false)}
  }
  const publish=async()=>{
@@ -329,7 +353,7 @@ export default function SmartListingWizard(){
      <button onClick={back} disabled={question===0||busy||verified} className="rounded-xl border px-5 py-3 text-sm font-bold disabled:opacity-40">Orqaga</button>
      <div className="flex flex-wrap gap-2">
       {showOptionalSkip&&<button onClick={skip} disabled={busy} className="rounded-xl border px-4 py-3 text-sm font-bold">O‘tkazib yuborish</button>}
-      {current==='review'&&accountProfile&&!listingId?<button onClick={()=>void saveExistingAccountDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Saqlanmoqda…':'E’lonni saqlash va davom etish'}</button>:current==='review'&&accountProfile&&listingId?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:current==='phone'&&otpSent&&!verified?<button onClick={()=>void verifyAndSaveDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Tekshirilmoqda…':'SMS kodni tasdiqlash'}</button>:current==='phone'&&verified?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:<button onClick={next} disabled={busy||current==='category'&&(!selectedSection||categories.filter(c=>c.parent_code&&c.section_code===selectedSection).length===0)} className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Kutilmoqda…':current==='phone'?'SMS kod yuborish':'Davom etish'}</button>}
+      {current==='review'&&accountProfile&&!listingId?<button onClick={()=>void saveExistingAccountDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Saqlanmoqda…':'E’lonni saqlash va davom etish'}</button>:current==='review'&&accountProfile&&listingId?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:current==='phone'&&otpSent&&!verified?<button onClick={()=>void verifyAndSaveDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Tekshirilmoqda…':'SMS kodni tasdiqlash'}</button>:current==='name'&&phoneOtpVerified?<button onClick={()=>void saveNewProfileAndDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Profil saqlanmoqda…':'Profilni saqlash va davom etish'}</button>:current==='phone'&&verified?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:<button onClick={next} disabled={busy||current==='category'&&(!selectedSection||categories.filter(c=>c.parent_code&&c.section_code===selectedSection).length===0)} className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Kutilmoqda…':current==='phone'?'SMS kod yuborish':'Davom etish'}</button>}
      </div>
     </div>
    </div>
