@@ -215,12 +215,9 @@ export default function SmartListingWizard(){
    const verifiedData=await verify.json();if(!verify.ok)throw new Error(verifiedData.error||'SMS tasdiqlanmadi.')
    const {data:{user},error:userError}=await db.auth.getUser()
    if(userError||!user)throw new Error('Tasdiqlangan foydalanuvchi sessiyasi topilmadi.')
-   const {data:existing,error:profileLookupError}=await db.from('profiles').select('id,account_type,full_name,phone').eq('id',user.id).maybeSingle()
-   if(profileLookupError)throw profileLookupError
-   const {error:profileError}=await db.from('profiles').upsert({
-    id:user.id,phone:answers.phone.replace(/\s/g,''),full_name:answers.fullName.trim(),account_type:existing?.account_type||'individual',
-   },{onConflict:'id'})
-   if(profileError)throw profileError
+   const profileResponse=await fetch('/api/account/profile',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({phone:answers.phone,full_name:answers.fullName.trim(),account_type:'individual'})})
+   const profileData=await profileResponse.json()
+   if(!profileResponse.ok)throw new Error(profileData.error||'Profilni saqlab bo‘lmadi.')
    await createDraftAndUploadImages(user.id)
    setVerified(true)
    setSuccess('Telefon raqamingiz tasdiqlandi. E’lon qoralamasi saqlandi. Video qo‘shishingiz va e’lonni yuborishingiz mumkin.')
