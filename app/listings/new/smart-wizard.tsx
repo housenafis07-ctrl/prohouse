@@ -158,11 +158,19 @@ export default function SmartListingWizard(){
    attributes:attrs,ownership_type:answers.ownership_type||null,mortgage:answers.mortgage==='true',
   }
  }
+ const readApiResponse=async(response:Response)=>{
+  const raw=await response.text()
+  if(!raw.trim())throw new Error(`Server bo‘sh javob qaytardi (HTTP ${response.status}). Birozdan keyin qayta urinib ko‘ring.`)
+  try{return JSON.parse(raw)}catch{
+   throw new Error(`Server JSON formatida bo‘lmagan javob qaytardi (HTTP ${response.status}).`)
+  }
+ }
  const sendCode=async()=>{
   setBusy(true);setError('')
   try{
-   const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:answers.phone})})
-   const data=await response.json();if(!response.ok)throw new Error(data.error||'SMS yuborilmadi.')
+   const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone})})
+   const data=await readApiResponse(response)
+   if(!response.ok)throw new Error(data.error||data.message||`SMS yuborilmadi (HTTP ${response.status}).`)
    setOtpSent(true);setError('SMS kodi yuborildi. 6 xonali kodni kiriting.')
   }catch(e){setError(e instanceof Error?e.message:'SMS yuborishda xatolik.')}finally{setBusy(false)}
  }
@@ -211,13 +219,30 @@ export default function SmartListingWizard(){
   if(!/^\d{6}$/.test(otp)){setError('SMS kodini 6 xonali kiriting.');return}
   setBusy(true);setError('')
   try{
-   const verify=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:answers.phone,code:otp})})
-   const verifiedData=await verify.json();if(!verify.ok)throw new Error(verifiedData.error||'SMS tasdiqlanmadi.')
+   const verify=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone,code:otp})})
+   const verifiedData=await readApiResponse(verify);if(!verify.ok)throw new Error(verifiedData.error||'SMS tasdiqlanmadi.')
    const {data:{user},error:userError}=await db.auth.getUser()
    if(userError||!user)throw new Error('Tasdiqlangan foydalanuvchi sessiyasi topilmadi.')
-   const profileResponse=await fetch('/api/account/profile',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({phone:answers.phone,full_name:answers.fullName.trim(),account_type:'individual'})})
-   const profileData=await profileResponse.json()
-   if(!profileResponse.ok)throw new Error(profileData.error||'Profilni saqlab bo‘lmadi.')
+   // OTP may belong to an existing account whose saved name differs from the
+   // name entered in this draft. Restore that profile and never overwrite it.
+   const existingProfileResponse=await fetch('/api/account/profile',{credentials:'same-origin',cache:'no-store'})
+   if(existingProfileResponse.ok){
+    const existingProfileData=await readApiResponse(existingProfileResponse)
+    const existingProfile=existingProfileData.profile
+    if(existingProfile?.user_id===user.id&&existingProfile?.phone){
+     setAccountProfile({user_id:existingProfile.user_id,phone:existingProfile.phone,full_name:existingProfile.full_name||'',account_type:existingProfile.account_type||'individual'})
+     setAnswers(current=>({...current,phone:existingProfile.phone,fullName:existingProfile.full_name||current.fullName}))
+    }else{
+     throw new Error('Tasdiqlangan raqam uchun profil ma’lumotlari topilmadi.')
+    }
+   }else if(existingProfileResponse.status===401){
+    const profileResponse=await fetch('/api/account/profile',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone,full_name:answers.fullName.trim(),account_type:'individual'})})
+    const profileData=await readApiResponse(profileResponse)
+    if(!profileResponse.ok)throw new Error(profileData.error||'Profilni saqlab bo‘lmadi.')
+   }else{
+    const existingProfileError=await readApiResponse(existingProfileResponse)
+    throw new Error(existingProfileError.error||'Profilni tekshirishda xatolik.')
+   }
    await createDraftAndUploadImages(user.id)
    setVerified(true)
    setSuccess('Telefon raqamingiz tasdiqlandi. E’lon qoralamasi saqlandi. Video qo‘shishingiz va e’lonni yuborishingiz mumkin.')
