@@ -11,7 +11,7 @@ import ListingQualityCard from '@/app/components/ListingQualityCard'
 import ListingVideoUploader from '@/app/components/ListingVideoUploader'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { localizeUzbekLocation } from '@/lib/location-translations'
-import { getListingImageStoragePath, isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
+import { getListingImageStoragePath, LISTING_IMAGE_BUCKET, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
 
 type Category = { code:string; parent_code:string|null; name_uz:string; name_ru:string|null; section_code:string; listing_type:string|null; property_type:string|null; entity_type:string; is_mortgage_filter:boolean; is_new_construction_filter:boolean; sort_order:number }
 type Attribute = { id:string; category_code:string; code:string; name_uz:string; name_ru:string|null; data_type:string; options:unknown; unit:string|null; is_required:boolean; sort_order:number }
@@ -140,9 +140,10 @@ export default function SmartListingWizard(){
     if(original.size>LISTING_IMAGE_MAX_SIZE)throw new Error(original.name+': rasm hajmi 10 MB dan oshmasligi kerak.')
     const extension=original.name.split('.').pop()?.toLowerCase()||''
     const mimeByExtension:Record<string,string>={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif'}
-    const mime=original.type||mimeByExtension[extension]||''
+    const supported=['image/jpeg','image/png','image/webp','image/gif']
+    const mime=supported.includes(original.type)?original.type:(mimeByExtension[extension]||original.type||'')
     if(!['image/jpeg','image/png','image/webp','image/gif'].includes(mime))throw new Error(original.name+': JPG, PNG yoki WebP formatidagi rasm tanlang. HEIC/HEIF rasmlarni avval JPG formatiga aylantiring.')
-    const file=original.type?original:new File([original],original.name,{type:mime,lastModified:original.lastModified})
+    const file=original.type===mime?original:new File([original],original.name,{type:mime,lastModified:original.lastModified})
     const preview=await new Promise<string>((resolve,reject)=>{
      const reader=new FileReader()
      reader.onerror=()=>reject(new Error(original.name+': rasm faylini o‘qib bo‘lmadi.'))
