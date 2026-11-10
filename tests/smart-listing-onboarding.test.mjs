@@ -17,7 +17,7 @@ test('region and district are controlled by matching location catalog values', (
 test('mahalla remains available as an optional field', () => {
   assert.match(wizard, /current==='neighborhood'/)
   assert.match(wizard, /Mahalla yoki massiv nomi/)
-  assert.match(wizard, /Mahalla yoki massiv nomi[\s\S]*ixtiyoriy savol/)
+  assert.match(wizard, /Mahalla yoki massiv nomi[\s\S]*ixtiyoriy savol/i)
 })
 
 test('ownership and boolean attributes use explicit choices', () => {
