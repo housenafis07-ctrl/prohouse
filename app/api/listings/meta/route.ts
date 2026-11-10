@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { serviceClient } from '@/utils/admin/auth'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     }
   }
 
-  let partnerType: string | null = null
+  let partnerType: string | null = 'owner'
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
@@ -81,7 +82,7 @@ export async function GET(request: Request) {
 
   let allowedCodes: Set<string> | null = null
   if (partnerType) {
-    const { data: permissions } = await supabase
+    const { data: permissions } = await serviceClient()
       .from('partner_category_permissions')
       .select('category_code')
       .eq('partner_type', partnerType)
@@ -102,7 +103,7 @@ export async function GET(request: Request) {
   const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
 
   return NextResponse.json(
-    { categories: filtered, attributes: filteredAttributes, partnerType },
+    { categories: filtered, attributes: filteredAttributes, partnerType, allowedCategoryCodes: Array.from(allowedCodes || []) },
     { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
   )
 }
