@@ -162,3 +162,13 @@ test('listing image selection reads and validates previews before adding them', 
   assert.match(smartWizard, /mimeByExtension/)
   assert.match(smartWizard, /10 MB/)
 })
+
+
+const listingDetailRoute = await readFile(new URL('../app/listings/[id]/page.tsx', import.meta.url), 'utf8')
+
+test('listing detail route rejects non-UUID slugs before querying UUID columns', () => {
+  const guard = listingDetailRoute.indexOf('if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null')
+  const client = listingDetailRoute.indexOf('const supabase = await createClient()', listingDetailRoute.indexOf('async function getListing'))
+  assert.notEqual(guard, -1)
+  assert.ok(client > guard, 'UUID guard must run before creating a Supabase client or issuing a query')
+})
