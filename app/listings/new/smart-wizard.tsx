@@ -34,9 +34,7 @@ export default function SmartListingWizard(){
  const [otpSent,setOtpSent]=useState(false)
  const [otp,setOtp]=useState('')
  const [success,setSuccess]=useState('')
- const [userId,setUserId]=useState('')
 
- const t=(uz:string)=>uz
  const requiredAttributes=useMemo(()=>attributes.filter(x=>x.category_code===selected?.code&&x.is_required&&!['rooms','area_m2'].includes(x.code)),[attributes,selected])
  const questions=useMemo(()=>{
   const q=['category','location']
@@ -131,7 +129,6 @@ export default function SmartListingWizard(){
    if(!verify.ok)throw new Error(verified.error||'SMS tasdiqlanmadi.')
    const {data:{user},error:userError}=await db.auth.getUser()
    if(userError||!user)throw new Error('Tasdiqlangan foydalanuvchi sessiyasi topilmadi.')
-   setUserId(user.id)
    const {data:existing,error:profileLookupError}=await db.from('profiles').select('id,account_type,full_name,phone').eq('id',user.id).maybeSingle()
    if(profileLookupError)throw profileLookupError
    const {error:profileError}=await db.from('profiles').upsert({
