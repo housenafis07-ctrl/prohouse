@@ -41,6 +41,7 @@ test('existing verified profiles bypass repeated name and SMS questions', () => 
   assert.match(wizard, /const saveNewProfileAndDraft=async\(\)=>/)
   assert.match(wizard, /Telefon raqamingiz tasdiqlandi\. Endi ism va familiyangizni kiriting\./)
   assert.match(wizard, /current==='name'&&phoneOtpVerified/)
+  assert.match(wizard, /disabled=\{question===0\|\|busy\|\|verified\|\|phoneOtpVerified\}/)
   assert.match(wizard, /saveExistingAccountDraft/)
 })
 
