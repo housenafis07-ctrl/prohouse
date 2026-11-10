@@ -68,6 +68,7 @@ export default function SmartListingWizard(){
  const [limitReached,setLimitReached]=useState(false)
  const [busy,setBusy]=useState(false)
  const [otpSent,setOtpSent]=useState(false)
+ const [resendCountdown,setResendCountdown]=useState(0)
  const [phoneOtpVerified,setPhoneOtpVerified]=useState(false)
  const [otp,setOtp]=useState('')
  const [verified,setVerified]=useState(false)
@@ -128,13 +129,33 @@ export default function SmartListingWizard(){
   if(currentAttribute?.is_required){setError('Bu savol majburiy.');return}
   setError('');setQuestion(x=>Math.min(questions.length-1,x+1))
  }
- const addImages=(event:ChangeEvent<HTMLInputElement>)=>{
+ const addImages=async(event:ChangeEvent<HTMLInputElement>)=>{
   const files=Array.from(event.target.files||[]);event.target.value=''
+  if(!files.length)return
   if(images.length+files.length>10){setError('Maksimal 10 ta rasm yuklash mumkin.');return}
-  const invalid=files.find(f=>!isAcceptedListingImage(f)||f.size>LISTING_IMAGE_MAX_SIZE)
-  if(invalid){setError('Faqat JPG, PNG, WebP yoki GIF formatidagi, 10 MB gacha rasmlar yuklanadi.');return}
-  setImages(old=>[...old,...files.map(file=>({file,preview:URL.createObjectURL(file)}))])
+  setBusy(true);setError('')
+  try{
+   const prepared:ImageItem[]=[]
+   for(const original of files){
+    if(original.size>LISTING_IMAGE_MAX_SIZE)throw new Error(original.name+': rasm hajmi 10 MB dan oshmasligi kerak.')
+    const extension=original.name.split('.').pop()?.toLowerCase()||''
+    const mimeByExtension:Record<string,string>={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif'}
+    const mime=original.type||mimeByExtension[extension]||''
+    if(!['image/jpeg','image/png','image/webp','image/gif'].includes(mime))throw new Error(original.name+': JPG, PNG yoki WebP formatidagi rasm tanlang. HEIC/HEIF rasmlarni avval JPG formatiga aylantiring.')
+    const file=original.type?original:new File([original],original.name,{type:mime,lastModified:original.lastModified})
+    const preview=await new Promise<string>((resolve,reject)=>{
+     const reader=new FileReader()
+     reader.onerror=()=>reject(new Error(original.name+': rasm faylini o‘qib bo‘lmadi.'))
+     reader.onload=()=>{const src=String(reader.result||'');const image=new Image();image.onload=()=>image.naturalWidth>0&&image.naturalHeight>0?resolve(src):reject(new Error(original.name+': rasm ochilmadi.'));image.onerror=()=>reject(new Error(original.name+': rasm formati brauzerda ochilmadi. JPG yoki PNG qilib qayta saqlang.'));image.src=src}
+     reader.readAsDataURL(file)
+    })
+    prepared.push({file,preview})
+   }
+   setImages(old=>[...old,...prepared])
+  }catch(e){setError(e instanceof Error?e.message:'Rasmlarni yuklashda xatolik.')}
+  finally{setBusy(false)}
  }
+ const handlePhoneChange=(value:string)=>{setAnswer('phone',value);if(otpSent){setOtpSent(false);setOtp('');setResendCountdown(0);setSuccess('')}}
  const removeImage=(index:number)=>{const removed=images[index];if(removed)URL.revokeObjectURL(removed.preview);setImages(old=>old.filter((_,i)=>i!==index));setMainImage(0)}
  const payload=()=>{
   const attrs:Record<string,unknown>={}
@@ -167,13 +188,14 @@ export default function SmartListingWizard(){
    throw new Error(`Server JSON formatida bo‘lmagan javob qaytardi (HTTP ${response.status}).`)
   }
  }
+ useEffect(()=>{if(resendCountdown<=0)return;const timer=window.setTimeout(()=>setResendCountdown(value=>Math.max(0,value-1)),1000);return ()=>window.clearTimeout(timer)},[resendCountdown])
  const sendCode=async()=>{
   setBusy(true);setError('')
   try{
    const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone})})
    const data=await readApiResponse(response)
    if(!response.ok)throw new Error(data.error||data.message||`SMS yuborilmadi (HTTP ${response.status}).`)
-   setOtpSent(true);setError('SMS kodi yuborildi. 6 xonali kodni kiriting.')
+   setOtpSent(true);setOtp('');setResendCountdown(60);setError('SMS kodi yuborildi. 6 xonali kodni kiriting.')
   }catch(e){setError(e instanceof Error?e.message:'SMS yuborishda xatolik.')}finally{setBusy(false)}
  }
  const createDraftAndUploadImages=async(userId:string)=>{
@@ -350,10 +372,10 @@ export default function SmartListingWizard(){
     {current==='price'&&<div><h2 className="text-lg font-extrabold">{isShortRental(selected)?'Asosiy kunlik narxi qancha?':'Narxi qancha?'}</h2><div className="mt-4 flex gap-2"><input inputMode="numeric" value={answers.price} onChange={e=>setAnswer('price',money(e.target.value))} className="min-w-0 flex-1 rounded-xl border p-4 text-lg" placeholder="Masalan: 750 000 000"/><select value={answers.currency} onChange={e=>setAnswer('currency',e.target.value)} className="rounded-xl border px-3"><option value="UZS">so‘m</option><option value="USD">$</option></select></div></div>}
     {current==='mortgage'&&<div><h2 className="text-lg font-extrabold">Ipoteka orqali sotishga rozimisiz?</h2><div className="mt-4 grid gap-2">{[{value:'true',label:'Ha, ipotekaga mumkin'},{value:'false',label:'Yo‘q'}].map(x=><button key={x.value} onClick={()=>setAnswer('mortgage',x.value)} className={'rounded-xl border p-4 text-left text-sm font-bold '+(answers.mortgage===x.value?'border-emerald-600 bg-emerald-50':'border-slate-200')}>{x.label}</button>)}</div></div>}
     {current==='rental'&&<div><h2 className="text-lg font-extrabold">Ijara va bron ma’lumotlari</h2><p className="mt-1 text-sm text-slate-500">Eski formadagi mehmonlar, qulayliklar, qoidalar, kalendar va sana narxlari.</p><RentalBookingSettings value={answers.rental_booking} onChange={v=>setAnswer('rental_booking',v)} basePrice={answers.price} onBasePriceChange={v=>setAnswer('price',v)}/></div>}
-    {current==='images'&&<div><h2 className="text-lg font-extrabold">Rasmlar va video yuklang</h2><p className="mt-1 text-sm text-slate-500">10 tagacha rasm va 1 ta video (60 soniyagacha). Birinchi rasm asosiy bo‘ladi.</p><label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 p-8 text-sm font-bold hover:border-emerald-500"><input type="file" accept={LISTING_IMAGE_ACCEPT} multiple onChange={addImages} className="hidden"/>+ Rasmlarni tanlash</label><div className="mt-3 grid grid-cols-3 gap-2">{images.map((im,i)=><div key={im.preview} className="relative"><button type="button" onClick={()=>setMainImage(i)} className={'block w-full overflow-hidden rounded-xl border-2 '+(i===mainImage?'border-emerald-600':'border-transparent')}><img src={im.preview} className="aspect-square w-full object-cover"/></button><button onClick={()=>removeImage(i)} className="absolute right-1 top-1 rounded-full bg-white px-2 py-1">×</button>{i===mainImage&&<span className="mt-1 block text-center text-xs font-bold text-emerald-700">Asosiy rasm</span>}</div>)}</div></div>}
+    {current==='images'&&<div><h2 className="text-lg font-extrabold">Rasmlar va video yuklang</h2><p className="mt-1 text-sm text-slate-500">10 tagacha rasm va 1 ta video (60 soniyagacha). Birinchi rasm asosiy bo‘ladi.</p><label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 p-8 text-sm font-bold hover:border-emerald-500"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" multiple onChange={event=>void addImages(event)} disabled={busy} className="hidden"/>+ Rasmlarni tanlash</label><div className="mt-3 grid grid-cols-3 gap-2">{images.map((im,i)=><div key={im.preview} className="relative"><button type="button" onClick={()=>setMainImage(i)} className={'block w-full overflow-hidden rounded-xl border-2 '+(i===mainImage?'border-emerald-600':'border-transparent')}><img src={im.preview} alt={im.file.name} className="aspect-square w-full object-cover" onError={()=>setError(im.file.name+': rasm ko‘rinishini ochib bo‘lmadi. JPG yoki PNG formatida qayta tanlang.')}/></button><button onClick={()=>removeImage(i)} className="absolute right-1 top-1 rounded-full bg-white px-2 py-1">×</button>{i===mainImage&&<span className="mt-1 block text-center text-xs font-bold text-emerald-700">Asosiy rasm</span>}</div>)}</div></div>}
     {current==='review'&&<div><h2 className="text-lg font-extrabold">E’lon ma’lumotlarini tekshiring</h2><div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm"><p><b>Tur:</b> {selected?.name_uz}</p><p><b>Manzil:</b> {answers.city}, {answers.district}, {answers.neighborhood||'—'}, {answers.address||'—'}</p><p><b>Sarlavha:</b> {answers.title||titleFrom(selected,answers,categoryAttributes)}</p><p><b>Narx:</b> {answers.price} {answers.currency}</p><p><b>Maydon:</b> {answers.attributes.area_m2||'—'} m²</p><p><b>Xonalar:</b> {answers.attributes.rooms||'—'}</p><p><b>Rasmlar:</b> {images.length} ta</p>{accountProfile&&<p><b>Profil:</b> {accountProfile.full_name} · {accountProfile.phone}</p>}</div><p className="mt-3 text-xs text-slate-500">Barcha javoblar eski e’lon formasi bilan bir xil maydonlarga saqlanadi.</p>{accountProfile&&listingId&&<div className="mt-5 space-y-3"><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
     {current==='name'&&<div><h2 className="text-lg font-extrabold">Ism va familiyangiz nima?</h2><input value={answers.fullName} onChange={e=>setAnswer('fullName',e.target.value)} className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="Masalan: Ali Valiyev"/><p className="mt-2 text-xs text-slate-500">Bu ma’lumot profilingizda saqlanadi.</p></div>}
-    {current==='phone'&&<div><h2 className="text-lg font-extrabold">Telefon raqamingizni SMS orqali tasdiqlang</h2><input value={answers.phone} onChange={e=>setAnswer('phone',e.target.value)} type="tel" className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="+998 90 123 45 67"/>{otpSent&&!verified&&<div className="mt-4"><label className="text-sm font-bold">SMS kodi</label><input value={otp} onChange={e=>setOtp(phoneDigits(e.target.value).slice(0,6))} inputMode="numeric" autoComplete="one-time-code" className="mt-2 w-full rounded-xl border p-4 text-center text-2xl tracking-[.4em]" placeholder="000000"/></div>}{verified&&listingId&&<div className="mt-5 space-y-3"><div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Telefon tasdiqlandi. E’lon qoralamasi saqlandi.</div><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
+    {current==='phone'&&<div><h2 className="text-lg font-extrabold">Telefon raqamingizni SMS orqali tasdiqlang</h2><input value={answers.phone} onChange={e=>handlePhoneChange(e.target.value)} type="tel" className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="+998 90 123 45 67"/>{otpSent&&!verified&&<div className="mt-4"><label className="text-sm font-bold">SMS kodi</label><input value={otp} onChange={e=>setOtp(phoneDigits(e.target.value).slice(0,6))} inputMode="numeric" autoComplete="one-time-code" className="mt-2 w-full rounded-xl border p-4 text-center text-2xl tracking-[.4em]" placeholder="000000"/><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-slate-500">{resendCountdown>0?`Yangi kodni ${resendCountdown} soniyadan keyin so‘rashingiz mumkin.`:"SMS kelmadimi? Kodni qayta yuborishingiz mumkin."}</span><button type="button" onClick={()=>void sendCode()} disabled={busy||resendCountdown>0} className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-bold text-emerald-700 disabled:opacity-40">{busy?"Yuborilmoqda…":resendCountdown>0?`Qayta yuborish (${resendCountdown}s)`:"SMS kodni qayta yuborish"}</button></div></div>}{verified&&listingId&&<div className="mt-5 space-y-3"><div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Telefon tasdiqlandi. E’lon qoralamasi saqlandi.</div><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
     {limitReached?<div role="alert" className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm sm:p-6">
      <div className="flex items-start gap-3"><span aria-hidden="true" className="text-3xl">⚠️</span><div className="min-w-0">
       <p className="text-xs font-black uppercase tracking-wider text-amber-800">E’lon joylashtirish limiti</p>
