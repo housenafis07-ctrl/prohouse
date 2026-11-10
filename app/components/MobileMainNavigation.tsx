@@ -188,7 +188,7 @@ export default function MobileMainNavigation() {
       link.innerHTML = `${ICONS[item.key]}<span>${item.label}</span>`
       link.setAttribute('aria-label', item.label)
       link.title = item.label
-\n
+
       const isActive = item.key === 'home'
         ? currentPath === '/'
         : item.key === 'search'
