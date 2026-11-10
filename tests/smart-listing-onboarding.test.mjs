@@ -109,3 +109,12 @@ test('SMS OTP endpoint explicitly uses Node runtime and always returns structure
   assert.match(sendCodeRoute, /console\.error\('\[auth\/send-code\] SMS request failed:'/)
   assert.match(sendCodeRoute, /status: 502, headers: \{ 'Cache-Control': 'no-store' \}/)
 })
+
+
+test('listing quota exhaustion shows a prominent tariff upgrade action', () => {
+  assert.match(wizard, /LISTING_LIMIT_REACHED/i)
+  assert.match(wizard, /Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi/)
+  assert.match(wizard, /E’lonni joylashtirish uchun tarif paketini sotib oling/)
+  assert.match(wizard, /href="\/account\/monetization"/)
+  assert.match(wizard, /Tarif paketlarini tanlash/)
+})
