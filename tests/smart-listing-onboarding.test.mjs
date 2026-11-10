@@ -83,3 +83,18 @@ test('draft API accepts only the authenticated Supabase or signed account sessio
   assert.match(draft, /readAccountSession\(cookieStore\.get\(ACCOUNT_SESSION_COOKIE\)\?\.value\)/)
   assert.match(draft, /if \(!userId\)[\s\S]*AUTH_REQUIRED/)
 })
+
+
+const telegramMiniApp = await readFile(new URL('../app/telegram/page.tsx', import.meta.url), 'utf8')
+
+test('individual listing permissions remain available when a partner is signed in', () => {
+  assert.match(metadata, /partner_type', 'owner'/)
+  assert.match(metadata, /allowedCodes\.add\(permission\.category_code\)/)
+  assert.match(metadata, /partnerType !== 'owner'/)
+})
+
+test('Telegram starts the Smart Listing Wizard before requesting SMS verification', () => {
+  assert.match(telegramMiniApp, /const handlePlaceAd = \(\) =>/)
+  assert.match(telegramMiniApp, /openInMiniApp\('\/listings\/new'\)/)
+  assert.doesNotMatch(telegramMiniApp, /const handlePlaceAd = async \(\)[\s\S]*fetch\('\/api\/account\/profile'/)
+})
