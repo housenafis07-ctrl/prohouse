@@ -208,7 +208,7 @@ export default function SmartListingWizard(){
   finally{setBusy(false)}
  }
  const verifyAndSaveDraft=async()=>{
-  if(!/^\\d{6}$/.test(otp)){setError('SMS kodini 6 xonali kiriting.');return}
+  if(!/^\d{6}$/.test(otp)){setError('SMS kodini 6 xonali kiriting.');return}
   setBusy(true);setError('')
   try{
    const verify=await fetch('/api/auth/verify-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:answers.phone,code:otp})})
@@ -218,7 +218,7 @@ export default function SmartListingWizard(){
    const {data:existing,error:profileLookupError}=await db.from('profiles').select('id,account_type,full_name,phone').eq('id',user.id).maybeSingle()
    if(profileLookupError)throw profileLookupError
    const {error:profileError}=await db.from('profiles').upsert({
-    id:user.id,phone:answers.phone.replace(/\\s/g,''),full_name:answers.fullName.trim(),account_type:existing?.account_type||'individual',
+    id:user.id,phone:answers.phone.replace(/\s/g,''),full_name:answers.fullName.trim(),account_type:existing?.account_type||'individual',
    },{onConflict:'id'})
    if(profileError)throw profileError
    await createDraftAndUploadImages(user.id)
