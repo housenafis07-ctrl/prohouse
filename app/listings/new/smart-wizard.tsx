@@ -51,17 +51,27 @@ export default function SmartListingWizard(){
 
  useEffect(()=>{let live=true;(async()=>{
   try{
-   const [{data:cats,error:ce},{data:attrs,error:ae},{data:{user}},{data:profile}]=await Promise.all([
+   const [{data:cats,error:ce},{data:attrs,error:ae}]=await Promise.all([
     db.from('listing_categories').select('code,parent_code,name_uz,name_ru,section_code,listing_type,property_type,entity_type,is_listable,is_mortgage_filter,sort_order').eq('is_active',true).eq('is_listable',true).eq('entity_type','property').neq('section_code','services').order('sort_order'),
     db.from('category_attributes').select('id,category_code,code,name_uz,name_ru,data_type,options,unit,is_required,sort_order').eq('is_active',true).order('sort_order'),
-    db.from('partner_category_permissions').select('category_code').eq('partner_type','owner').eq('can_create',true),
    ])
    if(ce) throw ce
    if(ae) throw ae
-   if(pe) throw pe
    if(!live)return
    const list=(cats||[]) as Category[]
-   setCategories(list);setAttributes((attrs||[]) as Attribute[]);setOwnerAllowed(new Set((permissions||[]).map((x:any)=>x.category_code)))
+   const {data:{user}}=await db.auth.getUser()
+   let partnerType='owner'
+   if(user){
+    const {data:profile,error:profileError}=await db.from('profiles').select('account_type,partner_type').eq('id',user.id).maybeSingle()
+    if(profileError) throw profileError
+    if(profile?.account_type==='partner'){
+     const {data:partnerProfile}=await db.from('partner_profiles').select('partner_type').eq('user_id',user.id).maybeSingle()
+     partnerType=partnerProfile?.partner_type||(['owner','realtor','agency','developer','contractor','service_provider'].includes(profile.partner_type||'')?profile.partner_type!:'realtor')
+    }
+   }
+   const {data:permissions,error:permissionError}=await db.from('partner_category_permissions').select('category_code').eq('partner_type',partnerType).eq('can_create',true)
+   if(permissionError) throw permissionError
+   setCategories(list);setAttributes((attrs||[]) as Attribute[]);setAllowedCategories(new Set((permissions||[]).map((x:any)=>x.category_code)))
    const requested=params.get('taxonomy')
    if(requested){const found=list.find(x=>x.code===requested);if(found){setSelected(found);setQuestion(1)}}
   }catch(e){if(live)setError(e instanceof Error?e.message:'E’lon turlarini yuklashda xatolik.')}
