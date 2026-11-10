@@ -6,8 +6,17 @@ import { createClient } from '@/utils/supabase/server'
 
 const SITE_URL = 'https://royalhouse.uz'
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
+  if (!UUID_PATTERN.test(id)) {
+    return {
+      title: 'E’lon topilmadi — Royalhouse',
+      description: 'RoyalHouse platformasidagi e’lon topilmadi.',
+      robots: { index: false, follow: false },
+    }
+  }
   const supabase = await createClient()
   const { data } = await supabase
     .from('listings')
@@ -63,7 +72,7 @@ export default async function ListingDetailLayout({ children, params }: { childr
   return (
     <>
       {children}
-      <ListingVideoPreview listingId={id} title="RoyalHouse e’loni" />
+      {UUID_PATTERN.test(id) && <ListingVideoPreview listingId={id} title="RoyalHouse e’loni" />}
       <ListingDetailLanguageFix />
     </>
   )
