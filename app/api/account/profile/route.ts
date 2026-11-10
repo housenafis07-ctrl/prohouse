@@ -56,6 +56,10 @@ export async function POST(request: Request) {
   const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : ''
   const requestedPhone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : ''
   const normalizedPhone = requestedPhone.startsWith('998') && requestedPhone.length === 12 ? `+${requestedPhone}` : ''
+  const currentPhoneDigits = String(currentProfile?.phone || '').replace(/\D/g, '')
+  if (currentPhoneDigits && requestedPhone && currentPhoneDigits !== requestedPhone) {
+    return NextResponse.json({ error: 'Telefon raqamini almashtirish uchun yangi raqamni SMS orqali tasdiqlang.' }, { status: 403 })
+  }
   const accountType = body.account_type === 'partner'
     ? 'partner'
     : body.account_type === 'individual'
