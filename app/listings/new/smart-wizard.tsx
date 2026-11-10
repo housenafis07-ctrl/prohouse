@@ -65,6 +65,7 @@ export default function SmartListingWizard(){
  const [mainImage,setMainImage]=useState(0)
  const [question,setQuestion]=useState(0)
  const [error,setError]=useState('')
+ const [limitReached,setLimitReached]=useState(false)
  const [busy,setBusy]=useState(false)
  const [otpSent,setOtpSent]=useState(false)
  const [phoneOtpVerified,setPhoneOtpVerified]=useState(false)
@@ -276,13 +277,19 @@ export default function SmartListingWizard(){
  const publish=async()=>{
   if(!listingId)return
   if(videoStatus==='uploading'||videoStatus==='processing'){setError('Video yuklanishi yoki qayta ishlanishi tugashini kuting.');return}
-  setBusy(true);setError('')
+  setBusy(true);setError('');setLimitReached(false)
   try{
    const response=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,step:7,data:payload(),status:'moderation'})})
    const data=await response.json();if(!response.ok)throw new Error(data.message||data.error||'E’lon moderatsiyaga yuborilmadi.')
    setSuccess('E’lon moderatsiyaga yuborildi: '+(data.listing.listing_code||data.listing.id))
    setTimeout(()=>router.push('/account/listings'),1000)
-  }catch(e){setError(e instanceof Error?e.message:'E’lonni yuborishda xatolik.')}finally{setBusy(false)}
+  }catch(e){
+   const message=e instanceof Error?e.message:'E’lonni yuborishda xatolik.'
+   if(/(?:PARTNER|REALTOR|INDIVIDUAL|FREE_)?LISTING_LIMIT_REACHED/i.test(message)){
+    setLimitReached(true)
+    setError('')
+   }else setError(message)
+  }finally{setBusy(false)}
  }
 
  useEffect(()=>{let live=true;(async()=>{
@@ -347,7 +354,14 @@ export default function SmartListingWizard(){
     {current==='review'&&<div><h2 className="text-lg font-extrabold">E’lon ma’lumotlarini tekshiring</h2><div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm"><p><b>Tur:</b> {selected?.name_uz}</p><p><b>Manzil:</b> {answers.city}, {answers.district}, {answers.neighborhood||'—'}, {answers.address||'—'}</p><p><b>Sarlavha:</b> {answers.title||titleFrom(selected,answers,categoryAttributes)}</p><p><b>Narx:</b> {answers.price} {answers.currency}</p><p><b>Maydon:</b> {answers.attributes.area_m2||'—'} m²</p><p><b>Xonalar:</b> {answers.attributes.rooms||'—'}</p><p><b>Rasmlar:</b> {images.length} ta</p>{accountProfile&&<p><b>Profil:</b> {accountProfile.full_name} · {accountProfile.phone}</p>}</div><p className="mt-3 text-xs text-slate-500">Barcha javoblar eski e’lon formasi bilan bir xil maydonlarga saqlanadi.</p>{accountProfile&&listingId&&<div className="mt-5 space-y-3"><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
     {current==='name'&&<div><h2 className="text-lg font-extrabold">Ism va familiyangiz nima?</h2><input value={answers.fullName} onChange={e=>setAnswer('fullName',e.target.value)} className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="Masalan: Ali Valiyev"/><p className="mt-2 text-xs text-slate-500">Bu ma’lumot profilingizda saqlanadi.</p></div>}
     {current==='phone'&&<div><h2 className="text-lg font-extrabold">Telefon raqamingizni SMS orqali tasdiqlang</h2><input value={answers.phone} onChange={e=>setAnswer('phone',e.target.value)} type="tel" className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="+998 90 123 45 67"/>{otpSent&&!verified&&<div className="mt-4"><label className="text-sm font-bold">SMS kodi</label><input value={otp} onChange={e=>setOtp(phoneDigits(e.target.value).slice(0,6))} inputMode="numeric" autoComplete="one-time-code" className="mt-2 w-full rounded-xl border p-4 text-center text-2xl tracking-[.4em]" placeholder="000000"/></div>}{verified&&listingId&&<div className="mt-5 space-y-3"><div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Telefon tasdiqlandi. E’lon qoralamasi saqlandi.</div><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
-    {error&&<div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+    {limitReached?<div role="alert" className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm sm:p-6">
+     <div className="flex items-start gap-3"><span aria-hidden="true" className="text-3xl">⚠️</span><div className="min-w-0">
+      <p className="text-xs font-black uppercase tracking-wider text-amber-800">E’lon joylashtirish limiti</p>
+      <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{accountProfile?.account_type==='partner'?'Hamkor tarifingizdagi e’lon limiti tugadi':'Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi'}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-700">E’lonni joylashtirish uchun tarif paketini sotib oling. Mos tarifni tanlab, e’lon joylashtirishni davom ettirishingiz mumkin.</p>
+      <Link href="/account/monetization" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800">Tarif paketlarini tanlash <span className="ml-2" aria-hidden="true">→</span></Link>
+     </div></div>
+    </div>:error&&<div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
     {success&&<div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
      <button onClick={back} disabled={question===0||busy||verified||phoneOtpVerified} className="rounded-xl border px-5 py-3 text-sm font-bold disabled:opacity-40">Orqaga</button>
