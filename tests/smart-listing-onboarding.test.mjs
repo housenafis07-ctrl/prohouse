@@ -52,9 +52,9 @@ test('existing profile phone cannot be changed without verifying the new number'
 
 test('signed phone session takes priority over stale Supabase browser identity', () => {
   assert.match(metadata, /const phoneSessionUserId = readAccountSession/)
-  assert.match(metadata, /let userId = phoneSessionUserId[\\s\\S]*if \(!userId\)/)
+  assert.match(metadata, /let userId = phoneSessionUserId[\s\S]*if \(!userId\)/)
   assert.match(draft, /const phoneSessionUserId = readAccountSession/)
-  assert.match(draft, /let userId = phoneSessionUserId[\\s\\S]*if \(!userId\)/)
+  assert.match(draft, /let userId = phoneSessionUserId[\s\S]*if \(!userId\)/)
 })
 
 test('profile initialization preserves existing account and partner data', () => {
