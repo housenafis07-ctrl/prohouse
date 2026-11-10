@@ -35,7 +35,7 @@ export async function GET() {
       trustedPartnerStatus = partner?.trusted_partner_status || null
     }
 
-    return NextResponse.json({ profile: { ...profile, trusted_partner_status: trustedPartnerStatus } }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ profile: { ...profile, user_id: userId, trusted_partner_status: trustedPartnerStatus } }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'PROFILE_LOAD_FAILED' }, { status: 500 })
   }
