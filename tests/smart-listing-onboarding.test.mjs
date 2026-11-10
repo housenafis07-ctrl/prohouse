@@ -144,3 +144,21 @@ test('mobile create-listing navigation opens the Smart Listing Wizard without an
   assert.doesNotMatch(mobileNavigation, /createClient\(\)\.auth\.getUser\(\)/)
   assert.doesNotMatch(mobileNavigation, /register\?redirect=.*listings\/new/)
 })
+
+
+const smartWizard = await readFile(new URL('../app/listings/new/smart-wizard.tsx', import.meta.url), 'utf8')
+
+test('SMS OTP step exposes a cooldown-aware resend action', () => {
+  assert.match(smartWizard, /resendCountdown/)
+  assert.match(smartWizard, /SMS kodni qayta yuborish/)
+  assert.match(smartWizard, /setResendCountdown\(60\)/)
+  assert.match(smartWizard, /disabled=\{busy\|\|resendCountdown>0\}/)
+})
+
+test('listing image selection reads and validates previews before adding them', () => {
+  assert.match(smartWizard, /new FileReader\(\)/)
+  assert.match(smartWizard, /reader\.readAsDataURL\(file\)/)
+  assert.match(smartWizard, /image\.onerror/)
+  assert.match(smartWizard, /mimeByExtension/)
+  assert.match(smartWizard, /10 MB/)
+})
