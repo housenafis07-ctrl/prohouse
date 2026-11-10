@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     const { data: profile } = await admin
       .from('profiles')
       .select('account_type,partner_type')
-      .eq('id', user.id)
+      .eq('id', userId)
       .maybeSingle()
 
     if (profile?.account_type === 'individual') {
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       const { data: partnerProfile } = await admin
         .from('partner_profiles')
         .select('partner_type')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle()
 
       partnerType = partnerProfile?.partner_type || (
