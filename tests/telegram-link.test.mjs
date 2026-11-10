@@ -7,7 +7,8 @@ const migration = await readFile(new URL('../supabase/migrations/20261109170000_
 const miniApp = await readFile(new URL('../app/lib/telegram-miniapp.ts', import.meta.url), 'utf8')
 
 test('existing and new phone accounts use the same authenticated profile binding', () => {
-  assert.match(route, /auth\.auth\.getUser\(\)/)
+  assert.match(route, /readAccountSession\(cookieStore\.get\(ACCOUNT_SESSION_COOKIE\)\?\.value\)/)
+  assert.doesNotMatch(route, /auth\.auth\.getUser\(\)/)
   assert.match(route, /db\.rpc\('link_telegram_identity'/)
   assert.match(migration, /select phone into v_phone[\s\S]*if v_phone is null/)
 })
@@ -38,5 +39,7 @@ test('Telegram initData is validated server-side with a ten-minute freshness win
 })
 
 test('legacy Telegram-authenticated sessions cannot bypass phone verification', () => {
-  assert.match(route, /auth_provider === 'telegram'[\s\S]*PHONE_AUTH_REQUIRED/)
+  assert.match(route, /ACCOUNT_SESSION_COOKIE/)
+  assert.match(route, /readAccountSession\(cookieStore\.get\(ACCOUNT_SESSION_COOKIE\)\?\.value\)/)
+  assert.match(route, /if \(!profileId\)[\s\S]*AUTH_REQUIRED/)
 })
