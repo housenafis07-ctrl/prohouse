@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     const { data: partnerProfile, error: partnerProfileError } = await supabase
       .from('partner_profiles')
       .select('partner_type')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle()
     if (partnerProfileError) return NextResponse.json({ error: partnerProfileError.message }, { status: 400 })
     const effectivePartnerType = partnerProfile?.partner_type || profile.partner_type
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
       }, { status: 409 })
     }
 
-    const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: user.id })
+    const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: userId })
     if (limitError) {
       if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({ error: 'LISTING_LIMIT_REACHED', message: 'Bepul faol e’lon limitingiz tugagan. Rieltor bo‘lsangiz, avval rieltor profilingiz tasdiqlanganini tekshiring yoki qo‘shimcha e’lon tarifini tanlang.' }, { status: 402 })
       return NextResponse.json({ error: limitError.message }, { status: 400 })
@@ -273,7 +273,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', user.id).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
+  const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', userId).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (status !== 'moderation') {
@@ -302,7 +302,7 @@ export async function DELETE(request: Request) {
     .from('listings')
     .select('id,status')
     .eq('id', listingId)
-    .eq('owner_id', user.id)
+    .eq('owner_id', userId)
     .maybeSingle()
   if (findError) return NextResponse.json({ error: findError.message }, { status: 400 })
   if (!listing) return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
@@ -329,7 +329,7 @@ export async function DELETE(request: Request) {
     .from('listings')
     .delete()
     .eq('id', listingId)
-    .eq('owner_id', user.id)
+    .eq('owner_id', userId)
   if (listingDeleteError) return NextResponse.json({ error: listingDeleteError.message }, { status: 400 })
 
   return NextResponse.json({ success: true, status: 'deleted', images_cleaned: storagePaths.length })
