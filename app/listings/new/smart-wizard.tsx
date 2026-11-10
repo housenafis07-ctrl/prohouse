@@ -143,11 +143,11 @@ export default function SmartListingWizard(){
     answers.area_m2?answers.area_m2+' m²':'',
     answers.address,answers.district,answers.city,
    ].filter(Boolean).join('. ')
-   const attrs={...answers.attributes,...(selected?.code==='sale_house'?{ownership_type:'owner'}:{})}
+   const attrs={...answers.attributes,...(answers.rooms?{rooms:answers.rooms}:{}),...(answers.area_m2?{area_m2:answers.area_m2}:{}),ownership_type:'owner'}
    const payload={
     taxonomy_code:selected?.code,listing_type:selected?.listing_type||'sale',property_type:selected?.property_type||'apartment',
     title,description,price:phoneDigits(answers.price),currency:answers.currency,city:answers.city,district:answers.district,address:answers.address,
-    area_m2:answers.area_m2,rooms:answers.rooms,attributes:attrs,ownership_type:selected?.code==='sale_house'?'owner':null,
+    area_m2:answers.area_m2,rooms:answers.rooms,attributes:attrs,ownership_type:'owner',
    }
    const draft=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:7,data:payload,status:'draft'})})
    const draftData=await draft.json()
