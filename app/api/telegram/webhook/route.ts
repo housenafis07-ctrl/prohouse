@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { serviceClient } from '@/utils/admin/auth'
@@ -99,9 +100,22 @@ async function sendListingShare(chatId: string | number, listingId: string) {
   }
 }
 
+function validTelegramSecret(received: string | null, expected: string) {
+  if (!received) return false
+  const receivedBytes = Buffer.from(received)
+  const expectedBytes = Buffer.from(expected)
+  return receivedBytes.length === expectedBytes.length && timingSafeEqual(receivedBytes, expectedBytes)
+}
+
 export async function POST(request: NextRequest) {
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET
-  if (expectedSecret && request.headers.get('x-telegram-bot-api-secret-token') !== expectedSecret) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!expectedSecret) {
+    console.error('[telegram/webhook] TELEGRAM_WEBHOOK_SECRET is not configured')
+    return NextResponse.json({ error: 'Webhook authentication is not configured' }, { status: 503 })
+  }
+  if (!validTelegramSecret(request.headers.get('x-telegram-bot-api-secret-token'), expectedSecret)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   try {
     const update = (await request.json()) as TelegramUpdate
     const message = update.message; const text = String(message?.text || '').trim(); const chatId = message?.chat?.id
