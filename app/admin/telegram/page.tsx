@@ -44,6 +44,11 @@ export default function TelegramBroadcastPage() {
   const [linkBusy, setLinkBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [aiObjective, setAiObjective] = useState('')
+  const [aiFacts, setAiFacts] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiResult, setAiResult] = useState<any>(null)
+  const [aiError, setAiError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function syncWebhook() {
@@ -137,6 +142,29 @@ export default function TelegramBroadcastPage() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+
+  async function runMarketingAi(task: 'generate' | 'analyze') {
+    setAiBusy(true); setAiError(''); setAiResult(null)
+    try {
+      const response = await fetch('/api/admin/telegram/ai', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task, objective: aiObjective, campaignFacts: aiFacts, language: ru ? 'ru' : 'uz', destination }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || t('AI so‘rovi bajarilmadi.', 'Не удалось выполнить запрос AI.'))
+      setAiResult({ task, ...data.result })
+      if (task === 'generate') {
+        setTitle(data.result.title || '')
+        setMessage(data.result.message || '')
+        setButtonText(data.result.buttonText || '')
+        setButtonUrl(data.result.buttonUrl || '')
+        if (destination === 'bot' && data.result.recommendedAudience) setAudience(data.result.recommendedAudience)
+      }
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : t('AI xatosi.', 'Ошибка AI.'))
+    } finally { setAiBusy(false) }
+  }
+
   async function sendTest() {
     if (!title.trim() || !message.trim()) { setError(t('Avval sarlavha va xabar matnini kiriting.', 'Сначала введите заголовок и текст сообщения.')); return }
     setBusy(true); setNotice(''); setError('')
@@ -183,6 +211,18 @@ export default function TelegramBroadcastPage() {
         [t('Bot kampaniyalari', 'Кампании бота'), stats.botCampaigns],
         [t('Kanal postlari', 'Публикации канала'), stats.channelPosts],
       ].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black tabular-nums">{Number(value).toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</p></div>)}</section>
+
+
+      <section className="mt-6 rounded-3xl border border-violet-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-violet-700">✨ RoyalHouse AI Marketing</p><p className="mt-1 text-sm text-slate-500">{t('Matn yaratish, auditoriya va vaqt tavsiyasi hamda kampaniya tahlili. AI hech qachon o‘zi yubormaydi.', 'Создание текста, рекомендации по аудитории и времени, анализ кампаний. AI ничего не отправляет самостоятельно.')}</p></div><span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{t('Faqat tavsiya', 'Только рекомендации')}</span></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2"><textarea value={aiObjective} onChange={e => setAiObjective(e.target.value)} rows={3} placeholder={t('Kampaniya maqsadi: masalan, yangi e’lon beruvchilarni jalb qilish...', 'Цель кампании: например, привлечь новых рекламодателей...')} className="w-full rounded-xl border px-4 py-3"/><textarea value={aiFacts} onChange={e => setAiFacts(e.target.value)} rows={3} placeholder={t('Tasdiqlangan faktlar: aksiya, muddat, narx, havola (ixtiyoriy)...', 'Подтверждённые факты: акция, срок, цена, ссылка (необязательно)...')} className="w-full rounded-xl border px-4 py-3"/></div>
+        <div className="mt-3 flex flex-wrap gap-2"><button disabled={aiBusy || !aiObjective.trim()} onClick={() => void runMarketingAi('generate')} className="rounded-xl bg-violet-600 px-4 py-2.5 font-bold text-white disabled:opacity-50">{aiBusy ? t('AI ishlayapti...', 'AI работает...') : t('✨ AI bilan yaratish', '✨ Создать с AI')}</button><button disabled={aiBusy || loading} onClick={() => void runMarketingAi('analyze')} className="rounded-xl border border-violet-300 px-4 py-2.5 font-bold text-violet-700 disabled:opacity-50">{t('📊 AI tahlil', '📊 AI-анализ')}</button></div>
+        {aiError && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{aiError}</p>}
+        {aiResult && <div className="mt-4 rounded-2xl bg-violet-50 p-4 text-sm">
+          {aiResult.task === 'generate' ? <><p className="font-black text-violet-900">{t('AI tavsiyalari', 'Рекомендации AI')}</p><p className="mt-2"><b>{t('Auditoriya:', 'Аудитория:')}</b> {audienceLabels[aiResult.recommendedAudience as Audience]?.[ru ? 'ru' : 'uz'] || aiResult.recommendedAudience}</p><p className="mt-1"><b>{t('Yuborish vaqti:', 'Время отправки:')}</b> {aiResult.recommendedTime}</p><p className="mt-1 text-slate-700">{aiResult.reasoning}</p></> : <><p className="font-black text-violet-900">{t('Kampaniya tahlili', 'Анализ кампаний')}</p><p className="mt-2">{aiResult.summary}</p><p className="mt-3 font-bold">{t('Kuzatuvlar', 'Наблюдения')}</p><ul className="mt-1 list-disc space-y-1 pl-5">{(aiResult.findings || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul><p className="mt-3 font-bold">{t('Tavsiyalar', 'Рекомендации')}</p><ul className="mt-1 list-disc space-y-1 pl-5">{(aiResult.recommendations || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul><p className="mt-2"><b>{t('Eng mos auditoriya:', 'Подходящая аудитория:')}</b> {audienceLabels[aiResult.bestAudience as Audience]?.[ru ? 'ru' : 'uz'] || aiResult.bestAudience}</p><p className="mt-1"><b>{t('Vaqt:', 'Время:')}</b> {aiResult.suggestedTime}</p><p className="mt-2 text-slate-600">{aiResult.limitations}</p></>}
+          <p className="mt-3 text-xs text-slate-500">{t('Tavsiyalar oxirgi 50 kampaniya va mavjud obunachi segmentlari asosida. Yuborilgan xabarlar soni ko‘rishlar yoki konversiya degani emas.', 'Рекомендации основаны на последних 50 кампаниях и доступных сегментах. Количество отправок не равно просмотрам или конверсиям.')}</p>
+        </div>}
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_420px]">
         <section className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Yangi xabar', 'Новое сообщение')}</h2><div className="mt-5 space-y-4">
