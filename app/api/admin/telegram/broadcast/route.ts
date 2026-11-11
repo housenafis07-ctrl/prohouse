@@ -9,6 +9,13 @@ type Audience = 'all' | 'buyers' | 'listings' | 'realtors' | 'trusted'
 type MediaType = 'image' | 'video'
 type Destination = 'bot' | 'channel'
 
+function parseTashkentDateTime(value: unknown): Date | null {
+  const raw = String(value || '').trim()
+  if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(raw)) return null
+  const parsed = new Date(raw + ':00+05:00')
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 function botToken() { return process.env.TELEGRAM_BOT_TOKEN || process.env.ROYALHOUSE_TELEGRAM_BOT_TOKEN || '' }
 
 async function telegram(method: string, body: Record<string, unknown>) {
@@ -54,7 +61,7 @@ export async function GET() {
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
   const modern = await supabase.from('telegram_broadcast_campaigns')
-    .select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at,destination,recipient_count,delivered_count')
+    .select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at,destination,recipient_count,delivered_count,scheduled_at,scheduled_timezone')
     .order('created_at', { ascending: false }).limit(50)
   const schemaReady = !modern.error
   const legacy = schemaReady ? null : await supabase.from('telegram_broadcast_campaigns')
@@ -87,7 +94,16 @@ export async function POST(req: NextRequest) {
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
   const body = await req.json()
-  const action = body.action === 'test' || body.action === 'test_client' ? 'test_client' : 'broadcast'
+  const action = body.action === 'test' || body.action === 'test_client' ? 'test_client' : body.action === 'schedule' ? 'schedule' : body.action === 'cancel' ? 'cancel' : 'broadcast'
+  if (action === 'cancel') {
+    const campaignId = String(body.campaignId || '').trim()
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(campaignId)) return NextResponse.json({ error: 'Kampaniya ID noto‘g‘ri.' }, { status: 400 })
+    const { data: cancelled, error: cancelError } = await supabase.from('telegram_broadcast_campaigns')
+      .update({ status: 'cancelled' }).eq('id', campaignId).eq('status', 'queued').select('id').maybeSingle()
+    if (cancelError) return NextResponse.json({ error: cancelError.message }, { status: 500 })
+    if (!cancelled) return NextResponse.json({ error: 'Kampaniya topilmadi yoki allaqachon yuborish jarayonida.' }, { status: 409 })
+    return NextResponse.json({ message: 'Rejalashtirilgan kampaniya bekor qilindi.' })
+  }
   const destination = String(body.destination || 'bot') as Destination
   if (!['bot', 'channel'].includes(destination)) return NextResponse.json({ error: 'Noto‘g‘ri yuborish manzili.' }, { status: 400 })
   const channelChatId = MARKETING_CHANNEL_CHAT_ID
@@ -138,14 +154,22 @@ export async function POST(req: NextRequest) {
 
   if (destination === 'channel' && !channelChatId) return NextResponse.json({ error: 'TELEGRAM_MARKETING_CHANNEL_ID server sozlamasida mavjud emas.' }, { status: 503 })
   if (destination === 'bot' && !['all', 'buyers', 'listings', 'realtors', 'trusted'].includes(audience)) return NextResponse.json({ error: 'Noto‘g‘ri auditoriya.' }, { status: 400 })
+  const scheduledAt = action === 'schedule' ? parseTashkentDateTime(body.scheduledAt) : null
+  if (action === 'schedule') {
+    if (!scheduledAt) return NextResponse.json({ error: 'Yuborish sanasi va vaqtini to‘g‘ri kiriting.' }, { status: 400 })
+    const delay = scheduledAt.getTime() - Date.now()
+    if (delay < 2 * 60 * 1000) return NextResponse.json({ error: 'Yuborish vaqti hozirdan kamida 2 daqiqa keyin bo‘lishi kerak.' }, { status: 400 })
+    if (delay > 365 * 24 * 60 * 60 * 1000) return NextResponse.json({ error: 'Kampaniyani 1 yildan uzoq muddatga rejalashtirib bo‘lmaydi.' }, { status: 400 })
+  }
   const { data: marketingReady, error: marketingReadyError } = await supabase.rpc('get_telegram_marketing_eligible_count')
   if (marketingReadyError) return NextResponse.json({ error: 'Marketing roziligi sxemasi hali bazaga qo‘llanmagan. Ommaviy yuborish bloklandi; test xabari ishlashi mumkin.' }, { status: 503 })
   if (destination === 'channel') {
     const { error: destinationSchemaError } = await supabase.from('telegram_broadcast_campaigns').select('destination').limit(1)
     if (destinationSchemaError) return NextResponse.json({ error: 'Kanal kampaniyalari uchun database migratsiyasi hali qo‘llanmagan.' }, { status: 503 })
   }
-  const { data: campaign, error: campaignError } = await supabase.from('telegram_broadcast_campaigns').insert({ title, message, button_text: buttonText || null, button_url: buttonUrl || null, audience, destination, channel_chat_id: destination === 'channel' ? channelChatId : null, media_url: mediaUrl || null, media_type: mediaType, media_name: mediaName || null, status: 'sending' }).select('id').single()
+  const { data: campaign, error: campaignError } = await supabase.from('telegram_broadcast_campaigns').insert({ title, message, button_text: buttonText || null, button_url: buttonUrl || null, audience, destination, channel_chat_id: destination === 'channel' ? channelChatId : null, media_url: mediaUrl || null, media_type: mediaType, media_name: mediaName || null, status: action === 'schedule' ? 'queued' : 'sending', scheduled_at: scheduledAt?.toISOString() || null, scheduled_timezone: 'Asia/Tashkent' }).select('id').single()
   if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 })
+  if (action === 'schedule') return NextResponse.json({ message: 'Kampaniya belgilangan vaqtga rejalashtirildi.', campaignId: campaign.id, scheduledAt: scheduledAt?.toISOString() })
 
   if (destination === 'channel') {
     try {
