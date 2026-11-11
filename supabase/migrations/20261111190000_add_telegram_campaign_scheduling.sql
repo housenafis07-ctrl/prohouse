@@ -57,7 +57,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public, vault, net, pg_temp
-as $
+as $function$
 declare
   dispatch_url text;
   dispatch_secret text;
@@ -88,12 +88,12 @@ begin
     timeout_milliseconds := 10000
   );
 end;
-$;
+$function$;
 
 revoke all on function public.dispatch_telegram_campaigns_cron() from public, anon, authenticated;
 
 -- Re-running this migration does not create duplicate cron jobs.
-do $
+do $block$
 begin
   if not exists (select 1 from cron.job where jobname = 'telegram-marketing-campaign-dispatch') then
     perform cron.schedule(
@@ -103,6 +103,6 @@ begin
     );
   end if;
 end;
-$;
+$block$;
 
 commit;
