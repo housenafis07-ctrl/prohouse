@@ -16,7 +16,7 @@ export default async function ComplexPage({params}:{params:Promise<{slug:string}
  const constructionPaths=(constructionUpdates||[]).map(item=>item.storage_path).filter((path:string)=>typeof path==='string'&&path.length>0)
  const {data:constructionSigned}=constructionPaths.length?await adminDb.storage.from('developer-construction-media').createSignedUrls(constructionPaths,300):{data:[]}
  const constructionUrlByPath=new Map((constructionSigned||[]).map(item=>[item.path,item.signedUrl]))
- const publicConstructionUpdates=(constructionUpdates||[]).map(({storage_path,...item})=>({...item,public_url:constructionUrlByPath.get(storage_path)||null})).filter(item=>item.public_url)
+ const publicConstructionUpdates=(constructionUpdates||[]).map(({storage_path,...item})=>({...item,public_url:constructionUrlByPath.get(storage_path)||''})).filter(item=>item.public_url)
  const approvedDocs=await Promise.all((approvedDocuments||[]).map(async doc=>{const {data}=await adminDb.storage.from('developer-complex-documents').createSignedUrl(doc.storage_path,300,{download:false});return {...doc,url:data?.signedUrl||null}}))
  const {data:developer}=complex.developer_id?await db.from('developer_profiles').select('id,developer_name,verification_status').eq('id',complex.developer_id).maybeSingle():{data:null}
  const {data:buildings}=await db.from('residential_buildings').select('id,name,building_no,floors,units_total,status').eq('complex_id',complex.id).order('name')
