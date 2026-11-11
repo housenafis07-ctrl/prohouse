@@ -13,7 +13,7 @@ export default async function ComplexPage({params}:{params:Promise<{slug:string}
   adminDb.from('developer_construction_updates').select('id,media_type,storage_path,caption,construction_stage,captured_at').eq('complex_id',complex.id).eq('is_visible',true).order('captured_at',{ascending:false}).limit(100),
   adminDb.from('developer_complex_documents').select('id,title,document_type,document_number,issued_at,storage_path,mime_type').eq('complex_id',complex.id).eq('moderation_status','approved').eq('visibility_scope','public').order('created_at',{ascending:false})
  ])
- const constructionPaths=publicConstructionUpdates.map(item=>item.storage_path).filter((path:string)=>typeof path==='string'&&path.length>0)
+ const constructionPaths=(constructionUpdates||[]).map(item=>item.storage_path).filter((path:string)=>typeof path==='string'&&path.length>0)
  const {data:constructionSigned}=constructionPaths.length?await adminDb.storage.from('developer-construction-media').createSignedUrls(constructionPaths,300):{data:[]}
  const constructionUrlByPath=new Map((constructionSigned||[]).map(item=>[item.path,item.signedUrl]))
  const publicConstructionUpdates=(constructionUpdates||[]).map(({storage_path,...item})=>({...item,public_url:constructionUrlByPath.get(storage_path)||null})).filter(item=>item.public_url)
