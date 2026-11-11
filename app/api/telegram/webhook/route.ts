@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
         const tokenHash = createHash('sha256').update(rawToken).digest('hex')
         const admin = serviceClient()
         const { data: linkToken, error: lookupError } = await admin.from('telegram_link_tokens')
-          .select('token_hash,telegram_user_id,expires_at')
+          .select('token_hash,profile_id,auth_user_id,expires_at')
           .eq('token_hash', tokenHash).is('used_at', null)
           .gt('expires_at', new Date().toISOString()).maybeSingle()
         if (lookupError) throw lookupError
@@ -264,6 +264,55 @@ export async function POST(request: NextRequest) {
           await sendTelegramMessage(chatId, 'Ulanish havolasi yaroqsiz, muddati tugagan yoki boshqa Telegram akkauntiga biriktirilgan. Admin paneldan yangi havola oling.')
           return NextResponse.json({ ok: true })
         }
+
+        // Admin accounts are authorized by admin_roles and do not necessarily
+        // have customer profiles. Link their Telegram chat directly to auth.users.
+        if (linkToken.auth_user_id && !linkToken.profile_id) {
+          const { data: activeAdmin, error: adminError } = await admin.from('admin_roles')
+            .select('user_id').eq('user_id', linkToken.auth_user_id).eq('is_active', true).maybeSingle()
+          if (adminError) throw adminError
+          if (!activeAdmin) {
+            await sendTelegramMessage(chatId, 'Admin vakolati faol emas. RoyalHouse admin paneliga qayta kiring va yangi ulanish havolasi oling.')
+            return NextResponse.json({ ok: true })
+          }
+          const { data: existingByTelegram, error: telegramLookupError } = await admin.from('telegram_bot_users')
+            .select('auth_user_id,profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
+          if (telegramLookupError) throw telegramLookupError
+          if (existingByTelegram && (existingByTelegram.auth_user_id !== linkToken.auth_user_id || existingByTelegram.profile_id)) {
+            await sendTelegramMessage(chatId, 'Bu Telegram akkaunti boshqa RoyalHouse profiliga ulangan. Admin bilan bog‘laning.')
+            return NextResponse.json({ ok: true })
+          }
+          const { data: existingByAdmin, error: adminLookupError } = await admin.from('telegram_bot_users')
+            .select('telegram_user_id').eq('auth_user_id', linkToken.auth_user_id).maybeSingle()
+          if (adminLookupError) throw adminLookupError
+          if (existingByAdmin && existingByAdmin.telegram_user_id !== telegramUserId) {
+            await sendTelegramMessage(chatId, 'Bu admin akkauntiga boshqa Telegram akkaunti ulangan. Avval mavjud ulanishni bekor qilish kerak.')
+            return NextResponse.json({ ok: true })
+          }
+          const linkedAt = new Date().toISOString()
+          const { error: upsertError } = await admin.from('telegram_bot_users').upsert({
+            telegram_user_id: telegramUserId,
+            chat_id: String(chatId),
+            profile_id: null,
+            auth_user_id: linkToken.auth_user_id,
+            username: from.username || null,
+            first_name: from.first_name || null,
+            last_name: from.last_name || null,
+            language_code: from.language_code || null,
+            is_active: true,
+            blocked_at: null,
+            last_interaction_at: linkedAt,
+            updated_at: linkedAt,
+          }, { onConflict: 'telegram_user_id' })
+          if (upsertError) throw upsertError
+          const { error: consumeError } = await admin.from('telegram_link_tokens')
+            .update({ used_at: linkedAt }).eq('token_hash', tokenHash).is('used_at', null)
+          if (consumeError) throw consumeError
+          await sendTelegramMessage(chatId, '✅ RoyalHouse admin akkauntingiz Telegram bilan muvaffaqiyatli ulandi. Endi admin panelidan test xabarini yuborishingiz mumkin.')
+          return NextResponse.json({ ok: true })
+        }
+
+        // Customer linking continues to require the user's own verified contact.
         const { error: requestError } = await admin.from('telegram_link_tokens')
           .update({ telegram_user_id: telegramUserId, contact_requested_at: new Date().toISOString() })
           .eq('token_hash', tokenHash).is('used_at', null)
