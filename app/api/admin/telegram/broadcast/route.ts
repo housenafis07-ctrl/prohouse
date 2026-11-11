@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
   if (action === 'test_client') {
     const recipientTelegramId = String(body.recipientTelegramId || '').trim()
-    if (!recipientTelegramId || !/^\\d{5,20}$/.test(recipientTelegramId)) {
+    if (!recipientTelegramId || !/^\d{5,20}$/.test(recipientTelegramId)) {
       return NextResponse.json({ error: 'Test uchun mijozni tanlang.' }, { status: 400 })
     }
 
