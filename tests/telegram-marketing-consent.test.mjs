@@ -29,7 +29,8 @@ test('no separate Telegram subscribe command is required', () => {
 
 test('SMS OTP-only authentication remains unchanged', () => {
   assert.match(webhook, /SMS OTP kodi orqali/)
-  assert.doesNotMatch(webhook, /telegram.*OTP/i)
+  assert.match(webhook, /Telegram orqali kirish va ro‘yxatdan o‘tish o‘chirilgan/)
+  assert.doesNotMatch(webhook, /telegram_otp|telegramOtp|otp_code/i)
 })
 
 test('eligible-count SQL function uses a valid dollar-quoted body', () => {
