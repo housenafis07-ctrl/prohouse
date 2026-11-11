@@ -55,18 +55,6 @@ export default function TelegramBroadcastPage() {
   const [aiError, setAiError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  async function syncWebhook() {
-    try {
-      const r = await fetch('/api/admin/telegram/webhook', { method: 'POST', cache: 'no-store' })
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.error || t('Telegram webhookni ulab bo‘lmadi.', 'Не удалось подключить Telegram webhook.'))
-      return true
-    } catch (e) {
-      console.error('[Telegram admin] webhook sync failed', e)
-      return false
-    }
-  }
-
   async function load() {
     setLoading(true)
     setError('')
