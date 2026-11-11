@@ -202,7 +202,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true })
 
     }
-\n    const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
+
+    const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
     const admin = serviceClient()
     const { error: supportError } = await admin.from('support_messages').insert({ name: name || null, subject: 'Telegram murojaati', message: text.slice(0, 5000), source: 'telegram', telegram_user_id: String(from?.id || chatId), telegram_username: from?.username ? '@' + from.username : null })
     if (supportError) { console.error('telegram support insert failed', supportError); return NextResponse.json({ error: 'Database error' }, { status: 500 }) }
