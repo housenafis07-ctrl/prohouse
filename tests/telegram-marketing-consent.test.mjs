@@ -40,5 +40,5 @@ test('eligible-count SQL function uses a valid dollar-quoted body', () => {
 test('existing users must accept the current offer before becoming marketing-eligible', () => {
   assert.match(registration, /setOfferAcceptanceOnly\\(true\\)/)
   assert.match(registration, /async function acceptCurrentOffer/)
-  assert.match(registration, /marketing_consent, true/)
+  assert.match(registration, /eq\\('marketing_consent',true\\)/)
 })
