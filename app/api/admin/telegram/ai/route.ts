@@ -22,9 +22,9 @@ const generationSchema = {
   type: 'object', additionalProperties: false,
   properties: {
     title: { type: 'string' }, message: { type: 'string' }, buttonText: { type: 'string' }, buttonUrl: { type: 'string' },
-    recommendedAudience: { type: 'string', enum: audiences }, recommendedTime: { type: 'string' }, reasoning: { type: 'string' },
+    recommendedAudience: { type: 'string', enum: audiences }, recommendedTime: { type: 'string' }, recommendedAtLocal: { type: 'string' }, reasoning: { type: 'string' },
   },
-  required: ['title', 'message', 'buttonText', 'buttonUrl', 'recommendedAudience', 'recommendedTime', 'reasoning'],
+  required: ['title', 'message', 'buttonText', 'buttonUrl', 'recommendedAudience', 'recommendedTime', 'recommendedAtLocal', 'reasoning'],
 }
 const analysisSchema = {
   type: 'object', additionalProperties: false,
@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     : 'You are RoyalHouse campaign analyst. Analyze only supplied recent campaign records and offer-consented audience counts. Send counts are not views, clicks, conversions, reach, or engagement; never infer those. Avoid causal claims and statistical significance from small samples. Recommend next tests, best audience and Asia/Tashkent time. State data limitations. Return JSON matching schema. Never send or schedule messages.'
   const input = generate ? {
     objective, language: body?.language === 'ru' ? 'Russian' : 'Uzbek Latin',
+    nowTashkent: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tashkent' }).replace(' ', 'T').slice(0, 16),
     destination: body?.destination === 'channel' ? 'channel' : 'bot',
     verifiedFacts: String(body?.campaignFacts || '').trim().slice(0, 1600), audienceCounts, recentCampaignHistory: history,
   } : { audienceCounts, recentCampaignHistory: history }
