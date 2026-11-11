@@ -9,6 +9,7 @@ type Audience = 'all' | 'buyers' | 'listings' | 'realtors' | 'trusted'
 type MediaType = 'image' | 'video'
 type Destination = 'bot' | 'channel'
 type DashboardStats = { optedInUsers: number; campaigns: number; sent: number; failed: number; channelPosts: number; botCampaigns: number }
+type TestRecipient = { telegramUserId: string; label: string; phone: string | null; username: string | null; lastInteractionAt: string }
 type Campaign = { id: string; title: string; audience: Audience; destination?: Destination; status: string; sent_count: number; failed_count: number; media_url?: string | null; media_type?: MediaType | null; media_name?: string | null; created_at: string }
 type AudienceCounts = Record<Audience, number>
 
@@ -41,7 +42,9 @@ export default function TelegramBroadcastPage() {
   const [audienceCounts, setAudienceCounts] = useState<AudienceCounts>(emptyCounts)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [linkBusy, setLinkBusy] = useState(false)
+  const [testRecipients, setTestRecipients] = useState<TestRecipient[]>([])
+  const [selectedTestRecipient, setSelectedTestRecipient] = useState('')
+  const [testRecipientError, setTestRecipientError] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [schemaNotice, setSchemaNotice] = useState('')
@@ -68,15 +71,31 @@ export default function TelegramBroadcastPage() {
     setLoading(true)
     setError('')
     setSchemaNotice('')
+    setTestRecipientError('')
     try {
-      const r = await fetch('/api/admin/telegram/broadcast', { cache: 'no-store' })
-      const d = await r.json()
+      const [r, recipientsResponse] = await Promise.all([
+        fetch('/api/admin/telegram/broadcast', { cache: 'no-store' }),
+        fetch('/api/admin/telegram/test-recipients', { cache: 'no-store' }),
+      ])
+      const [d, recipientData] = await Promise.all([
+        r.json(),
+        recipientsResponse.json().catch(() => ({})),
+      ])
       if (!r.ok) setError(d.error || t('Xatolik', 'Ошибка'))
       else {
         setSchemaNotice(d.schemaNotice || '')
         setCampaigns(d.campaigns || [])
         setAudienceCounts({ ...emptyCounts, ...(d.audienceCounts || {}) })
         setStats({ optedInUsers: 0, campaigns: 0, sent: 0, failed: 0, channelPosts: 0, botCampaigns: 0, ...(d.stats || {}) })
+      }
+      if (!recipientsResponse.ok) {
+        setTestRecipients([])
+        setSelectedTestRecipient('')
+        setTestRecipientError(recipientData.error || t('Test mijozlari ro‘yxatini yuklab bo‘lmadi.', 'Не удалось загрузить список тестовых клиентов.'))
+      } else {
+        const rows = (recipientData.recipients || []) as TestRecipient[]
+        setTestRecipients(rows)
+        setSelectedTestRecipient(current => rows.some(row => row.telegramUserId === current) ? current : rows[0]?.telegramUserId || '')
       }
     } catch {
       setError(t('Telegram ma’lumotlarini yuklab bo‘lmadi.', 'Не удалось загрузить данные Telegram.'))
@@ -86,29 +105,8 @@ export default function TelegramBroadcastPage() {
   }
 
   useEffect(() => {
-    void (async () => { await syncWebhook(); await load() })()
+    void load()
   }, [])
-
-  async function connectTelegram() {
-    // Open synchronously inside the click handler; browsers block popups opened
-    // only after awaited network requests.
-    const telegramWindow = window.open('about:blank', '_blank')
-    setLinkBusy(true); setNotice(''); setError('')
-    try {
-      if (!telegramWindow) throw new Error(t('Brauzer yangi oynani blokladi. Telegram uchun popup ruxsatini yoqing.', 'Браузер заблокировал новое окно. Разрешите всплывающие окна для Telegram.'))
-      const webhookReady = await syncWebhook()
-      if (!webhookReady) throw new Error(t('Telegram webhook joriy serverga ulanmagan. Qayta urinib ko‘ring.', 'Telegram webhook не подключён к текущему серверу. Попробуйте ещё раз.'))
-      const r = await fetch('/api/admin/telegram/link', { method: 'POST' })
-      const d = await r.json()
-      if (!r.ok || !d.url) throw new Error(d.error || t('Telegram ulash havolasini yaratib bo‘lmadi.', 'Не удалось создать ссылку для подключения Telegram.'))
-      telegramWindow.location.replace(d.url)
-      setNotice(t('Telegram ochildi. Bot ichida Start bosing.', 'Telegram открыт. Нажмите Start в боте.'))
-      window.setTimeout(() => { void load() }, 5000)
-    } catch (e) {
-      telegramWindow?.close()
-      setError(e instanceof Error ? e.message : t('Telegram ulash havolasini yaratib bo‘lmadi.', 'Не удалось создать ссылку для подключения Telegram.'))
-    } finally { setLinkBusy(false) }
-  }
 
   async function uploadMedia(file: File) {
     const isImage = file.type.startsWith('image/')
@@ -174,7 +172,8 @@ export default function TelegramBroadcastPage() {
     if (!title.trim() || !message.trim()) { setError(t('Avval sarlavha va xabar matnini kiriting.', 'Сначала введите заголовок и текст сообщения.')); return }
     setBusy(true); setNotice(''); setError('')
     try {
-      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test', destination, title, message, buttonText, buttonUrl, mediaUrl, mediaType, mediaName }) })
+      if (!selectedTestRecipient) throw new Error(t('Avval test uchun rozilik bergan mijozni tanlang.', 'Сначала выберите клиента, давшего согласие на маркетинговые сообщения.'))
+      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test_client', recipientTelegramId: selectedTestRecipient, destination, title, message, buttonText, buttonUrl, mediaUrl, mediaType, mediaName }) })
       const d = await r.json()
       if (!r.ok) setError(d.error || t('Test yuborilmadi', 'Тест не отправлен'))
       else setNotice(d.message || t('Test xabari yuborildi.', 'Тестовое сообщение отправлено.'))
@@ -206,8 +205,6 @@ export default function TelegramBroadcastPage() {
       <p className="font-bold text-emerald-600">RoyalHouse Admin</p><h1 className="mt-1 text-3xl font-black">{t('Telegram xabarlar', 'Telegram-рассылки')}</h1><p className="mt-2 text-sm text-slate-500">{t('Yangilik, yangi funksiya va muhim xabarlarni Telegram bot foydalanuvchilariga yuboring.', 'Отправляйте новости, новые функции и важные сообщения пользователям Telegram-бота.')}</p>
       {error && <div className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}{schemaNotice && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{schemaNotice}</div>}{notice && <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div>}
 
-      <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{t('Telegram ulanishi', 'Подключение Telegram')}</p><p className="mt-1 text-sm text-slate-500">{t('Test xabarini aynan o‘zingizning Telegram akkauntingizga yuborish uchun RoyalHouse profilingizni bot bilan bir marta ulang.', 'Чтобы тестовое сообщение пришло именно вам, один раз свяжите профиль RoyalHouse с ботом.')}</p></div><button disabled={linkBusy} onClick={() => void connectTelegram()} className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50">{linkBusy ? t('Ulanmoqda...', 'Подключение...') : t('✈️ Telegramni ulash', '✈️ Подключить Telegram')}</button></div></div>
-
       <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[
         [t('Oferta asosida marketing xabari olish huquqiga ega', 'Право на маркетинговые сообщения по оферте'), stats.optedInUsers],
         [t('Oxirgi 50 kampaniya', 'Последние 50 кампаний'), stats.campaigns],
@@ -237,10 +234,22 @@ export default function TelegramBroadcastPage() {
 
           {destination === 'bot' && <div><label className="text-sm font-bold">{t('Auditoriya', 'Аудитория')}</label><div className="mt-2 grid gap-2 sm:grid-cols-2">{(Object.keys(audienceLabels) as Audience[]).map(key => <button key={key} type="button" onClick={() => setAudience(key)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left ${audience === key ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'bg-white'}`}><span className="font-bold">{ru ? audienceLabels[key].ru : audienceLabels[key].uz}</span><span className="ml-3 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{audienceCounts[key].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</span></button>)}</div></div>}
 
+          <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4">
+            <label htmlFor="telegram-test-recipient" className="text-sm font-bold">{t('Test qabul qiluvchi mijoz', 'Клиент для тестовой отправки')}</label>
+            <p className="mt-1 text-xs text-slate-500">{t('Faqat faol Telegram bot foydalanuvchilari va marketing xabarlariga aniq rozilik bergan mijozlar ko‘rsatiladi. Test xabari faqat tanlangan mijozga shaxsiy yuboriladi.', 'Показываются только активные пользователи бота, явно согласившиеся на маркетинговые сообщения. Тест отправляется только выбранному клиенту в личный чат.')}</p>
+            <select id="telegram-test-recipient" value={selectedTestRecipient} onChange={e => setSelectedTestRecipient(e.target.value)} disabled={!testRecipients.length || busy} className="mt-3 w-full rounded-xl border bg-white px-4 py-3 disabled:bg-slate-100">
+              <option value="">{t('Mijozni tanlang', 'Выберите клиента')}</option>
+              {testRecipients.map(recipient => <option key={recipient.telegramUserId} value={recipient.telegramUserId}>{recipient.label}{recipient.phone ? ` · ${recipient.phone}` : ''}{recipient.username ? ` · ${recipient.username}` : ''}</option>)}
+            </select>
+            {testRecipientError && <p className="mt-2 text-sm text-amber-700">{testRecipientError}</p>}
+            {!testRecipientError && !testRecipients.length && <p className="mt-2 text-sm text-slate-500">{t('Hozircha marketing roziligi tasdiqlangan faol mijoz topilmadi.', 'Пока нет активных клиентов с подтверждённым согласием на маркетинговые сообщения.')}</p>}
+            <button type="button" onClick={() => void load()} disabled={loading || busy} className="mt-2 text-xs font-bold text-sky-700 underline disabled:opacity-50">{t('Ro‘yxatni yangilash', 'Обновить список')}</button>
+          </div>
+
           <div className="rounded-2xl border border-dashed p-4"><div className="flex flex-wrap items-center gap-3"><button type="button" disabled={mediaBusy} onClick={() => fileRef.current?.click()} className="rounded-xl border px-4 py-2 font-bold disabled:opacity-50">{mediaBusy ? t('Yuklanmoqda...', 'Загрузка...') : t('🖼️ Rasm / video qo‘shish', '🖼️ Добавить фото / видео')}</button><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadMedia(file) }}/>{mediaName && <span className="text-sm font-semibold text-slate-600">{mediaName}</span>}{mediaName && <button type="button" onClick={removeMedia} className="text-sm font-bold text-red-600">{t('Olib tashlash', 'Удалить')}</button>}</div><p className="mt-2 text-xs text-slate-500">{t('Rasm: 5 MB gacha. Video: 20 MB gacha. Telegram havola orqali media yuboradi.', 'Фото: до 5 МБ. Видео: до 20 МБ. Telegram отправляет медиа по ссылке.')}</p></div>
 
           <div className="grid gap-4 sm:grid-cols-2"><input value={buttonText} onChange={e => setButtonText(e.target.value)} placeholder={t('Tugma matni (ixtiyoriy)', 'Текст кнопки (необязательно)')} className="rounded-xl border px-4 py-3"/><input value={buttonUrl} onChange={e => setButtonUrl(e.target.value)} placeholder="https://royalhouse.uz/..." className="rounded-xl border px-4 py-3"/></div>
-          <div className="flex flex-wrap gap-3 pt-2"><button disabled={busy || mediaBusy} onClick={() => void sendTest()} className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50">{t('🧪 Test yuborish', '🧪 Отправить тест')}</button><button disabled={busy || mediaBusy} onClick={() => void sendBroadcast()} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{destination === 'channel' ? t('📢 Kanalga joylash', '📢 Опубликовать в канале') : t(`📨 ${audienceCounts[audience].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')} ta yuborish`, `📨 Отправить ${audienceCounts[audience].toLocaleString('ru-RU')}`)}</button></div>
+          <div className="flex flex-wrap gap-3 pt-2"><button disabled={busy || mediaBusy || !selectedTestRecipient} onClick={() => void sendTest()} className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50">{t('🧪 Tanlangan mijozga test yuborish', '🧪 Отправить тест выбранному клиенту')}</button><button disabled={busy || mediaBusy} onClick={() => void sendBroadcast()} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{destination === 'channel' ? t('📢 Kanalga joylash', '📢 Опубликовать в канале') : t(`📨 ${audienceCounts[audience].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')} ta yuborish`, `📨 Отправить ${audienceCounts[audience].toLocaleString('ru-RU')}`)}</button></div>
         </div></section>
 
         <aside className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Telegram preview', 'Предпросмотр Telegram')}</h2><div className="mt-5 overflow-hidden rounded-2xl border bg-slate-50"><div className="border-b bg-white px-4 py-3"><b>RoyalHouse</b><div className="text-xs text-slate-400">{destination === 'channel' ? '@royal_house_uz' : '@RoyalHouseUz_bot'}</div></div><div className="p-4">
