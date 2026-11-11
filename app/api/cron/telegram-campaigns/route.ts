@@ -36,7 +36,7 @@ async function telegram(method: string, body: Record<string, unknown>) {
 }
 
 async function sendCampaignMessage(chatId: string, campaign: any) {
-  const text = `<b>${escapeHtml(String(campaign.title || ''))}</b>\\n\\n${escapeHtml(String(campaign.message || ''))}`
+  const text = `<b>${escapeHtml(String(campaign.title || ''))}</b>\n\n${escapeHtml(String(campaign.message || ''))}`
   const buttonText = String(campaign.button_text || '')
   const buttonUrl = String(campaign.button_url || '')
   const replyMarkup = buttonText && buttonUrl ? { inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] } : undefined
@@ -59,7 +59,7 @@ async function sendCampaignMessage(chatId: string, campaign: any) {
   return telegram('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...(replyMarkup ? { reply_markup: replyMarkup } : {}) })
 }
 
-export async function GET(request: Request) {
+async function dispatch(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const db = serviceClient()
   const { data: campaigns, error } = await db.rpc('claim_due_telegram_broadcast_campaigns', { p_limit: 5 })
@@ -131,3 +131,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ ok: true, claimed: (campaigns || []).length, results })
 }
+
+
+export async function GET(request: Request) { return dispatch(request) }
+export async function POST(request: Request) { return dispatch(request) }
