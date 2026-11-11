@@ -18,7 +18,7 @@ test('existing users are not silently enrolled by migration', () => {
 })
 
 test('broadcast recipient counts and delivery share the same offer-consent rule', () => {
-  assert.equal((migration.match(/oc\.marketing_consent = true/g) || []).length, 2)
+  assert.equal((migration.match(/oc\.marketing_consent = true/g) || []).length, 3)
 })
 
 test('no separate Telegram subscribe command is required', () => {
