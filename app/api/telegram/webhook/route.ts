@@ -157,8 +157,8 @@ export async function POST(request: NextRequest) {
           ? '🏠 Добро пожаловать в RoyalHouse!\n\nRoyalHouse — платформа недвижимости для поиска жилья, размещения объявлений, управления своими объявлениями и ипотечных сервисов.'
           : '🏠 RoyalHouse’ga xush kelibsiz!\n\nRoyalHouse — uy-joy platformasi: uy, kvartira va dachalarni topish, e’lon joylashtirish, e’lonlarni boshqarish va ipoteka xizmatlaridan foydalanish mumkin.'
         const guide = ru
-          ? '📱 Как пользоваться RoyalHouse?\n\n1️⃣ Нажмите «Royalhouse’ni ochish», чтобы открыть мини-приложение.\n\n2️⃣ Найдите нужный дом, квартиру или дачу.\n\n3️⃣ Чтобы разместить объявление, выберите «E’lon joylashtirish».\n\n4️⃣ В личном кабинете можно управлять объявлениями, смотреть статистику, продвигать объявления и настраивать профиль.\n\n5️⃣ Вход и регистрация доступны только по номеру телефона и SMS-коду OTP.\n\n📢 Для подписки на новости и предложения RoyalHouse отправьте /subscribe, для отказа — /unsubscribe.\n\n🔐 Политика конфиденциальности — по кнопке ниже.'
-          : '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing — Mini App ochiladi.\n\n2️⃣ Kerakli uy, kvartira yoki dachani qidiring.\n\n3️⃣ E’lon joylashtirish uchun «E’lon joylashtirish» bo‘limini tanlang.\n\n4️⃣ Shaxsiy kabinetda e’lonlarni boshqaring, statistika ko‘rsatkichlarini ko‘ring, e’lonlarni ilgari suring va profilingizni sozlang.\n\n5️⃣ Kirish va ro‘yxatdan o‘tish faqat telefon raqami va SMS OTP kodi orqali amalga oshiriladi.\n\n📢 RoyalHouse yangiliklari va takliflariga obuna bo‘lish uchun /subscribe, to‘xtatish uchun /unsubscribe buyrug‘ini yuboring.\n\n🔐 Maxfiylik siyosati bilan quyidagi tugma orqali tanishishingiz mumkin.'
+          ? '📱 Как пользоваться RoyalHouse?\n\n1️⃣ Нажмите «Royalhouse’ni ochish», чтобы открыть мини-приложение.\n\n2️⃣ Найдите нужный дом, квартиру или дачу.\n\n3️⃣ Чтобы разместить объявление, выберите «E’lon joylashtirish».\n\n4️⃣ В личном кабинете можно управлять объявлениями, смотреть статистику, продвигать объявления и настраивать профиль.\n\n5️⃣ Вход и регистрация доступны только по номеру телефона и SMS-коду OTP.\n\n🔐 Политика конфиденциальности — по кнопке ниже.'
+          : '📱 RoyalHouse’dan qanday foydalaniladi?\n\n1️⃣ «Royalhouse’ni ochish» tugmasini bosing — Mini App ochiladi.\n\n2️⃣ Kerakli uy, kvartira yoki dachani qidiring.\n\n3️⃣ E’lon joylashtirish uchun «E’lon joylashtirish» bo‘limini tanlang.\n\n4️⃣ Shaxsiy kabinetda e’lonlarni boshqaring, statistika ko‘rsatkichlarini ko‘ring, e’lonlarni ilgari suring va profilingizni sozlang.\n\n5️⃣ Kirish va ro‘yxatdan o‘tish faqat telefon raqami va SMS OTP kodi orqali amalga oshiriladi.\n\n🔐 Maxfiylik siyosati bilan quyidagi tugma orqali tanishishingiz mumkin.'
         await sendTelegramMessage(chatId, intro)
         await telegramApi('sendMessage', {
           chat_id: chatId,
@@ -178,28 +178,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true })
 
     }
-
-    if (text === '/subscribe' || text === '/unsubscribe') {
-      const admin = serviceClient()
-      const optedIn = text === '/subscribe'
-      const { error: preferenceError } = await admin.from('telegram_bot_users').update({
-        marketing_opt_in: optedIn,
-        marketing_consent_at: optedIn ? new Date().toISOString() : null,
-        marketing_consent_source: optedIn ? 'telegram_command' : null,
-        updated_at: new Date().toISOString(),
-      }).eq('telegram_user_id', telegramUserId)
-      if (preferenceError) {
-        console.error('[telegram/webhook] marketing preference update failed:', preferenceError)
-        await sendTelegramMessage(chatId, 'Sozlamani saqlashda xatolik yuz berdi. Keyinroq qayta urinib ko‘ring.')
-      } else if (optedIn) {
-        await sendTelegramMessage(chatId, '✅ RoyalHouse yangiliklari, yangi e’lonlar va maxsus takliflarini olishga roziligingiz saqlandi. Istalgan vaqtda /unsubscribe orqali to‘xtatishingiz mumkin.')
-      } else {
-        await sendTelegramMessage(chatId, '🔕 Marketing xabarlari o‘chirildi. Muhim xizmat xabarlari bundan mustasno.')
-      }
-      return NextResponse.json({ ok: true })
-    }
-
-    const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
+\n    const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
     const admin = serviceClient()
     const { error: supportError } = await admin.from('support_messages').insert({ name: name || null, subject: 'Telegram murojaati', message: text.slice(0, 5000), source: 'telegram', telegram_user_id: String(from?.id || chatId), telegram_username: from?.username ? '@' + from.username : null })
     if (supportError) { console.error('telegram support insert failed', supportError); return NextResponse.json({ error: 'Database error' }, { status: 500 }) }
