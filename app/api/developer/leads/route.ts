@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createHmac } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
@@ -107,7 +108,31 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ lead: data }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
+function getClientIp(request: Request) {
+  // Vercel supplies x-vercel-forwarded-for at the trusted edge. Fall back to
+  // the standard proxy headers for local/staging environments.
+  const raw = request.headers.get('x-vercel-forwarded-for')
+    || request.headers.get('x-forwarded-for')
+    || request.headers.get('x-real-ip')
+    || ''
+  const ip = raw.split(',')[0]?.trim().replace(/^\[|\]$/g, '').replace(/^::ffff:/i, '')
+  return ip && ip.length <= 64 ? ip : null
+}
+
+function rateLimitKey(scope: string, ip: string) {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!secret) throw new Error('RATE_LIMIT_SECRET_UNAVAILABLE')
+  return createHmac('sha256', secret).update(`developer-lead:${scope}:${ip}`).digest('hex')
+}
+
 export async function POST(request: Request) {
+  const contentLength = Number(request.headers.get('content-length') || 0)
+  if (Number.isFinite(contentLength) && contentLength > 8192) {
+    return NextResponse.json({ error: 'REQUEST_TOO_LARGE' }, { status: 413 })
+  }
+  const ip = getClientIp(request)
+  if (!ip) return NextResponse.json({ error: 'RATE_LIMIT_IDENTITY_UNAVAILABLE' }, { status: 503 })
+
   const body = await request.json().catch(() => null)
   const developerId = typeof body?.developer_id === 'string' ? body.developer_id : ''
   const complexId = typeof body?.complex_id === 'string' ? body.complex_id : ''
@@ -119,6 +144,25 @@ export async function POST(request: Request) {
 
   if (!developerId || !complexId || name.length < 2 || name.length > 160 || phone.length < 7 || phone.length > 40 || message.length > 2000) {
     return NextResponse.json({ error: 'INVALID_LEAD_DATA' }, { status: 400 })
+  }
+
+  // Enforce an atomic 5-submission / 15-minute limit per client IP.
+  // Only an HMAC digest is persisted; raw IP addresses are never stored.
+  const limiter = serviceClient()
+  const { data: allowed, error: limitError } = await limiter.rpc('consume_public_api_rate_limit', {
+    p_bucket_key: rateLimitKey('ip', ip),
+    p_max_requests: 5,
+    p_window_seconds: 900,
+  })
+  if (limitError || typeof allowed !== 'boolean') {
+    console.error('[developer-leads] rate limiter unavailable', limitError)
+    return NextResponse.json({ error: 'LEAD_SUBMISSION_TEMPORARILY_UNAVAILABLE' }, { status: 503 })
+  }
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'LEAD_RATE_LIMITED', message: 'Juda ko‘p so‘rov yuborildi. 15 daqiqadan keyin qayta urinib ko‘ring.' },
+      { status: 429, headers: { 'Retry-After': '900', 'Cache-Control': 'no-store' } }
+    )
   }
 
   const db = await createClient()
