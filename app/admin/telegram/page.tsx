@@ -44,6 +44,7 @@ export default function TelegramBroadcastPage() {
   const [linkBusy, setLinkBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [schemaNotice, setSchemaNotice] = useState('')
   const [aiObjective, setAiObjective] = useState('')
   const [aiFacts, setAiFacts] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
@@ -66,11 +67,13 @@ export default function TelegramBroadcastPage() {
   async function load() {
     setLoading(true)
     setError('')
+    setSchemaNotice('')
     try {
       const r = await fetch('/api/admin/telegram/broadcast', { cache: 'no-store' })
       const d = await r.json()
       if (!r.ok) setError(d.error || t('Xatolik', 'Ошибка'))
       else {
+        setSchemaNotice(d.schemaNotice || '')
         setCampaigns(d.campaigns || [])
         setAudienceCounts({ ...emptyCounts, ...(d.audienceCounts || {}) })
         setStats({ optedInUsers: 0, campaigns: 0, sent: 0, failed: 0, channelPosts: 0, botCampaigns: 0, ...(d.stats || {}) })
@@ -199,7 +202,7 @@ export default function TelegramBroadcastPage() {
     <header className="border-b bg-white"><div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4"><div className="flex items-center gap-5"><Link href="/admin" className="font-black text-emerald-700">← {t('Admin', 'Админ')}</Link><b>Telegram</b></div><div className="flex items-center gap-2 rounded-xl border text-xs font-bold"><button onClick={() => setLang('uz')} className={`px-3 py-2 ${!ru ? 'bg-slate-900 text-white' : ''}`}>UZ</button><button onClick={() => setLang('ru')} className={`px-3 py-2 ${ru ? 'bg-slate-900 text-white' : ''}`}>RU</button></div></div></header>
     <div className="mx-auto max-w-7xl px-4 py-8">
       <p className="font-bold text-emerald-600">RoyalHouse Admin</p><h1 className="mt-1 text-3xl font-black">{t('Telegram xabarlar', 'Telegram-рассылки')}</h1><p className="mt-2 text-sm text-slate-500">{t('Yangilik, yangi funksiya va muhim xabarlarni Telegram bot foydalanuvchilariga yuboring.', 'Отправляйте новости, новые функции и важные сообщения пользователям Telegram-бота.')}</p>
-      {error && <div className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}{notice && <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div>}
+      {error && <div className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}{schemaNotice && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{schemaNotice}</div>}{notice && <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">{notice}</div>}
 
       <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{t('Telegram ulanishi', 'Подключение Telegram')}</p><p className="mt-1 text-sm text-slate-500">{t('Test xabarini aynan o‘zingizning Telegram akkauntingizga yuborish uchun RoyalHouse profilingizni bot bilan bir marta ulang.', 'Чтобы тестовое сообщение пришло именно вам, один раз свяжите профиль RoyalHouse с ботом.')}</p></div><button disabled={linkBusy} onClick={() => void connectTelegram()} className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50">{linkBusy ? t('Ulanmoqda...', 'Подключение...') : t('✈️ Telegramni ulash', '✈️ Подключить Telegram')}</button></div></div>
 
