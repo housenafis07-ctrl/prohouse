@@ -4,24 +4,29 @@ import test from 'node:test'
 
 const migration = await readFile(new URL('../supabase/migrations/20261111170000_add_telegram_marketing_consent.sql', import.meta.url), 'utf8')
 const webhook = await readFile(new URL('../app/api/telegram/webhook/route.ts', import.meta.url), 'utf8')
+const registration = await readFile(new URL('../app/register/page.tsx', import.meta.url), 'utf8')
 
-test('existing Telegram users are not silently enrolled in marketing', () => {
-  assert.match(migration, /marketing_opt_in boolean not null default false/i)
-  assert.match(migration, /marketing_consent_at timestamptz/i)
+test('marketing eligibility is recorded as part of public-offer acceptance', () => {
+  assert.match(migration, /offer_consents[\s\S]*marketing_consent boolean not null default false/i)
+  assert.match(migration, /oc\.marketing_consent = true/)
+  assert.match(registration, /marketing_consent:\s*true/)
 })
 
-test('broadcast recipients and audience counts require explicit marketing opt-in', () => {
-  assert.match(migration, /u\.marketing_opt_in = true/)
-  assert.match(migration, /marketing_opt_in = true/)
+test('existing users are not silently enrolled by migration', () => {
+  assert.match(migration, /default false/i)
+  assert.doesNotMatch(migration, /update public\.offer_consents[\s\S]*marketing_consent\s*=\s*true/i)
 })
 
-test('Telegram users can opt in and opt out with commands', () => {
-  assert.match(webhook, /text === '\/subscribe' \|\| text === '\/unsubscribe'/)
-  assert.match(webhook, /marketing_consent_source: optedIn \? 'telegram_command' : null/)
-  assert.match(webhook, /marketing_opt_in: optedIn/)
+test('broadcast recipient counts and delivery share the same offer-consent rule', () => {
+  assert.equal((migration.match(/oc\.marketing_consent = true/g) || []).length, 2)
 })
 
-test('marketing preference handling does not alter SMS OTP authentication flow', () => {
+test('no separate Telegram subscribe command is required', () => {
+  assert.doesNotMatch(webhook, /text === '\/subscribe' \|\| text === '\/unsubscribe'/)
+  assert.doesNotMatch(webhook, /\/subscribe/)
+})
+
+test('SMS OTP-only authentication remains unchanged', () => {
   assert.match(webhook, /SMS OTP kodi orqali/)
   assert.doesNotMatch(webhook, /telegram.*OTP/i)
 })
