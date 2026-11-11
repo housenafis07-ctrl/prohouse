@@ -10,7 +10,7 @@ test('AI endpoint requires admin authorization and the configured OpenAI key', (
   assert.match(route, /process\.env\.OPENAI_API_KEY/)
 })
 
-test('AI recommendations use campaign history and opted-in audience counts', () => {
+test('AI recommendations use campaign history and offer-consented audience counts', () => {
   assert.match(route, /telegram_broadcast_campaigns/)
   assert.match(route, /get_telegram_broadcast_audience_counts/)
   assert.match(route, /recipient_count/)
