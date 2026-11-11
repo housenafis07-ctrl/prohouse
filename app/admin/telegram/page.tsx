@@ -102,7 +102,7 @@ export default function TelegramBroadcastPage() {
       const d = await r.json()
       if (!r.ok || !d.url) throw new Error(d.error || t('Telegram ulash havolasini yaratib bo‘lmadi.', 'Не удалось создать ссылку для подключения Telegram.'))
       telegramWindow.location.replace(d.url)
-      setNotice(t('Telegram ochildi. Bot ichida Start bosing, so‘ng o‘z telefon raqamingizni yuboring.', 'Telegram открыт. Нажмите Start в боте, затем отправьте свой номер телефона.'))
+      setNotice(t('Telegram ochildi. Bot ichida Start bosing.', 'Telegram открыт. Нажмите Start в боте.'))
       window.setTimeout(() => { void load() }, 5000)
     } catch (e) {
       telegramWindow?.close()
