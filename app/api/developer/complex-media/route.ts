@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   const signedByPath = new Map((signed || []).map(item => [item.path, item.signedUrl]))
   const visibleUpdates = rows.map(({ storage_path, ...item }: any) => ({
     ...item,
-    public_url: signedByPath.get(storage_path) || null,
+    public_url: signedByPath.get(storage_path) || '',
   })).filter((item: any) => item.public_url)
   return NextResponse.json({ documents: documents || [], updates: visibleUpdates }, { headers: { 'Cache-Control': 'no-store' } })
 }
