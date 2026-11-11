@@ -4,12 +4,18 @@ export async function GET(){
  const {admin,error}=await requireAdmin()
  if(error||!admin)return NextResponse.json({error:error||'Unauthorized'},{status:error==='Forbidden'?403:401})
  const db=serviceClient()
- const {data,error:queryError}=await db.from('developer_construction_updates').select('id,complex_id,developer_id,media_type,public_url,caption,construction_stage,captured_at,created_at,is_visible,moderation_note').order('created_at',{ascending:false}).limit(200)
+ const {data,error:queryError}=await db.from('developer_construction_updates').select('id,complex_id,developer_id,media_type,storage_path,caption,construction_stage,captured_at,created_at,is_visible,moderation_note').order('created_at',{ascending:false}).limit(200)
  if(queryError)return NextResponse.json({error:'CONSTRUCTION_UPDATES_LOAD_FAILED'},{status:500})
- const ids=[...new Set((data||[]).map(x=>x.complex_id))]
+ const rows=data||[]
+ const paths=rows.map((item:any)=>item.storage_path).filter((path:unknown):path is string=>typeof path==='string'&&path.length>0)
+ const {data:signed,error:signedError}=paths.length?await db.storage.from('developer-construction-media').createSignedUrls(paths,300):{data:[],error:null}
+ if(signedError)return NextResponse.json({error:'CONSTRUCTION_MEDIA_SIGNING_FAILED'},{status:502})
+ const signedByPath=new Map((signed||[]).map(item=>[item.path,item.signedUrl]))
+ const updates=rows.map(({storage_path,...item}:any)=>({...item,public_url:signedByPath.get(storage_path)||null})).filter((item:any)=>item.public_url)
+ const ids=[...new Set(rows.map(x=>x.complex_id))]
  const {data:complexes}=ids.length?await db.from('residential_complexes').select('id,name,city').in('id',ids):{data:[]}
  const map=new Map((complexes||[]).map(x=>[x.id,x]))
- return NextResponse.json({updates:(data||[]).map(x=>({...x,complex:map.get(x.complex_id)||null}))},{headers:{'Cache-Control':'no-store'}})
+ return NextResponse.json({updates:updates.map(x=>({...x,complex:map.get(x.complex_id)||null}))},{headers:{'Cache-Control':'no-store'}})
 }
 export async function PATCH(request:NextRequest){
  const {admin,error}=await requireAdmin()
