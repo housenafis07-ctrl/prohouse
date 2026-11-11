@@ -12,6 +12,6 @@ export async function GET(_request:Request,{params}:{params:Promise<{slug:string
  const {data:signed,error:signedError}=paths.length?await db.storage.from('developer-construction-media').createSignedUrls(paths,300):{data:[],error:null}
  if(signedError)return NextResponse.json({error:'CONSTRUCTION_MEDIA_SIGNING_FAILED'},{status:502})
  const signedByPath=new Map((signed||[]).map(item=>[item.path,item.signedUrl]))
- const updates=rows.map(({storage_path,...item})=>({...item,public_url:signedByPath.get(storage_path)||null})).filter(item=>item.public_url)
+ const updates=rows.map(({storage_path,...item})=>({...item,public_url:signedByPath.get(storage_path)||''})).filter(item=>item.public_url)
  return NextResponse.json({updates},{headers:{'Cache-Control':'public, s-maxage=60, stale-while-revalidate=300'}})
 }
