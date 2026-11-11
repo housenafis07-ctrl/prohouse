@@ -31,3 +31,8 @@ test('SMS OTP-only authentication remains unchanged', () => {
   assert.match(webhook, /SMS OTP kodi orqali/)
   assert.doesNotMatch(webhook, /telegram.*OTP/i)
 })
+
+test('eligible-count SQL function uses a valid dollar-quoted body', () => {
+  assert.match(migration, /create or replace function public\\.get_telegram_marketing_eligible_count\\(\\)[\\s\\S]*?as \\\$\\\\?\\$/i)
+  assert.match(migration, /marketing_consent = true[\\s\\S]*?\\n\\$\\$;/)
+})
