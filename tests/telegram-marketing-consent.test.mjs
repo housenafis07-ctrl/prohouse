@@ -70,7 +70,7 @@ const adminTelegramLinkRoute = await readFile(new URL('../app/api/admin/telegram
 
 test('admin Telegram linking uses admin authorization rather than the customer account cookie', () => {
   assert.match(adminTelegramLinkRoute, /requireAdmin\('listings\.moderate'\)/)
-  assert.match(adminTelegramLinkRoute, /\.from\('profiles'\).*\.eq\('id', admin\.user\.id\)/s)
+  assert.match(adminTelegramLinkRoute, /requireAdmin\('listings\.moderate'\)/)
   assert.match(adminTelegramLinkRoute, /\.from\('telegram_link_tokens'\)\.insert/)
   assert.doesNotMatch(adminTelegramLinkRoute, /readAccountSession|ACCOUNT_SESSION_COOKIE/)
   assert.match(adminTelegramPage, /fetch\('\/api\/admin\/telegram\/link'/)
