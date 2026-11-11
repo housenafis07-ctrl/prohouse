@@ -10,7 +10,7 @@ type MediaType = 'image' | 'video'
 type Destination = 'bot' | 'channel'
 type DashboardStats = { optedInUsers: number; campaigns: number; sent: number; failed: number; channelPosts: number; botCampaigns: number }
 type TestRecipient = { telegramUserId: string; label: string; phone: string | null; username: string | null; lastInteractionAt: string }
-type Campaign = { id: string; title: string; audience: Audience; destination?: Destination; status: string; sent_count: number; failed_count: number; media_url?: string | null; media_type?: MediaType | null; media_name?: string | null; created_at: string }
+type Campaign = { id: string; title: string; audience: Audience; destination?: Destination; status: string; sent_count: number; failed_count: number; media_url?: string | null; media_type?: MediaType | null; media_name?: string | null; created_at: string; scheduled_at?: string | null; scheduled_timezone?: string | null }
 type AudienceCounts = Record<Audience, number>
 
 const audienceLabels = {
@@ -23,6 +23,12 @@ const audienceLabels = {
 
 const emptyCounts: AudienceCounts = { all: 0, buyers: 0, listings: 0, realtors: 0, trusted: 0 }
 
+function tashkentDateTimeInput(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date)
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`
+}
+
 export default function TelegramBroadcastPage() {
   const { lang, setLang } = useI18n()
   const ru = lang === 'ru'
@@ -32,6 +38,7 @@ export default function TelegramBroadcastPage() {
   const [buttonText, setButtonText] = useState('')
   const [buttonUrl, setButtonUrl] = useState('')
   const [audience, setAudience] = useState<Audience>('all')
+  const [scheduledAt, setScheduledAt] = useState(() => tashkentDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)))
   const [destination, setDestination] = useState<Destination>('bot')
   const [stats, setStats] = useState<DashboardStats>({ optedInUsers: 0, campaigns: 0, sent: 0, failed: 0, channelPosts: 0, botCampaigns: 0 })
   const [mediaUrl, setMediaUrl] = useState('')
@@ -150,6 +157,7 @@ export default function TelegramBroadcastPage() {
         setButtonText(data.result.buttonText || '')
         setButtonUrl(data.result.buttonUrl || '')
         if (destination === 'bot' && data.result.recommendedAudience) setAudience(data.result.recommendedAudience)
+        if (data.result.recommendedAtLocal) setScheduledAt(data.result.recommendedAtLocal)
       }
     } catch (e) {
       setAiError(e instanceof Error ? e.message : t('AI xatosi.', 'Ошибка AI.'))
@@ -166,6 +174,37 @@ export default function TelegramBroadcastPage() {
       if (!r.ok) setError(d.error || t('Test yuborilmadi', 'Тест не отправлен'))
       else setNotice(d.message || t('Test xabari yuborildi.', 'Тестовое сообщение отправлено.'))
     } catch { setError(t('Test yuborishda server bilan aloqa xatosi.', 'Ошибка связи с сервером при отправке теста.')) }
+    finally { setBusy(false) }
+  }
+
+  async function scheduleBroadcast() {
+    if (!title.trim() || !message.trim()) { setError(t('Sarlavha va xabar matnini kiriting.', 'Введите заголовок и текст сообщения.')); return }
+    if (buttonUrl && !/^https?:\\/\\//i.test(buttonUrl)) { setError(t('Tugma havolasi http:// yoki https:// bilan boshlanishi kerak.', 'Ссылка кнопки должна начинаться с http:// или https://.')); return }
+    if (destination === 'bot' && !audienceCounts[audience]) { setError(t('Tanlangan auditoriyada hozircha foydalanuvchi yo‘q.', 'В выбранной аудитории пока нет пользователей.')); return }
+    if (!scheduledAt) { setError(t('Yuborish sanasi va vaqtini tanlang.', 'Выберите дату и время отправки.')); return }
+    if (!window.confirm(t(`“${title.trim()}” kampaniyasini ${scheduledAt.replace('T', ' ')} (Toshkent vaqti) uchun rejalashtirasizmi?`, `Запланировать кампанию “${title.trim()}” на ${scheduledAt.replace('T', ' ')} (время Ташкента)?`))) return
+    setBusy(true); setNotice(''); setError('')
+    try {
+      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'schedule', destination, title, message, buttonText, buttonUrl, audience, mediaUrl, mediaType, mediaName, scheduledAt }) })
+      const d = await r.json()
+      if (!r.ok) setError(d.error || t('Kampaniyani rejalashtirib bo‘lmadi.', 'Не удалось запланировать кампанию.'))
+      else {
+        setNotice(d.message || t('Kampaniya rejalashtirildi.', 'Кампания запланирована.'))
+        void load()
+      }
+    } catch { setError(t('Rejalashtirishda server bilan aloqa xatosi.', 'Ошибка связи с сервером при планировании.')) }
+    finally { setBusy(false) }
+  }
+
+  async function cancelScheduledCampaign(campaignId: string) {
+    if (!window.confirm(t('Rejalashtirilgan kampaniyani bekor qilasizmi?', 'Отменить запланированную кампанию?'))) return
+    setBusy(true); setNotice(''); setError('')
+    try {
+      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', campaignId }) })
+      const d = await r.json()
+      if (!r.ok) setError(d.error || t('Kampaniyani bekor qilib bo‘lmadi.', 'Не удалось отменить кампанию.'))
+      else { setNotice(d.message || t('Kampaniya bekor qilindi.', 'Кампания отменена.')); void load() }
+    } catch { setError(t('Bekor qilishda server bilan aloqa xatosi.', 'Ошибка связи с сервером при отмене.')) }
     finally { setBusy(false) }
   }
 
@@ -209,7 +248,7 @@ export default function TelegramBroadcastPage() {
         <div className="mt-3 flex flex-wrap gap-2"><button disabled={aiBusy || !aiObjective.trim()} onClick={() => void runMarketingAi('generate')} className="rounded-xl bg-violet-600 px-4 py-2.5 font-bold text-white disabled:opacity-50">{aiBusy ? t('AI ishlayapti...', 'AI работает...') : t('✨ AI bilan yaratish', '✨ Создать с AI')}</button><button disabled={aiBusy || loading} onClick={() => void runMarketingAi('analyze')} className="rounded-xl border border-violet-300 px-4 py-2.5 font-bold text-violet-700 disabled:opacity-50">{t('📊 AI tahlil', '📊 AI-анализ')}</button></div>
         {aiError && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{aiError}</p>}
         {aiResult && <div className="mt-4 rounded-2xl bg-violet-50 p-4 text-sm">
-          {aiResult.task === 'generate' ? <><p className="font-black text-violet-900">{t('AI tavsiyalari', 'Рекомендации AI')}</p><p className="mt-2"><b>{t('Auditoriya:', 'Аудитория:')}</b> {audienceLabels[aiResult.recommendedAudience as Audience]?.[ru ? 'ru' : 'uz'] || aiResult.recommendedAudience}</p><p className="mt-1"><b>{t('Yuborish vaqti:', 'Время отправки:')}</b> {aiResult.recommendedTime}</p><p className="mt-1 text-slate-700">{aiResult.reasoning}</p></> : <><p className="font-black text-violet-900">{t('Kampaniya tahlili', 'Анализ кампаний')}</p><p className="mt-2">{aiResult.summary}</p><p className="mt-3 font-bold">{t('Kuzatuvlar', 'Наблюдения')}</p><ul className="mt-1 list-disc space-y-1 pl-5">{(aiResult.findings || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul><p className="mt-3 font-bold">{t('Tavsiyalar', 'Рекомендации')}</p><ul className="mt-1 list-disc space-y-1 pl-5">{(aiResult.recommendations || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul><p className="mt-2"><b>{t('Eng mos auditoriya:', 'Подходящая аудитория:')}</b> {audienceLabels[aiResult.bestAudience as Audience]?.[ru ? 'ru' : 'uz'] || aiResult.bestAudience}</p><p className="mt-1"><b>{t('Vaqt:', 'Время:')}</b> {aiResult.suggestedTime}</p><p className="mt-2 text-slate-600">{aiResult.limitations}</p></>}
+          {aiResult.task === 'generate' ? <><p className="font-black text-violet-900">{t('AI tavsiyalari', 'Рекомендации AI')}</p><p className="mt-2"><b>{t('Auditoriya:', 'Аудитория:')}</b> {audienceLabels[aiResult.recommendedAudience as Audience]?.[ru ? 'ru' : 'uz'] || aiResult.recommendedAudience}</p><p className="mt-1"><b>{t('Yuborish vaqti:', 'Время отправки:')}</b> {aiResult.recommendedTime}</p>{aiResult.recommendedAtLocal && <button type="button" onClick={() => setScheduledAt(aiResult.recommendedAtLocal)} className="mt-2 rounded-lg border border-violet-300 bg-white px-3 py-2 text-xs font-bold text-violet-800">{t('🕒 AI tavsiya qilgan vaqtni qo‘llash', '🕒 Применить время AI')}</button>}<p className="mt-1 text-slate-700">{aiResult.reasoning}</p></> : <><p className="font-black text-violet-900">{t('Kampaniya tahlili', 'Анализ кампаний')}</p><p className="mt-2">{aiResult.summary}</p><p className="mt-3 font-bold">{t('Kuzatuvlar', 'Наблюдения')}</p><ul className="mt-1 list-disc space-y-1 pl-5">{(aiResult.findings || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul><p className="mt-3 font-bold">{t('Tavsiyalar', 'Рекомендации')}</p><ul className="mt-1 list-disc space-y-1 pl-5">{(aiResult.recommendations || []).map((item: string, i: number) => <li key={i}>{item}</li>)}</ul><p className="mt-2"><b>{t('Eng mos auditoriya:', 'Подходящая аудитория:')}</b> {audienceLabels[aiResult.bestAudience as Audience]?.[ru ? 'ru' : 'uz'] || aiResult.bestAudience}</p><p className="mt-1"><b>{t('Vaqt:', 'Время:')}</b> {aiResult.suggestedTime}</p><p className="mt-2 text-slate-600">{aiResult.limitations}</p></>}
           <p className="mt-3 text-xs text-slate-500">{t('Tavsiyalar oxirgi 50 kampaniya va mavjud obunachi segmentlari asosida. Yuborilgan xabarlar soni ko‘rishlar yoki konversiya degani emas.', 'Рекомендации основаны на последних 50 кампаниях и доступных сегментах. Количество отправок не равно просмотрам или конверсиям.')}</p>
         </div>}
       </section>
@@ -219,6 +258,13 @@ export default function TelegramBroadcastPage() {
           <div><label className="text-sm font-bold">{t('Yuborish manzili', 'Куда отправить')}</label><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => setDestination('bot')} className={`rounded-xl border px-4 py-3 text-left ${destination === 'bot' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : ''}`}><b>🤖 {t('Bot', 'Бот')}</b><p className="mt-1 text-xs text-slate-500">{t('Obunachilarga shaxsiy xabar', 'Личные сообщения подписчикам')}</p></button><button type="button" onClick={() => setDestination('channel')} className={`rounded-xl border px-4 py-3 text-left ${destination === 'channel' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : ''}`}><b>📢 {t('Kanal', 'Канал')}</b><p className="mt-1 text-xs text-slate-500">@royal_house_uz</p></button></div></div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Sarlavha', 'Заголовок')} className="w-full rounded-xl border px-4 py-3"/>
           <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder={t('Xabar matni', 'Текст сообщения')} rows={8} className="w-full rounded-xl border px-4 py-3"/>
+
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+            <label htmlFor="telegram-scheduled-at" className="text-sm font-bold">{t('Yuborish vaqti', 'Время отправки')}</label>
+            <p className="mt-1 text-xs text-slate-600">{t('Hozir yuborish yoki quyida Toshkent vaqti bo‘yicha sana-vaqtni belgilab rejalashtirish mumkin.', 'Можно отправить сейчас или запланировать отправку по времени Ташкента.')}</p>
+            <input id="telegram-scheduled-at" type="datetime-local" value={scheduledAt} min={tashkentDateTimeInput(new Date(Date.now() + 2 * 60 * 1000))} onChange={e => setScheduledAt(e.target.value)} className="mt-3 w-full rounded-xl border bg-white px-4 py-3"/>
+            <p className="mt-2 text-xs text-slate-500">{t('Vaqt zonasi: Asia/Tashkent (UTC+5). Rejalashtirilgan kampaniya yuborilishidan oldin bekor qilinishi mumkin.', 'Часовой пояс: Asia/Tashkent (UTC+5). Кампанию можно отменить до начала отправки.')}</p>
+          </div>
 
           {destination === 'bot' && <div><label className="text-sm font-bold">{t('Auditoriya', 'Аудитория')}</label><div className="mt-2 grid gap-2 sm:grid-cols-2">{(Object.keys(audienceLabels) as Audience[]).map(key => <button key={key} type="button" onClick={() => setAudience(key)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left ${audience === key ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'bg-white'}`}><span className="font-bold">{ru ? audienceLabels[key].ru : audienceLabels[key].uz}</span><span className="ml-3 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{audienceCounts[key].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</span></button>)}</div></div>}
 
@@ -237,7 +283,7 @@ export default function TelegramBroadcastPage() {
           <div className="rounded-2xl border border-dashed p-4"><div className="flex flex-wrap items-center gap-3"><button type="button" disabled={mediaBusy} onClick={() => fileRef.current?.click()} className="rounded-xl border px-4 py-2 font-bold disabled:opacity-50">{mediaBusy ? t('Yuklanmoqda...', 'Загрузка...') : t('🖼️ Rasm / video qo‘shish', '🖼️ Добавить фото / видео')}</button><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadMedia(file) }}/>{mediaName && <span className="text-sm font-semibold text-slate-600">{mediaName}</span>}{mediaName && <button type="button" onClick={removeMedia} className="text-sm font-bold text-red-600">{t('Olib tashlash', 'Удалить')}</button>}</div><p className="mt-2 text-xs text-slate-500">{t('Rasm: 5 MB gacha. Video: 20 MB gacha. Telegram havola orqali media yuboradi.', 'Фото: до 5 МБ. Видео: до 20 МБ. Telegram отправляет медиа по ссылке.')}</p></div>
 
           <div className="grid gap-4 sm:grid-cols-2"><input value={buttonText} onChange={e => setButtonText(e.target.value)} placeholder={t('Tugma matni (ixtiyoriy)', 'Текст кнопки (необязательно)')} className="rounded-xl border px-4 py-3"/><input value={buttonUrl} onChange={e => setButtonUrl(e.target.value)} placeholder="https://royalhouse.uz/..." className="rounded-xl border px-4 py-3"/></div>
-          <div className="flex flex-wrap gap-3 pt-2"><button disabled={busy || mediaBusy || !selectedTestRecipient} onClick={() => void sendTest()} className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50">{t('🧪 Tanlangan mijozga test yuborish', '🧪 Отправить тест выбранному клиенту')}</button><button disabled={busy || mediaBusy} onClick={() => void sendBroadcast()} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{destination === 'channel' ? t('📢 Kanalga joylash', '📢 Опубликовать в канале') : t(`📨 ${audienceCounts[audience].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')} ta yuborish`, `📨 Отправить ${audienceCounts[audience].toLocaleString('ru-RU')}`)}</button></div>
+          <div className="flex flex-wrap gap-3 pt-2"><button disabled={busy || mediaBusy || !selectedTestRecipient} onClick={() => void sendTest()} className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50">{t('🧪 Tanlangan mijozga test yuborish', '🧪 Отправить тест выбранному клиенту')}</button><button disabled={busy || mediaBusy} onClick={() => void sendBroadcast()} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{destination === 'channel' ? t('📢 Hozir kanalga joylash', '📢 Опубликовать сейчас') : t(`📨 Hozir ${audienceCounts[audience].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')} ta yuborish`, `📨 Отправить сейчас: ${audienceCounts[audience].toLocaleString('ru-RU')}`)}</button><button disabled={busy || mediaBusy} onClick={() => void scheduleBroadcast()} className="rounded-xl bg-violet-600 px-5 py-3 font-bold text-white disabled:opacity-50">{t('🕒 Rejalashtirish', '🕒 Запланировать')}</button></div>
         </div></section>
 
         <aside className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Telegram preview', 'Предпросмотр Telegram')}</h2><div className="mt-5 overflow-hidden rounded-2xl border bg-slate-50"><div className="border-b bg-white px-4 py-3"><b>RoyalHouse</b><div className="text-xs text-slate-400">{destination === 'channel' ? '@royal_house_uz' : '@RoyalHouseUz_bot'}</div></div><div className="p-4">
@@ -247,7 +293,7 @@ export default function TelegramBroadcastPage() {
         </div></div></aside>
       </div>
 
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Kampaniyalar tarixi', 'История кампаний')}</h2>{loading ? <p className="mt-4 text-sm text-slate-500">{t('Yuklanmoqda...', 'Загрузка...')}</p> : !campaigns.length ? <p className="mt-4 text-sm text-slate-500">{t('Hozircha kampaniyalar yo‘q.', 'Кампаний пока нет.')}</p> : <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-slate-500"><th className="p-3">{t('Sarlavha', 'Заголовок')}</th><th className="p-3">{t('Manzil', 'Канал')}</th><th className="p-3">{t('Auditoriya', 'Аудитория')}</th><th className="p-3">{t('Media', 'Медиа')}</th><th className="p-3">{t('Status', 'Статус')}</th><th className="p-3">{t('Yuborildi', 'Отправлено')}</th><th className="p-3">{t('Xato', 'Ошибки')}</th></tr></thead><tbody>{campaigns.map(c => <tr key={c.id} className="border-b last:border-0"><td className="p-3 font-bold">{c.title}</td><td className="p-3">{c.destination === 'channel' ? '@royal_house_uz' : t('Bot', 'Бот')}</td><td className="p-3">{c.destination === 'channel' ? '—' : (ru ? audienceLabels[c.audience].ru : audienceLabels[c.audience].uz)}</td><td className="p-3">{c.media_type ? (c.media_type === 'image' ? '🖼️' : '🎥') : '—'}</td><td className="p-3">{c.status}</td><td className="p-3">{c.sent_count}</td><td className="p-3">{c.failed_count}</td></tr>)}</tbody></table></div>}</section>
+      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Kampaniyalar tarixi', 'История кампаний')}</h2>{loading ? <p className="mt-4 text-sm text-slate-500">{t('Yuklanmoqda...', 'Загрузка...')}</p> : !campaigns.length ? <p className="mt-4 text-sm text-slate-500">{t('Hozircha kampaniyalar yo‘q.', 'Кампаний пока нет.')}</p> : <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-slate-500"><th className="p-3">{t('Sarlavha', 'Заголовок')}</th><th className="p-3">{t('Manzil', 'Канал')}</th><th className="p-3">{t('Auditoriya', 'Аудитория')}</th><th className="p-3">{t('Media', 'Медиа')}</th><th className="p-3">{t('Status', 'Статус')}</th><th className="p-3">{t('Yuborildi', 'Отправлено')}</th><th className="p-3">{t('Xato', 'Ошибки')}</th><th className="p-3">{t('Amal', 'Действие')}</th></tr></thead><tbody>{campaigns.map(c => <tr key={c.id} className="border-b last:border-0"><td className="p-3 font-bold">{c.title}</td><td className="p-3">{c.destination === 'channel' ? '@royal_house_uz' : t('Bot', 'Бот')}</td><td className="p-3">{c.destination === 'channel' ? '—' : (ru ? audienceLabels[c.audience].ru : audienceLabels[c.audience].uz)}</td><td className="p-3">{c.media_type ? (c.media_type === 'image' ? '🖼️' : '🎥') : '—'}</td><td className="p-3">{c.status === 'queued' ? t('Kutilmoqda', 'Ожидает') : c.status === 'sending' ? t('Yuborilmoqda', 'Отправляется') : c.status === 'sent' ? t('Yuborildi', 'Отправлено') : c.status === 'failed' ? t('Xato', 'Ошибка') : c.status === 'cancelled' ? t('Bekor qilindi', 'Отменено') : c.status}</td><td className="p-3">{c.scheduled_at && c.status === 'queued' ? new Date(c.scheduled_at).toLocaleString(ru ? 'ru-RU' : 'uz-UZ', { timeZone: 'Asia/Tashkent' }) : c.sent_count}</td><td className="p-3">{c.failed_count}</td><td className="p-3">{c.status === 'queued' && <button type="button" disabled={busy} onClick={() => void cancelScheduledCampaign(c.id)} className="text-red-600 underline disabled:opacity-50">{t('Bekor qilish', 'Отменить')}</button>}</td></tr>)}</tbody></table></div>}</section>
     </div>
   </main>
 }
