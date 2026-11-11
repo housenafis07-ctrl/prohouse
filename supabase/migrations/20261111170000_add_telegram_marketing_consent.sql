@@ -1,21 +1,22 @@
 begin;
 
+-- Marketing eligibility is derived from the user's recorded acceptance of the
+-- current public offer. Existing consent rows are not backfilled: old users
+-- must accept the updated offer before becoming eligible.
+alter table public.offer_consents
+  add column if not exists marketing_consent boolean not null default false;
+
 alter table public.telegram_bot_users
-  add column if not exists marketing_opt_in boolean not null default false,
-  add column if not exists marketing_consent_at timestamptz,
-  add column if not exists marketing_consent_source text,
   add column if not exists marketing_topics text[] not null default array[]::text[],
   add column if not exists preferred_city text,
   add column if not exists preferred_district text;
 
-alter table public.telegram_bot_users
-  drop constraint if exists telegram_bot_users_marketing_consent_source_check;
-alter table public.telegram_bot_users
-  add constraint telegram_bot_users_marketing_consent_source_check
-  check (marketing_consent_source is null or marketing_consent_source in ('telegram_command','telegram_settings','admin_import'));
+create index if not exists offer_consents_marketing_user_idx
+  on public.offer_consents(user_id, offer_version)
+  where marketing_consent = true;
 
-create index if not exists telegram_bot_users_marketing_opt_in_idx
-  on public.telegram_bot_users(is_active, marketing_opt_in, last_interaction_at desc);
+create index if not exists telegram_bot_users_marketing_audience_idx
+  on public.telegram_bot_users(is_active, last_interaction_at desc);
 
 create or replace function public.get_telegram_broadcast_recipients(p_audience text)
 returns table(telegram_id text)
@@ -27,7 +28,12 @@ as $$
   from public.telegram_bot_users u
   left join public.profiles p on p.id = u.profile_id
   where u.is_active = true
-    and u.marketing_opt_in = true
+    and u.profile_id is not null
+    and exists (
+      select 1 from public.offer_consents oc
+      where oc.user_id = u.profile_id
+        and oc.marketing_consent = true
+    )
     and case p_audience
       when 'all' then true
       when 'buyers' then exists (select 1 from public.listing_leads ll where ll.visitor_id = u.profile_id)
@@ -58,7 +64,12 @@ as $$
   from audiences a
   left join public.telegram_bot_users u
     on u.is_active = true
-   and u.marketing_opt_in = true
+   and u.profile_id is not null
+   and exists (
+     select 1 from public.offer_consents oc
+     where oc.user_id = u.profile_id
+       and oc.marketing_consent = true
+   )
    and case a.audience
       when 'all' then true
       when 'buyers' then exists (select 1 from public.listing_leads ll where ll.visitor_id = u.profile_id)
