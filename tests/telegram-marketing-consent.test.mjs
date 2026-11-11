@@ -42,3 +42,26 @@ test('existing users must accept the current offer before becoming marketing-eli
   assert.ok(registration.includes('async function acceptCurrentOffer'))
   assert.ok(registration.includes(".eq('marketing_consent', true)"))
 })
+
+const adminTelegramPage = await readFile(new URL('../app/admin/telegram/page.tsx', import.meta.url), 'utf8')
+
+test('admin Telegram connect opens its popup synchronously before network awaits', () => {
+  const handler = adminTelegramPage.slice(adminTelegramPage.indexOf('async function connectTelegram'), adminTelegramPage.indexOf('async function uploadMedia'))
+  assert.ok(handler.indexOf("window.open('about:blank'") < handler.indexOf('await syncWebhook()'))
+  assert.match(handler, /telegramWindow\.location\.replace\(d\.url\)/)
+})
+
+test('Telegram webhook handles the one-time link start payload and requests the owner contact', () => {
+  assert.match(webhook, /payload\.startsWith\('link_'\)/)
+  assert.match(webhook, /createHash\('sha256'\)\.update\(rawToken\)/)
+  assert.match(webhook, /contact_requested_at/)
+  assert.match(webhook, /await requestTelegramPhone\(chatId\)/)
+})
+
+test('Telegram linking verifies the sender-owned contact against the profile phone and consumes the token', () => {
+  assert.match(webhook, /message\.contact\.user_id !== from\.id/)
+  assert.match(webhook, /contactPhone !== profilePhone/)
+  assert.match(webhook, /link_telegram_identity/)
+  assert.match(webhook, /update\(\{ used_at: new Date\(\)\.toISOString\(\) \}\)/)
+  assert.match(webhook, /verification_method: 'telegram_contact'/)
+})
