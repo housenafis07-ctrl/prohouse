@@ -237,7 +237,7 @@ export default function RegisterPage() {
         .select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('marketing_consent',true).maybeSingle()
       if(consentLookupError) throw consentLookupError
       if(!existingConsent){
-        const normalizedPhone=phone.replace(/\\s/g,'')
+        const normalizedPhone=phone.replace(/\s/g,'')
         const {error:consentError}=await supabase.from('offer_consents').insert({
           user_id:user.id,phone:normalizedPhone,offer_version:offer.version,marketing_consent:true,
         })
