@@ -53,20 +53,33 @@ export async function GET() {
   const { error: authError } = await requireAdmin('listings.moderate')
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
-  const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }, { data: eligibleCount, error: eligibleCountError }] = await Promise.all([
-    supabase.from('telegram_broadcast_campaigns').select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at,destination,recipient_count,delivered_count').order('created_at', { ascending: false }).limit(50),
+  const modern = await supabase.from('telegram_broadcast_campaigns')
+    .select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at,destination,recipient_count,delivered_count')
+    .order('created_at', { ascending: false }).limit(50)
+  const schemaReady = !modern.error
+  const legacy = schemaReady ? null : await supabase.from('telegram_broadcast_campaigns')
+    .select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at')
+    .order('created_at', { ascending: false }).limit(50)
+  const campaigns = schemaReady ? modern.data : legacy?.data
+  const campaignsError = schemaReady ? modern.error : legacy?.error
+  const [{ data: counts, error: countsError }, { data: eligibleCount, error: eligibleCountError }] = await Promise.all([
     supabase.rpc('get_telegram_broadcast_audience_counts'),
     supabase.rpc('get_telegram_marketing_eligible_count'),
   ])
   if (campaignsError) return NextResponse.json({ error: campaignsError.message }, { status: 500 })
   if (countsError) return NextResponse.json({ error: countsError.message }, { status: 500 })
-  if (eligibleCountError) return NextResponse.json({ error: eligibleCountError.message }, { status: 500 })
   const audienceCounts = Object.fromEntries((counts || []).map((row: { audience: string; count: number | string }) => [row.audience, Number(row.count)]))
-  const optedInCount = Number(eligibleCount || 0)
-  const totalSent = (campaigns || []).reduce((sum, item) => sum + Number(item.sent_count || 0), 0)
-  const totalFailed = (campaigns || []).reduce((sum, item) => sum + Number(item.failed_count || 0), 0)
-  const channelCampaigns = (campaigns || []).filter(item => item.destination === 'channel')
-  return NextResponse.json({ campaigns: campaigns || [], audienceCounts, stats: { optedInUsers: optedInCount, campaigns: (campaigns || []).length, sent: totalSent, failed: totalFailed, channelPosts: channelCampaigns.length, botCampaigns: (campaigns || []).filter(item => item.destination !== 'channel').length } })
+  const optedInCount = eligibleCountError ? 0 : Number(eligibleCount || 0)
+  const rows = (campaigns || []).map((item: any) => ({ ...item, destination: item.destination || 'bot' }))
+  const totalSent = rows.reduce((sum: number, item: any) => sum + Number(item.sent_count || 0), 0)
+  const totalFailed = rows.reduce((sum: number, item: any) => sum + Number(item.failed_count || 0), 0)
+  const channelCampaigns = rows.filter((item: any) => item.destination === 'channel')
+  return NextResponse.json({
+    campaigns: rows, audienceCounts,
+    schemaReady: schemaReady && !eligibleCountError,
+    schemaNotice: schemaReady && !eligibleCountError ? null : 'Marketing migratsiyalari ushbu Supabase bazasida hali qo‘llanmagan. Tarix ko‘rinadi, lekin ommaviy yuborish xavfsizlik uchun vaqtincha o‘chirilgan.',
+    stats: { optedInUsers: optedInCount, campaigns: rows.length, sent: totalSent, failed: totalFailed, channelPosts: channelCampaigns.length, botCampaigns: rows.filter((item: any) => item.destination !== 'channel').length },
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -106,6 +119,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (destination === 'bot' && !['all', 'buyers', 'listings', 'realtors', 'trusted'].includes(audience)) return NextResponse.json({ error: 'Noto‘g‘ri auditoriya.' }, { status: 400 })
+  const { data: marketingReady, error: marketingReadyError } = await supabase.rpc('get_telegram_marketing_eligible_count')
+  if (marketingReadyError) return NextResponse.json({ error: 'Marketing roziligi sxemasi hali bazaga qo‘llanmagan. Ommaviy yuborish bloklandi; test xabari ishlashi mumkin.' }, { status: 503 })
+  if (destination === 'channel') {
+    const { error: destinationSchemaError } = await supabase.from('telegram_broadcast_campaigns').select('destination').limit(1)
+    if (destinationSchemaError) return NextResponse.json({ error: 'Kanal kampaniyalari uchun database migratsiyasi hali qo‘llanmagan.' }, { status: 503 })
+  }
   const { data: campaign, error: campaignError } = await supabase.from('telegram_broadcast_campaigns').insert({ title, message, button_text: buttonText || null, button_url: buttonUrl || null, audience, destination, channel_chat_id: destination === 'channel' ? channelChatId : null, media_url: mediaUrl || null, media_type: mediaType, media_name: mediaName || null, status: 'sending' }).select('id').single()
   if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 })
 
