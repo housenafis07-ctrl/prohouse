@@ -98,7 +98,7 @@ returns bigint
 language sql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
   select count(distinct u.telegram_user_id)::bigint
   from public.telegram_bot_users u
   where u.is_active = true
@@ -108,7 +108,7 @@ as $
       where oc.user_id = u.profile_id
         and oc.marketing_consent = true
     );
-$;
+$$;
 
 revoke all on function public.get_telegram_marketing_eligible_count() from public, anon, authenticated;
 grant execute on function public.get_telegram_marketing_eligible_count() to service_role;
