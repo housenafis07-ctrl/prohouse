@@ -11,7 +11,7 @@ type Destination = 'bot' | 'channel'
 
 function parseTashkentDateTime(value: unknown): Date | null {
   const raw = String(value || '').trim()
-  if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(raw)) return null
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return null
   const parsed = new Date(raw + ':00+05:00')
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
