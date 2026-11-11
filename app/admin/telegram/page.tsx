@@ -179,7 +179,7 @@ export default function TelegramBroadcastPage() {
 
   async function scheduleBroadcast() {
     if (!title.trim() || !message.trim()) { setError(t('Sarlavha va xabar matnini kiriting.', 'Введите заголовок и текст сообщения.')); return }
-    if (buttonUrl && !/^https?:\\/\\//i.test(buttonUrl)) { setError(t('Tugma havolasi http:// yoki https:// bilan boshlanishi kerak.', 'Ссылка кнопки должна начинаться с http:// или https://.')); return }
+    if (buttonUrl && !/^https?:\/\//i.test(buttonUrl)) { setError(t('Tugma havolasi http:// yoki https:// bilan boshlanishi kerak.', 'Ссылка кнопки должна начинаться с http:// или https://.')); return }
     if (destination === 'bot' && !audienceCounts[audience]) { setError(t('Tanlangan auditoriyada hozircha foydalanuvchi yo‘q.', 'В выбранной аудитории пока нет пользователей.')); return }
     if (!scheduledAt) { setError(t('Yuborish sanasi va vaqtini tanlang.', 'Выберите дату и время отправки.')); return }
     if (!window.confirm(t(`“${title.trim()}” kampaniyasini ${scheduledAt.replace('T', ' ')} (Toshkent vaqti) uchun rejalashtirasizmi?`, `Запланировать кампанию “${title.trim()}” на ${scheduledAt.replace('T', ' ')} (время Ташкента)?`))) return
