@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
           .eq('token_hash', tokenHash).is('used_at', null)
           .gt('expires_at', new Date().toISOString()).maybeSingle()
         if (lookupError) throw lookupError
-        if (!linkToken || (linkToken.telegram_user_id && linkToken.telegram_user_id !== telegramUserId)) {
+        if (!linkToken) {
           await sendTelegramMessage(chatId, 'Ulanish havolasi yaroqsiz, muddati tugagan yoki boshqa Telegram akkauntiga biriktirilgan. Admin paneldan yangi havola oling.')
           return NextResponse.json({ ok: true })
         }
