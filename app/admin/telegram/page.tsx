@@ -7,7 +7,9 @@ import { createClient } from '@/utils/supabase/client'
 
 type Audience = 'all' | 'buyers' | 'listings' | 'realtors' | 'trusted'
 type MediaType = 'image' | 'video'
-type Campaign = { id: string; title: string; audience: Audience; status: string; sent_count: number; failed_count: number; media_url?: string | null; media_type?: MediaType | null; media_name?: string | null; created_at: string }
+type Destination = 'bot' | 'channel'
+type DashboardStats = { optedInUsers: number; campaigns: number; sent: number; failed: number; channelPosts: number; botCampaigns: number }
+type Campaign = { id: string; title: string; audience: Audience; destination?: Destination; status: string; sent_count: number; failed_count: number; media_url?: string | null; media_type?: MediaType | null; media_name?: string | null; created_at: string }
 type AudienceCounts = Record<Audience, number>
 
 const audienceLabels = {
@@ -29,6 +31,8 @@ export default function TelegramBroadcastPage() {
   const [buttonText, setButtonText] = useState('')
   const [buttonUrl, setButtonUrl] = useState('')
   const [audience, setAudience] = useState<Audience>('all')
+  const [destination, setDestination] = useState<Destination>('bot')
+  const [stats, setStats] = useState<DashboardStats>({ optedInUsers: 0, campaigns: 0, sent: 0, failed: 0, channelPosts: 0, botCampaigns: 0 })
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaType, setMediaType] = useState<MediaType | null>(null)
   const [mediaName, setMediaName] = useState('')
@@ -64,6 +68,7 @@ export default function TelegramBroadcastPage() {
       else {
         setCampaigns(d.campaigns || [])
         setAudienceCounts({ ...emptyCounts, ...(d.audienceCounts || {}) })
+        setStats({ optedInUsers: 0, campaigns: 0, sent: 0, failed: 0, channelPosts: 0, botCampaigns: 0, ...(d.stats || {}) })
       }
     } catch {
       setError(t('Telegram ma’lumotlarini yuklab bo‘lmadi.', 'Не удалось загрузить данные Telegram.'))
@@ -136,7 +141,7 @@ export default function TelegramBroadcastPage() {
     if (!title.trim() || !message.trim()) { setError(t('Avval sarlavha va xabar matnini kiriting.', 'Сначала введите заголовок и текст сообщения.')); return }
     setBusy(true); setNotice(''); setError('')
     try {
-      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test', title, message, buttonText, buttonUrl, mediaUrl, mediaType, mediaName }) })
+      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test', destination, title, message, buttonText, buttonUrl, mediaUrl, mediaType, mediaName }) })
       const d = await r.json()
       if (!r.ok) setError(d.error || t('Test yuborilmadi', 'Тест не отправлен'))
       else setNotice(d.message || t('Test xabari yuborildi.', 'Тестовое сообщение отправлено.'))
@@ -147,11 +152,11 @@ export default function TelegramBroadcastPage() {
   async function sendBroadcast() {
     if (!title.trim() || !message.trim()) { setError(t('Sarlavha va xabar matnini kiriting.', 'Введите заголовок и текст сообщения.')); return }
     if (buttonUrl && !/^https?:\/\//i.test(buttonUrl)) { setError(t('Tugma havolasi http:// yoki https:// bilan boshlanishi kerak.', 'Ссылка кнопки должна начинаться с http:// или https://.')); return }
-    if (!audienceCounts[audience]) { setError(t('Tanlangan auditoriyada hozircha foydalanuvchi yo‘q.', 'В выбранной аудитории пока нет пользователей.')); return }
-    if (!window.confirm(t(`“${title.trim()}” xabarini ${audienceCounts[audience].toLocaleString('uz-UZ')} ta foydalanuvchiga yuborishni tasdiqlaysizmi?`, `Подтвердить отправку сообщения ${audienceCounts[audience].toLocaleString('ru-RU')} пользователям?`))) return
+    if (destination === 'bot' && !audienceCounts[audience]) { setError(t('Tanlangan auditoriyada hozircha foydalanuvchi yo‘q.', 'В выбранной аудитории пока нет пользователей.')); return }
+    if (!window.confirm(destination === 'channel' ? t(`“${title.trim()}” xabarini @royal_house_uz kanaliga joylashni tasdiqlaysizmi?`, `Подтвердить публикацию “${title.trim()}” в канале @royal_house_uz?`) : t(`“${title.trim()}” xabarini ${audienceCounts[audience].toLocaleString('uz-UZ')} ta foydalanuvchiga yuborishni tasdiqlaysizmi?`, `Подтвердить отправку сообщения ${audienceCounts[audience].toLocaleString('ru-RU')} пользователям?`))) return
     setBusy(true); setNotice(''); setError('')
     try {
-      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'broadcast', title, message, buttonText, buttonUrl, audience, mediaUrl, mediaType, mediaName }) })
+      const r = await fetch('/api/admin/telegram/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'broadcast', destination, title, message, buttonText, buttonUrl, audience, mediaUrl, mediaType, mediaName }) })
       const d = await r.json()
       if (!r.ok) setError(d.error || t('Xabar yuborilmadi', 'Сообщение не отправлено'))
       else {
@@ -170,27 +175,37 @@ export default function TelegramBroadcastPage() {
 
       <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{t('Telegram ulanishi', 'Подключение Telegram')}</p><p className="mt-1 text-sm text-slate-500">{t('Test xabarini aynan o‘zingizning Telegram akkauntingizga yuborish uchun RoyalHouse profilingizni bot bilan bir marta ulang.', 'Чтобы тестовое сообщение пришло именно вам, один раз свяжите профиль RoyalHouse с ботом.')}</p></div><button disabled={linkBusy} onClick={() => void connectTelegram()} className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50">{linkBusy ? t('Ulanmoqda...', 'Подключение...') : t('✈️ Telegramni ulash', '✈️ Подключить Telegram')}</button></div></div>
 
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[
+        [t('Obunaga rozilik berganlar', 'Подписались на рассылку'), stats.optedInUsers],
+        [t('Jami kampaniyalar', 'Всего кампаний'), stats.campaigns],
+        [t('Muvaffaqiyatli yuborildi', 'Успешно отправлено'), stats.sent],
+        [t('Xatoliklar', 'Ошибки отправки'), stats.failed],
+        [t('Bot kampaniyalari', 'Кампании бота'), stats.botCampaigns],
+        [t('Kanal postlari', 'Публикации канала'), stats.channelPosts],
+      ].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black tabular-nums">{Number(value).toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</p></div>)}</section>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_420px]">
         <section className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Yangi xabar', 'Новое сообщение')}</h2><div className="mt-5 space-y-4">
+          <div><label className="text-sm font-bold">{t('Yuborish manzili', 'Куда отправить')}</label><div className="mt-2 grid grid-cols-2 gap-2"><button type="button" onClick={() => setDestination('bot')} className={`rounded-xl border px-4 py-3 text-left ${destination === 'bot' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : ''}`}><b>🤖 {t('Bot', 'Бот')}</b><p className="mt-1 text-xs text-slate-500">{t('Obunachilarga shaxsiy xabar', 'Личные сообщения подписчикам')}</p></button><button type="button" onClick={() => setDestination('channel')} className={`rounded-xl border px-4 py-3 text-left ${destination === 'channel' ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : ''}`}><b>📢 {t('Kanal', 'Канал')}</b><p className="mt-1 text-xs text-slate-500">@royal_house_uz</p></button></div></div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Sarlavha', 'Заголовок')} className="w-full rounded-xl border px-4 py-3"/>
           <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder={t('Xabar matni', 'Текст сообщения')} rows={8} className="w-full rounded-xl border px-4 py-3"/>
 
-          <div><label className="text-sm font-bold">{t('Auditoriya', 'Аудитория')}</label><div className="mt-2 grid gap-2 sm:grid-cols-2">{(Object.keys(audienceLabels) as Audience[]).map(key => <button key={key} type="button" onClick={() => setAudience(key)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left ${audience === key ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'bg-white'}`}><span className="font-bold">{ru ? audienceLabels[key].ru : audienceLabels[key].uz}</span><span className="ml-3 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{audienceCounts[key].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</span></button>)}</div></div>
+          {destination === 'bot' && <div><label className="text-sm font-bold">{t('Auditoriya', 'Аудитория')}</label><div className="mt-2 grid gap-2 sm:grid-cols-2">{(Object.keys(audienceLabels) as Audience[]).map(key => <button key={key} type="button" onClick={() => setAudience(key)} className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left ${audience === key ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'bg-white'}`}><span className="font-bold">{ru ? audienceLabels[key].ru : audienceLabels[key].uz}</span><span className="ml-3 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-600">{audienceCounts[key].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</span></button>)}</div></div>}
 
           <div className="rounded-2xl border border-dashed p-4"><div className="flex flex-wrap items-center gap-3"><button type="button" disabled={mediaBusy} onClick={() => fileRef.current?.click()} className="rounded-xl border px-4 py-2 font-bold disabled:opacity-50">{mediaBusy ? t('Yuklanmoqda...', 'Загрузка...') : t('🖼️ Rasm / video qo‘shish', '🖼️ Добавить фото / видео')}</button><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) void uploadMedia(file) }}/>{mediaName && <span className="text-sm font-semibold text-slate-600">{mediaName}</span>}{mediaName && <button type="button" onClick={removeMedia} className="text-sm font-bold text-red-600">{t('Olib tashlash', 'Удалить')}</button>}</div><p className="mt-2 text-xs text-slate-500">{t('Rasm: 5 MB gacha. Video: 20 MB gacha. Telegram havola orqali media yuboradi.', 'Фото: до 5 МБ. Видео: до 20 МБ. Telegram отправляет медиа по ссылке.')}</p></div>
 
           <div className="grid gap-4 sm:grid-cols-2"><input value={buttonText} onChange={e => setButtonText(e.target.value)} placeholder={t('Tugma matni (ixtiyoriy)', 'Текст кнопки (необязательно)')} className="rounded-xl border px-4 py-3"/><input value={buttonUrl} onChange={e => setButtonUrl(e.target.value)} placeholder="https://royalhouse.uz/..." className="rounded-xl border px-4 py-3"/></div>
-          <div className="flex flex-wrap gap-3 pt-2"><button disabled={busy || mediaBusy} onClick={() => void sendTest()} className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50">{t('🧪 Test yuborish', '🧪 Отправить тест')}</button><button disabled={busy || mediaBusy} onClick={() => void sendBroadcast()} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{t(`📨 ${audienceCounts[audience].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')} ta yuborish`, `📨 Отправить ${audienceCounts[audience].toLocaleString('ru-RU')}`)}</button></div>
+          <div className="flex flex-wrap gap-3 pt-2"><button disabled={busy || mediaBusy} onClick={() => void sendTest()} className="rounded-xl border px-5 py-3 font-bold disabled:opacity-50">{t('🧪 Test yuborish', '🧪 Отправить тест')}</button><button disabled={busy || mediaBusy} onClick={() => void sendBroadcast()} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{destination === 'channel' ? t('📢 Kanalga joylash', '📢 Опубликовать в канале') : t(`📨 ${audienceCounts[audience].toLocaleString(ru ? 'ru-RU' : 'uz-UZ')} ta yuborish`, `📨 Отправить ${audienceCounts[audience].toLocaleString('ru-RU')}`)}</button></div>
         </div></section>
 
-        <aside className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Telegram preview', 'Предпросмотр Telegram')}</h2><div className="mt-5 overflow-hidden rounded-2xl border bg-slate-50"><div className="border-b bg-white px-4 py-3"><b>RoyalHouse</b><div className="text-xs text-slate-400">@RoyalHouseUz_bot</div></div><div className="p-4">
+        <aside className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Telegram preview', 'Предпросмотр Telegram')}</h2><div className="mt-5 overflow-hidden rounded-2xl border bg-slate-50"><div className="border-b bg-white px-4 py-3"><b>RoyalHouse</b><div className="text-xs text-slate-400">{destination === 'channel' ? '@royal_house_uz' : '@RoyalHouseUz_bot'}</div></div><div className="p-4">
           {mediaUrl && mediaType === 'image' && <img src={mediaUrl} alt="" className="mb-4 max-h-72 w-full rounded-xl object-cover"/>}
           {mediaUrl && mediaType === 'video' && <video src={mediaUrl} controls className="mb-4 max-h-72 w-full rounded-xl"/>}
           <div className="whitespace-pre-wrap text-sm leading-6">{title ? <b>{title}{'\n\n'}</b> : ''}{message || t('Xabar shu yerda ko‘rinadi.', 'Здесь будет отображаться сообщение.')}</div>{buttonText && <button className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white">{buttonText}</button>}
         </div></div></aside>
       </div>
 
-      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Kampaniyalar tarixi', 'История кампаний')}</h2>{loading ? <p className="mt-4 text-sm text-slate-500">{t('Yuklanmoqda...', 'Загрузка...')}</p> : !campaigns.length ? <p className="mt-4 text-sm text-slate-500">{t('Hozircha kampaniyalar yo‘q.', 'Кампаний пока нет.')}</p> : <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-slate-500"><th className="p-3">{t('Sarlavha', 'Заголовок')}</th><th className="p-3">{t('Auditoriya', 'Аудитория')}</th><th className="p-3">{t('Media', 'Медиа')}</th><th className="p-3">{t('Status', 'Статус')}</th><th className="p-3">{t('Yuborildi', 'Отправлено')}</th><th className="p-3">{t('Xato', 'Ошибки')}</th></tr></thead><tbody>{campaigns.map(c => <tr key={c.id} className="border-b last:border-0"><td className="p-3 font-bold">{c.title}</td><td className="p-3">{ru ? audienceLabels[c.audience].ru : audienceLabels[c.audience].uz}</td><td className="p-3">{c.media_type ? (c.media_type === 'image' ? '🖼️' : '🎥') : '—'}</td><td className="p-3">{c.status}</td><td className="p-3">{c.sent_count}</td><td className="p-3">{c.failed_count}</td></tr>)}</tbody></table></div>}</section>
+      <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-black">{t('Kampaniyalar tarixi', 'История кампаний')}</h2>{loading ? <p className="mt-4 text-sm text-slate-500">{t('Yuklanmoqda...', 'Загрузка...')}</p> : !campaigns.length ? <p className="mt-4 text-sm text-slate-500">{t('Hozircha kampaniyalar yo‘q.', 'Кампаний пока нет.')}</p> : <div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-slate-500"><th className="p-3">{t('Sarlavha', 'Заголовок')}</th><th className="p-3">{t('Manzil', 'Канал')}</th><th className="p-3">{t('Auditoriya', 'Аудитория')}</th><th className="p-3">{t('Media', 'Медиа')}</th><th className="p-3">{t('Status', 'Статус')}</th><th className="p-3">{t('Yuborildi', 'Отправлено')}</th><th className="p-3">{t('Xato', 'Ошибки')}</th></tr></thead><tbody>{campaigns.map(c => <tr key={c.id} className="border-b last:border-0"><td className="p-3 font-bold">{c.title}</td><td className="p-3">{c.destination === 'channel' ? '@royal_house_uz' : t('Bot', 'Бот')}</td><td className="p-3">{c.destination === 'channel' ? '—' : (ru ? audienceLabels[c.audience].ru : audienceLabels[c.audience].uz)}</td><td className="p-3">{c.media_type ? (c.media_type === 'image' ? '🖼️' : '🎥') : '—'}</td><td className="p-3">{c.status}</td><td className="p-3">{c.sent_count}</td><td className="p-3">{c.failed_count}</td></tr>)}</tbody></table></div>}</section>
     </div>
   </main>
 }
