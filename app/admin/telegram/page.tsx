@@ -177,9 +177,9 @@ export default function TelegramBroadcastPage() {
 
       <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[
         [t('Obunaga rozilik berganlar', 'Подписались на рассылку'), stats.optedInUsers],
-        [t('Jami kampaniyalar', 'Всего кампаний'), stats.campaigns],
-        [t('Muvaffaqiyatli yuborildi', 'Успешно отправлено'), stats.sent],
-        [t('Xatoliklar', 'Ошибки отправки'), stats.failed],
+        [t('Oxirgi 50 kampaniya', 'Последние 50 кампаний'), stats.campaigns],
+        [t('Oxirgi 50 kampaniya: yuborildi', 'Последние 50 кампаний: отправлено'), stats.sent],
+        [t('Oxirgi 50 kampaniya: xato', 'Последние 50 кампаний: ошибки'), stats.failed],
         [t('Bot kampaniyalari', 'Кампании бота'), stats.botCampaigns],
         [t('Kanal postlari', 'Публикации канала'), stats.channelPosts],
       ].map(([label, value]) => <div key={String(label)} className="rounded-2xl border bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-black tabular-nums">{Number(value).toLocaleString(ru ? 'ru-RU' : 'uz-UZ')}</p></div>)}</section>
