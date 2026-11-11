@@ -1,7 +1,7 @@
 import { NextRequest,NextResponse } from 'next/server'
 import { requireAdmin,serviceClient } from '@/utils/admin/auth'
 export async function GET(){
- const {admin,error}=await requireAdmin()
+ const {admin,error}=await requireAdmin('developer_construction_media.manage')
  if(error||!admin)return NextResponse.json({error:error||'Unauthorized'},{status:error==='Forbidden'?403:401})
  const db=serviceClient()
  const {data,error:queryError}=await db.from('developer_construction_updates').select('id,complex_id,developer_id,media_type,public_url,caption,construction_stage,captured_at,created_at,is_visible,moderation_note').order('created_at',{ascending:false}).limit(200)
@@ -12,7 +12,7 @@ export async function GET(){
  return NextResponse.json({updates:(data||[]).map(x=>({...x,complex:map.get(x.complex_id)||null}))},{headers:{'Cache-Control':'no-store'}})
 }
 export async function PATCH(request:NextRequest){
- const {admin,error}=await requireAdmin()
+ const {admin,error}=await requireAdmin('developer_construction_media.manage')
  if(error||!admin)return NextResponse.json({error:error||'Unauthorized'},{status:error==='Forbidden'?403:401})
  const body=await request.json().catch(()=>null)
  const id=typeof body?.updateId==='string'?body.updateId:''
