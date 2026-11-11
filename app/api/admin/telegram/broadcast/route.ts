@@ -3,6 +3,7 @@ import { requireAdmin, serviceClient } from '@/utils/admin/auth'
 
 const TELEGRAM_API = 'https://api.telegram.org'
 const TELEGRAM_MEDIA_PREFIX = `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/telegram-media/`
+const MARKETING_CHANNEL_CHAT_ID = '-1004380733077'
 
 type Audience = 'all' | 'buyers' | 'listings' | 'realtors' | 'trusted'
 type MediaType = 'image' | 'video'
@@ -26,7 +27,9 @@ function validateMedia(mediaUrl: string, mediaType: string) {
   return mediaType as MediaType
 }
 
-function caption(title: string, message: string) { return `<b>${escapeHtml(title)}</b>\n\n${escapeHtml(message)}` }
+function caption(title: string, message: string) { return `<b>${escapeHtml(title)}</b>
+
+${escapeHtml(message)}` }
 
 async function sendCampaignMessage(chatId: string, title: string, message: string, buttonText: string, buttonUrl: string, mediaUrl: string, mediaType: MediaType | null) {
   const text = caption(title, message)
@@ -50,14 +53,20 @@ export async function GET() {
   const { error: authError } = await requireAdmin('listings.moderate')
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
-  const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }, { data: botUsers, error: botUsersError }] = await Promise.all([
-    supabase.from('telegram_broadcast_campaigns').select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at').order('created_at', { ascending: false }).limit(50),
+  const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }, { count: optedInUsers, error: botUsersError }] = await Promise.all([
+    supabase.from('telegram_broadcast_campaigns').select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at,destination,recipient_count,delivered_count').order('created_at', { ascending: false }).limit(50),
     supabase.rpc('get_telegram_broadcast_audience_counts'),
+    supabase.from('telegram_bot_users').select('telegram_user_id', { count: 'exact', head: true }).eq('is_active', true).eq('marketing_opt_in', true),
   ])
   if (campaignsError) return NextResponse.json({ error: campaignsError.message }, { status: 500 })
-  if (countsError) return NextResponse.json({ error: countsError.message }, { status: 500 })\n  if (botUsersError) return NextResponse.json({ error: botUsersError.message }, { status: 500 })
+  if (countsError) return NextResponse.json({ error: countsError.message }, { status: 500 })
+  if (botUsersError) return NextResponse.json({ error: botUsersError.message }, { status: 500 })
   const audienceCounts = Object.fromEntries((counts || []).map((row: { audience: string; count: number | string }) => [row.audience, Number(row.count)]))
-  const botOptIns = botUsers || []\n  const totalSent = (campaigns || []).reduce((sum, item) => sum + Number(item.sent_count || 0), 0)\n  const totalFailed = (campaigns || []).reduce((sum, item) => sum + Number(item.failed_count || 0), 0)\n  const channelCampaigns = (campaigns || []).filter(item => item.destination === 'channel')\n  return NextResponse.json({ campaigns: campaigns || [], audienceCounts, stats: { optedInUsers: botOptIns.length, campaigns: (campaigns || []).length, sent: totalSent, failed: totalFailed, channelPosts: channelCampaigns.length, botCampaigns: (campaigns || []).filter(item => item.destination !== 'channel').length } })
+  const optedInCount = optedInUsers || 0
+  const totalSent = (campaigns || []).reduce((sum, item) => sum + Number(item.sent_count || 0), 0)
+  const totalFailed = (campaigns || []).reduce((sum, item) => sum + Number(item.failed_count || 0), 0)
+  const channelCampaigns = (campaigns || []).filter(item => item.destination === 'channel')
+  return NextResponse.json({ campaigns: campaigns || [], audienceCounts, stats: { optedInUsers: optedInCount, campaigns: (campaigns || []).length, sent: totalSent, failed: totalFailed, channelPosts: channelCampaigns.length, botCampaigns: (campaigns || []).filter(item => item.destination !== 'channel').length } })
 }
 
 export async function POST(req: NextRequest) {
@@ -65,7 +74,11 @@ export async function POST(req: NextRequest) {
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
   const body = await req.json()
-  const action = body.action === 'test' ? 'test' : 'broadcast'\n  const destination = String(body.destination || 'bot') as Destination\n  if (!['bot', 'channel'].includes(destination)) return NextResponse.json({ error: 'Noto‘g‘ri yuborish manzili.' }, { status: 400 })\n  const channelChatId = process.env.TELEGRAM_MARKETING_CHANNEL_ID || ''\n  if (destination === 'channel' && !channelChatId) return NextResponse.json({ error: 'TELEGRAM_MARKETING_CHANNEL_ID server sozlamasida mavjud emas.' }, { status: 503 })
+  const action = body.action === 'test' ? 'test' : 'broadcast'
+  const destination = String(body.destination || 'bot') as Destination
+  if (!['bot', 'channel'].includes(destination)) return NextResponse.json({ error: 'Noto‘g‘ri yuborish manzili.' }, { status: 400 })
+  const channelChatId = MARKETING_CHANNEL_CHAT_ID
+  if (destination === 'channel' && !channelChatId) return NextResponse.json({ error: 'TELEGRAM_MARKETING_CHANNEL_ID server sozlamasida mavjud emas.' }, { status: 503 })
   const title = String(body.title || '').trim()
   const message = String(body.message || '').trim()
   const buttonText = String(body.buttonText || '').trim()
