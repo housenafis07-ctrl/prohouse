@@ -98,7 +98,7 @@ export default function TelegramBroadcastPage() {
       if (!telegramWindow) throw new Error(t('Brauzer yangi oynani blokladi. Telegram uchun popup ruxsatini yoqing.', 'Браузер заблокировал новое окно. Разрешите всплывающие окна для Telegram.'))
       const webhookReady = await syncWebhook()
       if (!webhookReady) throw new Error(t('Telegram webhook joriy serverga ulanmagan. Qayta urinib ko‘ring.', 'Telegram webhook не подключён к текущему серверу. Попробуйте ещё раз.'))
-      const r = await fetch('/api/account/telegram/link', { method: 'POST' })
+      const r = await fetch('/api/admin/telegram/link', { method: 'POST' })
       const d = await r.json()
       if (!r.ok || !d.url) throw new Error(d.error || t('Telegram ulash havolasini yaratib bo‘lmadi.', 'Не удалось создать ссылку для подключения Telegram.'))
       telegramWindow.location.replace(d.url)
