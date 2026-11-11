@@ -77,3 +77,46 @@ test('test delivery revalidates the selected Telegram user consent server-side',
   assert.match(testBlock, /sendCampaignMessage\(recipient\.chat_id/)
   assert.doesNotMatch(testBlock, /body\.chatId|body\.chat_id/)
 })
+
+
+const scheduledCampaignMigration = await readFile(new URL('../supabase/migrations/20261111190000_add_telegram_campaign_scheduling.sql', import.meta.url), 'utf8')
+const scheduledCampaignCron = await readFile(new URL('../app/api/cron/telegram-campaigns/route.ts', import.meta.url), 'utf8')
+const telegramBroadcastPage = await readFile(new URL('../app/admin/telegram/page.tsx', import.meta.url), 'utf8')
+const telegramAiRoute = await readFile(new URL('../app/api/admin/telegram/ai/route.ts', import.meta.url), 'utf8')
+const telegramBroadcastRoute = await readFile(new URL('../app/api/admin/telegram/broadcast/route.ts', import.meta.url), 'utf8')
+const vercelConfig = await readFile(new URL('../vercel.json', import.meta.url), 'utf8')
+
+test('scheduled campaigns use an atomic queued-to-sending claim and preserve a cancellable status', () => {
+  assert.match(scheduledCampaignMigration, /scheduled_at timestamptz/)
+  assert.match(scheduledCampaignMigration, /Asia\/Tashkent/)
+  assert.match(scheduledCampaignMigration, /for update skip locked/i)
+  assert.match(scheduledCampaignMigration, /status in \('queued', 'sending', 'sent', 'failed', 'cancelled'\)/)
+  assert.match(scheduledCampaignMigration, /grant execute on function public\.claim_due_telegram_broadcast_campaigns\(integer\) to service_role/)
+})
+
+test('admin can schedule a campaign in Tashkent time and cancel it before sending', () => {
+  assert.match(telegramBroadcastRoute, /parseTashkentDateTime/)
+  assert.match(telegramBroadcastRoute, /new Date\(raw \+ ':00\+05:00'\)/)
+  assert.match(telegramBroadcastRoute, /status: action === 'schedule' \? 'queued' : 'sending'/)
+  assert.match(telegramBroadcastRoute, /action === 'cancel'/)
+  assert.match(telegramBroadcastRoute, /\.eq\('status', 'queued'\)/)
+  assert.match(telegramBroadcastPage, /type="datetime-local"/)
+  assert.match(telegramBroadcastPage, /Asia\/Tashkent/)
+  assert.match(telegramBroadcastPage, /cancelScheduledCampaign/)
+})
+
+test('AI produces a machine-readable future Tashkent local time for the scheduler', () => {
+  assert.match(telegramAiRoute, /recommendedAtLocal/)
+  assert.match(telegramAiRoute, /nowTashkent/)
+  assert.match(telegramBroadcastPage, /setScheduledAt\(data\.result\.recommendedAtLocal\)/)
+  assert.match(telegramBroadcastPage, /Apply|AI tavsiya qilgan vaqtni qo‘llash/)
+})
+
+test('scheduled campaign dispatcher is protected and only processes atomically claimed due campaigns', () => {
+  assert.match(scheduledCampaignCron, /authorization.*Bearer/)
+  assert.match(scheduledCampaignCron, /claim_due_telegram_broadcast_campaigns/)
+  assert.match(scheduledCampaignCron, /get_telegram_broadcast_recipients/)
+  assert.match(scheduledCampaignCron, /telegram_broadcast_deliveries/)
+  assert.match(vercelConfig, /\* \* \* \* \*/)
+  assert.match(vercelConfig, /\/api\/cron\/telegram-campaigns/)
+})
