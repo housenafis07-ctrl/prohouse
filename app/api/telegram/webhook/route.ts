@@ -179,6 +179,26 @@ export async function POST(request: NextRequest) {
 
     }
 
+    if (text === '/subscribe' || text === '/unsubscribe') {
+      const admin = serviceClient()
+      const optedIn = text === '/subscribe'
+      const { error: preferenceError } = await admin.from('telegram_bot_users').update({
+        marketing_opt_in: optedIn,
+        marketing_consent_at: optedIn ? new Date().toISOString() : null,
+        marketing_consent_source: optedIn ? 'telegram_command' : null,
+        updated_at: new Date().toISOString(),
+      }).eq('telegram_user_id', telegramUserId)
+      if (preferenceError) {
+        console.error('[telegram/webhook] marketing preference update failed:', preferenceError)
+        await sendTelegramMessage(chatId, 'Sozlamani saqlashda xatolik yuz berdi. Keyinroq qayta urinib ko‘ring.')
+      } else if (optedIn) {
+        await sendTelegramMessage(chatId, '✅ RoyalHouse yangiliklari, yangi e’lonlar va maxsus takliflarini olishga roziligingiz saqlandi. Istalgan vaqtda /unsubscribe orqali to‘xtatishingiz mumkin.')
+      } else {
+        await sendTelegramMessage(chatId, '🔕 Marketing xabarlari o‘chirildi. Muhim xizmat xabarlari bundan mustasno.')
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
     const admin = serviceClient()
     const { error: supportError } = await admin.from('support_messages').insert({ name: name || null, subject: 'Telegram murojaati', message: text.slice(0, 5000), source: 'telegram', telegram_user_id: String(from?.id || chatId), telegram_username: from?.username ? '@' + from.username : null })
