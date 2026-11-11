@@ -90,20 +90,22 @@ export default function TelegramBroadcastPage() {
   }, [])
 
   async function connectTelegram() {
+    // Open synchronously inside the click handler; browsers block popups opened
+    // only after awaited network requests.
+    const telegramWindow = window.open('about:blank', '_blank')
     setLinkBusy(true); setNotice(''); setError('')
     try {
+      if (!telegramWindow) throw new Error(t('Brauzer yangi oynani blokladi. Telegram uchun popup ruxsatini yoqing.', 'Браузер заблокировал новое окно. Разрешите всплывающие окна для Telegram.'))
       const webhookReady = await syncWebhook()
-      if (!webhookReady) {
-        setError(t('Telegram webhook joriy serverga ulanmagan. Qayta urinib ko‘ring.', 'Telegram webhook не подключён к текущему серверу. Попробуйте ещё раз.'))
-        return
-      }
+      if (!webhookReady) throw new Error(t('Telegram webhook joriy serverga ulanmagan. Qayta urinib ko‘ring.', 'Telegram webhook не подключён к текущему серверу. Попробуйте ещё раз.'))
       const r = await fetch('/api/account/telegram/link', { method: 'POST' })
       const d = await r.json()
       if (!r.ok || !d.url) throw new Error(d.error || t('Telegram ulash havolasini yaratib bo‘lmadi.', 'Не удалось создать ссылку для подключения Telegram.'))
-      window.open(d.url, '_blank', 'noopener,noreferrer')
-      setNotice(t('Telegram oynasi ochildi. Bot ichida Start bosing.', 'Окно Telegram открыто. Нажмите Start в боте.'))
-      window.setTimeout(() => { void load() }, 2500)
+      telegramWindow.location.replace(d.url)
+      setNotice(t('Telegram ochildi. Bot ichida Start bosing, so‘ng o‘z telefon raqamingizni yuboring.', 'Telegram открыт. Нажмите Start в боте, затем отправьте свой номер телефона.'))
+      window.setTimeout(() => { void load() }, 5000)
     } catch (e) {
+      telegramWindow?.close()
       setError(e instanceof Error ? e.message : t('Telegram ulash havolasini yaratib bo‘lmadi.', 'Не удалось создать ссылку для подключения Telegram.'))
     } finally { setLinkBusy(false) }
   }
