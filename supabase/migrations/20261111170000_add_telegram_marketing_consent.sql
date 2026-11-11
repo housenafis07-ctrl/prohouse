@@ -93,4 +93,24 @@ grant execute on function public.get_telegram_broadcast_recipients(text) to serv
 revoke all on function public.get_telegram_broadcast_audience_counts() from public, anon, authenticated;
 grant execute on function public.get_telegram_broadcast_audience_counts() to service_role;
 
+create or replace function public.get_telegram_marketing_eligible_count()
+returns bigint
+language sql
+security definer
+set search_path = public, pg_temp
+as $
+  select count(distinct u.telegram_user_id)::bigint
+  from public.telegram_bot_users u
+  where u.is_active = true
+    and u.profile_id is not null
+    and exists (
+      select 1 from public.offer_consents oc
+      where oc.user_id = u.profile_id
+        and oc.marketing_consent = true
+    );
+$;
+
+revoke all on function public.get_telegram_marketing_eligible_count() from public, anon, authenticated;
+grant execute on function public.get_telegram_marketing_eligible_count() to service_role;
+
 commit;
