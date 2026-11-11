@@ -33,6 +33,6 @@ test('SMS OTP-only authentication remains unchanged', () => {
 })
 
 test('eligible-count SQL function uses a valid dollar-quoted body', () => {
-  assert.match(migration, /create or replace function public\\.get_telegram_marketing_eligible_count\\(\\)[\\s\\S]*?as \\\$\\\\?\\$/i)
-  assert.match(migration, /marketing_consent = true[\\s\\S]*?\\n\\$\\$;/)
+  assert.ok(migration.includes('create or replace function public.get_telegram_marketing_eligible_count()\\nreturns bigint\\nlanguage sql\\nsecurity definer\\nset search_path = public, pg_temp\\nas $$'))
+  assert.ok(migration.includes('\\n$$;\\n\\nrevoke all on function public.get_telegram_marketing_eligible_count()'))
 })
