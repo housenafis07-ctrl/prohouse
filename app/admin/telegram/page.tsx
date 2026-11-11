@@ -204,7 +204,7 @@ export default function TelegramBroadcastPage() {
       <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{t('Telegram ulanishi', 'Подключение Telegram')}</p><p className="mt-1 text-sm text-slate-500">{t('Test xabarini aynan o‘zingizning Telegram akkauntingizga yuborish uchun RoyalHouse profilingizni bot bilan bir marta ulang.', 'Чтобы тестовое сообщение пришло именно вам, один раз свяжите профиль RoyalHouse с ботом.')}</p></div><button disabled={linkBusy} onClick={() => void connectTelegram()} className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white disabled:opacity-50">{linkBusy ? t('Ulanmoqda...', 'Подключение...') : t('✈️ Telegramni ulash', '✈️ Подключить Telegram')}</button></div></div>
 
       <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[
-        [t('Obunaga rozilik berganlar', 'Подписались на рассылку'), stats.optedInUsers],
+        [t('Oferta asosida marketing xabari olish huquqiga ega', 'Право на маркетинговые сообщения по оферте'), stats.optedInUsers],
         [t('Oxirgi 50 kampaniya', 'Последние 50 кампаний'), stats.campaigns],
         [t('Oxirgi 50 kampaniya: yuborildi', 'Последние 50 кампаний: отправлено'), stats.sent],
         [t('Oxirgi 50 kampaniya: xato', 'Последние 50 кампаний: ошибки'), stats.failed],
