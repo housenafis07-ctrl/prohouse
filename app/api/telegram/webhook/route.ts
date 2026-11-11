@@ -1,6 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'node:crypto'
 import { serviceClient } from '@/utils/admin/auth'
 
 type TelegramUpdate = {
@@ -144,57 +143,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (message.contact) {
-      // This is account linking only, never sign-in or registration. Require
-      // the Telegram user's own contact and a short-lived token initiated by
-      // the authenticated RoyalHouse profile.
-      if (!from?.id || message.contact.user_id !== from.id) {
-        await sendTelegramMessage(chatId, 'Iltimos, faqat Telegram akkauntingizdagi “Telefon raqamimni yuborish” tugmasi orqali o‘z kontaktingizni yuboring.')
-        return NextResponse.json({ ok: true })
-      }
-      const admin = serviceClient()
-      const { data: pendingToken, error: tokenError } = await admin.from('telegram_link_tokens')
-        .select('token_hash,profile_id,expires_at')
-        .eq('telegram_user_id', telegramUserId)
-        .is('used_at', null)
-        .not('contact_requested_at', 'is', null)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1).maybeSingle()
-      if (tokenError) throw tokenError
-      if (!pendingToken) {
-        await sendTelegramMessage(chatId, 'Ulanish so‘rovi topilmadi yoki muddati tugagan. RoyalHouse admin sahifasidan “Telegramni ulash” tugmasini qayta bosing.')
-        return NextResponse.json({ ok: true })
-      }
-      const { data: profile, error: profileError } = await admin.from('profiles')
-        .select('phone').eq('id', pendingToken.profile_id).maybeSingle()
-      if (profileError) throw profileError
-      const contactPhone = normalizePhone(message.contact.phone_number)
-      const profilePhone = normalizePhone(profile?.phone)
-      if (!profilePhone || !contactPhone || contactPhone !== profilePhone) {
-        await sendTelegramMessage(chatId, 'Yuborilgan telefon raqami RoyalHouse profilingizdagi raqam bilan mos kelmadi. Profilingizdagi raqam bilan qayta urinib ko‘ring.')
-        return NextResponse.json({ ok: true })
-      }
-      // A verified Telegram-owned contact matching the OTP-authenticated
-      // profile phone is a linking proof; it does not create an app session.
-      const canonicalPhone = `+${contactPhone}`
-      const { error: claimError } = await admin.from('phone_verification_claims').upsert({
-        phone: canonicalPhone, verified_at: new Date().toISOString(), verification_method: 'telegram_contact',
-      }, { onConflict: 'phone' })
-      if (claimError) throw claimError
-      const { error: linkError } = await admin.rpc('link_telegram_identity', {
-        p_profile_id: pendingToken.profile_id,
-        p_telegram_user_id: telegramUserId,
-        p_chat_id: String(chatId),
-        p_telegram_username: from.username || null,
-        p_linked_at: new Date().toISOString(),
-      })
-      if (linkError) throw linkError
-      const { error: consumeError } = await admin.from('telegram_link_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('token_hash', pendingToken.token_hash).is('used_at', null)
-      if (consumeError) throw consumeError
-      await clearTelegramKeyboard(chatId)
-      await sendTelegramMessage(chatId, '✅ RoyalHouse profilingiz Telegram akkauntingizga muvaffaqiyatli ulandi. Endi admin panelidan test xabarini yuborishingiz mumkin.')
+      await sendTelegramMessage(chatId, '🔐 RoyalHouse akkauntiga kirish faqat telefon raqami va SMS OTP kodi orqali amalga oshiriladi. Telegram kontaktini yuborish orqali kirish yoki ro‘yxatdan o‘tish mumkin emas.')
       return NextResponse.json({ ok: true })
     }
 
@@ -245,79 +194,6 @@ export async function POST(request: NextRequest) {
             ],
           },
         })
-        return NextResponse.json({ ok: true })
-      }
-      if (payload.startsWith('link_')) {
-        const rawToken = payload.slice(5)
-        if (!/^[a-f0-9]{48}$/i.test(rawToken) || !from?.id || message.chat?.type !== 'private') {
-          await sendTelegramMessage(chatId, 'Telegram ulanish havolasi noto‘g‘ri yoki eskirgan. Admin paneldan qayta urinib ko‘ring.')
-          return NextResponse.json({ ok: true })
-        }
-        const tokenHash = createHash('sha256').update(rawToken).digest('hex')
-        const admin = serviceClient()
-        const { data: linkToken, error: lookupError } = await admin.from('telegram_link_tokens')
-          .select('token_hash,profile_id,auth_user_id,expires_at')
-          .eq('token_hash', tokenHash).is('used_at', null)
-          .gt('expires_at', new Date().toISOString()).maybeSingle()
-        if (lookupError) throw lookupError
-        if (!linkToken) {
-          await sendTelegramMessage(chatId, 'Ulanish havolasi yaroqsiz, muddati tugagan yoki boshqa Telegram akkauntiga biriktirilgan. Admin paneldan yangi havola oling.')
-          return NextResponse.json({ ok: true })
-        }
-
-        // Admin accounts are authorized by admin_roles and do not necessarily
-        // have customer profiles. Link their Telegram chat directly to auth.users.
-        if (linkToken.auth_user_id && !linkToken.profile_id) {
-          const { data: activeAdmin, error: adminError } = await admin.from('admin_roles')
-            .select('user_id').eq('user_id', linkToken.auth_user_id).eq('is_active', true).maybeSingle()
-          if (adminError) throw adminError
-          if (!activeAdmin) {
-            await sendTelegramMessage(chatId, 'Admin vakolati faol emas. RoyalHouse admin paneliga qayta kiring va yangi ulanish havolasi oling.')
-            return NextResponse.json({ ok: true })
-          }
-          const { data: existingByTelegram, error: telegramLookupError } = await admin.from('telegram_bot_users')
-            .select('auth_user_id,profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
-          if (telegramLookupError) throw telegramLookupError
-          if (existingByTelegram && (existingByTelegram.auth_user_id !== linkToken.auth_user_id || existingByTelegram.profile_id)) {
-            await sendTelegramMessage(chatId, 'Bu Telegram akkaunti boshqa RoyalHouse profiliga ulangan. Admin bilan bog‘laning.')
-            return NextResponse.json({ ok: true })
-          }
-          const { data: existingByAdmin, error: adminLookupError } = await admin.from('telegram_bot_users')
-            .select('telegram_user_id').eq('auth_user_id', linkToken.auth_user_id).maybeSingle()
-          if (adminLookupError) throw adminLookupError
-          if (existingByAdmin && existingByAdmin.telegram_user_id !== telegramUserId) {
-            await sendTelegramMessage(chatId, 'Bu admin akkauntiga boshqa Telegram akkaunti ulangan. Avval mavjud ulanishni bekor qilish kerak.')
-            return NextResponse.json({ ok: true })
-          }
-          const linkedAt = new Date().toISOString()
-          const { error: upsertError } = await admin.from('telegram_bot_users').upsert({
-            telegram_user_id: telegramUserId,
-            chat_id: String(chatId),
-            profile_id: null,
-            auth_user_id: linkToken.auth_user_id,
-            username: from.username || null,
-            first_name: from.first_name || null,
-            last_name: from.last_name || null,
-            language_code: from.language_code || null,
-            is_active: true,
-            blocked_at: null,
-            last_interaction_at: linkedAt,
-            updated_at: linkedAt,
-          }, { onConflict: 'telegram_user_id' })
-          if (upsertError) throw upsertError
-          const { error: consumeError } = await admin.from('telegram_link_tokens')
-            .update({ used_at: linkedAt }).eq('token_hash', tokenHash).is('used_at', null)
-          if (consumeError) throw consumeError
-          await sendTelegramMessage(chatId, '✅ RoyalHouse admin akkauntingiz Telegram bilan muvaffaqiyatli ulandi. Endi admin panelidan test xabarini yuborishingiz mumkin.')
-          return NextResponse.json({ ok: true })
-        }
-
-        // Customer linking continues to require the user's own verified contact.
-        const { error: requestError } = await admin.from('telegram_link_tokens')
-          .update({ telegram_user_id: telegramUserId, contact_requested_at: new Date().toISOString() })
-          .eq('token_hash', tokenHash).is('used_at', null)
-        if (requestError) throw requestError
-        await requestTelegramPhone(chatId)
         return NextResponse.json({ ok: true })
       }
       if (payload.startsWith('share_')) { const listingId = payload.slice(6); if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(listingId)) { await sendTelegramMessage(chatId, 'E’lon ulashish havolasi noto‘g‘ri.'); return NextResponse.json({ ok: true }) }; await sendListingShare(chatId, listingId); return NextResponse.json({ ok: true }) }
