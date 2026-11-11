@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
   const body = await req.json()
-  const action = body.action === 'test' ? 'test' : 'broadcast'
+  const action = body.action === 'test' || body.action === 'test_client' ? 'test_client' : 'broadcast'
   const destination = String(body.destination || 'bot') as Destination
   if (!['bot', 'channel'].includes(destination)) return NextResponse.json({ error: 'Noto‘g‘ri yuborish manzili.' }, { status: 400 })
   const channelChatId = MARKETING_CHANNEL_CHAT_ID
@@ -104,18 +104,37 @@ export async function POST(req: NextRequest) {
   if (buttonUrl && !/^https?:\/\//i.test(buttonUrl)) return NextResponse.json({ error: 'Noto‘g‘ri tugma URL manzili.' }, { status: 400 })
   try { mediaType = validateMedia(mediaUrl, String(body.mediaType || '')) } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Media xatosi.' }, { status: 400 }) }
 
-  if (action === 'test') {
-    const { data: botUser, error: botUserError } = await supabase.from('telegram_bot_users').select('chat_id,telegram_user_id').eq('auth_user_id', admin!.user.id).eq('is_active', true).maybeSingle()
-    if (botUserError) return NextResponse.json({ error: botUserError.message }, { status: 500 })
-    let chatId = botUser?.chat_id || null
-    if (!chatId) {
-      const { data: linkedTelegram, error: linkedTelegramError } = await supabase.from('telegram_user_links').select('chat_id').eq('profile_id', admin!.user.id).maybeSingle()
-      if (linkedTelegramError) return NextResponse.json({ error: linkedTelegramError.message }, { status: 500 })
-      chatId = linkedTelegram?.chat_id || null
+  if (action === 'test_client') {
+    const recipientTelegramId = String(body.recipientTelegramId || '').trim()
+    if (!recipientTelegramId || !/^\\d{5,20}$/.test(recipientTelegramId)) {
+      return NextResponse.json({ error: 'Test uchun mijozni tanlang.' }, { status: 400 })
     }
-    if (!chatId) return NextResponse.json({ error: 'Admin Telegram akkaunti hali ulanmagan. Avval “Telegramni ulash” tugmasini bosing, keyin @RoyalHouseUz_bot ichida Start bosing.' }, { status: 400 })
-    await sendCampaignMessage(chatId, title, message, buttonText, buttonUrl, mediaUrl, mediaType)
-    return NextResponse.json({ message: 'Test xabari yuborildi.' })
+
+    // Re-check consent server-side; never trust a recipient ID supplied by the browser.
+    const { data: eligible, error: eligibilityError } = await supabase.rpc('get_telegram_broadcast_recipients', { p_audience: 'all' })
+    if (eligibilityError) return NextResponse.json({ error: 'Marketing roziligi tekshiruvini bajarib bo‘lmadi. Migratsiya qo‘llanganini tekshiring.' }, { status: 503 })
+    const isEligible = (eligible || []).some((row: { telegram_id: string }) => String(row.telegram_id) === recipientTelegramId)
+    if (!isEligible) return NextResponse.json({ error: 'Tanlangan mijoz faol emas yoki marketing xabarlariga rozilik bermagan.' }, { status: 403 })
+
+    const { data: recipient, error: recipientError } = await supabase.from('telegram_bot_users')
+      .select('telegram_user_id,chat_id')
+      .eq('telegram_user_id', recipientTelegramId)
+      .eq('is_active', true)
+      .not('profile_id', 'is', null)
+      .maybeSingle()
+    if (recipientError) return NextResponse.json({ error: recipientError.message }, { status: 500 })
+    if (!recipient?.chat_id) return NextResponse.json({ error: 'Tanlangan mijozning faol Telegram chat ID topilmadi.' }, { status: 404 })
+
+    try {
+      await sendCampaignMessage(recipient.chat_id, title, message, buttonText, buttonUrl, mediaUrl, mediaType)
+      return NextResponse.json({ message: 'Test xabari tanlangan mijozga yuborildi.', recipientTelegramId })
+    } catch (error) {
+      const errorText = error instanceof Error ? error.message : 'Telegram API xatosi'
+      if (/blocked|chat not found|user is deactivated/i.test(errorText)) {
+        await supabase.from('telegram_bot_users').update({ is_active: false, blocked_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('telegram_user_id', recipientTelegramId)
+      }
+      return NextResponse.json({ error: errorText }, { status: 502 })
+    }
   }
 
   if (destination === 'bot' && !['all', 'buyers', 'listings', 'realtors', 'trusted'].includes(audience)) return NextResponse.json({ error: 'Noto‘g‘ri auditoriya.' }, { status: 400 })
