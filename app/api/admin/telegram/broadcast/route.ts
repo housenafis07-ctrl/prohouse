@@ -53,16 +53,16 @@ export async function GET() {
   const { error: authError } = await requireAdmin('listings.moderate')
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   const supabase = serviceClient()
-  const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }, { count: optedInUsers, error: botUsersError }] = await Promise.all([
+  const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }, { data: eligibleCount, error: eligibleCountError }] = await Promise.all([
     supabase.from('telegram_broadcast_campaigns').select('id,title,audience,status,sent_count,failed_count,media_url,media_type,media_name,created_at,destination,recipient_count,delivered_count').order('created_at', { ascending: false }).limit(50),
     supabase.rpc('get_telegram_broadcast_audience_counts'),
-    supabase.from('telegram_bot_users').select('telegram_user_id', { count: 'exact', head: true }).eq('is_active', true).eq('marketing_opt_in', true),
+    supabase.rpc('get_telegram_marketing_eligible_count'),
   ])
   if (campaignsError) return NextResponse.json({ error: campaignsError.message }, { status: 500 })
   if (countsError) return NextResponse.json({ error: countsError.message }, { status: 500 })
-  if (botUsersError) return NextResponse.json({ error: botUsersError.message }, { status: 500 })
+  if (eligibleCountError) return NextResponse.json({ error: eligibleCountError.message }, { status: 500 })
   const audienceCounts = Object.fromEntries((counts || []).map((row: { audience: string; count: number | string }) => [row.audience, Number(row.count)]))
-  const optedInCount = optedInUsers || 0
+  const optedInCount = Number(eligibleCount || 0)
   const totalSent = (campaigns || []).reduce((sum, item) => sum + Number(item.sent_count || 0), 0)
   const totalFailed = (campaigns || []).reduce((sum, item) => sum + Number(item.failed_count || 0), 0)
   const channelCampaigns = (campaigns || []).filter(item => item.destination === 'channel')
