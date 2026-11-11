@@ -122,4 +122,4 @@ test('scheduled campaign dispatcher is protected and only processes atomically c
   assert.match(scheduledCampaignMigration, /vault\.decrypted_secrets/)
   assert.match(scheduledCampaignMigration, /telegram_campaign_cron_secret/)
   assert.doesNotMatch(vercelConfig, /telegram-campaigns/)
-}))
+})
