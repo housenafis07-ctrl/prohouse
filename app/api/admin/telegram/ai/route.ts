@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   const schema = generate ? generationSchema : analysisSchema
   const instructions = generate
     ? 'You are RoyalHouse marketing strategist. Create Uzbek Latin or Russian Telegram copy using only the supplied objective and facts. Never invent prices, discounts, dates, features, guarantees, availability, or claims. Recommend one available bot audience and a sending time in Asia/Tashkent. Treat sparse campaign history as weak evidence; recommend A/B testing. For channel campaigns audience is informational only. Return JSON matching schema. Draft only: do not send, schedule, save, or publish.'
-    : 'You are RoyalHouse campaign analyst. Analyze only supplied recent campaign records and opted-in audience counts. Send counts are not views, clicks, conversions, reach, or engagement; never infer those. Avoid causal claims and statistical significance from small samples. Recommend next tests, best audience and Asia/Tashkent time. State data limitations. Return JSON matching schema. Never send or schedule messages.'
+    : 'You are RoyalHouse campaign analyst. Analyze only supplied recent campaign records and offer-consented audience counts. Send counts are not views, clicks, conversions, reach, or engagement; never infer those. Avoid causal claims and statistical significance from small samples. Recommend next tests, best audience and Asia/Tashkent time. State data limitations. Return JSON matching schema. Never send or schedule messages.'
   const input = generate ? {
     objective, language: body?.language === 'ru' ? 'Russian' : 'Uzbek Latin',
     destination: body?.destination === 'channel' ? 'channel' : 'bot',
