@@ -65,3 +65,13 @@ test('Telegram linking verifies the sender-owned contact against the profile pho
   assert.match(webhook, /update\(\{ used_at: new Date\(\)\.toISOString\(\) \}\)/)
   assert.match(webhook, /verification_method: 'telegram_contact'/)
 })
+
+const adminTelegramLinkRoute = await readFile(new URL('../app/api/admin/telegram/link/route.ts', import.meta.url), 'utf8')
+
+test('admin Telegram linking uses admin authorization rather than the customer account cookie', () => {
+  assert.match(adminTelegramLinkRoute, /requireAdmin\('listings\.moderate'\)/)
+  assert.match(adminTelegramLinkRoute, /\.from\('profiles'\).*\.eq\('id', admin\.user\.id\)/s)
+  assert.match(adminTelegramLinkRoute, /\.from\('telegram_link_tokens'\)\.insert/)
+  assert.doesNotMatch(adminTelegramLinkRoute, /readAccountSession|ACCOUNT_SESSION_COOKIE/)
+  assert.match(adminTelegramPage, /fetch\('\/api\/admin\/telegram\/link'/)
+})
