@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
   const destination = String(body.destination || 'bot') as Destination
   if (!['bot', 'channel'].includes(destination)) return NextResponse.json({ error: 'Noto‘g‘ri yuborish manzili.' }, { status: 400 })
   const channelChatId = MARKETING_CHANNEL_CHAT_ID
-  if (destination === 'channel' && !channelChatId) return NextResponse.json({ error: 'TELEGRAM_MARKETING_CHANNEL_ID server sozlamasida mavjud emas.' }, { status: 503 })
   const title = String(body.title || '').trim()
   const message = String(body.message || '').trim()
   const buttonText = String(body.buttonText || '').trim()
@@ -137,6 +136,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (destination === 'channel' && !channelChatId) return NextResponse.json({ error: 'TELEGRAM_MARKETING_CHANNEL_ID server sozlamasida mavjud emas.' }, { status: 503 })
   if (destination === 'bot' && !['all', 'buyers', 'listings', 'realtors', 'trusted'].includes(audience)) return NextResponse.json({ error: 'Noto‘g‘ri auditoriya.' }, { status: 400 })
   const { data: marketingReady, error: marketingReadyError } = await supabase.rpc('get_telegram_marketing_eligible_count')
   if (marketingReadyError) return NextResponse.json({ error: 'Marketing roziligi sxemasi hali bazaga qo‘llanmagan. Ommaviy yuborish bloklandi; test xabari ishlashi mumkin.' }, { status: 503 })
