@@ -26,7 +26,7 @@ export async function GET() {
     .select('telegram_user_id,profile_id,username,first_name,last_name,last_interaction_at')
     .eq('is_active', true)
     .not('profile_id', 'is', null)
-    .in('telegram_user_id', telegramIds)
+    .in('telegram_user_id', telegramIds.slice(0, 100))
     .order('last_interaction_at', { ascending: false })
   if (usersError) return NextResponse.json({ error: usersError.message }, { status: 500 })
 
