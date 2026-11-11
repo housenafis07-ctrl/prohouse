@@ -36,3 +36,9 @@ test('eligible-count SQL function uses a valid dollar-quoted body', () => {
   assert.ok(migration.includes('create or replace function public.get_telegram_marketing_eligible_count()\nreturns bigint\nlanguage sql\nsecurity definer\nset search_path = public, pg_temp\nas $$'))
   assert.ok(migration.includes('\n$$;\n\nrevoke all on function public.get_telegram_marketing_eligible_count()'))
 })
+
+test('existing users must accept the current offer before becoming marketing-eligible', () => {
+  assert.match(registration, /setOfferAcceptanceOnly\\(true\\)/)
+  assert.match(registration, /async function acceptCurrentOffer/)
+  assert.match(registration, /marketing_consent, true/)
+})
