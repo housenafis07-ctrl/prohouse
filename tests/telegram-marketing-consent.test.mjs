@@ -81,6 +81,8 @@ test('admin Telegram link token does not require a customer profile or phone OTP
   assert.match(adminTelegramLinkRoute, /auth_user_id: admin\.user\.id/)
   assert.doesNotMatch(adminTelegramLinkRoute, /ADMIN_PROFILE_PHONE_REQUIRED|\.from\('profiles'\)/)
   assert.match(webhook, /if \(linkToken\.auth_user_id && !linkToken\.profile_id\)/)
+  assert.match(webhook, /\.select\('token_hash,profile_id,auth_user_id,expires_at'\)/)
+  assert.doesNotMatch(webhook.slice(webhook.indexOf("if (payload.startsWith('link_'))"), webhook.indexOf("if (payload.startsWith('share_'))")), /linkToken\.telegram_user_id/)
   assert.match(webhook, /\.from\('admin_roles'\)/)
   assert.match(webhook, /\.from\('telegram_bot_users'\)\.upsert/)
   assert.match(webhook, /auth_user_id: linkToken\.auth_user_id/)
