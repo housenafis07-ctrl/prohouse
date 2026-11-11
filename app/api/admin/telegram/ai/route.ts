@@ -48,10 +48,15 @@ export async function POST(request: NextRequest) {
   if (task === 'generate' && !objective) return NextResponse.json({ error: 'Reklama maqsadini kiriting.' }, { status: 400 })
 
   const db = serviceClient()
-  const [{ data: campaigns, error: campaignsError }, { data: counts, error: countsError }] = await Promise.all([
-    db.from('telegram_broadcast_campaigns').select('title,audience,destination,status,sent_count,failed_count,recipient_count,created_at').order('created_at', { ascending: false }).limit(50),
-    db.rpc('get_telegram_broadcast_audience_counts'),
-  ])
+  const modern = await db.from('telegram_broadcast_campaigns')
+    .select('title,audience,destination,status,sent_count,failed_count,recipient_count,created_at')
+    .order('created_at', { ascending: false }).limit(50)
+  const legacy = modern.error ? await db.from('telegram_broadcast_campaigns')
+    .select('title,audience,status,sent_count,failed_count,created_at')
+    .order('created_at', { ascending: false }).limit(50) : null
+  const campaigns = modern.error ? legacy?.data : modern.data
+  const campaignsError = modern.error ? legacy?.error : modern.error
+  const { data: counts, error: countsError } = await db.rpc('get_telegram_broadcast_audience_counts')
   if (campaignsError || countsError) return NextResponse.json({ error: 'Kampaniya statistikasini yuklab bo‘lmadi.' }, { status: 500 })
   const audienceCounts = Object.fromEntries((counts || []).map((row: any) => [row.audience, Number(row.count)]))
   const history = (campaigns || []).map((row: any) => ({
@@ -59,6 +64,7 @@ export async function POST(request: NextRequest) {
     sent: Number(row.sent_count || 0), failed: Number(row.failed_count || 0), recipients: Number(row.recipient_count || 0),
     tashkentTime: row.created_at ? new Date(row.created_at).toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' }) : null,
   }))
+
   const generate = task === 'generate'
   const schema = generate ? generationSchema : analysisSchema
   const instructions = generate
