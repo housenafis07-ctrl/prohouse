@@ -44,47 +44,35 @@ test('existing users must accept the current offer before becoming marketing-eli
 })
 
 const adminTelegramPage = await readFile(new URL('../app/admin/telegram/page.tsx', import.meta.url), 'utf8')
+const testRecipientsRoute = await readFile(new URL('../app/api/admin/telegram/test-recipients/route.ts', import.meta.url), 'utf8')
+const broadcastRoute = await readFile(new URL('../app/api/admin/telegram/broadcast/route.ts', import.meta.url), 'utf8')
 
-test('admin Telegram connect opens its popup synchronously before network awaits', () => {
-  const handler = adminTelegramPage.slice(adminTelegramPage.indexOf('async function connectTelegram'), adminTelegramPage.indexOf('async function uploadMedia'))
-  assert.ok(handler.indexOf("window.open('about:blank'") < handler.indexOf('await syncWebhook()'))
-  assert.match(handler, /telegramWindow\.location\.replace\(d\.url\)/)
+test('admin marketing page offers a selected opted-in customer for test delivery', () => {
+  assert.match(adminTelegramPage, /fetch\('\/api\/admin\/telegram\/test-recipients'/)
+  assert.match(adminTelegramPage, /telegram-test-recipient/)
+  assert.match(adminTelegramPage, /selectedTestRecipient/)
+  assert.match(adminTelegramPage, /action: 'test_client'/)
+  assert.match(adminTelegramPage, /recipientTelegramId: selectedTestRecipient/)
+  assert.doesNotMatch(adminTelegramPage, /Telegram ulanishi/)
+  assert.doesNotMatch(adminTelegramPage, /async function connectTelegram/)
 })
 
-test('Telegram webhook handles the one-time link start payload and requests the owner contact', () => {
-  assert.match(webhook, /payload\.startsWith\('link_'\)/)
-  assert.match(webhook, /createHash\('sha256'\)\.update\(rawToken\)/)
-  assert.match(webhook, /contact_requested_at/)
-  assert.match(webhook, /await requestTelegramPhone\(chatId\)/)
+test('test recipient list is admin-only and only exposes recipients returned by the consent eligibility RPC', () => {
+  assert.match(testRecipientsRoute, /requireAdmin\('listings\.moderate'\)/)
+  assert.match(testRecipientsRoute, /get_telegram_broadcast_recipients/)
+  assert.match(testRecipientsRoute, /\.eq\('is_active', true\)/)
+  assert.match(testRecipientsRoute, /\.not\('profile_id', 'is', null\)/)
+  assert.match(testRecipientsRoute, /maskedPhone/)
+  assert.doesNotMatch(testRecipientsRoute, /service_role|SUPABASE_SERVICE_ROLE_KEY/)
 })
 
-test('Telegram linking verifies the sender-owned contact against the profile phone and consumes the token', () => {
-  assert.match(webhook, /message\.contact\.user_id !== from\.id/)
-  assert.match(webhook, /contactPhone !== profilePhone/)
-  assert.match(webhook, /link_telegram_identity/)
-  assert.match(webhook, /update\(\{ used_at: new Date\(\)\.toISOString\(\) \}\)/)
-  assert.match(webhook, /verification_method: 'telegram_contact'/)
-})
-
-const adminTelegramLinkRoute = await readFile(new URL('../app/api/admin/telegram/link/route.ts', import.meta.url), 'utf8')
-
-test('admin Telegram linking uses admin authorization rather than the customer account cookie', () => {
-  assert.match(adminTelegramLinkRoute, /requireAdmin\('listings\.moderate'\)/)
-  assert.match(adminTelegramLinkRoute, /requireAdmin\('listings\.moderate'\)/)
-  assert.match(adminTelegramLinkRoute, /\.from\('telegram_link_tokens'\)\.insert/)
-  assert.doesNotMatch(adminTelegramLinkRoute, /readAccountSession|ACCOUNT_SESSION_COOKIE/)
-  assert.match(adminTelegramPage, /fetch\('\/api\/admin\/telegram\/link'/)
-})
-
-test('admin Telegram link token does not require a customer profile or phone OTP', () => {
-  assert.match(adminTelegramLinkRoute, /profile_id: null/)
-  assert.match(adminTelegramLinkRoute, /auth_user_id: admin\.user\.id/)
-  assert.doesNotMatch(adminTelegramLinkRoute, /ADMIN_PROFILE_PHONE_REQUIRED|\.from\('profiles'\)/)
-  assert.match(webhook, /if \(linkToken\.auth_user_id && !linkToken\.profile_id\)/)
-  assert.match(webhook, /\.select\('token_hash,profile_id,auth_user_id,expires_at'\)/)
-  assert.doesNotMatch(webhook.slice(webhook.indexOf("if (payload.startsWith('link_'))"), webhook.indexOf("if (payload.startsWith('share_'))")), /linkToken\.telegram_user_id/)
-  assert.match(webhook, /\.from\('admin_roles'\)/)
-  assert.match(webhook, /\.from\('telegram_bot_users'\)\.upsert/)
-  assert.match(webhook, /auth_user_id: linkToken\.auth_user_id/)
-  assert.match(webhook, /Endi admin panelidan test xabarini yuborishingiz mumkin/)
+test('test delivery revalidates the selected Telegram user consent server-side', () => {
+  const testBlock = broadcastRoute.slice(broadcastRoute.indexOf("if (action === 'test_client')"), broadcastRoute.indexOf("if (destination === 'bot' && !['all'"))
+  assert.match(testBlock, /get_telegram_broadcast_recipients/)
+  assert.match(testBlock, /eligible.*some/)
+  assert.match(testBlock, /\.eq\('telegram_user_id', recipientTelegramId\)/)
+  assert.match(testBlock, /\.eq\('is_active', true\)/)
+  assert.match(testBlock, /\.not\('profile_id', 'is', null\)/)
+  assert.match(testBlock, /sendCampaignMessage\(recipient\.chat_id/)
+  assert.doesNotMatch(testBlock, /body\.chatId|body\.chat_id/)
 })
