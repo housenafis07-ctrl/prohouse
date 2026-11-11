@@ -22,8 +22,9 @@ test('broadcast recipient counts and delivery share the same offer-consent rule'
 })
 
 test('no separate Telegram subscribe command is required', () => {
-  assert.doesNotMatch(webhook, /text === '\/subscribe' \|\| text === '\/unsubscribe'/)
   assert.doesNotMatch(webhook, /\/subscribe/)
+  assert.match(webhook, /text === '\/unsubscribe'/)
+  assert.match(webhook, /update\(\{ marketing_consent: false \}\)/)
 })
 
 test('SMS OTP-only authentication remains unchanged', () => {
