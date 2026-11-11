@@ -11,7 +11,7 @@ export async function GET(){
  const {data:signed,error:signedError}=paths.length?await db.storage.from('developer-construction-media').createSignedUrls(paths,300):{data:[],error:null}
  if(signedError)return NextResponse.json({error:'CONSTRUCTION_MEDIA_SIGNING_FAILED'},{status:502})
  const signedByPath=new Map((signed||[]).map(item=>[item.path,item.signedUrl]))
- const updates=rows.map(({storage_path,...item}:any)=>({...item,public_url:signedByPath.get(storage_path)||null})).filter((item:any)=>item.public_url)
+ const updates=rows.map(({storage_path,...item}:any)=>({...item,public_url:signedByPath.get(storage_path)||''})).filter((item:any)=>item.public_url)
  const ids=[...new Set(rows.map(x=>x.complex_id))]
  const {data:complexes}=ids.length?await db.from('residential_complexes').select('id,name,city').in('id',ids):{data:[]}
  const map=new Map((complexes||[]).map(x=>[x.id,x]))
