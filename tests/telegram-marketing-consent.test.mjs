@@ -75,3 +75,14 @@ test('admin Telegram linking uses admin authorization rather than the customer a
   assert.doesNotMatch(adminTelegramLinkRoute, /readAccountSession|ACCOUNT_SESSION_COOKIE/)
   assert.match(adminTelegramPage, /fetch\('\/api\/admin\/telegram\/link'/)
 })
+
+test('admin Telegram link token does not require a customer profile or phone OTP', () => {
+  assert.match(adminTelegramLinkRoute, /profile_id: null/)
+  assert.match(adminTelegramLinkRoute, /auth_user_id: admin\.user\.id/)
+  assert.doesNotMatch(adminTelegramLinkRoute, /ADMIN_PROFILE_PHONE_REQUIRED|\.from\('profiles'\)/)
+  assert.match(webhook, /if \(linkToken\.auth_user_id && !linkToken\.profile_id\)/)
+  assert.match(webhook, /\.from\('admin_roles'\)/)
+  assert.match(webhook, /\.from\('telegram_bot_users'\)\.upsert/)
+  assert.match(webhook, /auth_user_id: linkToken\.auth_user_id/)
+  assert.match(webhook, /Endi admin panelidan test xabarini yuborishingiz mumkin/)
+})
