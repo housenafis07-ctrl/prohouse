@@ -149,6 +149,30 @@ export async function POST(request: NextRequest) {
     }
 
     if (!text) return NextResponse.json({ ok: true })
+
+    // Marketing consent can be withdrawn at any time. There is no separate
+    // subscribe command: eligibility is created only by accepting the public offer.
+    if (text === '/unsubscribe') {
+      const admin = serviceClient()
+      const { data: link, error: linkError } = await admin.from('telegram_user_links')
+        .select('profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
+      if (linkError) {
+        console.error('[telegram/webhook] consent withdrawal link lookup failed:', linkError)
+        await sendTelegramMessage(chatId, 'Sozlamani yangilashda xatolik yuz berdi. Keyinroq qayta urinib ko‘ring.')
+      } else if (link?.profile_id) {
+        const { error: consentError } = await admin.from('offer_consents')
+          .update({ marketing_consent: false }).eq('user_id', link.profile_id)
+        if (consentError) {
+          console.error('[telegram/webhook] consent withdrawal failed:', consentError)
+          await sendTelegramMessage(chatId, 'Rozilikni bekor qilishda xatolik yuz berdi. Operatorga murojaat qiling.')
+        } else {
+          await sendTelegramMessage(chatId, '🔕 Marketing xabarlari uchun rozilik bekor qilindi. Xizmatga oid zarur bildirishnomalar bundan mustasno.')
+        }
+      } else {
+        await sendTelegramMessage(chatId, 'Telegram akkauntingiz RoyalHouse profilingizga ulanmagan. Sozlamani hisobingiz orqali boshqaring.')
+      }
+      return NextResponse.json({ ok: true })
+    }
     if (text.startsWith('/start')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (!payload) {
