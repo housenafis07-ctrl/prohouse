@@ -420,7 +420,7 @@ export default function SmartListingWizard(){
     {success&&<div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
    </div>
   </section>
-  <div className="fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:static sm:mt-5 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0 sm:shadow-none sm:backdrop-blur-0" style={{bottom:keyboardInset+'px'}} role="group" aria-label="E’lon joylashtirish boshqaruvlari">
+  <div className="fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:static sm:mt-5 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0 sm:shadow-none sm:backdrop-blur-0" style={{bottom:keyboardInset>0?keyboardInset+'px':'calc(5rem + env(safe-area-inset-bottom))'}} role="group" aria-label="E’lon joylashtirish boshqaruvlari">
    <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 border-slate-100 sm:border-t sm:pt-4">
     <button onClick={back} disabled={question===0||busy||verified||phoneOtpVerified} className="min-h-11 rounded-xl border px-5 py-3 text-sm font-bold disabled:opacity-40">Orqaga</button>
     <div className="flex flex-wrap gap-2">
