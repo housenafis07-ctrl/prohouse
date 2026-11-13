@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { canManageAssignments, getDeveloperCrmContext } from '@/lib/developer/crm-access'
+import { getDeveloperCrmContext } from '@/lib/developer/crm-access'
 
 export async function GET(request: Request) {
   const ctx = await getDeveloperCrmContext()
