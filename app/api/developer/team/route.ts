@@ -8,7 +8,8 @@ export async function GET() {
     .select('id,user_id,role,status,invited_at,joined_at,created_at')
     .eq('developer_id', ctx.developer.id).order('created_at', { ascending: true })
   if (error) return NextResponse.json({ error: 'TEAM_LOAD_FAILED' }, { status: 500 })
-  const ids = (members || []).map(item => item.user_id)
+  const visibleMembers = ctx.role === 'sales_agent' ? (members || []).filter(item => item.user_id === ctx.userId) : (members || [])
+  const ids = visibleMembers.map(item => item.user_id)
   const { data: profiles, error: profileError } = ids.length
     ? await ctx.db.from('profiles').select('id,phone,full_name').in('id', ids)
     : { data: [], error: null }
@@ -16,7 +17,7 @@ export async function GET() {
   const profileById = new Map((profiles || []).map(item => [item.id, item]))
   return NextResponse.json({
     role: ctx.role,
-    members: (members || []).map(item => ({ ...item, profile: profileById.get(item.user_id) || null })),
+    members: visibleMembers.map(item => ({ ...item, profile: profileById.get(item.user_id) || null })),
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
