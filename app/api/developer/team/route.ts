@@ -56,13 +56,12 @@ export async function PATCH(request: Request) {
   const role = typeof body?.role === 'string' ? body.role : ''
   const status = typeof body?.status === 'string' ? body.status : ''
   const allowedRoles = ['admin', 'sales_manager', 'sales_agent', 'marketing', 'analyst']
-  if (!userId || (!allowedRoles.includes(role) && !['active','suspended'].includes(status))) {
+  if (!userId || (!allowedRoles.includes(role) && status !== 'suspended')) {
     return NextResponse.json({ error: 'INVALID_TEAM_UPDATE' }, { status: 400 })
   }
   const update: Record<string, string> = {}
   if (allowedRoles.includes(role)) update.role = role
-  if (status === 'active' || status === 'suspended') update.status = status
-  if (status === 'active') update.joined_at = new Date().toISOString()
+  if (status === 'suspended') update.status = status
   const { data, error } = await ctx.db.from('developer_team_members').update(update)
     .eq('developer_id', ctx.developer.id).eq('user_id', userId)
     .select('id,user_id,role,status').maybeSingle()
