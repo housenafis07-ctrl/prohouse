@@ -59,6 +59,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const ctx = await getDeveloperCrmContext()
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.error === 'AUTH_REQUIRED' ? 401 : 403 })
+  if (!['owner','admin','sales_manager','sales_agent'].includes(ctx.role)) return NextResponse.json({ error: 'TASKS_FORBIDDEN' }, { status: 403 })
   const body = await request.json().catch(() => null)
   const id = typeof body?.id === 'string' ? body.id : ''
   const status = typeof body?.status === 'string' ? body.status : ''
