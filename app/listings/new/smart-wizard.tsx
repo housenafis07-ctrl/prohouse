@@ -205,7 +205,7 @@ export default function SmartListingWizard(){
   }
   const onFocusIn=(event:FocusEvent)=>{
    const target=event.target
-   if(!(target instanceof HTMLElement)||!target.matches('input,textarea,select,[contenteditable="true"]'))return
+   if(!(target instanceof HTMLElement)||!wizardRef.current?.contains(target)||!target.matches('input,textarea,select,[contenteditable="true"]'))return
    window.setTimeout(()=>{
     updateKeyboardInset()
     target.scrollIntoView({block:'center',behavior:'smooth'})
@@ -214,12 +214,11 @@ export default function SmartListingWizard(){
   updateKeyboardInset()
   viewport?.addEventListener('resize',updateKeyboardInset)
   viewport?.addEventListener('scroll',updateKeyboardInset)
-  const wizard=wizardRef.current
-  wizard?.addEventListener('focusin',onFocusIn)
+  document.addEventListener('focusin',onFocusIn)
   return ()=>{
    viewport?.removeEventListener('resize',updateKeyboardInset)
    viewport?.removeEventListener('scroll',updateKeyboardInset)
-   wizard?.removeEventListener('focusin',onFocusIn)
+   document.removeEventListener('focusin',onFocusIn)
   }
  },[])
  useEffect(()=>{if(resendCountdown<=0)return;const timer=window.setTimeout(()=>setResendCountdown(value=>Math.max(0,value-1)),1000);return ()=>window.clearTimeout(timer)},[resendCountdown])
