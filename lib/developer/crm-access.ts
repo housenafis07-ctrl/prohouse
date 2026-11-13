@@ -12,33 +12,48 @@ export async function getDeveloperCrmContext() {
 
   const db = serviceClient()
   const { data: account, error: accountError } = await db.from('profiles')
-    .select('id,account_type').eq('id', userId).maybeSingle()
+    .select('id').eq('id', userId).maybeSingle()
   if (accountError) return { error: 'ACCOUNT_LOOKUP_FAILED' as const }
-  if (!account || account.account_type !== 'partner') return { error: 'PARTNER_ACCOUNT_REQUIRED' as const }
+  if (!account) return { error: 'ACCOUNT_NOT_FOUND' as const }
 
   const { data: partner, error: partnerError } = await db.from('partner_profiles')
     .select('id,user_id').eq('user_id', userId).maybeSingle()
   if (partnerError) return { error: 'PARTNER_PROFILE_LOOKUP_FAILED' as const }
-  if (!partner) return { error: 'PARTNER_PROFILE_REQUIRED' as const }
 
+  if (partner) {
+    const { data: ownedDeveloper, error } = await db.from('developer_profiles')
+      .select('id,user_id,developer_name,verification_status,partner_profile_id')
+      .eq('partner_profile_id', partner.id).maybeSingle()
+    if (error) return { error: 'DEVELOPER_PROFILE_LOOKUP_FAILED' as const }
+    if (ownedDeveloper && ownedDeveloper.verification_status === 'verified'
+      && (!ownedDeveloper.user_id || ownedDeveloper.user_id === userId)) {
+      return { db, userId, developer: ownedDeveloper, role: 'owner' as DeveloperCrmRole }
+    }
+    if (ownedDeveloper && ownedDeveloper.user_id && ownedDeveloper.user_id !== userId) {
+      const { data: membership, error: memberError } = await db.from('developer_team_members')
+        .select('role,status').eq('developer_id', ownedDeveloper.id).eq('user_id', userId).maybeSingle()
+      if (memberError) return { error: 'TEAM_MEMBERSHIP_LOOKUP_FAILED' as const }
+      if (ownedDeveloper.verification_status === 'verified' && membership?.status === 'active'
+        && roles.includes(membership.role as DeveloperCrmRole)) {
+        return { db, userId, developer: ownedDeveloper, role: membership.role as DeveloperCrmRole }
+      }
+    }
+  }
+
+  // Staff accounts may be ordinary individual accounts, not partner accounts.
+  const { data: memberships, error: membershipsError } = await db.from('developer_team_members')
+    .select('developer_id,role,status').eq('user_id', userId).eq('status', 'active')
+  if (membershipsError) return { error: 'TEAM_MEMBERSHIP_LOOKUP_FAILED' as const }
+  const validMemberships = (memberships || []).filter(item => roles.includes(item.role as DeveloperCrmRole))
+  if (!validMemberships.length) return { error: 'DEVELOPER_PROFILE_ACCESS_DENIED' as const }
+  if (validMemberships.length > 1) return { error: 'DEVELOPER_COMPANY_SELECTION_REQUIRED' as const }
+
+  const membership = validMemberships[0]
   const { data: developer, error: developerError } = await db.from('developer_profiles')
     .select('id,user_id,developer_name,verification_status,partner_profile_id')
-    .eq('partner_profile_id', partner.id).maybeSingle()
+    .eq('id', membership.developer_id).maybeSingle()
   if (developerError) return { error: 'DEVELOPER_PROFILE_LOOKUP_FAILED' as const }
-  if (!developer) return { error: 'DEVELOPER_PROFILE_REQUIRED' as const }
-  if (developer.verification_status !== 'verified') return { error: 'DEVELOPER_NOT_APPROVED' as const }
-
-  // The partner-profile owner is the company owner for existing single-owner accounts.
-  if (!developer.user_id || developer.user_id === userId) {
-    return { db, userId, developer, role: 'owner' as DeveloperCrmRole }
-  }
-
-  const { data: membership, error: membershipError } = await db.from('developer_team_members')
-    .select('role,status').eq('developer_id', developer.id).eq('user_id', userId).maybeSingle()
-  if (membershipError) return { error: 'TEAM_MEMBERSHIP_LOOKUP_FAILED' as const }
-  if (!membership || membership.status !== 'active' || !roles.includes(membership.role as DeveloperCrmRole)) {
-    return { error: 'DEVELOPER_PROFILE_ACCESS_DENIED' as const }
-  }
+  if (!developer || developer.verification_status !== 'verified') return { error: 'DEVELOPER_NOT_APPROVED' as const }
   return { db, userId, developer, role: membership.role as DeveloperCrmRole }
 }
 
