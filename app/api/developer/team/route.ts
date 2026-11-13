@@ -4,6 +4,7 @@ import { canManageTeam, getDeveloperCrmContext } from '@/lib/developer/crm-acces
 export async function GET() {
   const ctx = await getDeveloperCrmContext()
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.error === 'AUTH_REQUIRED' ? 401 : 403 })
+  if (!['owner','admin','sales_manager','sales_agent'].includes(ctx.role)) return NextResponse.json({ error: 'TEAM_DIRECTORY_FORBIDDEN' }, { status: 403 })
   const { data: members, error } = await ctx.db.from('developer_team_members')
     .select('id,user_id,role,status,invited_at,joined_at,created_at')
     .eq('developer_id', ctx.developer.id).order('created_at', { ascending: true })
