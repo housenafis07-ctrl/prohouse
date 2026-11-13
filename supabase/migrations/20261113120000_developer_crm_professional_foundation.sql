@@ -134,3 +134,63 @@ comment on table public.developer_team_members is 'Company-scoped developer empl
 comment on table public.developer_lead_assignments is 'Immutable assignment history for developer CRM leads; one current assignment per lead.';
 comment on table public.developer_tasks is 'Follow-up tasks and reminders owned by a developer company.';
 comment on table public.developer_appointments is 'Developer sales-office meetings and apartment viewings.';
+
+-- Keep the current assignee and the assignment audit trail in one transaction.
+create or replace function public.assign_developer_lead(
+  p_developer_id uuid,
+  p_lead_id uuid,
+  p_assigned_to uuid,
+  p_assigned_by uuid,
+  p_reason text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_lead_id uuid;
+  v_owner_user_id uuid;
+begin
+  select l.id into v_lead_id
+  from public.developer_lead_requests l
+  where l.id = p_lead_id and l.developer_id = p_developer_id
+  for update;
+  if v_lead_id is null then
+    raise exception 'LEAD_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  select d.user_id into v_owner_user_id
+  from public.developer_profiles d where d.id = p_developer_id;
+
+  if p_assigned_to is not null and p_assigned_to is distinct from v_owner_user_id
+     and not exists (
+       select 1 from public.developer_team_members m
+       where m.developer_id = p_developer_id
+         and m.user_id = p_assigned_to and m.status = 'active'
+     ) then
+    raise exception 'ASSIGNEE_NOT_ACTIVE' using errcode = '23514';
+  end if;
+
+  update public.developer_lead_assignments
+  set unassigned_at = now()
+  where developer_id = p_developer_id and lead_id = p_lead_id and unassigned_at is null;
+
+  update public.developer_lead_requests
+  set assigned_to = p_assigned_to,
+      updated_by = p_assigned_by,
+      updated_at = now()
+  where id = p_lead_id and developer_id = p_developer_id;
+
+  if p_assigned_to is not null then
+    insert into public.developer_lead_assignments(
+      developer_id, lead_id, assigned_to, assigned_by, assignment_reason
+    ) values (p_developer_id, p_lead_id, p_assigned_to, p_assigned_by, nullif(left(p_reason, 500), ''));
+  end if;
+
+  return p_lead_id;
+end;
+$$;
+
+revoke all on function public.assign_developer_lead(uuid, uuid, uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.assign_developer_lead(uuid, uuid, uuid, uuid, text) to service_role;
