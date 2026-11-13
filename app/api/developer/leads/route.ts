@@ -40,22 +40,23 @@ async function getDeveloperContext() {
 }
 
 export async function GET() {
-  const context = await getDeveloperContext()
-  if ('error' in context) return context.error
-  const { data, error } = await context.db.from('developer_lead_requests')
-    .select('id,name,phone,message,status,created_at,complex_id,unit_id')
-    .eq('developer_id', context.developer.id)
-    .order('created_at', { ascending: false })
+  const context = await getDeveloperCrmContext()
+  if ('error' in context) return NextResponse.json({ error: context.error }, { status: context.error === 'AUTH_REQUIRED' ? 401 : 403 })
+  if (!['owner','admin','sales_manager','sales_agent'].includes(context.role)) {
+    return NextResponse.json({ error: 'LEADS_FORBIDDEN' }, { status: 403 })
+  }
+  let query = context.db.from('developer_lead_requests')
+    .select('id,name,phone,message,status,created_at,complex_id,unit_id,assigned_to,priority,next_follow_up_at,lost_reason,last_contacted_at')
+    .eq('developer_id', context.developer.id).order('created_at', { ascending: false })
+  if (context.role === 'sales_agent') query = query.eq('assigned_to', context.userId)
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: 'DEVELOPER_LEADS_LOAD_FAILED' }, { status: 500 })
   const leads = data || []
   const complexIds = [...new Set(leads.map((lead: any) => lead.complex_id).filter((id: unknown): id is string => typeof id === 'string'))]
   let complexById = new Map<string, { name: string; slug: string; city: string; district: string | null; is_verified: boolean }>()
   if (complexIds.length) {
-    const { data: complexes, error: complexesError } = await context.db
-      .from('residential_complexes')
-      .select('id,name,slug,city,district,is_verified')
-      .eq('developer_id', context.developer.id)
-      .in('id', complexIds)
+    const { data: complexes, error: complexesError } = await context.db.from('residential_complexes')
+      .select('id,name,slug,city,district,is_verified').eq('developer_id', context.developer.id).in('id', complexIds)
     if (complexesError) return NextResponse.json({ error: 'LEAD_COMPLEX_DETAILS_LOAD_FAILED' }, { status: 500 })
     complexById = new Map((complexes || []).map((complex: any) => [complex.id, complex]))
   }
@@ -63,8 +64,7 @@ export async function GET() {
   const buildingById = new Map<string, { name: string; building_no: string | null }>()
   if (ownedComplexIds.length) {
     const { data: buildings, error: buildingsError } = await context.db.from('residential_buildings')
-      .select('id,complex_id,name,building_no')
-      .in('complex_id', ownedComplexIds)
+      .select('id,complex_id,name,building_no').in('complex_id', ownedComplexIds)
     if (buildingsError) return NextResponse.json({ error: 'LEAD_BUILDING_DETAILS_LOAD_FAILED' }, { status: 500 })
     for (const building of buildings || []) buildingById.set(building.id, building)
   }
@@ -78,30 +78,76 @@ export async function GET() {
     if (unitsError) return NextResponse.json({ error: 'LEAD_UNIT_DETAILS_LOAD_FAILED' }, { status: 500 })
     for (const unit of units || []) unitById.set(unit.id, { ...unit, building: buildingById.get(unit.building_id) || null })
   }
+  const assigneeIds = [...new Set(leads.map((lead: any) => lead.assigned_to).filter((id: unknown): id is string => typeof id === 'string'))]
+  const { data: assignees, error: assigneeError } = assigneeIds.length
+    ? await context.db.from('profiles').select('id,full_name,phone').in('id', assigneeIds)
+    : { data: [], error: null }
+  if (assigneeError) return NextResponse.json({ error: 'LEAD_ASSIGNEES_LOAD_FAILED' }, { status: 500 })
+  const assigneeById = new Map((assignees || []).map((profile: any) => [profile.id, profile]))
   return NextResponse.json({
     leads: leads.map((lead: any) => ({
       ...lead,
       complex: lead.complex_id ? complexById.get(lead.complex_id) || null : null,
       unit: lead.unit_id ? unitById.get(lead.unit_id) || null : null,
+      assignee: lead.assigned_to ? assigneeById.get(lead.assigned_to) || null : null,
     })),
+    role: context.role,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(request: Request) {
-  const context = await getDeveloperContext()
-  if ('error' in context) return context.error
+  const context = await getDeveloperCrmContext()
+  if ('error' in context) return NextResponse.json({ error: context.error }, { status: context.error === 'AUTH_REQUIRED' ? 401 : 403 })
+  if (!['owner','admin','sales_manager','sales_agent'].includes(context.role)) {
+    return NextResponse.json({ error: 'LEADS_FORBIDDEN' }, { status: 403 })
+  }
   const body = await request.json().catch(() => null)
   const id = typeof body?.id === 'string' ? body.id : ''
-  const status = typeof body?.status === 'string' ? body.status : ''
-  if (!id || !allowedStatuses.includes(status)) {
-    return NextResponse.json({ error: 'INVALID_LEAD_UPDATE' }, { status: 400 })
+  if (!id) return NextResponse.json({ error: 'INVALID_LEAD_UPDATE' }, { status: 400 })
+  const { data: existing, error: lookupError } = await context.db.from('developer_lead_requests')
+    .select('id,assigned_to').eq('id', id).eq('developer_id', context.developer.id).maybeSingle()
+  if (lookupError) return NextResponse.json({ error: 'LEAD_LOOKUP_FAILED' }, { status: 500 })
+  if (!existing) return NextResponse.json({ error: 'LEAD_NOT_FOUND' }, { status: 404 })
+  if (context.role === 'sales_agent' && existing.assigned_to !== context.userId) {
+    return NextResponse.json({ error: 'LEAD_NOT_ASSIGNED_TO_USER' }, { status: 403 })
   }
-  const { data, error } = await context.db.from('developer_lead_requests')
-    .update({ status })
-    .eq('id', id)
-    .eq('developer_id', context.developer.id)
-    .select('id,status')
-    .maybeSingle()
+  const update: Record<string, any> = { updated_at: new Date().toISOString(), updated_by: context.userId }
+  if (typeof body.status === 'string') {
+    if (!allowedStatuses.includes(body.status)) return NextResponse.json({ error: 'INVALID_LEAD_STATUS' }, { status: 400 })
+    update.status = body.status
+    if (['won','lost'].includes(body.status)) update.closed_at = new Date().toISOString()
+    else update.closed_at = null
+  }
+  if (body.priority !== undefined) {
+    if (!['owner','admin','sales_manager'].includes(context.role)) return NextResponse.json({ error: 'LEAD_PRIORITY_FORBIDDEN' }, { status: 403 })
+    if (!['low','normal','high','urgent'].includes(body.priority)) return NextResponse.json({ error: 'INVALID_LEAD_PRIORITY' }, { status: 400 })
+    update.priority = body.priority
+  }
+  if (body.assigned_to !== undefined) {
+    if (!['owner','admin','sales_manager'].includes(context.role)) return NextResponse.json({ error: 'LEAD_ASSIGNMENT_FORBIDDEN' }, { status: 403 })
+    const assignee = typeof body.assigned_to === 'string' && body.assigned_to ? body.assigned_to : null
+    if (assignee && assignee !== context.userId) {
+      const { data: member, error } = await context.db.from('developer_team_members').select('id')
+        .eq('developer_id', context.developer.id).eq('user_id', assignee).eq('status', 'active').maybeSingle()
+      if (error) return NextResponse.json({ error: 'ASSIGNEE_LOOKUP_FAILED' }, { status: 500 })
+      if (!member) return NextResponse.json({ error: 'ASSIGNEE_NOT_ACTIVE' }, { status: 400 })
+    }
+    update.assigned_to = assignee
+  }
+  if (body.next_follow_up_at !== undefined) {
+    const value = body.next_follow_up_at
+    if (value !== null && (typeof value !== 'string' || !Number.isFinite(new Date(value).getTime()))) {
+      return NextResponse.json({ error: 'INVALID_FOLLOW_UP_DATE' }, { status: 400 })
+    }
+    update.next_follow_up_at = value
+  }
+  if (body.lost_reason !== undefined) {
+    if (typeof body.lost_reason !== 'string' || body.lost_reason.length > 1000) return NextResponse.json({ error: 'INVALID_LOST_REASON' }, { status: 400 })
+    update.lost_reason = body.lost_reason.trim() || null
+  }
+  if (Object.keys(update).length === 2) return NextResponse.json({ error: 'NO_LEAD_CHANGES' }, { status: 400 })
+  const { data, error } = await context.db.from('developer_lead_requests').update(update)
+    .eq('id', id).eq('developer_id', context.developer.id).select('id,status,assigned_to,priority,next_follow_up_at,lost_reason,closed_at').maybeSingle()
   if (error) return NextResponse.json({ error: 'LEAD_UPDATE_FAILED' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'LEAD_NOT_FOUND' }, { status: 404 })
   return NextResponse.json({ lead: data }, { headers: { 'Cache-Control': 'no-store' } })
