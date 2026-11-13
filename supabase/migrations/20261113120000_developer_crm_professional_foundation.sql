@@ -22,7 +22,11 @@ alter table public.developer_lead_requests
     check (budget_min is null or budget_min >= 0)
     not valid,
   add constraint developer_lead_requests_budget_range_check
-    check (budget_max is null or budget_min is null or budget_max >= budget_min)
+    check ((budget_max is null or budget_max >= 0)
+       and (budget_max is null or budget_min is null or budget_max >= budget_min))
+    not valid,
+  add constraint developer_lead_requests_preferred_rooms_check
+    check (preferred_rooms is null or (cardinality(preferred_rooms) <= 8 and 0 < all(preferred_rooms)))
     not valid,
   add constraint developer_lead_requests_area_range_check
     check ((preferred_area_min is null or preferred_area_min > 0)
