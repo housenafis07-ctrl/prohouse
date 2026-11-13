@@ -4,6 +4,7 @@ import { canManageAssignments, getDeveloperCrmContext } from '@/lib/developer/cr
 export async function GET(request: Request) {
   const ctx = await getDeveloperCrmContext()
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.error === 'AUTH_REQUIRED' ? 401 : 403 })
+  if (!['owner','admin','sales_manager','sales_agent'].includes(ctx.role)) return NextResponse.json({ error: 'TASKS_FORBIDDEN' }, { status: 403 })
   const url = new URL(request.url)
   const status = url.searchParams.get('status')
   let query = ctx.db.from('developer_tasks')
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const ctx = await getDeveloperCrmContext()
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.error === 'AUTH_REQUIRED' ? 401 : 403 })
+  if (!['owner','admin','sales_manager','sales_agent'].includes(ctx.role)) return NextResponse.json({ error: 'TASKS_FORBIDDEN' }, { status: 403 })
   const body = await request.json().catch(() => null)
   const title = typeof body?.title === 'string' ? body.title.trim() : ''
   const dueAt = typeof body?.due_at === 'string' ? new Date(body.due_at) : null
