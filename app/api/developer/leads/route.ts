@@ -123,6 +123,7 @@ export async function PATCH(request: Request) {
     if (!['low','normal','high','urgent'].includes(body.priority)) return NextResponse.json({ error: 'INVALID_LEAD_PRIORITY' }, { status: 400 })
     update.priority = body.priority
   }
+  let assignmentChange: string | null | undefined
   if (body.assigned_to !== undefined) {
     if (!['owner','admin','sales_manager'].includes(context.role)) return NextResponse.json({ error: 'LEAD_ASSIGNMENT_FORBIDDEN' }, { status: 403 })
     const assignee = typeof body.assigned_to === 'string' && body.assigned_to ? body.assigned_to : null
@@ -132,7 +133,7 @@ export async function PATCH(request: Request) {
       if (error) return NextResponse.json({ error: 'ASSIGNEE_LOOKUP_FAILED' }, { status: 500 })
       if (!member) return NextResponse.json({ error: 'ASSIGNEE_NOT_ACTIVE' }, { status: 400 })
     }
-    update.assigned_to = assignee
+    if (assignee !== existing.assigned_to) assignmentChange = assignee
   }
   if (body.next_follow_up_at !== undefined) {
     const value = body.next_follow_up_at
@@ -146,8 +147,26 @@ export async function PATCH(request: Request) {
     update.lost_reason = body.lost_reason.trim() || null
   }
   if (Object.keys(update).length === 2) return NextResponse.json({ error: 'NO_LEAD_CHANGES' }, { status: 400 })
-  const { data, error } = await context.db.from('developer_lead_requests').update(update)
-    .eq('id', id).eq('developer_id', context.developer.id).select('id,status,assigned_to,priority,next_follow_up_at,lost_reason,closed_at').maybeSingle()
+  if (assignmentChange !== undefined) {
+    if (Object.keys(update).length > 2) {
+      const { error: fieldError } = await context.db.from('developer_lead_requests').update(update)
+        .eq('id', id).eq('developer_id', context.developer.id)
+      if (fieldError) return NextResponse.json({ error: 'LEAD_UPDATE_FAILED' }, { status: 500 })
+    }
+    const { error: assignmentError } = await context.db.rpc('assign_developer_lead', {
+      p_developer_id: context.developer.id, p_lead_id: id,
+      p_assigned_to: assignmentChange, p_assigned_by: context.userId,
+      p_reason: 'CRM manual assignment',
+    })
+    if (assignmentError) return NextResponse.json({ error: assignmentError.message === 'ASSIGNEE_NOT_ACTIVE' ? 'ASSIGNEE_NOT_ACTIVE' : 'LEAD_ASSIGNMENT_FAILED' }, { status: 400 })
+  } else {
+    const { error: updateError } = await context.db.from('developer_lead_requests').update(update)
+      .eq('id', id).eq('developer_id', context.developer.id)
+    if (updateError) return NextResponse.json({ error: 'LEAD_UPDATE_FAILED' }, { status: 500 })
+  }
+  const { data, error } = await context.db.from('developer_lead_requests')
+    .select('id,status,assigned_to,priority,next_follow_up_at,lost_reason,closed_at')
+    .eq('id', id).eq('developer_id', context.developer.id).maybeSingle()
   if (error) return NextResponse.json({ error: 'LEAD_UPDATE_FAILED' }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'LEAD_NOT_FOUND' }, { status: 404 })
   return NextResponse.json({ lead: data }, { headers: { 'Cache-Control': 'no-store' } })
