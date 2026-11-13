@@ -199,13 +199,13 @@ export default function SmartListingWizard(){
  useEffect(()=>{
   const viewport=window.visualViewport
   const updateKeyboardInset=()=>{
-   if(!viewport){setKeyboardInset(0);return}
+   if(!viewport||!window.matchMedia('(pointer: coarse)').matches){setKeyboardInset(0);return}
    const inset=Math.max(0,Math.round(window.innerHeight-viewport.height-viewport.offsetTop))
    setKeyboardInset(inset>120?inset:0)
   }
   const onFocusIn=(event:FocusEvent)=>{
    const target=event.target
-   if(!(target instanceof HTMLElement)||!wizardRef.current?.contains(target)||!target.matches('input,textarea,select,[contenteditable="true"]'))return
+   if(!window.matchMedia('(pointer: coarse)').matches||!(target instanceof HTMLElement)||!wizardRef.current?.contains(target)||!target.matches('input,textarea,select,[contenteditable="true"]'))return
    window.setTimeout(()=>{
     updateKeyboardInset()
     target.scrollIntoView({block:'center',behavior:'smooth'})
