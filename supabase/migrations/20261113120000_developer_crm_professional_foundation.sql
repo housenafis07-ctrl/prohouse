@@ -160,8 +160,10 @@ begin
     raise exception 'LEAD_NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  select d.user_id into v_owner_user_id
-  from public.developer_profiles d where d.id = p_developer_id;
+  select p.user_id into v_owner_user_id
+  from public.developer_profiles d
+  join public.partner_profiles p on p.id = d.partner_profile_id
+  where d.id = p_developer_id;
 
   if p_assigned_to is not null and p_assigned_to is distinct from v_owner_user_id
      and not exists (
