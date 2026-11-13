@@ -77,13 +77,20 @@ export default function SmartListingWizard(){
  const [success,setSuccess]=useState('')
  const [videoError,setVideoError]=useState('')
  const [accountProfile,setAccountProfile]=useState<{user_id:string;phone:string;full_name:string;account_type?:string}|null>(null)
+ const wizardRef=useRef<HTMLElement|null>(null)
+ const [keyboardInset,setKeyboardInset]=useState(0)
 
  const categoryAttributes=useMemo(()=>attributes.filter(x=>x.category_code===selected?.code&&x.code!=='ownership_type').sort((a,b)=>a.sort_order-b.sort_order),[attributes,selected])
  const region=useMemo(()=>UZBEKISTAN_LOCATIONS.find(x=>x.name===answers.city),[answers.city])
  const districts=region?.districts||[]
  const questions=useMemo(()=>{
   if(!selected)return ['section','category']
-  const q=['section','category','city','district','neighborhood','address','map']
+  const q=['section','category','city','district']
+  // Residential sale listings do not ask for a mahalla or street/house number.
+  // Keep both fields in the answer model and payload for backwards compatibility.
+  const hideResidentialAddressQuestions=selected.listing_type==='sale'&&['sale_house','sale_apartment'].includes(selected.code)
+  if(!hideResidentialAddressQuestions)q.push('neighborhood','address')
+  q.push('map')
   categoryAttributes.forEach(a=>q.push('attr:'+a.code))
   if(selected.code==='sale_house')q.push('ownership')
   q.push('title','description','price')
@@ -189,6 +196,32 @@ export default function SmartListingWizard(){
    throw new Error(`Server JSON formatida bo‘lmagan javob qaytardi (HTTP ${response.status}).`)
   }
  }
+ useEffect(()=>{
+  const viewport=window.visualViewport
+  const updateKeyboardInset=()=>{
+   if(!viewport){setKeyboardInset(0);return}
+   const inset=Math.max(0,Math.round(window.innerHeight-viewport.height-viewport.offsetTop))
+   setKeyboardInset(inset>120?inset:0)
+  }
+  const onFocusIn=(event:FocusEvent)=>{
+   const target=event.target
+   if(!(target instanceof HTMLElement)||!target.matches('input,textarea,select,[contenteditable="true"]'))return
+   window.setTimeout(()=>{
+    updateKeyboardInset()
+    target.scrollIntoView({block:'center',behavior:'smooth'})
+   },250)
+  }
+  updateKeyboardInset()
+  viewport?.addEventListener('resize',updateKeyboardInset)
+  viewport?.addEventListener('scroll',updateKeyboardInset)
+  const wizard=wizardRef.current
+  wizard?.addEventListener('focusin',onFocusIn)
+  return ()=>{
+   viewport?.removeEventListener('resize',updateKeyboardInset)
+   viewport?.removeEventListener('scroll',updateKeyboardInset)
+   wizard?.removeEventListener('focusin',onFocusIn)
+  }
+ },[])
  useEffect(()=>{if(resendCountdown<=0)return;const timer=window.setTimeout(()=>setResendCountdown(value=>Math.max(0,value-1)),1000);return ()=>window.clearTimeout(timer)},[resendCountdown])
  const sendCode=async()=>{
   setBusy(true);setError('')
@@ -352,7 +385,7 @@ export default function SmartListingWizard(){
  const currentValue=currentAttribute?answers.attributes[currentAttribute.code]||'':''
  const showOptionalSkip=!!currentAttribute&&!currentAttribute.is_required
  if(loading)return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-2xl rounded-3xl bg-white p-10 text-center">E’lon turlari yuklanmoqda…</div></main>
- return <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10"><div className="mx-auto max-w-2xl">
+ return <main ref={wizardRef} className="min-h-screen bg-slate-50 px-4 pt-6 pb-36 sm:py-10 sm:pb-10"><div className="mx-auto max-w-2xl">
   <header className="mb-5 flex items-center justify-between"><Link href="/" className="text-lg font-black text-slate-900">Royal<span className="text-emerald-600">House</span></Link><div className="flex items-center gap-3"><Link href="/listings/new/service" className="text-xs font-semibold text-emerald-700">Hamkorlar uchun xizmat e’loni</Link><Link href="/account" className="text-sm font-semibold text-slate-500">Shaxsiy kabinet</Link></div></header>
   <section className="overflow-hidden rounded-3xl bg-white shadow-sm">
    <div className="border-b border-slate-100 px-5 py-5 sm:px-7"><div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>SMART E’LON YORDAMCHISI</span><span>{question+1}/{questions.length}</span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-600 transition-all" style={{width:progress+'%'}}/></div><h1 className="mt-4 text-2xl font-black text-slate-950">E’loningizni birgalikda tayyorlaymiz</h1><p className="mt-1 text-sm text-slate-500">Eski e’lon formasidagi barcha maydonlar savol-javob shaklida beriladi.</p></div>
@@ -374,7 +407,7 @@ export default function SmartListingWizard(){
     {current==='mortgage'&&<div><h2 className="text-lg font-extrabold">Ipoteka orqali sotishga rozimisiz?</h2><div className="mt-4 grid gap-2">{[{value:'true',label:'Ha, ipotekaga mumkin'},{value:'false',label:'Yo‘q'}].map(x=><button key={x.value} onClick={()=>setAnswer('mortgage',x.value)} className={'rounded-xl border p-4 text-left text-sm font-bold '+(answers.mortgage===x.value?'border-emerald-600 bg-emerald-50':'border-slate-200')}>{x.label}</button>)}</div></div>}
     {current==='rental'&&<div><h2 className="text-lg font-extrabold">Ijara va bron ma’lumotlari</h2><p className="mt-1 text-sm text-slate-500">Eski formadagi mehmonlar, qulayliklar, qoidalar, kalendar va sana narxlari.</p><RentalBookingSettings value={answers.rental_booking} onChange={v=>setAnswer('rental_booking',v)} basePrice={answers.price} onBasePriceChange={v=>setAnswer('price',v)}/></div>}
     {current==='images'&&<div><h2 className="text-lg font-extrabold">Rasmlar va video yuklang</h2><p className="mt-1 text-sm text-slate-500">10 tagacha rasm va 1 ta video (60 soniyagacha). Birinchi rasm asosiy bo‘ladi.</p><label className="mt-4 flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 p-8 text-sm font-bold hover:border-emerald-500"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif" multiple onChange={event=>void addImages(event)} disabled={busy} className="hidden"/>+ Rasmlarni tanlash</label><div className="mt-3 grid grid-cols-3 gap-2">{images.map((im,i)=><div key={im.preview} className="relative"><button type="button" onClick={()=>setMainImage(i)} className={'block w-full overflow-hidden rounded-xl border-2 '+(i===mainImage?'border-emerald-600':'border-transparent')}><img src={im.preview} alt={im.file.name} className="aspect-square w-full object-cover" onError={()=>setError(im.file.name+': rasm ko‘rinishini ochib bo‘lmadi. JPG yoki PNG formatida qayta tanlang.')}/></button><button onClick={()=>removeImage(i)} className="absolute right-1 top-1 rounded-full bg-white px-2 py-1">×</button>{i===mainImage&&<span className="mt-1 block text-center text-xs font-bold text-emerald-700">Asosiy rasm</span>}</div>)}</div></div>}
-    {current==='review'&&<div><h2 className="text-lg font-extrabold">E’lon ma’lumotlarini tekshiring</h2><div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm"><p><b>Tur:</b> {selected?.name_uz}</p><p><b>Manzil:</b> {answers.city}, {answers.district}, {answers.neighborhood||'—'}, {answers.address||'—'}</p><p><b>Sarlavha:</b> {answers.title||titleFrom(selected,answers,categoryAttributes)}</p><p><b>Narx:</b> {answers.price} {answers.currency}</p><p><b>Maydon:</b> {answers.attributes.area_m2||'—'} m²</p><p><b>Xonalar:</b> {answers.attributes.rooms||'—'}</p><p><b>Rasmlar:</b> {images.length} ta</p>{accountProfile&&<p><b>Profil:</b> {accountProfile.full_name} · {accountProfile.phone}</p>}</div><p className="mt-3 text-xs text-slate-500">Barcha javoblar eski e’lon formasi bilan bir xil maydonlarga saqlanadi.</p>{accountProfile&&listingId&&<div className="mt-5 space-y-3"><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
+    {current==='review'&&<div><h2 className="text-lg font-extrabold">E’lon ma’lumotlarini tekshiring</h2><div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-4 text-sm"><p><b>Tur:</b> {selected?.name_uz}</p><p><b>Manzil:</b> {answers.city}, {answers.district}</p><p><b>Sarlavha:</b> {answers.title||titleFrom(selected,answers,categoryAttributes)}</p><p><b>Narx:</b> {answers.price} {answers.currency}</p><p><b>Maydon:</b> {answers.attributes.area_m2||'—'} m²</p><p><b>Xonalar:</b> {answers.attributes.rooms||'—'}</p><p><b>Rasmlar:</b> {images.length} ta</p>{accountProfile&&<p><b>Profil:</b> {accountProfile.full_name} · {accountProfile.phone}</p>}</div><p className="mt-3 text-xs text-slate-500">Barcha javoblar eski e’lon formasi bilan bir xil maydonlarga saqlanadi.</p>{accountProfile&&listingId&&<div className="mt-5 space-y-3"><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
     {current==='name'&&<div><h2 className="text-lg font-extrabold">Ism va familiyangiz nima?</h2><input value={answers.fullName} onChange={e=>setAnswer('fullName',e.target.value)} className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="Masalan: Ali Valiyev"/><p className="mt-2 text-xs text-slate-500">Bu ma’lumot profilingizda saqlanadi.</p></div>}
     {current==='phone'&&<div><h2 className="text-lg font-extrabold">Telefon raqamingizni SMS orqali tasdiqlang</h2><input value={answers.phone} onChange={e=>handlePhoneChange(e.target.value)} type="tel" className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="+998 90 123 45 67"/>{otpSent&&!verified&&<div className="mt-4"><label className="text-sm font-bold">SMS kodi</label><input value={otp} onChange={e=>setOtp(phoneDigits(e.target.value).slice(0,6))} inputMode="numeric" autoComplete="one-time-code" className="mt-2 w-full rounded-xl border p-4 text-center text-2xl tracking-[.4em]" placeholder="000000"/><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-slate-500">{resendCountdown>0?`Yangi kodni ${resendCountdown} soniyadan keyin so‘rashingiz mumkin.`:"SMS kelmadimi? Kodni qayta yuborishingiz mumkin."}</span><button type="button" onClick={()=>void sendCode()} disabled={busy||resendCountdown>0} className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-bold text-emerald-700 disabled:opacity-40">{busy?"Yuborilmoqda…":resendCountdown>0?`Qayta yuborish (${resendCountdown}s)`:"SMS kodni qayta yuborish"}</button></div></div>}{verified&&listingId&&<div className="mt-5 space-y-3"><div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Telefon tasdiqlandi. E’lon qoralamasi saqlandi.</div><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
     {limitReached?<div role="alert" className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm sm:p-6">
@@ -386,15 +419,17 @@ export default function SmartListingWizard(){
      </div></div>
     </div>:error&&<div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
     {success&&<div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-     <button onClick={back} disabled={question===0||busy||verified||phoneOtpVerified} className="rounded-xl border px-5 py-3 text-sm font-bold disabled:opacity-40">Orqaga</button>
-     <div className="flex flex-wrap gap-2">
-      {showOptionalSkip&&<button onClick={skip} disabled={busy} className="rounded-xl border px-4 py-3 text-sm font-bold">O‘tkazib yuborish</button>}
-      {current==='review'&&accountProfile&&!listingId?<button onClick={()=>void saveExistingAccountDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Saqlanmoqda…':'E’lonni saqlash va davom etish'}</button>:current==='review'&&accountProfile&&listingId?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:current==='phone'&&otpSent&&!verified?<button onClick={()=>void verifyAndSaveDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Tekshirilmoqda…':'SMS kodni tasdiqlash'}</button>:current==='name'&&phoneOtpVerified?<button onClick={()=>void saveNewProfileAndDraft()} disabled={busy} className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Profil saqlanmoqda…':'Profilni saqlash va davom etish'}</button>:current==='phone'&&verified?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:<button onClick={next} disabled={busy||current==='category'&&(!selectedSection||categories.filter(c=>c.parent_code&&c.section_code===selectedSection).length===0)} className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Kutilmoqda…':current==='phone'?'SMS kod yuborish':'Davom etish'}</button>}
-     </div>
-    </div>
    </div>
   </section>
+  <div className="fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:static sm:mt-5 sm:border-t-0 sm:bg-transparent sm:px-0 sm:py-0 sm:shadow-none sm:backdrop-blur-0" style={{bottom:keyboardInset+'px'}} role="group" aria-label="E’lon joylashtirish boshqaruvlari">
+   <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2 border-slate-100 sm:border-t sm:pt-4">
+    <button onClick={back} disabled={question===0||busy||verified||phoneOtpVerified} className="min-h-11 rounded-xl border px-5 py-3 text-sm font-bold disabled:opacity-40">Orqaga</button>
+    <div className="flex flex-wrap gap-2">
+     {showOptionalSkip&&<button onClick={skip} disabled={busy} className="min-h-11 rounded-xl border px-4 py-3 text-sm font-bold">O‘tkazib yuborish</button>}
+     {current==='review'&&accountProfile&&!listingId?<button onClick={()=>void saveExistingAccountDraft()} disabled={busy} className="min-h-11 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Saqlanmoqda…':'E’lonni saqlash va davom etish'}</button>:current==='review'&&accountProfile&&listingId?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="min-h-11 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:current==='phone'&&otpSent&&!verified?<button onClick={()=>void verifyAndSaveDraft()} disabled={busy} className="min-h-11 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Tekshirilmoqda…':'SMS kodni tasdiqlash'}</button>:current==='name'&&phoneOtpVerified?<button onClick={()=>void saveNewProfileAndDraft()} disabled={busy} className="min-h-11 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{busy?'Profil saqlanmoqda…':'Profilni saqlash va davom etish'}</button>:current==='phone'&&verified?<button onClick={()=>void publish()} disabled={busy||videoStatus==='uploading'||videoStatus==='processing'} className="min-h-11 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Yuborilmoqda…':'E’lonni moderatsiyaga yuborish'}</button>:<button onClick={next} disabled={busy||current==='category'&&(!selectedSection||categories.filter(c=>c.parent_code&&c.section_code===selectedSection).length===0)} className="min-h-11 rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{busy?'Kutilmoqda…':current==='phone'?'SMS kod yuborish':'Davom etish'}</button>}
+    </div>
+   </div>
+  </div>
   <p className="mt-4 text-center text-xs text-slate-400">Eski e’lon formasidagi maydonlar saqlangan. Faqat ularni kiritish usuli ketma-ket savol-javobga o‘zgartirildi.</p>
  </div></main>
 }
