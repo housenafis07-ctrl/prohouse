@@ -24,15 +24,33 @@ export async function GET() {
   if (partnerError) return NextResponse.json({ error: 'PARTNER_PROFILE_LOOKUP_FAILED' }, { status: 500 })
 
   const query = db.from('developer_profiles').select(`${safeSelect},metadata`)
-  const { data, error } = partner
-    ? await query.eq('partner_profile_id', partner.id).maybeSingle()
-    : await query.eq('user_id', userId).maybeSingle()
+  let data: any = null
+  let role = 'owner'
+  let error: any = null
+  if (partner) {
+    const result = await query.eq('partner_profile_id', partner.id).maybeSingle()
+    data = result.data; error = result.error
+  }
+  if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
+
+  if (!data) {
+    const { data: memberships, error: membershipError } = await db.from('developer_team_members')
+      .select('developer_id,role').eq('user_id', userId).eq('status', 'active').limit(2)
+    if (membershipError) return NextResponse.json({ error: 'TEAM_MEMBERSHIP_LOOKUP_FAILED' }, { status: 500 })
+    if ((memberships || []).length > 1) return NextResponse.json({ error: 'DEVELOPER_COMPANY_SELECTION_REQUIRED' }, { status: 409 })
+    const membership = memberships?.[0]
+    if (membership) {
+      const result = await db.from('developer_profiles').select(`${safeSelect},metadata`)
+        .eq('id', membership.developer_id).eq('verification_status', 'verified').maybeSingle()
+      data = result.data; error = result.error; role = membership.role
+    }
+  }
 
   if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
   const metadata = data?.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, any> : {}
   const adminReview = metadata.admin_review
   const publicReview = adminReview ? { status: adminReview.status, reason: adminReview.reason || null, reviewed_at: adminReview.reviewed_at || null } : null
-  const developer = data ? { ...data, company_details: metadata.company_details || {}, metadata: publicReview ? { admin_review: publicReview } : null } : null
+  const developer = data ? { ...data, role, company_details: metadata.company_details || {}, metadata: publicReview ? { admin_review: publicReview } : null } : null
   return NextResponse.json({ developer }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
