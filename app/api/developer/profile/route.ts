@@ -32,6 +32,7 @@ export async function GET() {
     data = result.data; error = result.error
   }
   if (error) return NextResponse.json({ error: 'DEVELOPER_PROFILE_LOAD_FAILED' }, { status: 500 })
+  if (data?.user_id && data.user_id !== userId) data = null
 
   if (!data) {
     const { data: memberships, error: membershipError } = await db.from('developer_team_members')
