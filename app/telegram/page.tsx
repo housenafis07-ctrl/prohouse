@@ -50,7 +50,7 @@ export default function TelegramMiniApp() {
     tg.onEvent?.('homeScreenAdded', onHomeScreenAdded)
     if (typeof tg.checkHomeScreenStatus === 'function') {
       tg.checkHomeScreenStatus((status: string) => {
-        if (['unsupported', 'unknown', 'added', 'missed'].includes(status)) setHomeScreenStatus(status)
+        if (status === 'unsupported' || status === 'unknown' || status === 'added' || status === 'missed') setHomeScreenStatus(status)
         else setHomeScreenStatus('unsupported')
       })
     } else setHomeScreenStatus('unknown')
