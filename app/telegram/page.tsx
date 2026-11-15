@@ -1,7 +1,7 @@
 'use client'
 
 import Script from 'next/script'
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useI18n } from '@/app/components/I18nProvider'
 
 type NavItem = { label: string; icon: string; href: string }
@@ -14,7 +14,7 @@ const copy = {
     mortgageScoring: 'Ipoteka krediti skoringi', mortgageScoringText: 'Ipoteka imkoniyatingizni baholang va kalkulyatorga o‘ting.',
     placeAd: 'E’lon joylashtirish', placeAdText: 'Mulkni sotish yoki ijaraga berish uchun e’lon yarating.',
     searchPlaceholder: 'Dacha, kvartira, hovli, Toshkent...', searchButton: 'Qidirish',
-    connected: 'Telegram orqali ochilgan', app: 'Royalhouse Mini App', navHome: 'Bosh sahifa', navSearch: 'Qidiruv', navAd: 'E’lon', navMap: 'Xarita', navProfile: 'Profil',
+    connected: 'Telegram orqali ochilgan', app: 'Royalhouse Mini App', addHome: 'RoyalHouse’ni bosh ekranga qo‘shish', addHomeHint: 'RoyalHouse’ni telefoningiz bosh ekranidan bir bosishda oching.', homeAdded: 'RoyalHouse bosh ekranga qo‘shilgan', navHome: 'Bosh sahifa', navSearch: 'Qidiruv', navAd: 'E’lon', navMap: 'Xarita', navProfile: 'Profil',
   },
   ru: {
     welcome: 'Добро пожаловать в Royalhouse!', subtitle: 'Находите, продавайте и арендуйте недвижимость.',
@@ -23,7 +23,7 @@ const copy = {
     mortgageScoring: 'Ипотечный кредитный скоринг', mortgageScoringText: 'Оцените свои ипотечные возможности и перейдите к калькулятору.',
     placeAd: 'Разместить объявление', placeAdText: 'Создайте объявление о продаже или аренде недвижимости.',
     searchPlaceholder: 'Дача, квартира, дом, Ташкент...', searchButton: 'Найти',
-    connected: 'Открыто через Telegram', app: 'Royalhouse Mini App', navHome: 'Главная', navSearch: 'Поиск', navAd: 'Объявление', navMap: 'Карта', navProfile: 'Профиль',
+    connected: 'Открыто через Telegram', app: 'Royalhouse Mini App', addHome: 'Добавить RoyalHouse на главный экран', addHomeHint: 'Открывайте RoyalHouse одним касанием с главного экрана телефона.', homeAdded: 'RoyalHouse уже добавлен на главный экран', navHome: 'Главная', navSearch: 'Поиск', navAd: 'Объявление', navMap: 'Карта', navProfile: 'Профиль',
   },
 }
 
@@ -31,6 +31,7 @@ export default function TelegramMiniApp() {
   const [ready, setReady] = useState(false)
   const { lang, setLang } = useI18n()
   const [keyword, setKeyword] = useState('')
+  const [homeScreenStatus, setHomeScreenStatus] = useState<'checking' | 'missed' | 'unknown' | 'added' | 'unsupported'>('checking')
   const t = copy[lang]
 
   const connectTelegramAccount = () => {
@@ -39,6 +40,26 @@ export default function TelegramMiniApp() {
     tg.ready()
     tg.expand()
     setReady(true)
+  }
+
+  useEffect(() => {
+    if (!ready) return
+    const tg = (window as any).Telegram?.WebApp
+    if (!tg?.addToHomeScreen) { setHomeScreenStatus('unsupported'); return }
+    const onHomeScreenAdded = () => setHomeScreenStatus('added')
+    tg.onEvent?.('homeScreenAdded', onHomeScreenAdded)
+    if (typeof tg.checkHomeScreenStatus === 'function') {
+      tg.checkHomeScreenStatus((status: string) => {
+        if (status === 'unsupported' || status === 'unknown' || status === 'added' || status === 'missed') setHomeScreenStatus(status)
+        else setHomeScreenStatus('unsupported')
+      })
+    } else setHomeScreenStatus('unknown')
+    return () => tg.offEvent?.('homeScreenAdded', onHomeScreenAdded)
+  }, [ready])
+
+  const addToHomeScreen = () => {
+    const tg = (window as any).Telegram?.WebApp
+    if (typeof tg?.addToHomeScreen === 'function') tg.addToHomeScreen()
   }
 
   const changeLanguage = (next: 'uz' | 'ru') => setLang(next)
@@ -91,6 +112,8 @@ export default function TelegramMiniApp() {
           <button type="button" onClick={handlePlaceAd} className="w-full rounded-3xl border border-slate-100 bg-white p-4 text-left shadow-sm transition active:scale-[.99]"><div className="flex items-center gap-4"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-2xl font-black text-white">+</div><div className="min-w-0 flex-1"><h3 className="font-black">{t.placeAd}</h3><p className="mt-1 text-xs leading-4 text-slate-400">{t.placeAdText}</p></div><span className="text-xl text-slate-300">›</span></div></button>
         </div>
         <div className="mt-5 flex justify-center gap-2 text-xs font-bold"><button type="button" onClick={() => changeLanguage('uz')} aria-pressed={lang === 'uz'} className={`rounded-full px-4 py-2 transition ${lang === 'uz' ? 'bg-blue-500 text-white' : 'bg-white text-slate-400'}`}>UZ</button><button type="button" onClick={() => changeLanguage('ru')} aria-pressed={lang === 'ru'} className={`rounded-full px-4 py-2 transition ${lang === 'ru' ? 'bg-blue-500 text-white' : 'bg-white text-slate-400'}`}>RU</button></div>
+        {ready && homeScreenStatus !== 'unsupported' && homeScreenStatus !== 'added' && <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-3 shadow-sm"><button type="button" onClick={addToHomeScreen} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-extrabold text-white shadow-md shadow-blue-600/20 transition hover:bg-blue-700 active:scale-[.99]"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>{t.addHome}</button><p className="mt-2 text-center text-[11px] leading-4 text-blue-700/75">{t.addHomeHint}</p></div>}
+        {homeScreenStatus === 'added' && <p className="mt-4 text-center text-xs font-semibold text-blue-600">{t.homeAdded}</p>}
         <p className="mt-4 text-center text-[10px] text-slate-300">{ready ? t.connected : t.app}</p>
       </section>
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_20px_rgba(15,23,42,0.08)] backdrop-blur"><div className="mx-auto grid max-w-md grid-cols-5 gap-1">{navItems.map((item, index) => <button key={item.href} type="button" onClick={() => openPath(item.href)} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl py-1.5 text-[10px] font-bold ${index === 0 ? 'text-blue-500' : 'text-slate-500'}`}><span className={`${index === 2 ? 'flex h-11 w-11 -mt-7 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg ring-4 ring-[#f4f7fa]' : 'text-[22px] leading-5'}`}>{item.icon}</span><span className={index === 2 ? 'mt-1' : ''}>{item.label}</span></button>)}</div></nav>
