@@ -27,9 +27,10 @@ function hashOtp(code: string) {
 }
 
 function getGooglePlayTestOtpConfig() {
-  // A fixed OTP is permitted only on Vercel Preview deployments and only
-  // when explicitly enabled. Production and local environments always use SMS.
-  if (process.env.VERCEL_ENV !== 'preview' || process.env.GOOGLE_PLAY_TEST_MODE !== 'true') return null
+  // A fixed OTP is permitted only on an explicitly enabled Vercel deployment.
+  // Enable it on Production only for the dedicated Play review phone; all other
+  // phone numbers continue through the normal SMS provider flow.
+  if (!['preview', 'production'].includes(String(process.env.VERCEL_ENV)) || process.env.GOOGLE_PLAY_TEST_MODE !== 'true') return null
 
   const phone = normalizePhone(process.env.GOOGLE_PLAY_TEST_PHONE)
   const code = String(process.env.GOOGLE_PLAY_TEST_OTP || '').trim()
