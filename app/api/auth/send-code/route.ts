@@ -26,6 +26,19 @@ function hashOtp(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
 
+function getGooglePlayTestOtpConfig() {
+  // A fixed OTP is permitted only on Vercel Preview deployments and only
+  // when explicitly enabled. Production and local environments always use SMS.
+  if (process.env.VERCEL_ENV !== 'preview' || process.env.GOOGLE_PLAY_TEST_MODE !== 'true') return null
+
+  const phone = normalizePhone(process.env.GOOGLE_PLAY_TEST_PHONE)
+  const code = String(process.env.GOOGLE_PLAY_TEST_OTP || '').trim()
+  if (!phone || !/^\d{6}$/.test(code)) {
+    throw new Error('Google Play Preview OTP sozlamalari to‘liq emas.')
+  }
+  return { phone, code }
+}
+
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -146,6 +159,18 @@ export async function POST(request: Request) {
 
     if (!/^\+998\d{9}$/.test(normalizedPhone)) {
       return NextResponse.json({ error: 'Telefon raqami noto‘g‘ri.' }, { status: 400 })
+    }
+
+    const googlePlayTestOtp = getGooglePlayTestOtpConfig()
+    if (googlePlayTestOtp?.phone === normalizedPhone) {
+      return NextResponse.json(
+        {
+          ok: true,
+          testMode: true,
+          message: 'Google Play test OTP is enabled. Use the code supplied in the Play Console review instructions.',
+        },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
     }
 
     admin = getAdminClient()
