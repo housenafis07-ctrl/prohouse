@@ -162,7 +162,26 @@ export async function POST(request: Request) {
     }
 
     const googlePlayTestOtp = getGooglePlayTestOtpConfig()
+    admin = getAdminClient()
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + OTP_TTL_SECONDS * 1000).toISOString()
+
     if (googlePlayTestOtp?.phone === normalizedPhone) {
+      // Store the fixed test code through the same OTP reservation path as SMS.
+      // This preserves the existing cooldown, expiry, and attempt-limit controls.
+      const { data: reservedTestOtp, error: reserveTestError } = await admin.rpc('reserve_sms_otp', {
+        p_phone: normalizedPhone,
+        p_code_hash: hashOtp(googlePlayTestOtp.code),
+        p_expires_at: expiresAt,
+        p_cooldown_seconds: RESEND_COOLDOWN_SECONDS,
+      })
+      if (reserveTestError) {
+        if (reserveTestError.message?.includes('OTP_RESEND_COOLDOWN')) {
+          return NextResponse.json({ error: 'Yangi kodni 60 soniyadan keyin so‘rashingiz mumkin.' }, { status: 429 })
+        }
+        throw new Error(reserveTestError.message)
+      }
+      insertedOtpId = reservedTestOtp as string
       return NextResponse.json(
         {
           ok: true,
@@ -173,11 +192,7 @@ export async function POST(request: Request) {
       )
     }
 
-    admin = getAdminClient()
-    const now = new Date()
     const code = randomInt(100000, 1000000).toString()
-    const expiresAt = new Date(now.getTime() + OTP_TTL_SECONDS * 1000).toISOString()
-
     const { data: reservedOtp, error: reserveError } = await admin.rpc('reserve_sms_otp', {
       p_phone: normalizedPhone,
       p_code_hash: hashOtp(code),
