@@ -17,18 +17,6 @@ function hashOtp(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
 
-function getGooglePlayTestOtpConfig() {
-  // Never activate the fixed test credential on production or local deployments.
-  if (process.env.VERCEL_ENV !== 'preview' || process.env.GOOGLE_PLAY_TEST_MODE !== 'true') return null
-
-  const phone = normalizePhone(process.env.GOOGLE_PLAY_TEST_PHONE)
-  const code = String(process.env.GOOGLE_PLAY_TEST_OTP || '').trim()
-  if (!phone || !/^\d{6}$/.test(code)) {
-    throw new Error('Google Play Preview OTP sozlamalari to‘liq emas.')
-  }
-  return { phone, code }
-}
-
 export async function POST(request: Request) {
   const { phone, code } = await request.json()
   const normalizedPhone = normalizePhone(phone)
@@ -43,28 +31,14 @@ export async function POST(request: Request) {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
-  let googlePlayTestOtp: ReturnType<typeof getGooglePlayTestOtpConfig>
-  try {
-    googlePlayTestOtp = getGooglePlayTestOtpConfig()
-  } catch {
-    return NextResponse.json({ error: 'Google Play test OTP sozlamalari noto‘g‘ri.' }, { status: 503 })
-  }
+  const { data: consumeResult, error: consumeError } = await admin.rpc('consume_sms_otp', {
+    p_phone: normalizedPhone,
+    p_code_hash: hashOtp(normalizedCode),
+    p_max_attempts: MAX_ATTEMPTS,
+  })
+  if (consumeError) return NextResponse.json({ error: consumeError.message }, { status: 500 })
 
-  let otpStatus: string | undefined
-  if (googlePlayTestOtp?.phone === normalizedPhone) {
-    if (googlePlayTestOtp.code !== normalizedCode) {
-      return NextResponse.json({ error: 'Tasdiqlash kodi noto‘g‘ri.' }, { status: 401 })
-    }
-    otpStatus = 'VERIFIED'
-  } else {
-    const { data: consumeResult, error: consumeError } = await admin.rpc('consume_sms_otp', {
-      p_phone: normalizedPhone,
-      p_code_hash: hashOtp(normalizedCode),
-      p_max_attempts: MAX_ATTEMPTS,
-    })
-    if (consumeError) return NextResponse.json({ error: consumeError.message }, { status: 500 })
-    otpStatus = Array.isArray(consumeResult) ? consumeResult[0]?.status : consumeResult?.status
-  }
+  const otpStatus = Array.isArray(consumeResult) ? consumeResult[0]?.status : consumeResult?.status
   if (otpStatus === 'NOT_FOUND') return NextResponse.json({ error: 'Tasdiqlash kodi topilmadi. Yangi kod so‘rang.' }, { status: 401 })
   if (otpStatus === 'EXPIRED') return NextResponse.json({ error: 'Tasdiqlash kodi muddati tugagan. Yangi kod so‘rang.' }, { status: 401 })
   if (otpStatus === 'LOCKED') return NextResponse.json({ error: 'Urinishlar soni tugadi. Yangi kod so‘rang.' }, { status: 429 })
@@ -129,7 +103,7 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({
     ok: true,
-    testMode: Boolean(googlePlayTestOtp?.phone === normalizedPhone),
+    testMode: false,
     userId: user.id,
     profileExists: Boolean(existingProfile?.id),
   }, { headers: { 'Cache-Control': 'no-store' } })
