@@ -152,7 +152,7 @@ export default function RegisterPage() {
       const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:normalizedPhone})})
       const data=await response.json()
       if(!response.ok) throw new Error(data.error||t('SMS yuborilmadi','SMS не отправлено'))
-      setSent(true);setMessage(data.testMode?t('Test rejimi: 321321 kodidan foydalaning.','Тестовый режим: используйте код 321321.') : t('SMS kodi yuborildi.','SMS-код отправлен.'))
+      setSent(true);setMessage(data.testMode?t('Google Play test rejimi faol. Play Console tekshiruv ko‘rsatmasidagi kodni kiriting.','Тестовый режим Google Play включён. Введите код из инструкций Play Console.') : t('SMS kodi yuborildi.','SMS-код отправлен.'))
       window.setTimeout(()=>otpInputRef.current?.focus(),50)
     }catch(e){
       stopOtpRef.current?.(); stopOtpRef.current=null
