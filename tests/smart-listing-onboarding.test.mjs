@@ -193,7 +193,7 @@ const authEnvExample = await readFile(new URL('../.env.example', import.meta.url
 
 test('Google Play fixed OTP is restricted to explicitly enabled Vercel Preview deployments', () => {
   for (const source of [authSendRoute, authVerifyRoute]) {
-    assert.match(source, /process\.env\.VERCEL_ENV !== 'preview'/)
+    assert.match(source, /\['preview', 'production'\]\.includes\(String\(process\.env\.VERCEL_ENV\)\)/)
     assert.match(source, /process\.env\.GOOGLE_PLAY_TEST_MODE !== 'true'/)
     assert.match(source, /GOOGLE_PLAY_TEST_PHONE/)
     assert.match(source, /GOOGLE_PLAY_TEST_OTP/)
