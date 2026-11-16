@@ -41,6 +41,27 @@ export async function POST(request: Request) {
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
+  // Resolve the review allowlist before consuming OTP or writing verification claims.
+  // The fixed review code must match exactly, and the review profile must exist already.
+  let googlePlayTestOtp: { phone: string; code: string } | null = null
+  try {
+    googlePlayTestOtp = getGooglePlayTestOtpConfig()
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Google Play test OTP sozlamalari noto‘g‘ri.' }, { status: 500 })
+  }
+  const isGooglePlayTestAccount = googlePlayTestOtp?.phone === normalizedPhone
+  if (isGooglePlayTestAccount) {
+    if (normalizedCode !== googlePlayTestOtp?.code) {
+      return NextResponse.json({ error: 'Tasdiqlash kodi noto‘g‘ri.' }, { status: 401 })
+    }
+    const { data: reviewProfile, error: reviewProfileError } = await admin
+      .from('profiles').select('id').eq('phone', normalizedPhone).maybeSingle()
+    if (reviewProfileError) return NextResponse.json({ error: reviewProfileError.message }, { status: 500 })
+    if (!reviewProfile?.id) {
+      return NextResponse.json({ error: 'Google Play test akkaunti oldindan yaratilmagan.' }, { status: 403 })
+    }
+  }
+
   const { data: consumeResult, error: consumeError } = await admin.rpc('consume_sms_otp', {
     p_phone: normalizedPhone,
     p_code_hash: hashOtp(normalizedCode),
@@ -66,14 +87,6 @@ export async function POST(request: Request) {
   const { data: existingProfile, error: profileLookupError } = await admin
     .from('profiles').select('id, phone').eq('phone', normalizedPhone).maybeSingle()
   if (profileLookupError) return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
-
-  // The Google Play review identity must be provisioned in advance. Never let
-  // the fixed review OTP create a new production account or bootstrap a profile.
-  const googlePlayTestOtp = getGooglePlayTestOtpConfig()
-  const isGooglePlayTestAccount = googlePlayTestOtp?.phone === normalizedPhone
-  if (isGooglePlayTestAccount && !existingProfile?.id) {
-    return NextResponse.json({ error: 'Google Play test akkaunti oldindan yaratilmagan.' }, { status: 403 })
-  }
 
   const authEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
   let user
