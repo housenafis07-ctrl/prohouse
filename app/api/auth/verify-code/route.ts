@@ -17,6 +17,16 @@ function hashOtp(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
 
+function getGooglePlayTestOtpConfig() {
+  if (!['preview', 'production'].includes(String(process.env.VERCEL_ENV)) || process.env.GOOGLE_PLAY_TEST_MODE !== 'true') return null
+
+  const digits = String(process.env.GOOGLE_PLAY_TEST_PHONE || '').replace(/\D/g, '')
+  const phone = digits.startsWith('998') && digits.length === 12 ? `+${digits}` : ''
+  const code = String(process.env.GOOGLE_PLAY_TEST_OTP || '').trim()
+  if (!phone || !/^\d{6}$/.test(code)) throw new Error('Google Play test OTP sozlamalari to‘liq emas.')
+  return { phone, code }
+}
+
 export async function POST(request: Request) {
   const { phone, code } = await request.json()
   const normalizedPhone = normalizePhone(phone)
@@ -56,6 +66,14 @@ export async function POST(request: Request) {
   const { data: existingProfile, error: profileLookupError } = await admin
     .from('profiles').select('id, phone').eq('phone', normalizedPhone).maybeSingle()
   if (profileLookupError) return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
+
+  // The Google Play review identity must be provisioned in advance. Never let
+  // the fixed review OTP create a new production account or bootstrap a profile.
+  const googlePlayTestOtp = getGooglePlayTestOtpConfig()
+  const isGooglePlayTestAccount = googlePlayTestOtp?.phone === normalizedPhone
+  if (isGooglePlayTestAccount && !existingProfile?.id) {
+    return NextResponse.json({ error: 'Google Play test akkaunti oldindan yaratilmagan.' }, { status: 403 })
+  }
 
   const authEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
   let user
