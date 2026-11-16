@@ -183,3 +183,32 @@ test('listing detail layout metadata rejects non-UUID slugs before querying list
   assert.ok(client > guard, 'layout metadata must validate the route ID before querying Supabase')
   assert.match(listingDetailLayout, /UUID_PATTERN\.test\(id\) && <ListingVideoPreview/)
 })
+
+
+const authSendRoute = await readFile(new URL('../app/api/auth/send-code/route.ts', import.meta.url), 'utf8')
+const authVerifyRoute = await readFile(new URL('../app/api/auth/verify-code/route.ts', import.meta.url), 'utf8')
+const registrationPage = await readFile(new URL('../app/register/page.tsx', import.meta.url), 'utf8')
+const realtorCabinet = await readFile(new URL('../app/realtors/cabinet/page.tsx', import.meta.url), 'utf8')
+const authEnvExample = await readFile(new URL('../.env.example', import.meta.url), 'utf8')
+
+test('Google Play fixed OTP is restricted to explicitly enabled Vercel Preview deployments', () => {
+  for (const source of [authSendRoute, authVerifyRoute]) {
+    assert.match(source, /process\.env\.VERCEL_ENV !== 'preview'/)
+    assert.match(source, /process\.env\.GOOGLE_PLAY_TEST_MODE !== 'true'/)
+    assert.match(source, /GOOGLE_PLAY_TEST_PHONE/)
+    assert.match(source, /GOOGLE_PLAY_TEST_OTP/)
+  }
+  assert.match(authSendRoute, /testMode: true/)
+  assert.match(authVerifyRoute, /googlePlayTestOtp\.code !== normalizedCode/)
+  assert.match(authVerifyRoute, /consume_sms_otp/)
+})
+
+test('Google Play test OTP is not exposed in browser messages or environment examples', () => {
+  for (const source of [registrationPage, realtorCabinet]) {
+    assert.doesNotMatch(source, /321321/)
+    assert.match(source, /Play Console/)
+  }
+  assert.match(authEnvExample, /GOOGLE_PLAY_TEST_MODE=false/)
+  assert.match(authEnvExample, /GOOGLE_PLAY_TEST_PHONE=/)
+  assert.match(authEnvExample, /GOOGLE_PLAY_TEST_OTP=/)
+})
