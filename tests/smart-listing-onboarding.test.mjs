@@ -191,7 +191,7 @@ const registrationPage = await readFile(new URL('../app/register/page.tsx', impo
 const realtorCabinet = await readFile(new URL('../app/realtors/cabinet/page.tsx', import.meta.url), 'utf8')
 const authEnvExample = await readFile(new URL('../.env.example', import.meta.url), 'utf8')
 
-test('Google Play fixed OTP is restricted to explicitly enabled Vercel Preview deployments', () => {
+test('Google Play fixed OTP is restricted to an explicit Vercel allowlist and requires a pre-provisioned account', () => {
   for (const source of [authSendRoute, authVerifyRoute]) {
     assert.match(source, /\['preview', 'production'\]\.includes\(String\(process\.env\.VERCEL_ENV\)\)/)
     assert.match(source, /process\.env\.GOOGLE_PLAY_TEST_MODE !== 'true'/)
@@ -203,6 +203,8 @@ test('Google Play fixed OTP is restricted to explicitly enabled Vercel Preview d
   assert.match(authSendRoute, /reserve_sms_otp/)
   assert.match(authVerifyRoute, /consume_sms_otp/)
   assert.match(authVerifyRoute, /p_max_attempts: MAX_ATTEMPTS/)
+  assert.match(authVerifyRoute, /isGooglePlayTestAccount && !existingProfile\?\.id/)
+  assert.match(authVerifyRoute, /Google Play test akkaunti oldindan yaratilmagan/)
 })
 
 test('Google Play test OTP is not exposed in browser messages or environment examples', () => {
