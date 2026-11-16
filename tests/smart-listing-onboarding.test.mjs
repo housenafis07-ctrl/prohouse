@@ -199,8 +199,10 @@ test('Google Play fixed OTP is restricted to explicitly enabled Vercel Preview d
     assert.match(source, /GOOGLE_PLAY_TEST_OTP/)
   }
   assert.match(authSendRoute, /testMode: true/)
-  assert.match(authVerifyRoute, /googlePlayTestOtp\.code !== normalizedCode/)
+  assert.match(authSendRoute, /p_code_hash: hashOtp\(googlePlayTestOtp\.code\)/)
+  assert.match(authSendRoute, /reserve_sms_otp/)
   assert.match(authVerifyRoute, /consume_sms_otp/)
+  assert.match(authVerifyRoute, /p_max_attempts: MAX_ATTEMPTS/)
 })
 
 test('Google Play test OTP is not exposed in browser messages or environment examples', () => {
