@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
-import { authenticationOptions, passkeyErrorResponse, verifyPasskeyAuthentication, issuePasskeyLoginSession } from '@/utils/auth/passkey'
+import { passkeyErrorResponse, verifyPasskeyAuthentication, issuePasskeyLoginSession } from '@/utils/auth/passkey'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
