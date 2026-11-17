@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { startAuthentication } from '@simplewebauthn/browser'
 import { useI18n } from '@/app/components/I18nProvider'
 import { listenForSmsOtp, normalizeCode } from '@/app/lib/web-otp'
 import { createSubmitGuard, isComplete } from '@/app/lib/otp-state.mjs'
@@ -132,6 +133,36 @@ export default function RegisterPage() {
     }finally{setLoading(false)}
   }
 
+
+  async function loginWithPasskey(){
+    const normalizedPhone=phone.replace(/\\s/g,'')
+    if(!/^\\+998\\d{9}$/.test(normalizedPhone)) return setMessage(t('Avval telefon raqamingizni to‘liq kiriting.','Сначала введите полный номер телефона.'))
+    setLoading(true);setMessage('')
+    try{
+      const optionsResponse=await fetch('/api/auth/passkey/options',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone})})
+      const options=await optionsResponse.json()
+      if(!optionsResponse.ok) throw new Error(options.error==='PASSKEY_NOT_AVAILABLE'?t('Bu raqam uchun Passkey ulanmagan. SMS orqali kiring.','Для этого номера Passkey не подключён. Войдите по SMS.'):options.error||'PASSKEY_OPTIONS_FAILED')
+      const assertion=await startAuthentication({optionsJSON:options})
+      const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone,response:assertion})})
+      const result=await verifyResponse.json()
+      if(!verifyResponse.ok) throw new Error(result.error||'PASSKEY_LOGIN_FAILED')
+      const supabase=createClient()
+      const {data:{user}}=await supabase.auth.getUser()
+      if(!user) throw new Error(t('Sessiya yaratilmadi. SMS orqali kirib ko‘ring.','Сессия не создана. Попробуйте войти по SMS.'))
+      if(!offer?.version) throw new Error(t('Amaldagi oferta yuklanmadi. Sahifani yangilang.','Не удалось загрузить действующую оферту. Обновите страницу.'))
+      const {data:acceptedOffer,error:acceptedOfferError}=await supabase.from('offer_consents').select('id')
+        .eq('user_id',user.id).eq('offer_version',offer.version).eq('marketing_consent',true).maybeSingle()
+      if(acceptedOfferError) throw acceptedOfferError
+      if(acceptedOffer){router.replace(getRedirectTo());return}
+      setPhone(normalizedPhone)
+      setVerified(true)
+      setOfferAcceptanceOnly(true)
+      setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
+    }catch(e){
+      setMessage(e instanceof Error?e.message:t('Passkey orqali kirishda xatolik.','Ошибка входа через Passkey.'))
+    }finally{setLoading(false)}
+  }
+
   async function sendCode(){
     const normalizedPhone=phone.replace(/\s/g,'')
     if(normalizedPhone.length<13) return setMessage(t('Telefon raqamini to‘liq kiriting.','Введите полный номер телефона.'))
@@ -251,7 +282,7 @@ export default function RegisterPage() {
 
   return <main className="min-h-screen bg-slate-50 px-4 py-10"><div className="mx-auto max-w-2xl"><Link href="/" className="text-sm font-semibold text-emerald-700">← Royalhouse</Link><div className="mt-5 rounded-3xl bg-white p-6 shadow-sm sm:p-8"><h1 className="text-3xl font-extrabold text-slate-900">{offerAcceptanceOnly?t('Ommaviy ofertani tasdiqlash','Подтверждение публичной оферты'):verified?t('Profilni to‘ldirish','Заполнить профиль'):t('Royalhouse’ga kirish','Вход в Royalhouse')}</h1><p className="mt-2 text-slate-500">{offerAcceptanceOnly?t('Telefon raqamingiz tasdiqlandi. Davom etish uchun ofertani qabul qiling.','Номер телефона подтверждён. Примите оферту, чтобы продолжить.'):verified?t('Telefon raqamingiz tasdiqlandi.','Номер телефона подтверждён.'):t('Telefon raqamingiz orqali davom eting.','Продолжите с помощью номера телефона.')}</p>
 
-    {!verified && <form onSubmit={e=>{e.preventDefault();void (sent ? verifyCode() : sendCode())}} className="mt-6 space-y-5"><div><label className="mb-2 block text-sm font-semibold">{t('Telefon raqami','Номер телефона')}</label><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3"/><button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent?t('Qayta yuborish','Отправить повторно'):t('SMS yuborish','SMS отправить')}</button></div><div className="mt-3 rounded-lg border border-slate-800 bg-white px-3 py-2 text-center text-xs leading-4 text-slate-700 sm:text-sm"><span>{t('Davom etish orqali siz e’lonlar, platforma yangiliklari va reklama xabarlarini, jumladan Telegram orqali olish shartlari ham kiritilgan ','Продолжая, вы принимаете публичную оферту, включая условия объявлений, новостей платформы и рекламных сообщений, в том числе через Telegram: ')}</span><button type="button" onClick={()=>setOfferOpen(true)} className="font-semibold underline underline-offset-2 hover:text-emerald-700">{t('Ommaviy Oferta Shartlariga','условия Публичной оферты')}</button><span>{t(' rozilik bildirasiz.','.')}</span></div></div>{sent&&<div><label className="mb-2 block text-sm font-semibold">{t('SMS kodi','SMS-код')}</label><input ref={otpInputRef} value={code} onChange={e=>handleOtpInput(e.target.value)} onInput={e=>handleOtpInput(e.currentTarget.value)} onKeyDown={handleOtpKeyDown} type="text" inputMode="numeric" autoComplete="one-time-code" name="one-time-code" enterKeyHint="done" pattern="[0-9]*" aria-label={t('SMS kodi','SMS-код')} autoFocus disabled={loading} className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-center text-2xl font-bold tracking-[0.55em] text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="••••••" /></div>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}{sent&&<button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Tekshirilmoqda...','Проверка...'):t('Kirish','Войти')}</button>}</form>}
+    {!verified && <form onSubmit={e=>{e.preventDefault();void (sent ? verifyCode() : sendCode())}} className="mt-6 space-y-5"><div><label className="mb-2 block text-sm font-semibold">{t('Telefon raqami','Номер телефона')}</label><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3"/><button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent?t('Qayta yuborish','Отправить повторно'):t('SMS yuborish','SMS отправить')}</button></div>{!sent&&<button type="button" disabled={loading} onClick={()=>void loginWithPasskey()} className="mt-3 w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold text-emerald-800 disabled:opacity-50">{t('🔐 Passkey bilan kirish','🔐 Войти с Passkey')}</button>}<div className="mt-3 rounded-lg border border-slate-800 bg-white px-3 py-2 text-center text-xs leading-4 text-slate-700 sm:text-sm"><span>{t('Davom etish orqali siz e’lonlar, platforma yangiliklari va reklama xabarlarini, jumladan Telegram orqali olish shartlari ham kiritilgan ','Продолжая, вы принимаете публичную оферту, включая условия объявлений, новостей платформы и рекламных сообщений, в том числе через Telegram: ')}</span><button type="button" onClick={()=>setOfferOpen(true)} className="font-semibold underline underline-offset-2 hover:text-emerald-700">{t('Ommaviy Oferta Shartlariga','условия Публичной оферты')}</button><span>{t(' rozilik bildirasiz.','.')}</span></div></div>{sent&&<div><label className="mb-2 block text-sm font-semibold">{t('SMS kodi','SMS-код')}</label><input ref={otpInputRef} value={code} onChange={e=>handleOtpInput(e.target.value)} onInput={e=>handleOtpInput(e.currentTarget.value)} onKeyDown={handleOtpKeyDown} type="text" inputMode="numeric" autoComplete="one-time-code" name="one-time-code" enterKeyHint="done" pattern="[0-9]*" aria-label={t('SMS kodi','SMS-код')} autoFocus disabled={loading} className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-center text-2xl font-bold tracking-[0.55em] text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="••••••" /></div>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}{sent&&<button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Tekshirilmoqda...','Проверка...'):t('Kirish','Войти')}</button>}</form>}
 
     {verified && offerAcceptanceOnly && <form onSubmit={acceptCurrentOffer} className="mt-6 space-y-5">
       <div className="rounded-2xl border border-slate-200 p-4">
