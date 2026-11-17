@@ -125,6 +125,12 @@ export async function authenticationOptions(request: Request, phone: string) {
     .select('credential_id,transports').eq('user_id', profile.id)
   if (credentialsError) throw credentialsError
   if (!credentials?.length) throw new Error('PASSKEY_NOT_AVAILABLE')
+  const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  const { count, error: rateLimitError } = await db.from('passkey_challenges')
+    .select('challenge', { count: 'exact', head: true })
+    .eq('user_id', profile.id).eq('purpose', 'authentication').gte('created_at', since)
+  if (rateLimitError) throw rateLimitError
+  if ((count || 0) >= 10) throw new Error('PASSKEY_RATE_LIMITED')
   const options = await generateAuthenticationOptions({
     rpID,
     allowCredentials: credentials.map((item: any) => ({ id: item.credential_id, transports: item.transports || [] })),
@@ -206,7 +212,7 @@ export function passkeyErrorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : 'PASSKEY_REQUEST_FAILED'
   const status = ['AUTH_REQUIRED', 'PHONE_AUTH_REQUIRED'].includes(message) ? 401
     : ['PASSKEY_NOT_AVAILABLE'].includes(message) ? 404
-    : ['PASSKEY_CHALLENGE_EXPIRED'].includes(message) ? 410\n    : ['PASSKEY_RECENT_AUTH_REQUIRED'].includes(message) ? 403
+    : ['PASSKEY_CHALLENGE_EXPIRED'].includes(message) ? 410\n    : ['PASSKEY_RECENT_AUTH_REQUIRED', 'PASSKEY_RATE_LIMITED'].includes(message) ? 403
     : ['PASSKEY_ORIGIN_REQUIRED', 'PASSKEY_ORIGIN_NOT_ALLOWED', 'PASSKEY_HOST_NOT_ALLOWED'].includes(message) ? 400
     : 400
   return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
