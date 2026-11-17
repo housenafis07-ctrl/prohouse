@@ -16,7 +16,8 @@ function sign(value: string) {
 }
 
 export function createAccountSession(userId: string) {
-  const now = Math.floor(Date.now() / 1000)\n  const payload: Payload = { userId, iat: now, exp: now + MAX_AGE_SECONDS }
+  const now = Math.floor(Date.now() / 1000)
+  const payload: Payload = { userId, iat: now, exp: now + MAX_AGE_SECONDS }
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
   return `${encoded}.${sign(encoded)}`
 }
