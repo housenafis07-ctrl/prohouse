@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse, type WebAuthnCredential } from '@simplewebauthn/server'
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
-import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession } from '@/utils/auth/account-session'
+import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession, readAccountSessionIssuedAt } from '@/utils/auth/account-session'
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000
 
@@ -206,7 +206,7 @@ export function passkeyErrorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : 'PASSKEY_REQUEST_FAILED'
   const status = ['AUTH_REQUIRED', 'PHONE_AUTH_REQUIRED'].includes(message) ? 401
     : ['PASSKEY_NOT_AVAILABLE'].includes(message) ? 404
-    : ['PASSKEY_CHALLENGE_EXPIRED'].includes(message) ? 410
+    : ['PASSKEY_CHALLENGE_EXPIRED'].includes(message) ? 410\n    : ['PASSKEY_RECENT_AUTH_REQUIRED'].includes(message) ? 403
     : ['PASSKEY_ORIGIN_REQUIRED', 'PASSKEY_ORIGIN_NOT_ALLOWED', 'PASSKEY_HOST_NOT_ALLOWED'].includes(message) ? 400
     : 400
   return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
