@@ -66,6 +66,7 @@ export default function AccountNavigation() {
     { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
     ...(isPartner ? [{ href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' }, { href: '/account/developer', label: text.developer, className: 'bg-emerald-50 text-emerald-700' }] : []),
     { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/security', label: ru ? '🔐 Безопасность и вход' : '🔐 Xavfsizlik va kirish', className: 'bg-emerald-50 text-emerald-700' },
   ]
 
   const mobileMenuItems: NavItem[] = [
@@ -79,6 +80,7 @@ export default function AccountNavigation() {
     { href: '/account/monetization', label: text.promotion, className: 'bg-amber-50 text-amber-700' },
     ...(isPartner ? [{ href: '/account/company-profile', label: text.company, className: 'bg-violet-50 text-violet-700' }, { href: '/account/developer', label: text.developer, className: 'bg-emerald-50 text-emerald-700' }] : []),
     { href: '/account/wallet', label: text.wallet, className: 'bg-emerald-50 text-emerald-700' },
+    { href: '/account/security', label: ru ? '🔐 Безопасность и вход' : '🔐 Xavfsizlik va kirish', className: 'bg-emerald-50 text-emerald-700' },
     { href: '/account', label: text.settings, className: 'bg-slate-100 text-slate-700' },
   ]
 
