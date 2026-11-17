@@ -143,7 +143,7 @@ export default function RegisterPage() {
       const options=await optionsResponse.json()
       if(!optionsResponse.ok) throw new Error(options.error==='PASSKEY_NOT_AVAILABLE'?t('Bu raqam uchun Passkey ulanmagan. SMS orqali kiring.','Для этого номера Passkey не подключён. Войдите по SMS.'):options.error||'PASSKEY_OPTIONS_FAILED')
       const assertion=await startAuthentication({optionsJSON:options})
-      const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone,response:assertion})})
+      const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone,challenge:options.challenge,response:assertion})})
       const result=await verifyResponse.json()
       if(!verifyResponse.ok) throw new Error(result.error||'PASSKEY_LOGIN_FAILED')
       const supabase=createClient()
