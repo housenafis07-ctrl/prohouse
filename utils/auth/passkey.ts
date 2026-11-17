@@ -1,11 +1,10 @@
-import { randomBytes } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse, type WebAuthnCredential } from '@simplewebauthn/server'
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
-import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession, readAccountSessionIssuedAt } from '@/utils/auth/account-session'
+import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession } from '@/utils/auth/account-session'
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000
 
@@ -185,11 +184,13 @@ export async function issuePasskeyLoginSession(userId: string) {
   const normalizedPhone = phone.replace(/\D/g, '')
   if (!normalizedPhone.startsWith('998') || normalizedPhone.length !== 12) throw new Error('PHONE_AUTH_REQUIRED')
   const email = userData.user.email || `${normalizedPhone}@test.royalhouse.local`
-  const password = randomBytes(32).toString('base64url')
-  const { error: passwordError } = await admin.auth.admin.updateUserById(userId, { password, email, email_confirm: true })
-  if (passwordError) throw passwordError
+  if (!userData.user.email) throw new Error('AUTH_EMAIL_NOT_CONFIGURED')
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
+  if (linkError) throw linkError
+  const tokenHash = linkData.properties?.hashed_token
+  if (!tokenHash) throw new Error('AUTH_MAGIC_LINK_TOKEN_MISSING')
   const authClient = createClient(url, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({ email, password })
+  const { data: sessionData, error: signInError } = await authClient.auth.verifyOtp({ token_hash: tokenHash, type: 'email' })
   if (signInError || !sessionData.session) throw new Error(signInError?.message || 'AUTH_SESSION_CREATE_FAILED')
   const response = NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
   const cookieStore = await cookies()
