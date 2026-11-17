@@ -206,6 +206,9 @@ test('Google Play fixed OTP is restricted to an explicit Vercel allowlist and re
   assert.match(authVerifyRoute, /normalizedCode !== googlePlayTestOtp\?\.code/)
   assert.match(authVerifyRoute, /Google Play test akkaunti oldindan yaratilmagan/)
   assert.ok(authVerifyRoute.indexOf('if (isGooglePlayTestAccount)') < authVerifyRoute.indexOf("admin.rpc('consume_sms_otp'"), 'review account and fixed code must be checked before consuming OTP')
+  assert.match(authVerifyRoute, /randomBytes\(32\)/, 'Auth session password must be cryptographically random')
+  assert.match(authVerifyRoute, /password: sessionPassword/)
+  assert.doesNotMatch(authVerifyRoute, /password: normalizedCode|password: code/)
 })
 
 test('Google Play test OTP is not exposed in browser messages or environment examples', () => {
