@@ -37,7 +37,7 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
       const credential = await startRegistration({ optionsJSON: options })
       const verifyResponse = await fetch('/api/account/passkeys/register/verify', {
         method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ response: credential, friendlyName: 'Ushbu qurilma' }),
+        body: JSON.stringify({ challenge: options.challenge, response: credential, friendlyName: 'Ushbu qurilma' }),
       })
       const result = await verifyResponse.json()
       if (!verifyResponse.ok || !result.verified) throw new Error(result.error || 'PASSKEY_REGISTRATION_FAILED')
