@@ -41,7 +41,8 @@ Adding a Passkey requires an account session issued within the previous 15 minut
 
 ## Security checks
 
-- Challenge is single-use, expires after five minutes, and is bound to user, ceremony, origin, and RP ID.
+- Challenge is single-use, expires after five minutes, and is bound to its exact challenge value, user, ceremony, origin, and RP ID.
+- Passkey enrollment options are issued only when the signed account session was created within the previous 15 minutes.
 - Origin and RP ID are validated against the request host.
 - User verification is required for registration and authentication.
 - Credential ownership is checked against the account user ID.
