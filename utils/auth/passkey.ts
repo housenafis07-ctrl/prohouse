@@ -45,7 +45,7 @@ export async function savePasskeyChallenge(input: { challenge: string; userId: s
   if (error) throw error
 }
 
-export async function consumePasskeyChallenge(input: { userId: string; purpose: 'registration' | 'authentication'; phone?: string }) {
+export async function consumePasskeyChallenge(input: { userId: string; purpose: 'registration' | 'authentication'; challenge: string; phone?: string }) {
   const db = serviceClient()
   let query = db.from('passkey_challenges')
     .update({ consumed_at: new Date().toISOString() })
@@ -89,9 +89,9 @@ export async function registrationOptions(request: Request, userId: string) {
   return options
 }
 
-export async function verifyPasskeyRegistration(request: Request, userId: string, response: any, friendlyName?: string) {
+export async function verifyPasskeyRegistration(userId: string, challengeValue: string, response: any, friendlyName?: string) {
   const db = serviceClient()
-  const challenge = await consumePasskeyChallenge({ userId, purpose: 'registration' })
+  const challenge = await consumePasskeyChallenge({ userId, purpose: 'registration', challenge: challengeValue })
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge: challenge.challenge,
@@ -141,9 +141,9 @@ export async function authenticationOptions(request: Request, phone: string) {
   return options
 }
 
-export async function verifyPasskeyAuthentication(userId: string, phone: string, response: any) {
+export async function verifyPasskeyAuthentication(userId: string, phone: string, challengeValue: string, response: any) {
   const db = serviceClient()
-  const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication' })
+  const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication', challenge: challengeValue })
   const credentialId = String(response?.id || '')
   const { data: stored, error } = await db.from('passkey_credentials')
     .select('credential_id,user_id,public_key,counter,transports')
