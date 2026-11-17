@@ -63,7 +63,7 @@ export default function RealtorCabinetPage() {
       const r = await fetch('/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || tx('SMS yuborilmadi','SMS не отправлено'))
-      setSent(true); setMessage(d.testMode ? tx('Test rejimi: 321321 kodidan foydalaning.','Тестовый режим: используйте код 321321.') : tx('SMS kodi yuborildi.','Код из SMS отправлен.'))
+      setSent(true); setMessage(d.testMode ? tx('Google Play test rejimi faol. Play Console ko‘rsatmasidagi kodni kiriting.','Тестовый режим Google Play включён. Введите код из инструкций Play Console.') : tx('SMS kodi yuborildi.','Код из SMS отправлен.'))
     } catch (e) { setMessage(e instanceof Error ? e.message : tx('SMS yuborishda xatolik','Ошибка отправки SMS')) } finally { setLoading(false) }
   }
 

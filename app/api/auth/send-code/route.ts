@@ -26,6 +26,20 @@ function hashOtp(code: string) {
   return createHash('sha256').update(code).digest('hex')
 }
 
+function getGooglePlayTestOtpConfig() {
+  // A fixed OTP is permitted only on an explicitly enabled Vercel deployment.
+  // Enable it on Production only for the dedicated Play review phone; all other
+  // phone numbers continue through the normal SMS provider flow.
+  if (!['preview', 'production'].includes(String(process.env.VERCEL_ENV)) || process.env.GOOGLE_PLAY_TEST_MODE !== 'true') return null
+
+  const phone = normalizePhone(process.env.GOOGLE_PLAY_TEST_PHONE)
+  const code = String(process.env.GOOGLE_PLAY_TEST_OTP || '').trim()
+  if (!phone || !/^\d{6}$/.test(code)) {
+    throw new Error('Google Play Preview OTP sozlamalari to‘liq emas.')
+  }
+  return { phone, code }
+}
+
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -148,11 +162,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Telefon raqami noto‘g‘ri.' }, { status: 400 })
     }
 
+    const googlePlayTestOtp = getGooglePlayTestOtpConfig()
     admin = getAdminClient()
     const now = new Date()
-    const code = randomInt(100000, 1000000).toString()
     const expiresAt = new Date(now.getTime() + OTP_TTL_SECONDS * 1000).toISOString()
 
+    if (googlePlayTestOtp?.phone === normalizedPhone) {
+      // Store the fixed test code through the same OTP reservation path as SMS.
+      // This preserves the existing cooldown, expiry, and attempt-limit controls.
+      const { data: reservedTestOtp, error: reserveTestError } = await admin.rpc('reserve_sms_otp', {
+        p_phone: normalizedPhone,
+        p_code_hash: hashOtp(googlePlayTestOtp.code),
+        p_expires_at: expiresAt,
+        p_cooldown_seconds: RESEND_COOLDOWN_SECONDS,
+      })
+      if (reserveTestError) {
+        if (reserveTestError.message?.includes('OTP_RESEND_COOLDOWN')) {
+          return NextResponse.json({ error: 'Yangi kodni 60 soniyadan keyin so‘rashingiz mumkin.' }, { status: 429 })
+        }
+        throw new Error(reserveTestError.message)
+      }
+      insertedOtpId = reservedTestOtp as string
+      return NextResponse.json(
+        {
+          ok: true,
+          testMode: true,
+          message: 'Google Play test OTP is enabled. Use the code supplied in the Play Console review instructions.',
+        },
+        { headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+
+    const code = randomInt(100000, 1000000).toString()
     const { data: reservedOtp, error: reserveError } = await admin.rpc('reserve_sms_otp', {
       p_phone: normalizedPhone,
       p_code_hash: hashOtp(code),

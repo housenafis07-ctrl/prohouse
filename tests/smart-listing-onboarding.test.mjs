@@ -183,3 +183,40 @@ test('listing detail layout metadata rejects non-UUID slugs before querying list
   assert.ok(client > guard, 'layout metadata must validate the route ID before querying Supabase')
   assert.match(listingDetailLayout, /UUID_PATTERN\.test\(id\) && <ListingVideoPreview/)
 })
+
+
+const authSendRoute = await readFile(new URL('../app/api/auth/send-code/route.ts', import.meta.url), 'utf8')
+const authVerifyRoute = await readFile(new URL('../app/api/auth/verify-code/route.ts', import.meta.url), 'utf8')
+const registrationPage = await readFile(new URL('../app/register/page.tsx', import.meta.url), 'utf8')
+const realtorCabinet = await readFile(new URL('../app/realtors/cabinet/page.tsx', import.meta.url), 'utf8')
+const authEnvExample = await readFile(new URL('../.env.example', import.meta.url), 'utf8')
+
+test('Google Play fixed OTP is restricted to an explicit Vercel allowlist and requires a pre-provisioned account', () => {
+  for (const source of [authSendRoute, authVerifyRoute]) {
+    assert.match(source, /\['preview', 'production'\]\.includes\(String\(process\.env\.VERCEL_ENV\)\)/)
+    assert.match(source, /process\.env\.GOOGLE_PLAY_TEST_MODE !== 'true'/)
+    assert.match(source, /GOOGLE_PLAY_TEST_PHONE/)
+    assert.match(source, /GOOGLE_PLAY_TEST_OTP/)
+  }
+  assert.match(authSendRoute, /testMode: true/)
+  assert.match(authSendRoute, /p_code_hash: hashOtp\(googlePlayTestOtp\.code\)/)
+  assert.match(authSendRoute, /reserve_sms_otp/)
+  assert.match(authVerifyRoute, /consume_sms_otp/)
+  assert.match(authVerifyRoute, /p_max_attempts: MAX_ATTEMPTS/)
+  assert.match(authVerifyRoute, /normalizedCode !== googlePlayTestOtp\?\.code/)
+  assert.match(authVerifyRoute, /Google Play test akkaunti oldindan yaratilmagan/)
+  assert.ok(authVerifyRoute.indexOf('if (isGooglePlayTestAccount)') < authVerifyRoute.indexOf("admin.rpc('consume_sms_otp'"), 'review account and fixed code must be checked before consuming OTP')
+  assert.match(authVerifyRoute, /randomBytes\(32\)/, 'Auth session password must be cryptographically random')
+  assert.match(authVerifyRoute, /password: sessionPassword/)
+  assert.doesNotMatch(authVerifyRoute, /password: normalizedCode|password: code/)
+})
+
+test('Google Play test OTP is not exposed in browser messages or environment examples', () => {
+  for (const source of [registrationPage, realtorCabinet]) {
+    assert.doesNotMatch(source, /321321/)
+    assert.match(source, /Play Console/)
+  }
+  assert.match(authEnvExample, /GOOGLE_PLAY_TEST_MODE=false/)
+  assert.match(authEnvExample, /GOOGLE_PLAY_TEST_PHONE=/)
+  assert.match(authEnvExample, /GOOGLE_PLAY_TEST_OTP=/)
+})

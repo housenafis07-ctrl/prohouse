@@ -228,7 +228,7 @@ export default function SmartListingWizard(){
    const response=await fetch('/api/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({phone:answers.phone})})
    const data=await readApiResponse(response)
    if(!response.ok)throw new Error(data.error||data.message||`SMS yuborilmadi (HTTP ${response.status}).`)
-   setOtpSent(true);setOtp('');setResendCountdown(60);setError('SMS kodi yuborildi. 6 xonali kodni kiriting.')
+   setOtpSent(true);setOtp('');setResendCountdown(60);setError(data.testMode?'Google Play test rejimi faol. Play Console ko‘rsatmasidagi 6 xonali kodni kiriting.':'SMS kodi yuborildi. 6 xonali kodni kiriting.')
   }catch(e){setError(e instanceof Error?e.message:'SMS yuborishda xatolik.')}finally{setBusy(false)}
  }
  const createDraftAndUploadImages=async(userId:string)=>{
