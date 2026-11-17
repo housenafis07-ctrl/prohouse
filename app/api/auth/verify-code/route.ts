@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -89,6 +89,8 @@ export async function POST(request: Request) {
   if (profileLookupError) return NextResponse.json({ error: profileLookupError.message }, { status: 500 })
 
   const authEmail = `${normalizedPhone.slice(1)}@test.royalhouse.local`
+  // OTP is a one-time proof only; never persist it as a reusable Auth password.
+  const sessionPassword = randomBytes(32).toString('base64url')
   let user
   const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
   if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
@@ -107,7 +109,7 @@ export async function POST(request: Request) {
     const { data, error } = await admin.auth.admin.updateUserById(existingProfile.id, {
       email: authEmail,
       email_confirm: true,
-      password: normalizedCode,
+      password: sessionPassword,
       user_metadata: { ...(existingUserData.user.user_metadata || {}), phone: normalizedPhone },
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -115,11 +117,11 @@ export async function POST(request: Request) {
   } else {
     user = usersData.users.find(item => item.email === authEmail || item.phone === normalizedPhone)
     if (!user) {
-      const { data, error } = await admin.auth.admin.createUser({ email: authEmail, email_confirm: true, password: normalizedCode, user_metadata: { phone: normalizedPhone } })
+      const { data, error } = await admin.auth.admin.createUser({ email: authEmail, email_confirm: true, password: sessionPassword, user_metadata: { phone: normalizedPhone } })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       user = data.user
     } else {
-      const { data, error } = await admin.auth.admin.updateUserById(user.id, { email: authEmail, email_confirm: true, password: normalizedCode, user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone } })
+      const { data, error } = await admin.auth.admin.updateUserById(user.id, { email: authEmail, email_confirm: true, password: sessionPassword, user_metadata: { ...(user.user_metadata || {}), phone: normalizedPhone } })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       user = data.user
     }
@@ -129,7 +131,7 @@ export async function POST(request: Request) {
   if (!publishableKey) return NextResponse.json({ error: 'Supabase publishable key sozlanmagan.' }, { status: 500 })
 
   const authClient = createClient(supabaseUrl, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({ email: authEmail, password: normalizedCode })
+  const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({ email: authEmail, password: sessionPassword })
   if (signInError || !sessionData.session) return NextResponse.json({ error: signInError?.message || 'Sessiya yaratilmadi.' }, { status: 500 })
 
   const response = NextResponse.json({
