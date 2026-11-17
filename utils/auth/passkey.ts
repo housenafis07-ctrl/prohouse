@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse, type WebAuthnCredential } from '@simplewebauthn/server'
 import { NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
-import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession } from '@/utils/auth/account-session'
+import { ACCOUNT_SESSION_COOKIE, accountSessionCookieOptions, createAccountSession, readAccountSessionIssuedAt } from '@/utils/auth/account-session'
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000
 
@@ -30,6 +30,12 @@ export async function currentPasskeyUserId() {
   return readAccountSession(store.get(ACCOUNT_SESSION_COOKIE)?.value)
 }
 
+export async function hasRecentPasskeyAuthentication() {
+  const store = await cookies()
+  const issuedAt = readAccountSessionIssuedAt(store.get(ACCOUNT_SESSION_COOKIE)?.value)
+  return typeof issuedAt === 'number' && issuedAt >= Math.floor(Date.now() / 1000) - 15 * 60
+}
+
 export async function savePasskeyChallenge(input: { challenge: string; userId: string; phone?: string; purpose: 'registration' | 'authentication'; origin: string; rpID: string }) {
   const db = serviceClient()
   const { error } = await db.from('passkey_challenges').insert({
@@ -50,6 +56,7 @@ export async function consumePasskeyChallenge(input: { userId: string; purpose: 
     .update({ consumed_at: new Date().toISOString() })
     .eq('user_id', input.userId)
     .eq('purpose', input.purpose)
+    .eq('challenge', input.challenge)
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())
   if (input.phone) query = query.eq('phone', input.phone)
