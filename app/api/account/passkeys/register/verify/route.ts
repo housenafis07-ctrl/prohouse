@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
     const body = await request.json()
     if (typeof body?.challenge !== 'string' || !body.challenge || !body?.response || typeof body.response !== 'object') return NextResponse.json({ error: 'INVALID_PASSKEY_RESPONSE' }, { status: 400 })
-    const result = await verifyPasskeyRegistration(userId, body.challenge, body.response, body.friendlyName)
+    const result = await verifyPasskeyRegistration(userId, body.challenge, body.response, request, body.friendlyName)
     return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) { return passkeyErrorResponse(error) }
 }
