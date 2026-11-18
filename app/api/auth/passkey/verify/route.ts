@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       .eq('phone', phone).maybeSingle()
     if (error) throw error
     if (!profile?.id) return NextResponse.json({ error: 'PASSKEY_NOT_AVAILABLE' }, { status: 404 })
-    await verifyPasskeyAuthentication(profile.id, phone, body.challenge, body.response)
+    await verifyPasskeyAuthentication(profile.id, phone, body.challenge, body.response, request)
     return await issuePasskeyLoginSession(profile.id)
   } catch (error) { return passkeyErrorResponse(error) }
 }
