@@ -95,9 +95,11 @@ export async function registrationOptions(request: Request, userId: string) {
   return options
 }
 
-export async function verifyPasskeyRegistration(userId: string, challengeValue: string, response: any, friendlyName?: string) {
+export async function verifyPasskeyRegistration(userId: string, challengeValue: string, response: any, request: Request, friendlyName?: string) {
   const db = serviceClient()
+  const requestContext = passkeyRequestContext(request)
   const challenge = await consumePasskeyChallenge({ userId, purpose: 'registration', challenge: challengeValue })
+  if (challenge.expected_origin !== requestContext.origin || challenge.expected_rp_id !== requestContext.rpID) throw new Error('PASSKEY_ORIGIN_MISMATCH')
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge: challenge.challenge,
@@ -147,9 +149,11 @@ export async function authenticationOptions(request: Request, phone: string) {
   return options
 }
 
-export async function verifyPasskeyAuthentication(userId: string, phone: string, challengeValue: string, response: any) {
+export async function verifyPasskeyAuthentication(userId: string, phone: string, challengeValue: string, response: any, request: Request) {
   const db = serviceClient()
+  const requestContext = passkeyRequestContext(request)
   const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication', challenge: challengeValue })
+  if (challenge.expected_origin !== requestContext.origin || challenge.expected_rp_id !== requestContext.rpID) throw new Error('PASSKEY_ORIGIN_MISMATCH')
   const credentialId = String(response?.id || '')
   const { data: stored, error } = await db.schema('passkey_stage').from('passkey_credentials')
     .select('credential_id,user_id,public_key,counter,transports')
@@ -189,21 +193,43 @@ export async function issuePasskeyLoginSession(userId: string) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   if (!url || !serviceKey || !publishableKey) throw new Error('SUPABASE_SERVER_CONFIG_MISSING')
+
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: userData, error: userError } = await admin.auth.admin.getUserById(userId)
   if (userError || !userData.user) throw new Error(userError?.message || 'AUTH_USER_NOT_FOUND')
-  const phone = String(userData.user.user_metadata?.phone || '')
-  const normalizedPhone = phone.replace(/\D/g, '')
+
+  const { data: profile, error: profileError } = await admin.from('profiles').select('phone').eq('id', userId).maybeSingle()
+  if (profileError) throw profileError
+  const phone = String(profile?.phone || userData.user.user_metadata?.phone || '')
+  const normalizedPhone = phone.replace(/\\D/g, '')
   if (!normalizedPhone.startsWith('998') || normalizedPhone.length !== 12) throw new Error('PHONE_AUTH_REQUIRED')
-  const email = userData.user.email || `${normalizedPhone}@test.royalhouse.local`
-  if (!userData.user.email) throw new Error('AUTH_EMAIL_NOT_CONFIGURED')
+
+  // Phone-only accounts receive a deterministic internal email alias. Never
+  // alter the user's password and never reassign an alias owned by another user.
+  let email = userData.user.email
+  if (!email) {
+    email = `${normalizedPhone}@test.royalhouse.local`
+    const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    if (listError) throw listError
+    const owner = usersData.users.find(item => item.email?.toLowerCase() === email!.toLowerCase())
+    if (owner && owner.id !== userId) throw new Error('AUTH_INTERNAL_EMAIL_CONFLICT')
+    const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
+      email,
+      email_confirm: true,
+      user_metadata: { ...(userData.user.user_metadata || {}), phone: `+${normalizedPhone}` },
+    })
+    if (updateError) throw updateError
+  }
+
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
   if (linkError) throw linkError
   const tokenHash = linkData.properties?.hashed_token
   if (!tokenHash) throw new Error('AUTH_MAGIC_LINK_TOKEN_MISSING')
+
   const authClient = createClient(url, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: sessionData, error: signInError } = await authClient.auth.verifyOtp({ token_hash: tokenHash, type: 'email' })
   if (signInError || !sessionData.session) throw new Error(signInError?.message || 'AUTH_SESSION_CREATE_FAILED')
+
   const response = NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
   const cookieStore = await cookies()
   const serverAuth = createServerClient(url, publishableKey, {
@@ -228,7 +254,7 @@ export function passkeyErrorResponse(error: unknown) {
     : ['PASSKEY_CHALLENGE_EXPIRED'].includes(message) ? 410
     : ['PASSKEY_RECENT_AUTH_REQUIRED'].includes(message) ? 403
     : ['PASSKEY_RATE_LIMITED'].includes(message) ? 429
-    : ['PASSKEY_ORIGIN_REQUIRED', 'PASSKEY_ORIGIN_NOT_ALLOWED', 'PASSKEY_HOST_NOT_ALLOWED'].includes(message) ? 400
+    : ['PASSKEY_ORIGIN_REQUIRED', 'PASSKEY_ORIGIN_NOT_ALLOWED', 'PASSKEY_HOST_NOT_ALLOWED', 'PASSKEY_ORIGIN_MISMATCH'].includes(message) ? 400
     : 400
   return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
 }
