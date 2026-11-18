@@ -50,13 +50,15 @@ export async function savePasskeyChallenge(input: { challenge: string; userId: s
   if (error) throw error
 }
 
-export async function consumePasskeyChallenge(input: { userId: string; purpose: 'registration' | 'authentication'; challenge: string; phone?: string }) {
+export async function consumePasskeyChallenge(input: { userId: string; purpose: 'registration' | 'authentication'; challenge: string; phone?: string; origin: string; rpID: string }) {
   const db = serviceClient()
   let query = db.schema('passkey_stage').from('passkey_challenges')
     .update({ consumed_at: new Date().toISOString() })
     .eq('user_id', input.userId)
     .eq('purpose', input.purpose)
     .eq('challenge', input.challenge)
+    .eq('expected_origin', input.origin)
+    .eq('expected_rp_id', input.rpID)
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())
   if (input.phone) query = query.eq('phone', input.phone)
@@ -98,8 +100,7 @@ export async function registrationOptions(request: Request, userId: string) {
 export async function verifyPasskeyRegistration(userId: string, challengeValue: string, response: any, request: Request, friendlyName?: string) {
   const db = serviceClient()
   const requestContext = passkeyRequestContext(request)
-  const challenge = await consumePasskeyChallenge({ userId, purpose: 'registration', challenge: challengeValue })
-  if (challenge.expected_origin !== requestContext.origin || challenge.expected_rp_id !== requestContext.rpID) throw new Error('PASSKEY_ORIGIN_MISMATCH')
+  const challenge = await consumePasskeyChallenge({ userId, purpose: 'registration', challenge: challengeValue, origin: requestContext.origin, rpID: requestContext.rpID })
   const verification = await verifyRegistrationResponse({
     response,
     expectedChallenge: challenge.challenge,
@@ -152,11 +153,10 @@ export async function authenticationOptions(request: Request, phone: string) {
 export async function verifyPasskeyAuthentication(userId: string, phone: string, challengeValue: string, response: any, request: Request) {
   const db = serviceClient()
   const requestContext = passkeyRequestContext(request)
-  const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication', challenge: challengeValue })
-  if (challenge.expected_origin !== requestContext.origin || challenge.expected_rp_id !== requestContext.rpID) throw new Error('PASSKEY_ORIGIN_MISMATCH')
+  const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication', challenge: challengeValue, origin: requestContext.origin, rpID: requestContext.rpID })
   const credentialId = String(response?.id || '')
   const { data: stored, error } = await db.schema('passkey_stage').from('passkey_credentials')
-    .select('credential_id,user_id,public_key,counter,transports')
+    .select('credential_id,user_id,public_key,counter,transports,last_used_at')
     .eq('credential_id', credentialId).eq('user_id', userId).maybeSingle()
   if (error) throw error
   if (!stored) throw new Error('PASSKEY_NOT_AVAILABLE')
@@ -175,14 +175,16 @@ export async function verifyPasskeyAuthentication(userId: string, phone: string,
     requireUserVerification: true,
   })
   if (!verification.verified) throw new Error('PASSKEY_AUTHENTICATION_NOT_VERIFIED')
-  const { data: counterUpdate, error: updateError } = await db.schema('passkey_stage').from('passkey_credentials').update({
+  let counterQuery = db.schema('passkey_stage').from('passkey_credentials').update({
     counter: verification.authenticationInfo.newCounter,
     last_used_at: new Date().toISOString(),
   }).eq('credential_id', stored.credential_id)
     .eq('user_id', userId)
     .eq('counter', stored.counter)
-    .select('credential_id')
-    .maybeSingle()
+  counterQuery = stored.last_used_at
+    ? counterQuery.eq('last_used_at', stored.last_used_at)
+    : counterQuery.is('last_used_at', null)
+  const { data: counterUpdate, error: updateError } = await counterQuery.select('credential_id').maybeSingle()
   if (updateError) throw updateError
   if (!counterUpdate) throw new Error('PASSKEY_COUNTER_CONFLICT')
   return { verified: true }
@@ -201,34 +203,32 @@ export async function issuePasskeyLoginSession(userId: string) {
   const { data: profile, error: profileError } = await admin.from('profiles').select('phone').eq('id', userId).maybeSingle()
   if (profileError) throw profileError
   const phone = String(profile?.phone || userData.user.user_metadata?.phone || '')
-  const normalizedPhone = phone.replace(/\\D/g, '')
+  const normalizedPhone = phone.replace(/\D/g, '')
   if (!normalizedPhone.startsWith('998') || normalizedPhone.length !== 12) throw new Error('PHONE_AUTH_REQUIRED')
 
-  // Phone-only accounts receive a deterministic internal email alias. Never
-  // alter the user's password and never reassign an alias owned by another user.
-  let email = userData.user.email
-  if (!email) {
-    email = `${normalizedPhone}@test.royalhouse.local`
-    const { data: usersData, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-    if (listError) throw listError
-    const owner = usersData.users.find(item => item.email?.toLowerCase() === email!.toLowerCase())
-    if (owner && owner.id !== userId) throw new Error('AUTH_INTERNAL_EMAIL_CONFLICT')
-    const { error: updateError } = await admin.auth.admin.updateUserById(userId, {
-      email,
-      email_confirm: true,
-      user_metadata: { ...(userData.user.user_metadata || {}), phone: `+${normalizedPhone}` },
-    })
-    if (updateError) throw updateError
+  // The existing SMS OTP flow provisions this deterministic internal email.
+  // Do not silently attach/change an Auth email or password during Passkey login.
+  const expectedEmail = `${normalizedPhone}@test.royalhouse.local`
+  if (!userData.user.email || userData.user.email.toLowerCase() !== expectedEmail.toLowerCase()) {
+    throw new Error('SMS_OTP_REQUIRED_TO_INITIALIZE_PHONE_LOGIN')
   }
 
-  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type: 'magiclink',
+    email: expectedEmail,
+  })
   if (linkError) throw linkError
   const tokenHash = linkData.properties?.hashed_token
   if (!tokenHash) throw new Error('AUTH_MAGIC_LINK_TOKEN_MISSING')
 
   const authClient = createClient(url, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  const { data: sessionData, error: signInError } = await authClient.auth.verifyOtp({ token_hash: tokenHash, type: 'email' })
-  if (signInError || !sessionData.session) throw new Error(signInError?.message || 'AUTH_SESSION_CREATE_FAILED')
+  const { data: sessionData, error: signInError } = await authClient.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: 'email',
+  })
+  if (signInError || !sessionData.session || sessionData.user?.id !== userId) {
+    throw new Error(signInError?.message || 'AUTH_SESSION_CREATE_FAILED')
+  }
 
   const response = NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
   const cookieStore = await cookies()
