@@ -171,11 +171,16 @@ export async function verifyPasskeyAuthentication(userId: string, phone: string,
     requireUserVerification: true,
   })
   if (!verification.verified) throw new Error('PASSKEY_AUTHENTICATION_NOT_VERIFIED')
-  const { error: updateError } = await db.schema('passkey_stage').from('passkey_credentials').update({
+  const { data: counterUpdate, error: updateError } = await db.schema('passkey_stage').from('passkey_credentials').update({
     counter: verification.authenticationInfo.newCounter,
     last_used_at: new Date().toISOString(),
-  }).eq('credential_id', stored.credential_id).eq('user_id', userId)
+  }).eq('credential_id', stored.credential_id)
+    .eq('user_id', userId)
+    .eq('counter', stored.counter)
+    .select('credential_id')
+    .maybeSingle()
   if (updateError) throw updateError
+  if (!counterUpdate) throw new Error('PASSKEY_COUNTER_CONFLICT')
   return { verified: true }
 }
 
