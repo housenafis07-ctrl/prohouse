@@ -38,7 +38,7 @@ export async function hasRecentPasskeyAuthentication() {
 
 export async function savePasskeyChallenge(input: { challenge: string; userId: string; phone?: string; purpose: 'registration' | 'authentication'; origin: string; rpID: string }) {
   const db = serviceClient()
-  const { error } = await db.from('passkey_challenges').insert({
+  const { error } = await db.schema('passkey_stage').from('passkey_challenges').insert({
     challenge: input.challenge,
     user_id: input.userId,
     phone: input.phone || null,
@@ -52,7 +52,7 @@ export async function savePasskeyChallenge(input: { challenge: string; userId: s
 
 export async function consumePasskeyChallenge(input: { userId: string; purpose: 'registration' | 'authentication'; challenge: string; phone?: string }) {
   const db = serviceClient()
-  let query = db.from('passkey_challenges')
+  let query = db.schema('passkey_stage').from('passkey_challenges')
     .update({ consumed_at: new Date().toISOString() })
     .eq('user_id', input.userId)
     .eq('purpose', input.purpose)
@@ -71,7 +71,7 @@ export async function registrationOptions(request: Request, userId: string) {
   const db = serviceClient()
   const [{ data: profile, error: profileError }, { data: credentials, error: credentialsError }] = await Promise.all([
     db.from('profiles').select('phone,full_name').eq('id', userId).maybeSingle(),
-    db.from('passkey_credentials').select('credential_id,transports').eq('user_id', userId),
+    db.schema('passkey_stage').from('passkey_credentials').select('credential_id,transports').eq('user_id', userId),
   ])
   if (profileError) throw profileError
   if (credentialsError) throw credentialsError
@@ -107,7 +107,7 @@ export async function verifyPasskeyRegistration(userId: string, challengeValue: 
   })
   if (!verification.verified || !verification.registrationInfo) throw new Error('PASSKEY_REGISTRATION_NOT_VERIFIED')
   const credential = verification.registrationInfo.credential
-  const { error } = await db.from('passkey_credentials').insert({
+  const { error } = await db.schema('passkey_stage').from('passkey_credentials').insert({
     credential_id: credential.id,
     user_id: userId,
     public_key: Buffer.from(credential.publicKey).toString('base64url'),
@@ -127,12 +127,12 @@ export async function authenticationOptions(request: Request, phone: string) {
   const { data: profile, error: profileError } = await db.from('profiles').select('id,phone').eq('phone', phone).maybeSingle()
   if (profileError) throw profileError
   if (!profile?.id) throw new Error('PASSKEY_NOT_AVAILABLE')
-  const { data: credentials, error: credentialsError } = await db.from('passkey_credentials')
+  const { data: credentials, error: credentialsError } = await db.schema('passkey_stage').from('passkey_credentials')
     .select('credential_id,transports').eq('user_id', profile.id)
   if (credentialsError) throw credentialsError
   if (!credentials?.length) throw new Error('PASSKEY_NOT_AVAILABLE')
   const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-  const { count, error: rateLimitError } = await db.from('passkey_challenges')
+  const { count, error: rateLimitError } = await db.schema('passkey_stage').from('passkey_challenges')
     .select('challenge', { count: 'exact', head: true })
     .eq('user_id', profile.id).eq('purpose', 'authentication').gte('created_at', since)
   if (rateLimitError) throw rateLimitError
@@ -151,7 +151,7 @@ export async function verifyPasskeyAuthentication(userId: string, phone: string,
   const db = serviceClient()
   const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication', challenge: challengeValue })
   const credentialId = String(response?.id || '')
-  const { data: stored, error } = await db.from('passkey_credentials')
+  const { data: stored, error } = await db.schema('passkey_stage').from('passkey_credentials')
     .select('credential_id,user_id,public_key,counter,transports')
     .eq('credential_id', credentialId).eq('user_id', userId).maybeSingle()
   if (error) throw error
@@ -171,7 +171,7 @@ export async function verifyPasskeyAuthentication(userId: string, phone: string,
     requireUserVerification: true,
   })
   if (!verification.verified) throw new Error('PASSKEY_AUTHENTICATION_NOT_VERIFIED')
-  const { error: updateError } = await db.from('passkey_credentials').update({
+  const { error: updateError } = await db.schema('passkey_stage').from('passkey_credentials').update({
     counter: verification.authenticationInfo.newCounter,
     last_used_at: new Date().toISOString(),
   }).eq('credential_id', stored.credential_id).eq('user_id', userId)
