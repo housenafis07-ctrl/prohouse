@@ -90,7 +90,7 @@ export async function registrationOptions(request: Request, userId: string) {
     attestationType: 'none',
     excludeCredentials: (credentials || []).map((item: any) => ({ id: item.credential_id, transports: item.transports || [] })),
     authenticatorSelection: {
-      residentKey: 'preferred',
+      residentKey: 'required',
       userVerification: 'required',
       authenticatorAttachment: 'platform',
     },
