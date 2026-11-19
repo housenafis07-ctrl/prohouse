@@ -18,7 +18,10 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
       const response = await fetch('/api/account/passkeys', { cache: 'no-store', credentials: 'same-origin' })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'PASSKEYS_LOAD_FAILED')
-      setPasskeys(data.passkeys || [])
+      const loadedPasskeys = data.passkeys || []
+      setPasskeys(loadedPasskeys)
+      if (loadedPasskeys.length > 0) window.localStorage.setItem('royalhouse-passkey-preferred', '1')
+      else window.localStorage.removeItem('royalhouse-passkey-preferred')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'PASSKEYS_LOAD_FAILED')
     } finally { setLoading(false) }
@@ -41,6 +44,7 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
       })
       const result = await verifyResponse.json()
       if (!verifyResponse.ok || !result.verified) throw new Error(result.error || 'PASSKEY_REGISTRATION_FAILED')
+      window.localStorage.setItem('royalhouse-passkey-preferred', '1')
       setMessage('Biometrik kirish muvaffaqiyatli yoqildi.')
       await load()
       onClose?.()
