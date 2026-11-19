@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { startAuthentication } from '@simplewebauthn/browser'
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser'
 import { useI18n } from '@/app/components/I18nProvider'
 import { listenForSmsOtp, normalizeCode } from '@/app/lib/web-otp'
 import { createSubmitGuard, isComplete } from '@/app/lib/otp-state.mjs'
@@ -12,6 +12,7 @@ import { createSubmitGuard, isComplete } from '@/app/lib/otp-state.mjs'
 type AccountType = 'individual' | 'partner'
 type PartnerType = 'self_employed' | 'sole_proprietor' | 'llc'
 type Offer = { version:number; title:string; content:string }
+type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }> }
 const emptyForm = { fullName:'', companyName:'', inn:'', bankName:'', bankAccount:'', mfo:'', directorFullName:'' }
 
 export default function RegisterPage() {
@@ -33,6 +34,9 @@ export default function RegisterPage() {
   const [offerOpen,setOfferOpen] = useState(false)
   const [offerAcceptanceOnly,setOfferAcceptanceOnly] = useState(false)
   const [autoPasskeyReady,setAutoPasskeyReady] = useState(false)
+  const [telegramPasskeyHelpOpen,setTelegramPasskeyHelpOpen] = useState(false)
+  const [iosInstallHelp,setIosInstallHelp] = useState(false)
+  const [installPrompt,setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const autoPasskeyAttemptedRef = useRef(false)
   const { lang } = useI18n()
   const ru = lang === 'ru'
@@ -80,6 +84,15 @@ export default function RegisterPage() {
     autoPasskeyAttemptedRef.current = true
     void loginWithPasskey()
   },[pathname,autoPasskeyReady,offer])
+
+  useEffect(()=>{
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault()
+      setInstallPrompt(event as BeforeInstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+  },[])
 
   useEffect(()=>()=>stopOtpRef.current?.(),[])
 
@@ -144,7 +157,42 @@ export default function RegisterPage() {
   }
 
 
+  function isTelegramMiniApp(){
+    const telegram = (window as Window & { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp
+    return Boolean(telegram?.initData || /Telegram/i.test(navigator.userAgent))
+  }
+
+  async function installRoyalHousePwa(){
+    if(installPrompt){
+      try {
+        await installPrompt.prompt()
+        const choice = await installPrompt.userChoice
+        if(choice.outcome === 'accepted') setMessage(t('RoyalHouse ilovasi o‘rnatilmoqda.','Приложение RoyalHouse устанавливается.'))
+      } catch {
+        setMessage(t('O‘rnatish oynasini ochib bo‘lmadi. Saytni Chrome yoki Safari’da oching.','Не удалось открыть установку. Откройте сайт в Chrome или Safari.'))
+      } finally { setInstallPrompt(null) }
+      return
+    }
+    const url = `${window.location.origin}/account/login`
+    const telegram = (window as Window & { Telegram?: { WebApp?: { openLink?: (url: string) => void } } }).Telegram?.WebApp
+    if(telegram?.openLink){
+      telegram.openLink(url)
+      setIosInstallHelp(/iPhone|iPad|iPod/i.test(navigator.userAgent))
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+    setIosInstallHelp(/iPhone|iPad|iPod/i.test(navigator.userAgent))
+  }
+
   async function loginWithPasskey(){
+    if(isTelegramMiniApp()){
+      setTelegramPasskeyHelpOpen(true)
+      return
+    }
+    if(!browserSupportsWebAuthn()){
+      setMessage(t('Bu brauzer Passkey’ni qo‘llab-quvvatlamaydi. RoyalHouse’ni Chrome yoki Safari’da oching yoki SMS orqali kiring.','Этот браузер не поддерживает Passkey. Откройте RoyalHouse в Chrome или Safari либо войдите по SMS.'))
+      return
+    }
     setLoading(true);setMessage('')
     try{
       const optionsResponse=await fetch('/api/auth/passkey/options',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({})})
@@ -309,5 +357,6 @@ export default function RegisterPage() {
     {verified && !offerAcceptanceOnly && <><div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={()=>setAccountType('individual')} className={`rounded-lg px-4 py-3 text-sm font-bold ${accountType==='individual'?'bg-white text-slate-900 shadow-sm':'text-slate-500'}`}>{t('Jismoniy shaxs','Физическое лицо')}</button><button type="button" onClick={()=>setAccountType('partner')} className={`rounded-lg px-4 py-3 text-sm font-bold ${accountType==='partner'?'bg-white text-emerald-700 shadow-sm':'text-slate-500'}`}>{t('Hamkor','Партнёр')}</button></div><form onSubmit={finishRegistration} className="mt-6 space-y-5">{accountType==='individual'?<div><label className="mb-2 block text-sm font-semibold">F.I.O.</label><input value={form.fullName} onChange={e=>update('fullName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3" placeholder={t('Ism Familiya Otasining ismi','Имя Фамилия Отчество')}/></div>:<><div><label className="mb-2 block text-sm font-semibold">{t('Hamkor turi','Тип партнёра')}</label><select value={partnerType} onChange={e=>setPartnerType(e.target.value as PartnerType)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"><option value="self_employed">{t('O‘zini o‘zi band qilgan — O‘BQ','Самозанятый — O‘BQ')}</option><option value="sole_proprietor">{t('Yakka tartibdagi tadbirkor — YaTT','Индивидуальный предприниматель — ИП')}</option><option value="llc">{t('Mas’uliyati cheklangan jamiyat — MChJ','Общество с ограниченной ответственностью — ООО')}</option></select></div><div className="grid gap-4 sm:grid-cols-2"><div><label className="mb-2 block text-sm font-semibold">F.I.O.</label><input value={form.fullName} onChange={e=>update('fullName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div><div><label className="mb-2 block text-sm font-semibold">INN</label><input value={form.inn} onChange={e=>update('inn',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div></div>{partnerType==='llc'&&<div><label className="mb-2 block text-sm font-semibold">{t('Tashkilot nomi','Название организации')}</label><input value={form.companyName} onChange={e=>update('companyName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div>}<div><label className="mb-2 block text-sm font-semibold">{t('Rahbar F.I.O.','Ф.И.О. руководителя')}</label><input value={form.directorFullName} onChange={e=>update('directorFullName',e.target.value)} required className="w-full rounded-xl border border-slate-200 px-4 py-3"/></div><div className="rounded-2xl border border-slate-200 p-4"><h2 className="font-bold">{t('Bank rekvizitlari','Банковские реквизиты')}</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><input value={form.bankName} onChange={e=>update('bankName',e.target.value)} required placeholder={t('Bank nomi','Название банка')} className="rounded-xl border border-slate-200 px-4 py-3"/><input value={form.mfo} onChange={e=>update('mfo',e.target.value)} required placeholder="MFO" className="rounded-xl border border-slate-200 px-4 py-3"/><input value={form.bankAccount} onChange={e=>update('bankAccount',e.target.value)} required placeholder={t('Hisob raqami','Расчётный счёт')} className="rounded-xl border border-slate-200 px-4 py-3"/></div></div></>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}<button disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Saqlanmoqda...','Сохранение...'):t('Ro‘yxatdan o‘tish','Зарегистрироваться')}</button></form></>}
   </div></div>
   {offerOpen&&offer&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true"><div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-extrabold text-slate-900">{offer.title}</h2><p className="text-xs text-slate-400">Versiya {offer.version}</p></div><button type="button" onClick={()=>setOfferOpen(false)} className="rounded-full px-3 py-2 text-xl text-slate-500">×</button></div><div className="overflow-y-auto px-5 py-5 text-sm leading-6 text-slate-700 whitespace-pre-wrap">{offer.content}</div><div className="border-t border-slate-100 px-5 py-4 text-right"><button type="button" onClick={()=>setOfferOpen(false)} className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white">{t('Yopish','Закрыть')}</button></div></div></div>}
+    {telegramPasskeyHelpOpen && <div className="fixed inset-0 z-[250] flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="telegram-passkey-title"><section className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-3xl">🔐</div><h2 id="telegram-passkey-title" className="text-center text-xl font-extrabold text-slate-900">{t('Passkey orqali kirish Telegram ichida ishlamaydi','Вход по Passkey не работает внутри Telegram')}</h2><p className="mt-3 text-center text-sm leading-6 text-slate-600">{t('Biometrik kirishdan foydalanish uchun RoyalHouse’ni telefoningizga ilova sifatida o‘rnating yoki saytni Chrome yoki Safari brauzerida oching. Shunda Face ID, barmoq izi yoki qurilma PIN-kodi yordamida SMS-kodsiz xavfsiz kirishingiz mumkin.','Чтобы использовать биометрический вход, установите RoyalHouse на телефон как приложение или откройте сайт в Chrome либо Safari. После этого вы сможете безопасно входить без SMS с помощью Face ID, отпечатка пальца или PIN-кода устройства.')}</p><div className="mt-5 space-y-3"><button type="button" onClick={()=>void installRoyalHousePwa()} className="w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-extrabold text-white shadow-sm">{t('RoyalHouse ilovasini o‘rnatish','Установить приложение RoyalHouse')}</button><div className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{t('Android: Chrome menyusidan “Ilovani o‘rnatish” yoki “Bosh ekranga qo‘shish”ni tanlang. iPhone: Safari’da “Ulashish” → “Bosh ekranga qo‘shish”ni tanlang.','Android: в меню Chrome выберите «Установить приложение» или «Добавить на главный экран». iPhone: в Safari выберите «Поделиться» → «На экран Домой».')}</div>{iosInstallHelp && <p className="rounded-lg bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">{t('Safari’da sahifani ochgach, Ulashish tugmasini bosing va “Bosh ekranga qo‘shish”ni tanlang.','Открыв страницу в Safari, нажмите «Поделиться» и выберите «На экран Домой».')}</p>}<button type="button" onClick={()=>setTelegramPasskeyHelpOpen(false)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700">{t('SMS orqali kirish','Войти по SMS')}</button></div></section></div>}
   </main>
 }
