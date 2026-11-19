@@ -1,5 +1,6 @@
 import MobileAccountMenu from './MobileAccountMenu'
+import PasskeyPrompt from './PasskeyPrompt'
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
-  return <><MobileAccountMenu />{children}</>
+  return <><MobileAccountMenu /><PasskeyPrompt />{children}</>
 }

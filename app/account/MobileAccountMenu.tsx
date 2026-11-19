@@ -59,6 +59,7 @@ export default function MobileAccountMenu() {
     { href: '/account/monetization', label: ru ? '⭐ Продвижение объявления' : '⭐ E’lonni ilgari surish' },
     ...(companyProfileEnabled ? [{ href: '/account/company-profile', label: ru ? '🏢 Профиль компании' : '🏢 Firma profili' }] : []),
     { href: '/account/wallet', label: ru ? '💳 Счёт и платежи' : '💳 Hisob va to‘lovlar' },
+    { href: '/account/security', label: ru ? '🔐 Безопасность и вход' : '🔐 Xavfsizlik va kirish' },
   ]
 
   const close = () => setOpen(false)

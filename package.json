@@ -15,7 +15,9 @@
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "web-push": "^3.6.7",
-    "exceljs": "4.4.0"
+    "exceljs": "4.4.0",
+    "@simplewebauthn/browser": "13.3.0",
+    "@simplewebauthn/server": "13.3.3"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
