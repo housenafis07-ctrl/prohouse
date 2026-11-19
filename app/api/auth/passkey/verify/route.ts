@@ -13,13 +13,29 @@ function normalizePhone(value: unknown) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null)
-    const phone = normalizePhone(body?.phone)
-    if (!phone || typeof body?.challenge !== 'string' || !body.challenge || !body?.response) return NextResponse.json({ error: 'INVALID_PASSKEY_REQUEST' }, { status: 400 })
-    const { data: profile, error } = await serviceClient().from('profiles').select('id,phone')
-      .eq('phone', phone).maybeSingle()
-    if (error) throw error
-    if (!profile?.id) return NextResponse.json({ error: 'PASSKEY_NOT_AVAILABLE' }, { status: 404 })
-    await verifyPasskeyAuthentication(profile.id, phone, body.challenge, body.response, request)
-    return await issuePasskeyLoginSession(profile.id)
+    const rawPhone = body?.phone
+    const phone = rawPhone ? normalizePhone(rawPhone) : undefined
+    if (rawPhone && !phone) return NextResponse.json({ error: 'INVALID_PHONE' }, { status: 400 })
+    if (typeof body?.challenge !== 'string' || !body.challenge || !body?.response?.id) {
+      return NextResponse.json({ error: 'INVALID_PASSKEY_REQUEST' }, { status: 400 })
+    }
+
+    // The credential ID is globally unique; its stored owner is the account
+    // identity for a discoverable, phone-free Passkey assertion.
+    const { data: credential, error: credentialError } = await serviceClient()
+      .schema('passkey_stage').from('passkey_credentials')
+      .select('user_id').eq('credential_id', String(body.response.id)).maybeSingle()
+    if (credentialError) throw credentialError
+    if (!credential?.user_id) return NextResponse.json({ error: 'PASSKEY_NOT_AVAILABLE' }, { status: 404 })
+
+    if (phone) {
+      const { data: profile, error } = await serviceClient().from('profiles').select('id')
+        .eq('phone', phone).maybeSingle()
+      if (error) throw error
+      if (profile?.id !== credential.user_id) return NextResponse.json({ error: 'PASSKEY_NOT_AVAILABLE' }, { status: 404 })
+    }
+
+    await verifyPasskeyAuthentication(credential.user_id, phone, body.challenge, body.response, request)
+    return await issuePasskeyLoginSession(credential.user_id)
   } catch (error) { return passkeyErrorResponse(error) }
 }

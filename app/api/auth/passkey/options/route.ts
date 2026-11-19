@@ -12,8 +12,9 @@ function normalizePhone(value: unknown) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null)
-    const phone = normalizePhone(body?.phone)
-    if (!phone) return NextResponse.json({ error: 'INVALID_PHONE' }, { status: 400 })
+    const rawPhone = body?.phone
+    const phone = rawPhone ? normalizePhone(rawPhone) : undefined
+    if (rawPhone && !phone) return NextResponse.json({ error: 'INVALID_PHONE' }, { status: 400 })
     const options = await authenticationOptions(request, phone)
     return NextResponse.json(options, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) { return passkeyErrorResponse(error) }

@@ -135,16 +135,13 @@ export default function RegisterPage() {
 
 
   async function loginWithPasskey(){
-    const digits = phone.replace(/\D/g, '')
-    const normalizedPhone = digits.startsWith('998') && digits.length === 12 ? `+${digits}` : ''
-    if(!normalizedPhone) return setMessage(t('Avval telefon raqamingizni to‘liq kiriting.','Сначала введите полный номер телефона.'))
     setLoading(true);setMessage('')
     try{
-      const optionsResponse=await fetch('/api/auth/passkey/options',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone})})
+      const optionsResponse=await fetch('/api/auth/passkey/options',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({})})
       const options=await optionsResponse.json()
-      if(!optionsResponse.ok) throw new Error(options.error==='PASSKEY_NOT_AVAILABLE'?t('Bu raqam uchun Passkey ulanmagan. SMS orqali kiring.','Для этого номера Passkey не подключён. Войдите по SMS.'):options.error||'PASSKEY_OPTIONS_FAILED')
+      if(!optionsResponse.ok) throw new Error(options.error==='PASSKEY_NOT_AVAILABLE'?t('Ushbu qurilmada RoyalHouse uchun Passkey topilmadi. SMS orqali kiring.','На этом устройстве не найден Passkey для RoyalHouse. Войдите по SMS.'):options.error||'PASSKEY_OPTIONS_FAILED')
       const assertion=await startAuthentication({optionsJSON:options})
-      const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone,challenge:options.challenge,response:assertion})})
+      const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({challenge:options.challenge,response:assertion})})
       const result=await verifyResponse.json()
       if(!verifyResponse.ok) throw new Error(result.error||'PASSKEY_LOGIN_FAILED')
       const supabase=createClient()
@@ -155,7 +152,8 @@ export default function RegisterPage() {
         .eq('user_id',user.id).eq('offer_version',offer.version).eq('marketing_consent',true).maybeSingle()
       if(acceptedOfferError) throw acceptedOfferError
       if(acceptedOffer){router.replace(getRedirectTo());return}
-      setPhone(normalizedPhone)
+      const {data:profile}=await supabase.from('profiles').select('phone').eq('id',user.id).maybeSingle()
+      if(profile?.phone) setPhone(profile.phone)
       setVerified(true)
       setOfferAcceptanceOnly(true)
       setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
