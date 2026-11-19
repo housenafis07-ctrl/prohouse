@@ -23,7 +23,7 @@ create index if not exists passkey_credentials_user_id_idx
 
 create table if not exists passkey_stage.passkey_challenges (
   challenge text primary key,
-  user_id uuid references public.profiles(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   phone text,
   purpose text not null check (purpose in ('registration', 'authentication')),
   expected_origin text not null,
