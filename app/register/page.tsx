@@ -135,8 +135,9 @@ export default function RegisterPage() {
 
 
   async function loginWithPasskey(){
-    const normalizedPhone=phone.replace(/\\s/g,'')
-    if(!/^\\+998\\d{9}$/.test(normalizedPhone)) return setMessage(t('Avval telefon raqamingizni to‘liq kiriting.','Сначала введите полный номер телефона.'))
+    const digits = phone.replace(/\D/g, '')
+    const normalizedPhone = digits.startsWith('998') && digits.length === 12 ? `+${digits}` : ''
+    if(!normalizedPhone) return setMessage(t('Avval telefon raqamingizni to‘liq kiriting.','Сначала введите полный номер телефона.'))
     setLoading(true);setMessage('')
     try{
       const optionsResponse=await fetch('/api/auth/passkey/options',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({phone:normalizedPhone})})
