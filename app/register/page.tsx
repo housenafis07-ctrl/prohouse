@@ -295,7 +295,7 @@ export default function RegisterPage() {
       }
 
       registrationStage = 'consent_lookup'
-      const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents').select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('marketing_consent',true).maybeSingle()
+      const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents').select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').eq('marketing_consent',true).maybeSingle()
       if(consentLookupError) throw consentLookupError
       if(!existingConsent){
         registrationStage = 'consent_insert'
