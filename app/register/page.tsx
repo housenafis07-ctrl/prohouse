@@ -32,6 +32,8 @@ export default function RegisterPage() {
   const [offer,setOffer] = useState<Offer|null>(null)
   const [offerOpen,setOfferOpen] = useState(false)
   const [offerAcceptanceOnly,setOfferAcceptanceOnly] = useState(false)
+  const [autoPasskeyReady,setAutoPasskeyReady] = useState(false)
+  const autoPasskeyAttemptedRef = useRef(false)
   const { lang } = useI18n()
   const ru = lang === 'ru'
   const t = (uz:string, russian:string) => ru ? russian : uz
@@ -63,6 +65,7 @@ export default function RegisterPage() {
 
       if(!mounted) return
       if(offerResult.data) setOffer(offerResult.data)
+      if(loginPage) setAutoPasskeyReady(true)
       if(!loginPage && accountResponse?.ok){
         router.replace(getRedirectTo())
       }
@@ -70,6 +73,13 @@ export default function RegisterPage() {
     void load()
     return()=>{mounted=false}
   },[router, pathname])
+
+  useEffect(()=>{
+    if(pathname !== '/account/login' || !autoPasskeyReady || !offer?.version || autoPasskeyAttemptedRef.current) return
+    if(window.localStorage.getItem('royalhouse-passkey-preferred') !== '1') return
+    autoPasskeyAttemptedRef.current = true
+    void loginWithPasskey()
+  },[pathname,autoPasskeyReady,offer])
 
   useEffect(()=>()=>stopOtpRef.current?.(),[])
 
@@ -158,7 +168,10 @@ export default function RegisterPage() {
       setOfferAcceptanceOnly(true)
       setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
     }catch(e){
-      setMessage(e instanceof Error?e.message:t('Passkey orqali kirishda xatolik.','Ошибка входа через Passkey.'))
+      const cancelled = e instanceof Error && e.name === 'NotAllowedError'
+      setMessage(cancelled
+        ? t('Passkey oynasi bekor qilindi. Telefon raqamingizni kiriting va SMS orqali davom eting.','Вход через Passkey отменён. Введите номер телефона и продолжите по SMS.')
+        : e instanceof Error ? e.message : t('Passkey orqali kirishda xatolik.','Ошибка входа через Passkey.'))
     }finally{setLoading(false)}
   }
 
