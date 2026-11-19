@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin, serviceClient } from '@/utils/admin/auth'
 
-export async function GET() {
+function parseAudience(value: unknown): 'public' | 'partner' {
+  return value === 'partner' ? 'partner' : 'public'
+}
+
+export async function GET(request: NextRequest) {
   const { error } = await requireSuperAdmin()
   if (error) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
   try {
+    const audience = parseAudience(request.nextUrl.searchParams.get('audience'))
     const { data, error } = await serviceClient()
       .from('offer_versions')
-      .select('id,version,title,content,is_active,created_at')
+      .select('id,version,title,content,audience,is_active,created_at')
+      .eq('audience', audience)
       .order('version', { ascending: false })
     if (error) throw error
     return NextResponse.json({ offers: data ?? [] })
@@ -23,12 +29,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const content = typeof body.content === 'string' ? body.content.trim() : ''
     const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Ommaviy oferta'
+    const audience = parseAudience(body.audience)
     if (!content) return NextResponse.json({ error: 'Oferta matni bo‘sh bo‘lishi mumkin emas.' }, { status: 400 })
 
     const supabase = serviceClient()
     const { data: latest, error: latestError } = await supabase
       .from('offer_versions')
       .select('version')
+      .eq('audience', audience)
       .order('version', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -39,6 +47,7 @@ export async function POST(request: NextRequest) {
       p_version: nextVersion,
       p_title: title,
       p_content: content,
+      p_audience: audience,
     })
     if (error) throw error
 
