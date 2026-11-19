@@ -192,7 +192,7 @@ O‘ZBEK TILIDAGI MATN
 15.1. Оператор вправе изменять Оферту. Новая редакция публикуется на Платформе и вступает в силу с указанной даты. При существенных изменениях может потребоваться повторный акцепт Пользователя.
 15.2. К ранее подтверждённым бронированиям применяется редакция условий, действовавшая на момент оформления бронирования, если иное не требуется законом.
 15.3. Оператор: ООО «Nafis house group»; ИНН 307797554; адрес: Республика Узбекистан, Ташкентская область, город Янгиюль, МФЙ Навруз, улица Самарканд, дом 155; расчётный счёт 20208000905288969001; МФО 00450; e-mail: housenafis07@gmail.com; телефон: +998 99 824 44 94; сайт: https://royalhouse.uz.$$,'public',true),
-(1,'RoyalHouse — Hamkorlik ofertasi',$$ROYALHOUSE.UZ
+(2,'RoyalHouse — Hamkorlik ofertasi',$$ROYALHOUSE.UZ
 HAMKORLIK TO‘G‘RISIDAGI OMMAVIY OFERTA
 Ko‘chmas mulk, yangi qurilish loyihalari va dam olish obyektlari bo‘yicha hamkorlar uchun
 Versiya 2.0
