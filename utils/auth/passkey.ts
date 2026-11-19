@@ -224,7 +224,7 @@ export async function issuePasskeyLoginSession(userId: string) {
   const authClient = createClient(url, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: sessionData, error: signInError } = await authClient.auth.verifyOtp({
     token_hash: tokenHash,
-    type: 'email',
+    type: 'magiclink',
   })
   if (signInError || !sessionData.session || sessionData.user?.id !== userId) {
     throw new Error(signInError?.message || 'AUTH_SESSION_CREATE_FAILED')
