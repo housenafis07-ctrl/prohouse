@@ -36,11 +36,11 @@ export async function hasRecentPasskeyAuthentication() {
   return typeof issuedAt === 'number' && issuedAt >= Math.floor(Date.now() / 1000) - 15 * 60
 }
 
-export async function savePasskeyChallenge(input: { challenge: string; userId: string; phone?: string; purpose: 'registration' | 'authentication'; origin: string; rpID: string }) {
+export async function savePasskeyChallenge(input: { challenge: string; userId?: string | null; phone?: string; purpose: 'registration' | 'authentication'; origin: string; rpID: string }) {
   const db = serviceClient()
   const { error } = await db.schema('passkey_stage').from('passkey_challenges').insert({
     challenge: input.challenge,
-    user_id: input.userId,
+    user_id: input.userId || null,
     phone: input.phone || null,
     purpose: input.purpose,
     expected_origin: input.origin,
@@ -50,17 +50,17 @@ export async function savePasskeyChallenge(input: { challenge: string; userId: s
   if (error) throw error
 }
 
-export async function consumePasskeyChallenge(input: { userId: string; purpose: 'registration' | 'authentication'; challenge: string; phone?: string; origin: string; rpID: string }) {
+export async function consumePasskeyChallenge(input: { userId?: string; purpose: 'registration' | 'authentication'; challenge: string; phone?: string; origin: string; rpID: string }) {
   const db = serviceClient()
   let query = db.schema('passkey_stage').from('passkey_challenges')
     .update({ consumed_at: new Date().toISOString() })
-    .eq('user_id', input.userId)
     .eq('purpose', input.purpose)
     .eq('challenge', input.challenge)
     .eq('expected_origin', input.origin)
     .eq('expected_rp_id', input.rpID)
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())
+  if (input.userId) query = query.eq('user_id', input.userId)
   if (input.phone) query = query.eq('phone', input.phone)
   // `challenge` is the primary key, so this update can match at most one row.
   // Avoid ordering a PATCH response: PostgREST only returns the selected columns
@@ -127,42 +127,76 @@ export async function verifyPasskeyRegistration(userId: string, challengeValue: 
   return { verified: true }
 }
 
-export async function authenticationOptions(request: Request, phone: string) {
+export async function authenticationOptions(request: Request, phone?: string) {
   const { origin, rpID } = passkeyRequestContext(request)
   const db = serviceClient()
-  const { data: profile, error: profileError } = await db.from('profiles').select('id,phone').eq('phone', phone).maybeSingle()
-  if (profileError) throw profileError
-  if (!profile?.id) throw new Error('PASSKEY_NOT_AVAILABLE')
-  const { data: credentials, error: credentialsError } = await db.schema('passkey_stage').from('passkey_credentials')
-    .select('credential_id,transports').eq('user_id', profile.id)
-  if (credentialsError) throw credentialsError
-  if (!credentials?.length) throw new Error('PASSKEY_NOT_AVAILABLE')
+
+  // Phone-based lookup remains supported for older clients, but the normal
+  // Passkey entry point uses discoverable credentials and asks for no phone.
+  let userId: string | undefined
+  let allowCredentials: { id: string; transports: string[] }[] | undefined
+  if (phone) {
+    const { data: profile, error: profileError } = await db.from('profiles').select('id').eq('phone', phone).maybeSingle()
+    if (profileError) throw profileError
+    if (!profile?.id) throw new Error('PASSKEY_NOT_AVAILABLE')
+    userId = profile.id
+    const { data: credentials, error: credentialsError } = await db.schema('passkey_stage').from('passkey_credentials')
+      .select('credential_id,transports').eq('user_id', userId)
+    if (credentialsError) throw credentialsError
+    if (!credentials?.length) throw new Error('PASSKEY_NOT_AVAILABLE')
+    allowCredentials = credentials.map((item: any) => ({ id: item.credential_id, transports: item.transports || [] }))
+  }
+
+  // For discoverable login, apply a conservative per-origin challenge limit.
   const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-  const { count, error: rateLimitError } = await db.schema('passkey_stage').from('passkey_challenges')
+  let rateQuery = db.schema('passkey_stage').from('passkey_challenges')
     .select('challenge', { count: 'exact', head: true })
-    .eq('user_id', profile.id).eq('purpose', 'authentication').gte('created_at', since)
+    .eq('purpose', 'authentication').eq('expected_origin', origin).gte('created_at', since)
+  if (userId) rateQuery = rateQuery.eq('user_id', userId)
+  const { count, error: rateLimitError } = await rateQuery
   if (rateLimitError) throw rateLimitError
-  if ((count || 0) >= 10) throw new Error('PASSKEY_RATE_LIMITED')
+  if ((count || 0) >= (userId ? 10 : 30)) throw new Error('PASSKEY_RATE_LIMITED')
+
   const options = await generateAuthenticationOptions({
     rpID,
-    allowCredentials: credentials.map((item: any) => ({ id: item.credential_id, transports: item.transports || [] })),
+    ...(allowCredentials ? { allowCredentials } : {}),
     userVerification: 'required',
     timeout: 60000,
   })
-  await savePasskeyChallenge({ challenge: options.challenge, userId: profile.id, phone, purpose: 'authentication', origin, rpID })
+  await savePasskeyChallenge({
+    challenge: options.challenge,
+    userId: userId || null,
+    phone: phone || undefined,
+    purpose: 'authentication',
+    origin,
+    rpID,
+  })
   return options
 }
 
-export async function verifyPasskeyAuthentication(userId: string, phone: string, challengeValue: string, response: any, request: Request) {
+export async function verifyPasskeyAuthentication(userId: string, phone: string | undefined, challengeValue: string, response: any, request: Request) {
   const db = serviceClient()
   const requestContext = passkeyRequestContext(request)
-  const challenge = await consumePasskeyChallenge({ userId, phone, purpose: 'authentication', challenge: challengeValue, origin: requestContext.origin, rpID: requestContext.rpID })
+
+  // Resolve the account from the credential returned by the authenticator.
+  // This is the key step that makes phone-free discoverable Passkey login work.
   const credentialId = String(response?.id || '')
+  if (!credentialId) throw new Error('PASSKEY_CREDENTIAL_REQUIRED')
   const { data: stored, error } = await db.schema('passkey_stage').from('passkey_credentials')
     .select('credential_id,user_id,public_key,counter,transports,last_used_at')
-    .eq('credential_id', credentialId).eq('user_id', userId).maybeSingle()
+    .eq('credential_id', credentialId).maybeSingle()
   if (error) throw error
-  if (!stored) throw new Error('PASSKEY_NOT_AVAILABLE')
+  if (!stored || stored.user_id !== userId) throw new Error('PASSKEY_NOT_AVAILABLE')
+
+  const challenge = await consumePasskeyChallenge({
+    userId: phone ? userId : undefined,
+    phone,
+    purpose: 'authentication',
+    challenge: challengeValue,
+    origin: requestContext.origin,
+    rpID: requestContext.rpID,
+  })
+
   const credential: WebAuthnCredential = {
     id: stored.credential_id,
     publicKey: new Uint8Array(Buffer.from(stored.public_key, 'base64url')),
@@ -178,6 +212,15 @@ export async function verifyPasskeyAuthentication(userId: string, phone: string,
     requireUserVerification: true,
   })
   if (!verification.verified) throw new Error('PASSKEY_AUTHENTICATION_NOT_VERIFIED')
+
+  // If the authenticator supplied userHandle, bind it to the credential owner.
+  const userHandle = response?.response?.userHandle
+  if (userHandle) {
+    const decodedHandle = Buffer.from(userHandle, 'base64url').toString('hex')
+    const expectedHandle = userId.replace(/-/g, '').toLowerCase()
+    if (decodedHandle.toLowerCase() !== expectedHandle) throw new Error('PASSKEY_USER_HANDLE_MISMATCH')
+  }
+
   let counterQuery = db.schema('passkey_stage').from('passkey_credentials').update({
     counter: verification.authenticationInfo.newCounter,
     last_used_at: new Date().toISOString(),
