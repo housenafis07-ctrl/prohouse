@@ -62,7 +62,10 @@ export async function consumePasskeyChallenge(input: { userId: string; purpose: 
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())
   if (input.phone) query = query.eq('phone', input.phone)
-  const { data, error } = await query.select('challenge,expected_origin,expected_rp_id').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  // `challenge` is the primary key, so this update can match at most one row.
+  // Avoid ordering a PATCH response: PostgREST only returns the selected columns
+  // from the UPDATE CTE, so ordering by created_at (not in RETURNING) causes 42703.
+  const { data, error } = await query.select('challenge,expected_origin,expected_rp_id').maybeSingle()
   if (error) throw error
   if (!data) throw new Error('PASSKEY_CHALLENGE_EXPIRED')
   return data
