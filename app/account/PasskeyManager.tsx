@@ -11,6 +11,7 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [autoLoginEnabled, setAutoLoginEnabled] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -20,8 +21,9 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
       if (!response.ok) throw new Error(data.error || 'PASSKEYS_LOAD_FAILED')
       const loadedPasskeys = data.passkeys || []
       setPasskeys(loadedPasskeys)
-      if (loadedPasskeys.length > 0) window.localStorage.setItem('royalhouse-passkey-preferred', '1')
-      else window.localStorage.removeItem('royalhouse-passkey-preferred')
+      const preferred = window.localStorage.getItem('royalhouse-passkey-preferred') === '1'
+      setAutoLoginEnabled(loadedPasskeys.length > 0 && preferred)
+      if (loadedPasskeys.length === 0) window.localStorage.removeItem('royalhouse-passkey-preferred')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'PASSKEYS_LOAD_FAILED')
     } finally { setLoading(false) }
@@ -45,6 +47,7 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
       const result = await verifyResponse.json()
       if (!verifyResponse.ok || !result.verified) throw new Error(result.error || 'PASSKEY_REGISTRATION_FAILED')
       window.localStorage.setItem('royalhouse-passkey-preferred', '1')
+      setAutoLoginEnabled(true)
       setMessage('Biometrik kirish muvaffaqiyatli yoqildi.')
       await load()
       onClose?.()
@@ -79,6 +82,16 @@ export default function PasskeyManager({ mode = 'settings', onClose }: { mode?: 
       </div>
     </div>
     {loading ? <p className="text-sm text-slate-500">Qurilmalar tekshirilmoqda…</p> : passkeys.length > 0 ? <div className="space-y-2">{passkeys.map(item => <div key={item.credential_id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{item.friendly_name || 'Passkey qurilmasi'}</p><p className="mt-1 text-xs text-slate-500">{item.backed_up ? 'Bulut bilan sinxronlangan' : 'Qurilmada saqlangan'} · {new Date(item.created_at).toLocaleDateString()}</p></div><button type="button" disabled={busy} onClick={() => void remove(item.credential_id)} className="shrink-0 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 disabled:opacity-50">O‘chirish</button></div>)}</div> : <p className="text-sm text-slate-500">Hozircha biometrik kirish qurilmasi ulanmagan.</p>}
+    {passkeys.length > 0 && <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
+      <div className="min-w-0"><p className="text-sm font-bold text-slate-900">Passkey bilan avtomatik kirish</p><p className="mt-1 text-xs leading-5 text-slate-500">Yoqilsa, kirish sahifasida telefon raqamisiz Passkey birinchi bo‘lib ishga tushadi. Bekor qilsangiz SMS orqali kirishingiz mumkin.</p></div>
+      <button type="button" role="switch" aria-checked={autoLoginEnabled} disabled={busy || loading} onClick={() => {
+        const next = !autoLoginEnabled
+        setAutoLoginEnabled(next)
+        if (next) window.localStorage.setItem('royalhouse-passkey-preferred', '1')
+        else window.localStorage.removeItem('royalhouse-passkey-preferred')
+        setMessage(next ? 'Passkey bilan avtomatik kirish yoqildi.' : 'Passkey bilan avtomatik kirish o‘chirildi.')
+      }} className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${autoLoginEnabled ? 'bg-emerald-600' : 'bg-slate-300'} disabled:opacity-50`}><span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${autoLoginEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+    </div>}
     <button type="button" disabled={busy} onClick={() => void enable()} className="w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-extrabold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50">{busy ? 'Bajarilmoqda…' : passkeys.length ? 'Yana qurilma qo‘shish' : 'Biometrik kirishni yoqish'}</button>
     {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{message}</p>}
     {error && <div role="alert" className="space-y-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700"><p>{error === 'PASSKEY_RECENT_AUTH_REQUIRED' ? 'Xavfsizlik uchun avval SMS kod bilan qayta kiring, so‘ng Passkey qo‘shing.' : error === 'PASSKEY_RATE_LIMITED' ? 'Juda ko‘p urinish. Birozdan keyin qayta urinib ko‘ring.' : error}</p>{error === 'PASSKEY_RECENT_AUTH_REQUIRED' && <button type="button" onClick={() => { window.location.href = '/account/login?next=%2Faccount%2Fsecurity' }} className="rounded-lg bg-rose-100 px-3 py-2 font-bold">SMS kod bilan qayta kirish</button>}</div>}
