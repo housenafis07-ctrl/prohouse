@@ -1,6 +1,11 @@
 begin;
 
-create table if not exists public.passkey_credentials (
+create schema if not exists passkey_stage;
+
+revoke all on schema passkey_stage from public, anon, authenticated;
+grant usage on schema passkey_stage to service_role;
+
+create table if not exists passkey_stage.passkey_credentials (
   credential_id text primary key,
   user_id uuid not null references public.profiles(id) on delete cascade,
   public_key text not null,
@@ -14,9 +19,9 @@ create table if not exists public.passkey_credentials (
 );
 
 create index if not exists passkey_credentials_user_id_idx
-  on public.passkey_credentials(user_id);
+  on passkey_stage.passkey_credentials(user_id);
 
-create table if not exists public.passkey_challenges (
+create table if not exists passkey_stage.passkey_challenges (
   challenge text primary key,
   user_id uuid references public.profiles(id) on delete cascade,
   phone text,
@@ -33,14 +38,14 @@ create table if not exists public.passkey_challenges (
 );
 
 create index if not exists passkey_challenges_expiry_idx
-  on public.passkey_challenges(expires_at);
+  on passkey_stage.passkey_challenges(expires_at);
 
-alter table public.passkey_credentials enable row level security;
-alter table public.passkey_challenges enable row level security;
+alter table passkey_stage.passkey_credentials enable row level security;
+alter table passkey_stage.passkey_challenges enable row level security;
 
-revoke all on public.passkey_credentials from public, anon, authenticated;
-revoke all on public.passkey_challenges from public, anon, authenticated;
-grant all on public.passkey_credentials to service_role;
-grant all on public.passkey_challenges to service_role;
+revoke all on passkey_stage.passkey_credentials from public, anon, authenticated;
+revoke all on passkey_stage.passkey_challenges from public, anon, authenticated;
+grant all on passkey_stage.passkey_credentials to service_role;
+grant all on passkey_stage.passkey_challenges to service_role;
 
 commit;
