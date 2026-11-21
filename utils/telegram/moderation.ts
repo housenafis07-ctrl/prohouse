@@ -191,7 +191,7 @@ export async function notifyModeratorsAboutDeveloperComplex(complexId: string) {
     `🖥 ${SITE_URL}/admin/developer-complexes`,
   ].filter(Boolean).join('\n')
 
-  const destinations = [...new Set([groupId, ...moderatorIds()])]
+  const destinations = await moderatorDestinations(db, groupId)
   const results = await Promise.allSettled(destinations.map(chatId =>
     telegram('sendMessage', { chat_id: chatId, text: message, disable_web_page_preview: true })
   ))
@@ -240,7 +240,7 @@ export async function notifyModerationResult(
     `🖥 ${SITE_URL}/admin/moderation`,
   ].filter(Boolean).join('\n')
 
-  const destinations = [...new Set([groupId, ...moderatorIds()])]
+  const destinations = await moderatorDestinations(db, groupId)
     .filter(chatId => excludeChatId == null || String(chatId) !== String(excludeChatId))
   const results = await Promise.allSettled(destinations.map(chatId =>
     telegram('sendMessage', { chat_id: chatId, text: message, disable_web_page_preview: true })
