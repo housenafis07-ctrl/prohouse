@@ -13,6 +13,8 @@ type ListingSummary = {
   owner_id?: string | null
   listing_type?: string | null
   property_type?: string | null
+  seller_type?: string | null
+  seller_role?: string | null
 }
 
 const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
@@ -55,7 +57,7 @@ export async function notifyModeratorsAboutListing(listingId: string) {
 
   const db = serviceClient()
   const { data: listing, error } = await db.from('listings')
-    .select('id,listing_code,title,price,currency,city,district,area_m2,rooms,owner_id,listing_type,property_type')
+    .select('id,listing_code,title,price,currency,city,district,area_m2,rooms,owner_id,listing_type,property_type,seller_type,seller_role')
     .eq('id', listingId).eq('status', 'moderation').maybeSingle()
   if (error) throw error
   if (!listing) return
@@ -66,6 +68,15 @@ export async function notifyModeratorsAboutListing(listingId: string) {
     db.from('listing_images').select('image_url').eq('listing_id', listingId).order('sort_order', { ascending: true }).limit(1),
   ])
   const location = [item.city, item.district].filter(Boolean).join(', ') || 'Joylashuv ko‘rsatilmagan'
+  const sellerLabel = item.seller_role === 'realtor' || item.seller_type === 'realtor'
+    ? 'Rieltor'
+    : item.seller_role === 'developer' || item.seller_type === 'developer'
+      ? 'Developer'
+      : item.seller_type === 'service_provider'
+        ? 'Xizmat ko‘rsatuvchi hamkor'
+        : item.seller_type === 'seller'
+          ? 'Hamkor / sotuvchi'
+          : 'Jismoniy shaxs yoki mulk egasi'
   const caption = [
     '🆕 ROYALHOUSE — YANGI E’LON',
     `🆔 ${item.listing_code || item.id}`,
@@ -74,6 +85,7 @@ export async function notifyModeratorsAboutListing(listingId: string) {
     `📍 ${location}`,
     item.area_m2 != null ? `📐 ${item.area_m2} m²` : null,
     item.rooms != null ? `🚪 ${item.rooms} xona` : null,
+    `🏷 E’lon beruvchi turi: ${sellerLabel}`,
     `👤 ${profile?.company_name || profile?.full_name || 'Foydalanuvchi'}`,
     profile?.phone ? `☎️ ${profile.phone}` : null,
     '',
