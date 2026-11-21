@@ -90,7 +90,16 @@ export async function notifyModeratorsAboutListing(listingId: string) {
       : telegram('sendMessage', { chat_id: chatId, text: caption, disable_web_page_preview: true, reply_markup: keyboard })
   ))
   const failures = results.filter(x => x.status === 'rejected')
-  if (failures.length) console.warn('[moderation-bot] some moderator notifications failed', { listingId, failed: failures.length })
+  const delivery = { sent: results.length - failures.length, failed: failures.length, destinations: destinations.length }
+  if (failures.length) {
+    console.error('[moderation-bot] some moderator notifications failed', {
+      listingId,
+      delivery,
+      errors: failures.map(result => result.status === 'rejected' ? String(result.reason) : ''),
+    })
+  }
+  if (delivery.sent === 0) throw new Error('TELEGRAM_NOTIFICATION_DELIVERY_FAILED')
+  return delivery
 }
 
 export async function notifyModerationResult(
