@@ -1,0 +1,14 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+
+type Invitation={id:string;role:string;invited_at:string;developer:{developer_name:string;description:string|null;logo_url:string|null}|null}
+const roles:Record<string,string>={admin:'Administrator',sales_manager:'Savdo rahbari',sales_agent:'Savdo menejeri',marketing:'Marketing',analyst:'Analitik'}
+export default function DeveloperInvitationsPage(){
+ const [items,setItems]=useState<Invitation[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState<string|null>(null)
+ async function load(){setLoading(true);try{const r=await fetch('/api/developer/team/invitations',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'INVITATIONS_LOAD_FAILED');setItems(d.invitations||[])}catch(e){setError(e instanceof Error?e.message:'INVITATIONS_LOAD_FAILED')}finally{setLoading(false)}}
+ useEffect(()=>{load()},[])
+ async function accept(id:string){setBusy(id);setError('');try{const r=await fetch('/api/developer/team/invitations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});const d=await r.json();if(!r.ok)throw new Error(d.error||'INVITATION_ACCEPT_FAILED');setItems(v=>v.filter(x=>x.id!==id))}catch(e){setError(e instanceof Error?e.message:'INVITATION_ACCEPT_FAILED')}finally{setBusy(null)}}
+ return <main className="min-h-screen bg-slate-50 px-4 py-8"><div className="mx-auto max-w-3xl"><Link href="/account" className="font-bold text-emerald-700">← Kabinet</Link><header className="mt-5 rounded-3xl bg-slate-900 p-7 text-white"><p className="text-xs font-black uppercase tracking-widest text-emerald-300">ROYALHOUSE · TEAM</p><h1 className="mt-2 text-3xl font-black">Kompaniya takliflari</h1><p className="mt-2 text-sm text-slate-300">Developer kompaniyalari jamoasiga qo‘shilish takliflarini shu yerda qabul qilasiz.</p></header>{error&&<p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}{loading?<p className="py-8">Yuklanmoqda...</p>:<section className="mt-5 space-y-3">{items.map(x=><article key={x.id} className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="text-lg font-black">{x.developer?.developer_name||'Developer kompaniyasi'}</h2><p className="mt-1 text-sm text-slate-500">Taklif etilgan rol: <b>{roles[x.role]||x.role}</b></p><p className="mt-1 text-xs text-slate-400">{new Date(x.invited_at).toLocaleString('uz-UZ')}</p><button disabled={busy===x.id} onClick={()=>accept(x.id)} className="mt-4 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{busy===x.id?'Qabul qilinmoqda...':'Taklifni qabul qilish'}</button></article>)}{!items.length&&<p className="rounded-2xl bg-white p-6 text-sm text-slate-500">Sizda yangi takliflar yo‘q.</p>}</section>}</div></main>
+}

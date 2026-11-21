@@ -331,7 +331,7 @@ export default function AccountPage() {
             <Link href="/" className="flex items-center gap-2.5"><Image src="/royalhouse-icon.svg" alt="RoyalHouse" width={36} height={36} priority /><span className="text-[17px] font-black">RoyalHouse<span className="text-emerald-600">.uz</span></span></Link>
           </div>
           <nav className="flex-1 overflow-y-auto px-3 py-4">
-            <div className="space-y-1">{mainLinks.map((item) => <MenuLink key={item.href} href={item.href} active={item.href === '/account'} icon={item.icon}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
+            <div className="space-y-1">{mainLinks.map((item) => <MenuLink key={item.href} href={item.href} active={item.href === '/account'} icon={item.icon}>{ru ? item.ru : item.uz}</MenuLink>)}<MenuLink href="/account/developer/invitations" icon="✉️">{ru ? 'Приглашения компаний' : 'Kompaniya takliflari'}</MenuLink></div>
             <div className="my-4 border-t border-slate-100" />
             <div className="space-y-1">{sellerLinks.map((item) => <MenuLink key={item.href} href={item.href} icon={item.icon} onClick={item.href === '/realtors/cabinet' ? openRealtorCabinet : undefined}>{ru ? item.ru : item.uz}</MenuLink>)}</div>
             {isPartner && <div className="mt-1"><MenuLink href="/account/developer" icon="🏢">{ru ? 'Кабинет девелопера' : 'Developer kabineti'}</MenuLink></div>}
