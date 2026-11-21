@@ -4,7 +4,7 @@ import { requireAdmin, serviceClient } from '@/utils/admin/auth'
 const REVIEW_STATUSES = new Set(['pending', 'approved', 'rejected', 'revision_requested'])
 
 export async function GET() {
-  const { admin, error } = await requireAdmin()
+  const { admin, error } = await requireAdmin('developer_complexes.moderate')
   if (error || !admin) return NextResponse.json({ error: error || 'Unauthorized' }, { status: error === 'Forbidden' ? 403 : 401 })
 
   const db = serviceClient()
@@ -45,7 +45,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const { admin, error } = await requireAdmin()
+  const { admin, error } = await requireAdmin('developer_complexes.moderate')
   if (error || !admin) return NextResponse.json({ error: error || 'Unauthorized' }, { status: error === 'Forbidden' ? 403 : 401 })
 
   const body = await request.json().catch(() => null)
