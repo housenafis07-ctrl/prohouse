@@ -24,7 +24,7 @@ async function moderatorDestinations(db: ReturnType<typeof serviceClient>, group
     .select('telegram_user_id,chat_id,is_active')
   if (error) {
     if (error.code === 'PGRST205' || error.code === '42P01') {
-      const legacy = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(value => /^\\d+$/.test(value))
+      const legacy = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(value => /^\d+$/.test(value))
       return [...new Set([groupId, ...legacy])]
     }
     throw error
