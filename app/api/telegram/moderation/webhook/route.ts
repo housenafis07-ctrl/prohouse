@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (text === '/chatid') {
-      if (isModerator(userId)) await send(chatId, `Chat ID: ${chatId}`)
+      await send(chatId, `Chat ID: ${chatId}\nTelegram user ID: ${userId}`)
       return NextResponse.json({ ok: true })
     }
 
