@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@/utils/admin/auth'
 
 export const runtime = 'nodejs'
@@ -16,24 +16,24 @@ async function telegram(method: string, body: Record<string, unknown>) {
   return result.result
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { error } = await requireSuperAdmin()
   if (error) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
   return NextResponse.json({
     configured: Boolean(process.env.TELEGRAM_MODERATION_BOT_TOKEN && process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET),
     groupConfigured: Boolean(process.env.ROYALHOUSE_MODERATION_GROUP_ID),
     moderatorCount: (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(x => /^\d+$/.test(x)).length,
-    webhookUrl: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')}/api/telegram/moderation/webhook`,
+    webhookUrl: `${request.nextUrl.origin}/api/telegram/moderation/webhook`,
   })
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const { error } = await requireSuperAdmin()
   if (error) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
 
   const token = process.env.TELEGRAM_MODERATION_BOT_TOKEN
   const secret = process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
+  const siteUrl = request.nextUrl.origin
   if (!token || !secret) return NextResponse.json({ error: 'Bot token yoki webhook secret sozlanmagan.' }, { status: 409 })
   if (!/^[A-Za-z0-9_-]{1,256}$/.test(secret)) return NextResponse.json({ error: 'Webhook secret Telegram talablariga mos emas.' }, { status: 400 })
 
