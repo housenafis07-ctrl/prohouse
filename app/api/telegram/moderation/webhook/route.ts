@@ -146,6 +146,10 @@ export async function POST(request: NextRequest) {
     if (text === '/start' || text.startsWith('/start ')) {
       const payload = text.split(/\s+/, 2)[1] || ''
       if (payload.startsWith('link_')) {
+        if (message.chat.type !== 'private') {
+          await send(chatId, 'Moderator taklif havolasini bot bilan shaxsiy chatda oching.')
+          return NextResponse.json({ ok: true })
+        }
         const linked = await linkModeratorFromInvite(chatId, { id: userId, username: message.from.username, first_name: message.from.first_name }, payload.slice(5))
         await send(chatId, linked
           ? '✅ Telegram akkauntingiz RoyalHouse moderatoriga muvaffaqiyatli bog‘landi. Endi moderatsiya xabarlari shu chatga keladi.'
