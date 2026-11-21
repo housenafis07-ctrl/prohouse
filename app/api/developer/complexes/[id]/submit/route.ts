@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
+import { notifyModeratorsAboutDeveloperComplex } from '@/utils/telegram/moderation'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const cookieStore = await cookies()
@@ -69,5 +70,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }).eq('id', id).eq('developer_id', developer.id)
   if (updateError) return NextResponse.json({ error: 'COMPLEX_SUBMISSION_FAILED' }, { status: 500 })
 
-  return NextResponse.json({ ok: true, status: 'pending' }, { headers: { 'Cache-Control': 'no-store' } })
+  const notification = await notifyModeratorsAboutDeveloperComplex(id)
+    .then(delivery => ({ ok: true, delivery }))
+    .catch(error => {
+      console.error('[developer-complex-submit] Telegram notification failed', error)
+      return { ok: false, error: error instanceof Error ? error.message : 'TELEGRAM_NOTIFICATION_FAILED' }
+    })
+
+  return NextResponse.json({ ok: true, status: 'pending', notification }, { headers: { 'Cache-Control': 'no-store' } })
 }
