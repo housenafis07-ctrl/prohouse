@@ -16,7 +16,7 @@ type TelegramUpdate = {
     text?: string
     chat?: { id?: number; type?: string }
     from?: { id?: number; username?: string; first_name?: string }
-    reply_to_message?: { text?: string }
+    reply_to_message?: { text?: string; message_id?: number; reply_to_message?: { message_id?: number } }
   }
   callback_query?: {
     id?: string
