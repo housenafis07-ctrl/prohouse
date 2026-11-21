@@ -2,7 +2,8 @@
 alter table public.listing_moderation_history
   add column if not exists moderator_telegram_id text;
 
-alter table public.listing_moderation_history\n  add column if not exists action text;
+alter table public.listing_moderation_history
+  add column if not exists action text;
 
 create index if not exists listing_moderation_history_telegram_moderator_idx
   on public.listing_moderation_history(moderator_telegram_id, created_at desc)
