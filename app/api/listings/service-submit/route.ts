@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     const firstImageUrl = rows[0]?.image_url || null
     const { data: updated, error: updateError } = await db.from('listings').update({ status: 'moderation', submitted_at: new Date().toISOString(), draft_step: 6, ...(firstImageUrl ? { primary_image_url: firstImageUrl } : {}) }).eq('id', listingId).eq('owner_id', user.id).select('id,listing_code,status,primary_image_url').single()
     if (updateError) throw new Error(`E’lonni moderatsiyaga yuborishda xatolik: ${updateError.message}`)
-    if (listing.status !== 'moderation') await notifyModeratorsAboutListing(updated.id).catch(error => console.error('[service-listing-submit] moderation bot notification failed', error))
+    await notifyModeratorsAboutListing(updated.id).catch(error => console.error('[service-listing-submit] moderation bot notification failed', error))
 
     return NextResponse.json({ success: true, listing: updated, images_added: rows.length })
   } catch (error) {
