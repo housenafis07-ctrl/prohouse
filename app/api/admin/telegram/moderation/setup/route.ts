@@ -20,7 +20,7 @@ export async function GET() {
   const { error } = await requireSuperAdmin()
   if (error) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
   return NextResponse.json({
-    configured: Boolean(process.env.TELEGRAM_MODERATION_BOT_TOKEN && process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET && process.env.ROYALHOUSE_MODERATION_GROUP_ID),
+    configured: Boolean(process.env.TELEGRAM_MODERATION_BOT_TOKEN && process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET),
     groupConfigured: Boolean(process.env.ROYALHOUSE_MODERATION_GROUP_ID),
     moderatorCount: (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(x => /^\d+$/.test(x)).length,
     webhookUrl: `${(process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')}/api/telegram/moderation/webhook`,
