@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true })
       }
       try {
-        const listing = await processModerationDecision(listingId, 'approve', '', telegramUserId)
+        const listing = await processModerationDecision(listingId, 'approve', '', telegramUserId, callback.message.chat.id)
         await answerModerationCallback(callback.id, 'E’lon tasdiqlandi.')
         await editModerationMessage(callback.message.chat.id, callback.message.message_id,
           `✅ E’lon tasdiqlandi: ${listing.listing_code || listing.id} (@${callback.from?.username || telegramUserId})`)
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       const idMatch = /E’lon ID:\s*([0-9a-f-]{36})/i.exec(message.reply_to_message.text)
       if (idMatch && text && !text.startsWith('/')) {
         try {
-          const listing = await processModerationDecision(idMatch[1], 'reject', text.slice(0, 1000), String(userId))
+          const listing = await processModerationDecision(idMatch[1], 'reject', text.slice(0, 1000), String(userId), chatId)
           const resultText = `❌ E’lon rad etildi va tuzatish uchun qaytarildi: ${listing.listing_code || listing.id}\nSabab: ${text.slice(0, 1000)}`
           const originalMessageId = message.reply_to_message.reply_to_message?.message_id
           if (originalMessageId) await editModerationMessage(chatId, originalMessageId, resultText)
