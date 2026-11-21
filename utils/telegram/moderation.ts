@@ -50,8 +50,7 @@ export async function notifyModeratorsAboutListing(listingId: string) {
   const token = process.env.TELEGRAM_MODERATION_BOT_TOKEN
   const groupId = process.env.ROYALHOUSE_MODERATION_GROUP_ID
   if (!token || !groupId) {
-    console.warn('[moderation-bot] token or group id is not configured; notification skipped')
-    return
+    throw new Error('TELEGRAM_MODERATION_BOT_TOKEN_OR_GROUP_ID_NOT_CONFIGURED')
   }
 
   const db = serviceClient()
