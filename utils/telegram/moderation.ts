@@ -101,6 +101,70 @@ export async function notifyModeratorsAboutListing(listingId: string) {
   return delivery
 }
 
+
+export async function notifyModeratorsAboutDeveloperComplex(complexId: string) {
+  const token = process.env.TELEGRAM_MODERATION_BOT_TOKEN
+  const groupId = process.env.ROYALHOUSE_MODERATION_GROUP_ID
+  if (!token || !groupId) throw new Error('TELEGRAM_MODERATION_BOT_TOKEN_OR_GROUP_ID_NOT_CONFIGURED')
+
+  const db = serviceClient()
+  const { data: complex, error } = await db.from('residential_complexes')
+    .select('id,name,city,address,description,completion_year,developer_id,moderation_status')
+    .eq('id', complexId)
+    .eq('moderation_status', 'pending')
+    .maybeSingle()
+  if (error) throw error
+  if (!complex) throw new Error('DEVELOPER_COMPLEX_NOT_PENDING')
+
+  const { data: developer, error: developerError } = await db.from('developer_profiles')
+    .select('company_name,brand_name,partner_profile_id')
+    .eq('id', complex.developer_id)
+    .maybeSingle()
+  if (developerError) throw developerError
+
+  const { data: partner } = developer?.partner_profile_id
+    ? await db.from('partner_profiles').select('user_id,company_name').eq('id', developer.partner_profile_id).maybeSingle()
+    : { data: null }
+  const { data: profile } = partner?.user_id
+    ? await db.from('profiles').select('full_name,phone,company_name').eq('id', partner.user_id).maybeSingle()
+    : { data: null }
+
+  const { count: buildingsCount } = await db.from('residential_buildings')
+    .select('id', { count: 'exact', head: true }).eq('complex_id', complexId)
+  const { data: buildings } = await db.from('residential_buildings').select('id').eq('complex_id', complexId)
+  const buildingIds = (buildings || []).map(item => item.id)
+  const { count: unitsCount } = buildingIds.length
+    ? await db.from('complex_units').select('id', { count: 'exact', head: true }).in('building_id', buildingIds)
+    : { count: 0 }
+
+  const message = [
+    '🏗 ROYALHOUSE — DEVELOPER LOYIHASI MODERATSIYADA',
+    `🏢 Majmua: ${complex.name}`,
+    `📍 ${[complex.city, complex.address].filter(Boolean).join(', ') || 'Manzil ko‘rsatilmagan'}`,
+    complex.completion_year ? `📅 Topshirish yili: ${complex.completion_year}` : null,
+    `🏬 Korpuslar: ${buildingsCount ?? 0}`,
+    `🏠 Xonadonlar: ${unitsCount ?? 0}`,
+    `🏢 Developer: ${developer?.brand_name || developer?.company_name || partner?.company_name || profile?.company_name || 'Noma’lum kompaniya'}`,
+    profile?.full_name ? `👤 Mas’ul: ${profile.full_name}` : null,
+    profile?.phone ? `☎️ ${profile.phone}` : null,
+    '',
+    `🖥 ${SITE_URL}/admin/developer-complexes`,
+  ].filter(Boolean).join('\n')
+
+  const destinations = [...new Set([groupId, ...moderatorIds()])]
+  const results = await Promise.allSettled(destinations.map(chatId =>
+    telegram('sendMessage', { chat_id: chatId, text: message, disable_web_page_preview: true })
+  ))
+  const failures = results.filter(result => result.status === 'rejected')
+  const delivery = { sent: results.length - failures.length, failed: failures.length, destinations: destinations.length }
+  if (failures.length) console.error('[moderation-bot] developer complex notification failures', {
+    complexId, delivery,
+    errors: failures.map(result => result.status === 'rejected' ? String(result.reason) : ''),
+  })
+  if (delivery.sent === 0) throw new Error('TELEGRAM_DEVELOPER_COMPLEX_NOTIFICATION_FAILED')
+  return delivery
+}
+
 export async function notifyModerationResult(
   listingId: string,
   action: 'approve' | 'reject',
