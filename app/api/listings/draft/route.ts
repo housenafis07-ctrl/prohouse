@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { notifyModeratorsAboutListing } from '@/utils/telegram/moderation'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 const allowedStatuses = new Set(['draft', 'moderation'])
@@ -253,6 +254,7 @@ export async function POST(request: Request) {
         .select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area')
         .single()
       if (submitError) return NextResponse.json({ error: submitError.message }, { status: 400 })
+      void notifyModeratorsAboutListing(submitted.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
       return NextResponse.json({ listing: submitted })
     }
 
@@ -279,8 +281,14 @@ export async function POST(request: Request) {
     }
   }
 
+  const { data: beforeUpdate } = await supabase.from('listings').select('status').eq('id', listingId).eq('owner_id', userId).maybeSingle()
+
   const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', userId).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  if (status === 'moderation' && beforeUpdate?.status !== 'moderation') {
+    void notifyModeratorsAboutListing(updated.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
+  }
 
   if (status !== 'moderation') {
     try {
