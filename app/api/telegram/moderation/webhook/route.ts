@@ -121,7 +121,10 @@ export async function POST(request: NextRequest) {
       if (idMatch && text && !text.startsWith('/')) {
         try {
           const listing = await processModerationDecision(idMatch[1], 'reject', text.slice(0, 1000), String(userId))
-          await send(chatId, `❌ E’lon rad etildi va tuzatish uchun qaytarildi: ${listing.listing_code || listing.id}\nSabab: ${text.slice(0, 1000)}`)
+          const resultText = `❌ E’lon rad etildi va tuzatish uchun qaytarildi: ${listing.listing_code || listing.id}\nSabab: ${text.slice(0, 1000)}`
+          const originalMessageId = message.reply_to_message.reply_to_message?.message_id
+          if (originalMessageId) await editModerationMessage(chatId, originalMessageId, resultText)
+          else await send(chatId, resultText)
         } catch (error) {
           await send(chatId, error instanceof Error && error.message === 'LISTING_ALREADY_MODERATED'
             ? 'Bu e’lon boshqa moderator tomonidan ko‘rib chiqilgan.'
