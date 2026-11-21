@@ -97,7 +97,18 @@ export default function ServiceEditListingWizard(){
     const draft={...oldDraft,...form,price:form.price.replace(/\s/g,''),latitude:location.latitude,longitude:location.longitude,service_area_scope:allUzbekistan?'all':'selected',service_regions:serviceRegions,attributes:{...(oldDraft.attributes&&typeof oldDraft.attributes==='object'?oldDraft.attributes as Record<string,unknown>:{}),contact_phone:form.contact_phone,company_name:form.company_name}}
     const {error:e}=await db.rpc('save_owner_listing',{p_listing_id:listing.id,p_payload:{taxonomy_code:form.taxonomy_code,title:form.title.trim(),description:form.description.trim()||null,listing_type:'service',property_type:'service',price:String(price),currency:form.currency,area_m2:'',rooms:'',floor:'',floors_total:'',city:form.city,district:form.district,neighborhood:form.neighborhood,address:form.address,latitude:location.latitude==null?'':String(location.latitude),longitude:location.longitude==null?'':String(location.longitude),ownership_type:null,is_mortgage_available:false,draft_data:draft}})
     if(e)throw e
-    setSuccess(t('O‘zgarishlar saqlandi va e’lon qayta moderatsiyaga yuborildi.','Изменения сохранены, объявление повторно отправлено на модерацию.'));setTimeout(()=>router.push('/account/listings'),800)
+    if(listing.status!=='draft'){
+      const notifyResponse=await fetch(`/api/listings/${listing.id}/notify-moderation`,{method:'POST',cache:'no-store'})
+      const notifyResult=await notifyResponse.json().catch(()=>({}))
+      if(!notifyResponse.ok){
+        setError(t(
+          `E’lon o‘zgarishlari saqlandi, ammo Telegram xabari yetkazilmadi. Sabab: ${notifyResult.message||notifyResult.error||'Noma’lum xatolik'}`,
+          `Изменения сохранены, но Telegram-уведомление не доставлено. Причина: ${notifyResult.message||notifyResult.error||'Неизвестная ошибка'}`
+        ))
+        return
+      }
+    }
+    setSuccess(t('O‘zgarishlar saqlandi, moderatsiyaga yuborildi va Telegram xabari yetkazildi.','Изменения сохранены, отправлены на модерацию, уведомление Telegram доставлено.'));setTimeout(()=>router.push('/account/listings'),800)
   }catch(e){setError(e instanceof Error?e.message:t('E’lonni saqlashda xatolik yuz berdi.','Произошла ошибка при сохранении объявления.'))}finally{setSaving(false)}}
 
   if(loading)return <main className="min-h-screen bg-slate-50 p-8 text-center text-slate-500">{t('Yuklanmoqda...','Загрузка...')}</main>
