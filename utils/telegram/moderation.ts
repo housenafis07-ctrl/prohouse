@@ -126,7 +126,7 @@ export async function notifyModerationResult(
     !approved && reason.trim() ? `📝 Rad etish sababi: ${reason.trim().slice(0, 1000)}` : null,
     approved ? 'Holat: Faol' : 'Holat: Tuzatish uchun qaytarildi',
     `🖥 ${SITE_URL}/admin/moderation`,
-  ].filter(Boolean).join('\\n')
+  ].filter(Boolean).join('\n')
 
   const destinations = [...new Set([groupId, ...moderatorIds()])]
     .filter(chatId => excludeChatId == null || String(chatId) !== String(excludeChatId))
