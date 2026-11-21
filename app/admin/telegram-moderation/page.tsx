@@ -23,6 +23,7 @@ export default function TelegramModerationAdminPage() {
   const t = (uz:string, rt:string) => ru ? rt : uz
   const [status,setStatus] = useState<Status|null>(null)
   const [moderators,setModerators] = useState<Moderator[]>([])
+  const [migrationPending,setMigrationPending] = useState(false)
   const [loading,setLoading] = useState(true)
   const [busy,setBusy] = useState(false)
   const [updatingId,setUpdatingId] = useState('')
@@ -42,8 +43,10 @@ export default function TelegramModerationAdminPage() {
       ])
       if(statusResponse.ok) setStatus(statusData)
       else throw new Error(statusData.error || t('Bot holatini yuklab bo‘lmadi.','Не удалось загрузить состояние бота.'))
-      if(moderatorsResponse.ok) setModerators(moderatorsData.moderators || [])
-      else throw new Error(moderatorsData.error || t('Moderatorlar ro‘yxatini yuklab bo‘lmadi.','Не удалось загрузить список модераторов.'))
+      if(moderatorsResponse.ok) {
+        setModerators(moderatorsData.moderators || [])
+        setMigrationPending(moderatorsData.migrationPending === true)
+      } else throw new Error(moderatorsData.error || t('Moderatorlar ro‘yxatini yuklab bo‘lmadi.','Не удалось загрузить список модераторов.'))
     } catch(error) {
       setMessage(error instanceof Error ? error.message : t('Ma’lumotlarni yuklashda xatolik.','Ошибка загрузки данных.'))
     } finally { setLoading(false) }
@@ -116,6 +119,7 @@ export default function TelegramModerationAdminPage() {
       </section>
 
       <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm">
+        {migrationPending && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t('Moderatorlar bazasi migratsiyasi hali qo‘llanmagan. Hozirgi bot eski ruxsatlar bilan ishlashda davom etadi; moderator qo‘shish uchun migratsiya Preview muhitida tekshirilishi va qo‘llanishi kerak.','Миграция базы модераторов ещё не применена. Бот продолжит работать с прежними правами; для добавления модераторов миграцию нужно проверить и применить в Preview.')}</p>}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><h2 className="text-lg font-black">{t('Moderatorlar boshqaruvi','Управление модераторами')}</h2><p className="mt-1 text-sm text-slate-500">{t('Moderatorni bir martalik havola orqali Telegram akkauntiga ulang. Havola 15 daqiqa amal qiladi.','Привяжите Telegram-аккаунт модератора одноразовой ссылкой. Ссылка действует 15 минут.')}</p></div>
           <button onClick={()=>void createInvite()} disabled={busy||!status?.configured} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">{t('+ Moderator qo‘shish','+ Добавить модератора')}</button>
