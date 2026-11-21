@@ -254,7 +254,7 @@ export async function POST(request: Request) {
         .select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area')
         .single()
       if (submitError) return NextResponse.json({ error: submitError.message }, { status: 400 })
-      void notifyModeratorsAboutListing(submitted.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
+      await notifyModeratorsAboutListing(submitted.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
       return NextResponse.json({ listing: submitted })
     }
 
@@ -287,7 +287,7 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (status === 'moderation' && beforeUpdate?.status !== 'moderation') {
-    void notifyModeratorsAboutListing(updated.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
+    await notifyModeratorsAboutListing(updated.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
   }
 
   if (status !== 'moderation') {
