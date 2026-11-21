@@ -38,7 +38,12 @@ async function isModerator(id: number | undefined) {
   const db = serviceClient()
   const { data, error } = await db.from('telegram_moderators')
     .select('is_active').eq('telegram_user_id', telegramUserId).maybeSingle()
-  if (error) throw error
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      return (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).includes(telegramUserId)
+    }
+    throw error
+  }
   if (data) return data.is_active === true
 
   // Backward-compatible bootstrap: existing env-listed moderators retain
@@ -155,7 +160,7 @@ export async function POST(request: NextRequest) {
           username: message.from.username || null, first_name: message.from.first_name || null,
           is_active: true, linked_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         }, { onConflict: 'telegram_user_id', ignoreDuplicates: true })
-        if (syncError) throw syncError
+        if (syncError && syncError.code !== 'PGRST205' && syncError.code !== '42P01') throw syncError
       }
       if (!await isModerator(userId)) {
         await send(chatId, 'RoyalHouse Moderatsiya botiga xush kelibsiz. Ushbu bot faqat ruxsat berilgan moderatorlar uchun.')
