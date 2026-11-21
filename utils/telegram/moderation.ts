@@ -273,23 +273,15 @@ export async function processModerationDecision(listingId: string, action: 'appr
   const db = serviceClient()
   if (!await canModerate(db, telegramUserId)) throw new Error('MODERATOR_NOT_ALLOWED')
   if (action === 'reject' && !reason.trim()) throw new Error('REJECTION_REASON_REQUIRED')
-  const now = new Date().toISOString()
-  const nextStatus = action === 'approve' ? 'active' : 'draft'
-  const patch = action === 'approve'
-    ? { status: 'active', is_verified: true, published_at: now, moderation_note: null, moderation_updated_at: now, updated_at: now }
-    : { status: 'draft', is_verified: false, published_at: null, moderation_note: reason.trim(), moderation_updated_at: now, updated_at: now }
-
-  const { data: updated, error } = await db.from('listings').update(patch)
-    .eq('id', listingId).eq('status', 'moderation')
-    .select('id,listing_code,status,moderation_note').maybeSingle()
-  if (error) throw error
-  if (!updated) throw new Error('LISTING_ALREADY_MODERATED')
-
-  const { error: historyError } = await db.from('listing_moderation_history').insert({
-    listing_id: listingId, admin_user_id: null, moderator_telegram_id: telegramUserId, from_status: 'moderation',
-    to_status: nextStatus, action, reason: reason.trim() || null, created_at: now,
+  const { data, error } = await db.rpc('moderate_listing_with_audit', {
+    p_listing_id: listingId,
+    p_action: action,
+    p_reason: reason.trim(),
+    p_telegram_user_id: telegramUserId,
   })
-  if (historyError) console.error('[moderation-bot] moderation history insert failed', { listingId, error: historyError })
+  if (error) throw error
+  const updated = Array.isArray(data) ? data[0] : data
+  if (!updated) throw new Error('LISTING_ALREADY_MODERATED')
 
   await notifyModerationResult(
     listingId,
