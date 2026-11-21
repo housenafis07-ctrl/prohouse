@@ -43,7 +43,7 @@ export async function POST() {
 
   try {
     const db = serviceClient()
-    const rawToken = randomBytes(32).toString('hex')
+    const rawToken = randomBytes(24).toString('hex')
     const tokenHash = createHash('sha256').update(rawToken).digest('hex')
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
     const { error: insertError } = await db.from('telegram_moderator_invites').insert({
