@@ -281,12 +281,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: beforeUpdate } = await supabase.from('listings').select('status').eq('id', listingId).eq('owner_id', userId).maybeSingle()
-
   const { data: updated, error } = await supabase.from('listings').update(updateData).eq('id', listingId).eq('owner_id', userId).select('id,listing_code,status,draft_step,ownership_type,seller_type,seller_role,city,district,address,seller_name,seller_phone,area_m2,rooms,floor,floors_total,land_area').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  if (status === 'moderation' && beforeUpdate?.status !== 'moderation') {
+  // Every explicit resubmission for moderation must notify moderators,
+  // including edits to a listing that was already waiting in the moderation queue.
+  if (status === 'moderation') {
     await notifyModeratorsAboutListing(updated.id).catch(error => console.error('[listing-submit] moderation bot notification failed', error))
   }
 
