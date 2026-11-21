@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, serviceClient } from '@/utils/admin/auth'
+import { notifyModerationResult } from '@/utils/telegram/moderation'
 
 type AnyRow = Record<string, any>
 
@@ -183,6 +184,14 @@ export async function PATCH(request: NextRequest) {
       historySaved = false
       console.error('[admin/listings] moderation history insert failed after status update', { listingId:id, action, error:historyError })
     }
+
+    let actorLabel = 'Admin paneli moderatori'
+    if (admin?.user?.id) {
+      const { data: actorProfile } = await db.from('profiles').select('full_name,profile_code').eq('id', admin.user.id).maybeSingle()
+      actorLabel = actorProfile?.full_name || actorProfile?.profile_code || `Admin (ID: ${admin.user.id})`
+    }
+    await notifyModerationResult(id, action, actorLabel, reason)
+      .catch(notificationError => console.error('[admin/listings] Telegram moderation result notification failed', { listingId:id, action, error:notificationError }))
 
     return NextResponse.json({ listing:data, history_saved:historySaved })
   } catch (e) {
