@@ -130,7 +130,7 @@ export async function processModerationDecision(listingId: string, action: 'appr
   if (!updated) throw new Error('LISTING_ALREADY_MODERATED')
 
   const { error: historyError } = await db.from('listing_moderation_history').insert({
-    listing_id: listingId, admin_user_id: null, from_status: 'moderation',
+    listing_id: listingId, admin_user_id: null, moderator_telegram_id: telegramUserId, from_status: 'moderation',
     to_status: nextStatus, action, reason: reason.trim() || null, created_at: now,
   })
   if (historyError) console.error('[moderation-bot] moderation history insert failed', { listingId, error: historyError })
