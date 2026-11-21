@@ -26,8 +26,11 @@ export async function GET() {
       .from('telegram_moderators')
       .select('id,telegram_user_id,chat_id,username,first_name,is_active,invited_by,linked_at,created_at,updated_at')
       .order('created_at', { ascending: false })
+    if (queryError && (queryError.code === 'PGRST205' || queryError.code === '42P01')) {
+      return NextResponse.json({ moderators: [], migrationPending: true }, { headers: { 'Cache-Control': 'no-store' } })
+    }
     if (queryError) throw queryError
-    return NextResponse.json({ moderators: data || [] }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ moderators: data || [], migrationPending: false }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (cause) {
     console.error('[admin/telegram/moderators] list failed', cause)
     return NextResponse.json({ error: 'Moderatorlar ro‘yxatini yuklab bo‘lmadi.' }, { status: 500 })
