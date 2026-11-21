@@ -157,7 +157,7 @@ export async function promptModerationRejection(chatId: number | string, message
   })
 }
 
-export async function processModerationDecision(listingId: string, action: 'approve' | 'reject', reason: string, telegramUserId: string) {
+export async function processModerationDecision(listingId: string, action: 'approve' | 'reject', reason: string, telegramUserId: string, sourceChatId?: number | string) {
   const allowed = moderatorIds()
   if (!allowed.includes(telegramUserId)) throw new Error('MODERATOR_NOT_ALLOWED')
   if (action === 'reject' && !reason.trim()) throw new Error('REJECTION_REASON_REQUIRED')
@@ -180,6 +180,14 @@ export async function processModerationDecision(listingId: string, action: 'appr
     to_status: nextStatus, action, reason: reason.trim() || null, created_at: now,
   })
   if (historyError) console.error('[moderation-bot] moderation history insert failed', { listingId, error: historyError })
+
+  await notifyModerationResult(
+    listingId,
+    action,
+    `Telegram moderator (ID: ${telegramUserId})`,
+    reason,
+    sourceChatId,
+  ).catch(notificationError => console.error('[moderation-bot] moderation result notification failed', { listingId, action, error: notificationError }))
 
   return updated
 }
