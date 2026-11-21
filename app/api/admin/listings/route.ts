@@ -89,7 +89,7 @@ export async function GET() {
     }
 
     if (listingIds.length) {
-      const { data: historyRows } = await db.from('listing_moderation_history').select('id,listing_id,admin_user_id,from_status,to_status,action,reason,created_at').in('listing_id', listingIds).order('created_at', { ascending: false })
+      const { data: historyRows } = await db.from('listing_moderation_history').select('id,listing_id,admin_user_id,moderator_telegram_id,from_status,to_status,action,reason,created_at').in('listing_id', listingIds).order('created_at', { ascending: false })
       const adminIds = [...new Set((historyRows ?? []).map(x => x.admin_user_id).filter(Boolean))]
       const adminProfiles = new Map<string, AnyRow>()
       if (adminIds.length) {
