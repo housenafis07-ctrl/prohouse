@@ -76,7 +76,7 @@ create or replace function public.moderate_listing_with_audit(
 )
 returns table(id uuid, listing_code text, status text, moderation_note text)
 language plpgsql
-security definer
+security invoker
 set search_path = pg_catalog, public
 as $function$
 declare
