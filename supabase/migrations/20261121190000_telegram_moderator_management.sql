@@ -66,4 +66,66 @@ revoke all on public.telegram_moderator_invites from anon, authenticated;
 grant all on public.telegram_moderators to service_role;
 grant all on public.telegram_moderator_invites to service_role;
 
+
+-- Make the listing state transition and its audit record one atomic operation.
+create or replace function public.moderate_listing_with_audit(
+  p_listing_id uuid,
+  p_action text,
+  p_reason text,
+  p_telegram_user_id text
+)
+returns table(id uuid, listing_code text, status text, moderation_note text)
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $
+declare
+  v_next_status text;
+  v_listing public.listings%rowtype;
+begin
+  if p_action not in ('approve', 'reject') then
+    raise exception 'INVALID_MODERATION_ACTION';
+  end if;
+  if p_action = 'reject' and coalesce(btrim(p_reason), '') = '' then
+    raise exception 'REJECTION_REASON_REQUIRED';
+  end if;
+  if coalesce(btrim(p_telegram_user_id), '') !~ '^[0-9]+ then
+    raise exception 'INVALID_MODERATOR_TELEGRAM_ID';
+  end if;
+
+  v_next_status := case when p_action = 'approve' then 'active' else 'draft' end;
+
+  update public.listings
+  set status = v_next_status,
+      is_verified = (p_action = 'approve'),
+      published_at = case when p_action = 'approve' then now() else null end,
+      moderation_note = case when p_action = 'approve' then null else left(btrim(p_reason), 1000) end,
+      moderation_updated_at = now(),
+      updated_at = now()
+  where listings.id = p_listing_id
+    and listings.status = 'moderation'
+  returning listings.* into v_listing;
+
+  if not found then
+    raise exception 'LISTING_ALREADY_MODERATED';
+  end if;
+
+  insert into public.listing_moderation_history (
+    listing_id, admin_user_id, moderator_telegram_id,
+    from_status, to_status, action, reason, created_at
+  ) values (
+    p_listing_id, null, p_telegram_user_id,
+    'moderation', v_next_status, p_action,
+    nullif(left(btrim(coalesce(p_reason, '')), 1000), ''), now()
+  );
+
+  return query
+    select v_listing.id, v_listing.listing_code::text,
+           v_listing.status::text, v_listing.moderation_note::text;
+end;
+$;
+
+revoke all on function public.moderate_listing_with_audit(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function public.moderate_listing_with_audit(uuid, text, text, text) to service_role;
+
 commit;
