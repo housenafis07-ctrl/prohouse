@@ -22,7 +22,13 @@ const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
 async function moderatorDestinations(db: ReturnType<typeof serviceClient>, groupId: string) {
   const { data: rows, error } = await db.from('telegram_moderators')
     .select('telegram_user_id,chat_id,is_active')
-  if (error) throw error
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      const legacy = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(value => /^\\d+$/.test(value))
+      return [...new Set([groupId, ...legacy])]
+    }
+    throw error
+  }
   const knownIds = new Set((rows || []).map(row => row.telegram_user_id))
   const activeChats = (rows || []).filter(row => row.is_active && row.chat_id).map(row => row.chat_id)
   // Keep pre-existing environment-configured moderators working during the
@@ -35,7 +41,12 @@ async function moderatorDestinations(db: ReturnType<typeof serviceClient>, group
 async function canModerate(db: ReturnType<typeof serviceClient>, telegramUserId: string) {
   const { data, error } = await db.from('telegram_moderators')
     .select('is_active').eq('telegram_user_id', telegramUserId).maybeSingle()
-  if (error) throw error
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      return (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).includes(telegramUserId)
+    }
+    throw error
+  }
   if (data) return data.is_active === true
   return (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '')
     .split(',').map(value => value.trim()).includes(telegramUserId)
