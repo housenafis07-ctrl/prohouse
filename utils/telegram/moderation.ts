@@ -19,9 +19,37 @@ type ListingSummary = {
 
 const SITE_URL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
 
-function moderatorIds() {
+async function moderatorDestinations(db: ReturnType<typeof serviceClient>, groupId: string) {
+  const { data: rows, error } = await db.from('telegram_moderators')
+    .select('telegram_user_id,chat_id,is_active')
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      const legacy = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(value => /^\d+$/.test(value))
+      return [...new Set([groupId, ...legacy])]
+    }
+    throw error
+  }
+  const knownIds = new Set((rows || []).map(row => row.telegram_user_id))
+  const activeChats = (rows || []).filter(row => row.is_active && row.chat_id).map(row => row.chat_id)
+  // Keep pre-existing environment-configured moderators working during the
+  // transition, but only until they are registered in the database.
+  const legacyChats = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '')
+    .split(',').map(value => value.trim()).filter(value => /^\d+$/.test(value) && !knownIds.has(value))
+  return [...new Set([groupId, ...activeChats, ...legacyChats])]
+}
+
+async function canModerate(db: ReturnType<typeof serviceClient>, telegramUserId: string) {
+  const { data, error } = await db.from('telegram_moderators')
+    .select('is_active').eq('telegram_user_id', telegramUserId).maybeSingle()
+  if (error) {
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      return (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).includes(telegramUserId)
+    }
+    throw error
+  }
+  if (data) return data.is_active === true
   return (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '')
-    .split(',').map(x => x.trim()).filter(x => /^\d+$/.test(x))
+    .split(',').map(value => value.trim()).includes(telegramUserId)
 }
 
 async function telegram(method: string, body: Record<string, unknown>) {
@@ -94,7 +122,7 @@ export async function notifyModeratorsAboutListing(listingId: string) {
 
   const keyboard = moderationKeyboard(item.id)
   const firstImage = images?.[0]?.image_url
-  const destinations = [...new Set([groupId, ...moderatorIds()])]
+  const destinations = await moderatorDestinations(db, groupId)
   const results = await Promise.allSettled(destinations.map(chatId =>
     firstImage && /^https?:\/\//i.test(firstImage)
       ? telegram('sendPhoto', { chat_id: chatId, photo: firstImage, caption: caption.slice(0, 1000), reply_markup: keyboard })
@@ -163,7 +191,7 @@ export async function notifyModeratorsAboutDeveloperComplex(complexId: string) {
     `🖥 ${SITE_URL}/admin/developer-complexes`,
   ].filter(Boolean).join('\n')
 
-  const destinations = [...new Set([groupId, ...moderatorIds()])]
+  const destinations = await moderatorDestinations(db, groupId)
   const results = await Promise.allSettled(destinations.map(chatId =>
     telegram('sendMessage', { chat_id: chatId, text: message, disable_web_page_preview: true })
   ))
@@ -212,7 +240,7 @@ export async function notifyModerationResult(
     `🖥 ${SITE_URL}/admin/moderation`,
   ].filter(Boolean).join('\n')
 
-  const destinations = [...new Set([groupId, ...moderatorIds()])]
+  const destinations = await moderatorDestinations(db, groupId)
     .filter(chatId => excludeChatId == null || String(chatId) !== String(excludeChatId))
   const results = await Promise.allSettled(destinations.map(chatId =>
     telegram('sendMessage', { chat_id: chatId, text: message, disable_web_page_preview: true })
@@ -242,28 +270,18 @@ export async function promptModerationRejection(chatId: number | string, message
 }
 
 export async function processModerationDecision(listingId: string, action: 'approve' | 'reject', reason: string, telegramUserId: string, sourceChatId?: number | string) {
-  const allowed = moderatorIds()
-  if (!allowed.includes(telegramUserId)) throw new Error('MODERATOR_NOT_ALLOWED')
-  if (action === 'reject' && !reason.trim()) throw new Error('REJECTION_REASON_REQUIRED')
-
   const db = serviceClient()
-  const now = new Date().toISOString()
-  const nextStatus = action === 'approve' ? 'active' : 'draft'
-  const patch = action === 'approve'
-    ? { status: 'active', is_verified: true, published_at: now, moderation_note: null, moderation_updated_at: now, updated_at: now }
-    : { status: 'draft', is_verified: false, published_at: null, moderation_note: reason.trim(), moderation_updated_at: now, updated_at: now }
-
-  const { data: updated, error } = await db.from('listings').update(patch)
-    .eq('id', listingId).eq('status', 'moderation')
-    .select('id,listing_code,status,moderation_note').maybeSingle()
-  if (error) throw error
-  if (!updated) throw new Error('LISTING_ALREADY_MODERATED')
-
-  const { error: historyError } = await db.from('listing_moderation_history').insert({
-    listing_id: listingId, admin_user_id: null, moderator_telegram_id: telegramUserId, from_status: 'moderation',
-    to_status: nextStatus, action, reason: reason.trim() || null, created_at: now,
+  if (!await canModerate(db, telegramUserId)) throw new Error('MODERATOR_NOT_ALLOWED')
+  if (action === 'reject' && !reason.trim()) throw new Error('REJECTION_REASON_REQUIRED')
+  const { data, error } = await db.rpc('moderate_listing_with_audit', {
+    p_listing_id: listingId,
+    p_action: action,
+    p_reason: reason.trim(),
+    p_telegram_user_id: telegramUserId,
   })
-  if (historyError) console.error('[moderation-bot] moderation history insert failed', { listingId, error: historyError })
+  if (error) throw error
+  const updated = Array.isArray(data) ? data[0] : data
+  if (!updated) throw new Error('LISTING_ALREADY_MODERATED')
 
   await notifyModerationResult(
     listingId,
