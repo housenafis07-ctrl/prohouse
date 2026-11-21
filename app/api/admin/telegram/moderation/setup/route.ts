@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { count, error: countError } = await serviceClient().from('telegram_moderators')
       .select('id', { count: 'exact', head: true }).eq('is_active', true)
     if (countError && countError.code !== 'PGRST205' && countError.code !== '42P01') throw countError
-    const legacyCount = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(value => /^\\d+$/.test(value)).length
+    const legacyCount = (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(value => value.trim()).filter(value => /^\d+$/.test(value)).length
     return NextResponse.json({
       configured: Boolean(process.env.TELEGRAM_MODERATION_BOT_TOKEN && process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET),
       groupConfigured: Boolean(process.env.ROYALHOUSE_MODERATION_GROUP_ID),
