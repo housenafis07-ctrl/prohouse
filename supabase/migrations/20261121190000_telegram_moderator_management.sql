@@ -78,7 +78,7 @@ returns table(id uuid, listing_code text, status text, moderation_note text)
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $function$
 declare
   v_next_status text;
   v_listing public.listings%rowtype;
@@ -89,7 +89,7 @@ begin
   if p_action = 'reject' and coalesce(btrim(p_reason), '') = '' then
     raise exception 'REJECTION_REASON_REQUIRED';
   end if;
-  if coalesce(btrim(p_telegram_user_id), '') !~ '^[0-9]+ then
+  if coalesce(btrim(p_telegram_user_id), '') !~ '^[0-9]+$' then
     raise exception 'INVALID_MODERATOR_TELEGRAM_ID';
   end if;
 
@@ -123,7 +123,7 @@ begin
     select v_listing.id, v_listing.listing_code::text,
            v_listing.status::text, v_listing.moderation_note::text;
 end;
-$;
+$function$;
 
 revoke all on function public.moderate_listing_with_audit(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function public.moderate_listing_with_audit(uuid, text, text, text) to service_role;
