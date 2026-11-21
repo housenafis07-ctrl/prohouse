@@ -39,10 +39,21 @@ export async function GET(request: Request) {
   if (!complex) return NextResponse.json({ error: 'COMPLEX_NOT_FOUND' }, { status: 404 })
   const [{ data: documents, error: documentsError }, { data: updates, error: updatesError }] = await Promise.all([
     ctx.db.from('developer_complex_documents').select('id,document_type,title,document_number,issued_at,expires_at,mime_type,file_size_bytes,moderation_status,moderation_note,requested_visibility_scope,visibility_scope,created_at').eq('complex_id', complexId).order('created_at', { ascending: false }),
-    ctx.db.from('developer_construction_updates').select('id,building_id,media_type,public_url,caption,construction_stage,captured_at,created_at,is_visible,moderation_note').eq('complex_id', complexId).order('captured_at', { ascending: false }),
+    ctx.db.from('developer_construction_updates').select('id,building_id,media_type,storage_path,caption,construction_stage,captured_at,created_at,is_visible,moderation_note').eq('complex_id', complexId).order('captured_at', { ascending: false }),
   ])
   if (documentsError || updatesError) return NextResponse.json({ error: 'COMPLEX_MEDIA_LOAD_FAILED' }, { status: 500 })
-  return NextResponse.json({ documents: documents || [], updates: updates || [] }, { headers: { 'Cache-Control': 'no-store' } })
+  const rows = updates || []
+  const paths = rows.map((item: any) => item.storage_path).filter((path: unknown): path is string => typeof path === 'string' && path.length > 0)
+  const { data: signed, error: signedError } = paths.length
+    ? await ctx.db.storage.from(MEDIA_BUCKET).createSignedUrls(paths, 300)
+    : { data: [], error: null }
+  if (signedError) return NextResponse.json({ error: 'CONSTRUCTION_MEDIA_SIGNING_FAILED' }, { status: 502 })
+  const signedByPath = new Map((signed || []).map(item => [item.path, item.signedUrl]))
+  const visibleUpdates = rows.map(({ storage_path, ...item }: any) => ({
+    ...item,
+    public_url: signedByPath.get(storage_path) || '',
+  })).filter((item: any) => item.public_url)
+  return NextResponse.json({ documents: documents || [], updates: visibleUpdates }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(request: Request) {
