@@ -21,6 +21,9 @@ begin
   end if;
 end $$;
 
+create index if not exists listing_moderation_history_admin_user_idx
+  on public.listing_moderation_history(admin_user_id, created_at desc);
+
 create index if not exists listing_moderation_history_telegram_moderator_idx
   on public.listing_moderation_history(moderator_telegram_id, created_at desc)
   where moderator_telegram_id is not null;
