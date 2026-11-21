@@ -89,8 +89,8 @@ export async function GET() {
     }
 
     if (listingIds.length) {
-      const { data: historyRows } = await db.from('listing_moderation_history').select('id,listing_id,admin_user_id,moderator_telegram_id,from_status,to_status,action,reason,created_at').in('listing_id', listingIds).order('created_at', { ascending: false })
-      const adminIds = [...new Set((historyRows ?? []).map(x => x.admin_user_id).filter(Boolean))]
+      const { data: historyRows } = await db.from('listing_moderation_history').select('id,listing_id,admin_id,moderator_telegram_id,from_status,to_status,action,reason,created_at').in('listing_id', listingIds).order('created_at', { ascending: false })
+      const adminIds = [...new Set((historyRows ?? []).map(x => x.admin_id).filter(Boolean))]
       const adminProfiles = new Map<string, AnyRow>()
       if (adminIds.length) {
         const { data: adminRows } = await db.from('profiles').select('id,full_name,profile_code,phone').in('id', adminIds)
@@ -98,7 +98,7 @@ export async function GET() {
       }
       for (const row of historyRows ?? []) {
         const list = history.get(row.listing_id) ?? []
-        list.push({ ...row, admin: row.admin_user_id ? adminProfiles.get(row.admin_user_id) ?? null : null })
+        list.push({ ...row, admin: row.admin_id ? adminProfiles.get(row.admin_id) ?? null : null })
         history.set(row.listing_id, list)
       }
     }
@@ -178,7 +178,7 @@ export async function PATCH(request: NextRequest) {
     // record when possible, but never report the already-completed moderation as failed
     // because the audit insert has a separate problem.
     let historySaved = true
-    const { error: historyError } = await db.from('listing_moderation_history').insert({ listing_id:id,admin_user_id:admin?.user?.id||null,from_status:current.status,to_status:nextStatus,action,reason:reason||null,created_at:now })
+    const { error: historyError } = await db.from('listing_moderation_history').insert({ listing_id:id,admin_id:admin?.user?.id||null,from_status:current.status,to_status:nextStatus,action,reason:reason||null,created_at:now })
     if (historyError) {
       historySaved = false
       console.error('[admin/listings] moderation history insert failed after status update', { listingId:id, action, error:historyError })
