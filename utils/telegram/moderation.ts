@@ -93,6 +93,52 @@ export async function notifyModeratorsAboutListing(listingId: string) {
   if (failures.length) console.warn('[moderation-bot] some moderator notifications failed', { listingId, failed: failures.length })
 }
 
+export async function notifyModerationResult(
+  listingId: string,
+  action: 'approve' | 'reject',
+  actor: string,
+  reason = '',
+  excludeChatId?: number | string,
+) {
+  const token = process.env.TELEGRAM_MODERATION_BOT_TOKEN
+  const groupId = process.env.ROYALHOUSE_MODERATION_GROUP_ID
+  if (!token || !groupId) {
+    console.warn('[moderation-bot] result notification skipped: token or group id is not configured')
+    return
+  }
+
+  const db = serviceClient()
+  const { data: listing, error } = await db.from('listings')
+    .select('id,listing_code,title,price,currency,city,district,status')
+    .eq('id', listingId).maybeSingle()
+  if (error) throw error
+  if (!listing) throw new Error('LISTING_NOT_FOUND_FOR_MODERATION_RESULT')
+
+  const approved = action === 'approve'
+  const message = [
+    approved ? '✅ ROYALHOUSE — E’LON TASDIQLANDI' : '❌ ROYALHOUSE — E’LON RAD ETILDI',
+    `🆔 ${listing.listing_code || listing.id}`,
+    `🏠 ${listing.title || 'Sarlavhasiz e’lon'}`,
+    `💰 ${price(listing.price, listing.currency)}`,
+    `📍 ${[listing.city, listing.district].filter(Boolean).join(', ') || 'Joylashuv ko‘rsatilmagan'}`,
+    `👤 Qaror qabul qilgan: ${actor || 'Noma’lum moderator'}`,
+    `🕒 Vaqt: ${new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(new Date())}`,
+    !approved && reason.trim() ? `📝 Rad etish sababi: ${reason.trim().slice(0, 1000)}` : null,
+    approved ? 'Holat: Faol' : 'Holat: Tuzatish uchun qaytarildi',
+    `🖥 ${SITE_URL}/admin/moderation`,
+  ].filter(Boolean).join('\\n')
+
+  const destinations = [...new Set([groupId, ...moderatorIds()])]
+    .filter(chatId => excludeChatId == null || String(chatId) !== String(excludeChatId))
+  const results = await Promise.allSettled(destinations.map(chatId =>
+    telegram('sendMessage', { chat_id: chatId, text: message, disable_web_page_preview: true })
+  ))
+  const failures = results.filter(result => result.status === 'rejected')
+  if (failures.length) console.warn('[moderation-bot] moderation result notification failures', {
+    listingId, action, failed: failures.length, destinations: destinations.length,
+  })
+}
+
 export async function answerModerationCallback(callbackQueryId: string, text: string, alert = false) {
   await telegram('answerCallbackQuery', { callback_query_id: callbackQueryId, text, show_alert: alert })
 }
