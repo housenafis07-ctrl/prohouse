@@ -54,7 +54,7 @@ async function isModerator(id: number | undefined) {
 }
 
 async function linkModeratorFromInvite(chatId: number, user: { id: number; username?: string; first_name?: string }, rawToken: string) {
-  if (!/^[a-f0-9]{64}$/i.test(rawToken)) return false
+  if (!/^[a-f0-9]{48}$/i.test(rawToken)) return false
   const db = serviceClient()
   const tokenHash = createHash('sha256').update(rawToken).digest('hex')
   const now = new Date().toISOString()
