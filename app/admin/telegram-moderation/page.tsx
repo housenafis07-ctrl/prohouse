@@ -122,7 +122,7 @@ export default function TelegramModerationAdminPage() {
         {migrationPending && <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{t('Moderatorlar bazasi migratsiyasi hali qo‘llanmagan. Hozirgi bot eski ruxsatlar bilan ishlashda davom etadi; moderator qo‘shish uchun migratsiya Preview muhitida tekshirilishi va qo‘llanishi kerak.','Миграция базы модераторов ещё не применена. Бот продолжит работать с прежними правами; для добавления модераторов миграцию нужно проверить и применить в Preview.')}</p>}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div><h2 className="text-lg font-black">{t('Moderatorlar boshqaruvi','Управление модераторами')}</h2><p className="mt-1 text-sm text-slate-500">{t('Moderatorni bir martalik havola orqali Telegram akkauntiga ulang. Havola 15 daqiqa amal qiladi.','Привяжите Telegram-аккаунт модератора одноразовой ссылкой. Ссылка действует 15 минут.')}</p></div>
-          <button onClick={()=>void createInvite()} disabled={busy||!status?.configured} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">{t('+ Moderator qo‘shish','+ Добавить модератора')}</button>
+          <button onClick={()=>void createInvite()} disabled={busy||migrationPending||!status?.configured} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">{t('+ Moderator qo‘shish','+ Добавить модератора')}</button>
         </div>
         {invite && <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-sm font-bold text-emerald-900">{t('Taklif havolasi tayyor','Ссылка-приглашение готова')}</p>
