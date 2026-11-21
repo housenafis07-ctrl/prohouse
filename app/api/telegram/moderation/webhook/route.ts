@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     const text = (message.text || '').trim()
 
     if (text === '/start' || text.startsWith('/start ')) {
-      const payload = text.split(/\\s+/, 2)[1] || ''
+      const payload = text.split(/\s+/, 2)[1] || ''
       if (payload.startsWith('link_')) {
         const linked = await linkModeratorFromInvite(chatId, { id: userId, username: message.from.username, first_name: message.from.first_name }, payload.slice(5))
         await send(chatId, linked
