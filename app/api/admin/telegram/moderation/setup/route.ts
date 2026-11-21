@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/utils/admin/auth'
+import { requireSuperAdmin, serviceClient } from '@/utils/admin/auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,12 +19,20 @@ async function telegram(method: string, body: Record<string, unknown>) {
 export async function GET(request: NextRequest) {
   const { error } = await requireSuperAdmin()
   if (error) return NextResponse.json({ error }, { status: error === 'Unauthorized' ? 401 : 403 })
-  return NextResponse.json({
-    configured: Boolean(process.env.TELEGRAM_MODERATION_BOT_TOKEN && process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET),
-    groupConfigured: Boolean(process.env.ROYALHOUSE_MODERATION_GROUP_ID),
-    moderatorCount: (process.env.ROYALHOUSE_MODERATOR_TELEGRAM_IDS || '').split(',').map(x => x.trim()).filter(x => /^\d+$/.test(x)).length,
-    webhookUrl: `${request.nextUrl.origin}/api/telegram/moderation/webhook`,
-  })
+  try {
+    const { count, error: countError } = await serviceClient().from('telegram_moderators')
+      .select('id', { count: 'exact', head: true }).eq('is_active', true)
+    if (countError) throw countError
+    return NextResponse.json({
+      configured: Boolean(process.env.TELEGRAM_MODERATION_BOT_TOKEN && process.env.TELEGRAM_MODERATION_WEBHOOK_SECRET),
+      groupConfigured: Boolean(process.env.ROYALHOUSE_MODERATION_GROUP_ID),
+      moderatorCount: count ?? 0,
+      webhookUrl: `${request.nextUrl.origin}/api/telegram/moderation/webhook`,
+    }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (cause) {
+    console.error('[admin/telegram/moderation/setup] status failed', cause)
+    return NextResponse.json({ error: 'Moderatorlar holatini tekshirib bo‘lmadi.' }, { status: 500 })
+  }
 }
 
 export async function POST(request: NextRequest) {
