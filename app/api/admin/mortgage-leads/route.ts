@@ -20,7 +20,7 @@ export async function GET() {
   if (authError) return NextResponse.json({ error: authError }, { status: authError === 'Unauthorized' ? 401 : 403 })
   try {
     const admin=serviceClient()
-    const {data,error}=await admin.from('mortgage_leads').select('*,listing:listings(title,price)').order('created_at',{ascending:false}).limit(200)
+    const {data,error}=await admin.from('mortgage_leads').select('id,listing_id,market,bank_name,program_name,customer_name,customer_phone,property_price,down_payment,term_months,annual_rate,monthly_payment,status,created_at,updated_at,profile_id,date_of_birth,passport_series_number,identity_submitted_at,listing:listings(title,price)').order('created_at',{ascending:false}).limit(200)
     if(error) throw error
     return NextResponse.json({leads:data||[]})
   } catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Leadlar yuklanmadi.'},{status:500})}
