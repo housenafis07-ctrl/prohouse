@@ -1,3 +1,4 @@
+-- Preview redeploy trigger: no schema or runtime behavior change.
 begin;
 
 -- Backward-compatible repair for installations where the historical table
