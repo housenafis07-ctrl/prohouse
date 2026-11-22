@@ -123,7 +123,7 @@ export default function RegisterPage() {
         if(!user) throw new Error(t('Sessiya topilmadi. Qayta kirib ko‘ring.','Сессия не найдена. Войдите снова.'))
         const { data: acceptedOffer, error: acceptedOfferError } = await supabase
           .from('offer_consents').select('id').eq('user_id', user.id)
-          .eq('offer_version', offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').eq('marketing_consent', true).maybeSingle()
+          .eq('offer_version', offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').limit(1).maybeSingle()
         if(acceptedOfferError) throw acceptedOfferError
         if(acceptedOffer){ router.replace(getRedirectTo()); return }
         setOfferAcceptanceOnly(true)
@@ -213,7 +213,7 @@ export default function RegisterPage() {
       if(!user) throw new Error(t('Sessiya yaratilmadi. SMS orqali kirib ko‘ring.','Сессия не создана. Попробуйте войти по SMS.'))
       if(!offer?.version) throw new Error(t('Amaldagi oferta yuklanmadi. Sahifani yangilang.','Не удалось загрузить действующую оферту. Обновите страницу.'))
       const {data:acceptedOffer,error:acceptedOfferError}=await supabase.from('offer_consents').select('id')
-        .eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').eq('marketing_consent',true).maybeSingle()
+        .eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').limit(1).maybeSingle()
       if(acceptedOfferError) throw acceptedOfferError
       if(acceptedOffer){router.replace(getRedirectTo());return}
       const {data:profile}=await supabase.from('profiles').select('phone').eq('id',user.id).maybeSingle()
@@ -302,7 +302,7 @@ export default function RegisterPage() {
       }
 
       registrationStage = 'consent_lookup'
-      const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents').select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').eq('marketing_consent',true).maybeSingle()
+      const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents').select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').limit(1).maybeSingle()
       if(consentLookupError) throw consentLookupError
       if(!existingConsent){
         registrationStage = 'consent_insert'
@@ -332,7 +332,7 @@ export default function RegisterPage() {
       const {data:{user}}=await supabase.auth.getUser()
       if(!user) throw new Error(t('Sessiya topilmadi. Qayta kirib ko‘ring.','Сессия не найдена. Войдите снова.'))
       const {data:existingConsent,error:consentLookupError}=await supabase.from('offer_consents')
-        .select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('marketing_consent',true).maybeSingle()
+        .select('id').eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').limit(1).maybeSingle()
       if(consentLookupError) throw consentLookupError
       if(!existingConsent){
         const normalizedPhone=phone.replace(/\s/g,'')
