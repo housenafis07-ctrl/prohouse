@@ -10,9 +10,7 @@ alter table public.mortgage_leads
   add column if not exists personal_data_consent_at timestamptz,
   add column if not exists personal_data_consent_version text;
 
-create index if not exists mortgage_leads_pinfl_hash_lookup_idx
-  on public.mortgage_leads (profile_id, created_at desc);
-
+-- Existing mortgage lead indexes remain unchanged; no PINFL index is created.
 -- Private bucket. Files are only accessed through authenticated server routes
 -- that verify lead ownership or admin permissions before issuing short-lived URLs.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
