@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useI18n } from '@/app/components/I18nProvider'
 
-export default function MortgageIdentityPage() {
+function MortgageIdentityForm() {
   const params = useSearchParams()
   const leadId = params.get('leadId') || ''
   const { lang } = useI18n()
@@ -90,4 +90,13 @@ export default function MortgageIdentityPage() {
       </section>
     </div>
   </main>
+}
+
+
+export default function MortgageIdentityPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-50 p-8 text-center text-sm text-slate-500">Yuklanmoqda...</main>}>
+      <MortgageIdentityForm />
+    </Suspense>
+  )
 }
