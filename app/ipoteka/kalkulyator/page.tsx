@@ -102,6 +102,7 @@ export default function MortgageCalculatorPage() {
   const [leadStatus, setLeadStatus] = useState('')
   const [leadError, setLeadError] = useState('')
   const [leadSubmitting, setLeadSubmitting] = useState(false)
+  const [submittedLeadId, setSubmittedLeadId] = useState('')
   const [market, setMarket] = useState<'primary' | 'secondary'>('primary')
   const router = useRouter()
 
@@ -204,7 +205,8 @@ export default function MortgageCalculatorPage() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Заявка не отправлена.' : 'Ariza yuborilmadi.'))
-      setLeadStatus(lang === 'ru' ? 'Заявка отправлена. Менеджер свяжется с вами.' : 'Buyurtma yuborildi. Menejer siz bilan bog‘lanadi.')
+      setSubmittedLeadId(result.leadId || '')
+      setLeadStatus(lang === 'ru' ? 'Заявка отправлена. Следующий шаг — подтвердить личность и загрузить документы.' : 'Ariza yuborildi. Keyingi qadam — shaxsingizni tasdiqlash va hujjatlarni yuklash.')
     } catch (error) {
       setLeadError(error instanceof Error
         ? error.message
@@ -323,7 +325,7 @@ export default function MortgageCalculatorPage() {
               </div>
               {selectedProgram && <p className="mt-3 text-xs font-semibold text-slate-600">{lang==='ru'?'Программа':'Dastur'}: <b>{lang==='ru'?selectedProgram.programRu:selectedProgram.program}</b> · {selectedProgram.rateLabel} · {selectedProgram.downPaymentLabel}</p>}
               {leadError && <p className="mt-3 text-sm font-bold text-red-600">{leadError}</p>}
-              {leadStatus && <p className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}</p>}
+              {leadStatus && <div className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}{submittedLeadId && <Link href={'/account/mortgage/verify?leadId=' + encodeURIComponent(submittedLeadId)} className="mt-3 inline-flex rounded-xl bg-white px-4 py-2.5 font-black text-emerald-800">{lang==='ru'?'Подтвердить личность и загрузить документы':'Shaxsni tasdiqlash va hujjatlarni yuklash'} →</Link>}</div>}
               <button type="button" disabled={leadSubmitting} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
             </div>
           </div>
