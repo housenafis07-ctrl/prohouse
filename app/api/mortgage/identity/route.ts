@@ -23,6 +23,8 @@ function cleanText(value: FormDataEntryValue | null) {
 }
 
 export async function POST(request: NextRequest) {
+  const uploaded: string[] = []
+  let admin: ReturnType<typeof serviceClient> | null = null
   try {
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
@@ -34,8 +36,12 @@ export async function POST(request: NextRequest) {
     const dob = cleanText(form.get('dateOfBirth'))
     const passport = cleanText(form.get('passportSeriesNumber')).toUpperCase().replace(/\s+/g, '')
     const consent = cleanText(form.get('consent')) === 'true'
+
+    if (!leadId) return NextResponse.json({ error: 'Ariza identifikatori topilmadi.' }, { status: 400 })
     if (!/^[0-9]{14}$/.test(pinfl)) return NextResponse.json({ error: 'JSHSHIR 14 ta raqamdan iborat bo‘lishi kerak.' }, { status: 400 })
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || Number.isNaN(Date.parse(dob))) return NextResponse.json({ error: 'Tug‘ilgan sanani tekshiring.' }, { status: 400 })
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return NextResponse.json({ error: 'Tug‘ilgan sanani tekshiring.' }, { status: 400 })
+    const parsedDob = new Date(`${dob}T00:00:00.000Z`)
+    if (Number.isNaN(parsedDob.getTime()) || parsedDob.toISOString().slice(0, 10) !== dob || parsedDob.getTime() > Date.now()) return NextResponse.json({ error: 'Tug‘ilgan sana haqiqiy bo‘lishi va kelajakda bo‘lmasligi kerak.' }, { status: 400 })
     if (!/^[A-Z0-9]{6,12}$/.test(passport)) return NextResponse.json({ error: 'Pasport seriyasi va raqamini tekshiring.' }, { status: 400 })
     if (!consent) return NextResponse.json({ error: 'Shaxsga doir ma’lumotlarni qayta ishlashga rozilik berishingiz kerak.' }, { status: 400 })
 
@@ -46,39 +52,43 @@ export async function POST(request: NextRequest) {
       if (file.size > MAX_BYTES || !TYPES.has(file.type) || !(await hasValidImageSignature(file))) return NextResponse.json({ error: 'Har bir rasm haqiqiy JPG, PNG yoki WebP formatida va 5 MB dan oshmasligi kerak.' }, { status: 400 })
     }
 
-    const admin = serviceClient()
+    admin = serviceClient()
     const { data: lead, error: leadError } = await admin.from('mortgage_leads').select('id,profile_id').eq('id', leadId).maybeSingle()
     if (leadError) throw leadError
     if (!lead || lead.profile_id !== user.id) return NextResponse.json({ error: 'Ariza topilmadi yoki sizga tegishli emas.' }, { status: 404 })
 
-    const uploaded: Partial<Record<typeof FIELDS[number], string>> = {}
+    const paths: Partial<Record<typeof FIELDS[number], string>> = {}
     for (const field of FIELDS) {
       const file = files[field] as File
-      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-      const path = `${user.id}/${leadId}/${field}-${crypto.randomUUID()}.${ext}`
-      const { error } = await admin.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false })
+      const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+      const storagePath = `${user.id}/${leadId}/${field}-${crypto.randomUUID()}.${extension}`
+      const { error } = await admin.storage.from(BUCKET).upload(storagePath, file, { contentType: file.type, upsert: false })
       if (error) throw error
-      uploaded[field] = path
+      uploaded.push(storagePath)
+      paths[field] = storagePath
     }
 
+    const submittedAt = new Date().toISOString()
     const { error: updateError } = await admin.from('mortgage_leads').update({
       pinfl,
       date_of_birth: dob,
       passport_series_number: passport,
-      identity_document_front_path: uploaded.front,
-      identity_document_back_path: uploaded.back,
-      identity_selfie_path: uploaded.selfie,
-      identity_submitted_at: new Date().toISOString(),
-      personal_data_consent_at: new Date().toISOString(),
+      identity_document_front_path: paths.front,
+      identity_document_back_path: paths.back,
+      identity_selfie_path: paths.selfie,
+      identity_submitted_at: submittedAt,
+      personal_data_consent_at: submittedAt,
       personal_data_consent_version: 'mortgage-identity-v1',
-      updated_at: new Date().toISOString(),
+      updated_at: submittedAt,
     }).eq('id', leadId).eq('profile_id', user.id)
-    if (updateError) {
-      await Promise.all(Object.values(uploaded).filter(Boolean).map(path => admin.storage.from(BUCKET).remove([path as string])))
-      throw updateError
-    }
+    if (updateError) throw updateError
+
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (admin && uploaded.length > 0) {
+      const { error: cleanupError } = await admin.storage.from(BUCKET).remove(uploaded)
+      if (cleanupError) console.error('[Mortgage identity cleanup]', cleanupError)
+    }
     console.error('[Mortgage identity upload]', error)
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Hujjatlarni yuborishda xatolik.' }, { status: 500 })
   }
