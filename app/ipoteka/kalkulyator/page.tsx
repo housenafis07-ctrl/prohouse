@@ -216,36 +216,54 @@ export default function MortgageCalculatorPage() {
     }
 
     setLeadSubmitting(true)
+    const fetchTimed = async (url: string, init: RequestInit, timeoutMs: number) => {
+      const controller = new AbortController()
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        return await fetch(url, { ...init, signal: controller.signal })
+      } finally {
+        window.clearTimeout(timer)
+      }
+    }
     try {
-      const sessionResponse = await fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' })
+      const sessionResponse = await fetchTimed('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }, 15000)
       if (sessionResponse.status === 401) {
         setLoginModalOpen(true)
         setLeadStatus(lang === 'ru' ? 'Войдите по SMS или Passkey. После входа вернётесь к заполненной заявке.' : 'Telefon raqami va SMS kodi yoki Passkey orqali kiring. Kirgach, to‘ldirilgan arizaga qaytasiz.')
         return
       }
       if (!sessionResponse.ok) throw new Error(lang === 'ru' ? 'Не удалось проверить вход. Повторите попытку.' : 'Kirish holatini tekshirib bo‘lmadi. Qayta urinib ko‘ring.')
-      const response = await fetch('/api/mortgage/lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId: selectedProgram.id, market, listingId, name: applicantName.trim(), phone: applicantPhone.trim(), propertyPrice: price, downPayment: down, termMonths: months, rate: annualRate, monthlyPayment: firstMonthly }),
-      })
-      const result = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Заявка не отправлена.' : 'Ariza yuborilmadi.'))
+
+      let leadId = submittedLeadId
+      if (!leadId) {
+        const response = await fetchTimed('/api/mortgage/lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ programId: selectedProgram.id, market, listingId, name: applicantName.trim(), phone: applicantPhone.trim(), propertyPrice: price, downPayment: down, termMonths: months, rate: annualRate, monthlyPayment: firstMonthly }),
+        }, 30000)
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || !result.leadId) throw new Error(result.error || (lang === 'ru' ? 'Заявка не создана. Повторите попытку.' : 'Ariza yaratilmadi. Qayta urinib ko‘ring.'))
+        leadId = result.leadId
+        setSubmittedLeadId(leadId)
+      }
+
       const documents = new FormData()
-      documents.set('leadId', result.leadId)
+      documents.set('leadId', leadId)
       documents.set('pinfl', pinfl)
       documents.set('consent', 'true')
       documents.set('front', passportFront)
       documents.set('back', passportBack)
-      const uploadResponse = await fetch('/api/mortgage/identity', { method: 'POST', body: documents, credentials: 'same-origin' })
+      const uploadResponse = await fetchTimed('/api/mortgage/identity', { method: 'POST', body: documents, credentials: 'same-origin' }, 90000)
       const uploadResult = await uploadResponse.json().catch(() => ({}))
-      if (!uploadResponse.ok) throw new Error(uploadResult.error || (lang === 'ru' ? 'Заявка создана, но документы не загружены. Повторите попытку.' : 'Ariza yaratildi, ammo hujjatlar yuklanmadi. Qayta urinib ko‘ring.'))
-      setSubmittedLeadId(result.leadId || '')
+      if (!uploadResponse.ok) throw new Error(uploadResult.error || (lang === 'ru' ? 'Заявка создана, но документы не загружены. Проверьте файлы и повторите отправку.' : 'Ariza yaratildi, ammo hujjatlar yuklanmadi. Fayllarni tekshirib, qayta yuboring.'))
       setLeadStatus(lang === 'ru' ? 'Заявка и документы успешно отправлены.' : 'Ariza va hujjatlar muvaffaqiyatli yuborildi.')
     } catch (error) {
-      setLeadError(error instanceof Error
-        ? error.message
-        : (lang === 'ru' ? 'Не удалось отправить заявку. Проверьте соединение и повторите попытку.' : 'Ariza yuborilmadi. Internet aloqasini tekshirib, qayta urinib ko‘ring.'))
+      const timedOut = error instanceof DOMException && error.name === 'AbortError'
+      setLeadError(timedOut
+        ? (lang === 'ru' ? 'Превышено время ожидания. Заявка сохранена, если её номер уже получен. Повторите отправку.' : 'So‘rov vaqti tugadi. Ariza raqami olingan bo‘lsa, ariza saqlangan. Qayta yuborib ko‘ring.')
+        : error instanceof Error
+          ? error.message
+          : (lang === 'ru' ? 'Не удалось отправить заявку. Проверьте соединение и повторите попытку.' : 'Ariza yuborilmadi. Internet aloqasini tekshirib, qayta urinib ko‘ring.'))
     } finally {
       setLeadSubmitting(false)
     }
