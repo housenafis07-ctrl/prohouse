@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 const BUCKET = 'mortgage-identity'
 const MAX_BYTES = 5 * 1024 * 1024
 const TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-const FIELDS = ['front', 'back', 'selfie'] as const
+const FIELDS = ['front', 'back'] as const
 
 async function hasValidImageSignature(file: File) {
   const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer())
@@ -33,8 +33,6 @@ export async function POST(request: NextRequest) {
     const form = await request.formData()
     const leadId = cleanText(form.get('leadId'))
     const pinfl = cleanText(form.get('pinfl')).replace(/\D/g, '')
-    const dob = cleanText(form.get('dateOfBirth'))
-    const passport = cleanText(form.get('passportSeriesNumber')).toUpperCase().replace(/\s+/g, '')
     const consent = cleanText(form.get('consent')) === 'true'
 
     if (!leadId) return NextResponse.json({ error: 'Ariza identifikatori topilmadi.' }, { status: 400 })
@@ -48,7 +46,7 @@ export async function POST(request: NextRequest) {
     const files = Object.fromEntries(FIELDS.map(field => [field, form.get(field)])) as Record<typeof FIELDS[number], FormDataEntryValue | null>
     for (const field of FIELDS) {
       const file = files[field]
-      if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'Pasportning oldi, orqa tomoni va hujjat bilan selfi rasmini yuklang.' }, { status: 400 })
+      if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'Pasport yoki ID-kartaning old va orqa tomon rasmlarini yuklang.' }, { status: 400 })
       if (file.size > MAX_BYTES || !TYPES.has(file.type) || !(await hasValidImageSignature(file))) return NextResponse.json({ error: 'Har bir rasm haqiqiy JPG, PNG yoki WebP formatida va 5 MB dan oshmasligi kerak.' }, { status: 400 })
     }
 
@@ -71,11 +69,8 @@ export async function POST(request: NextRequest) {
     const submittedAt = new Date().toISOString()
     const { error: updateError } = await admin.from('mortgage_leads').update({
       pinfl,
-      date_of_birth: dob,
-      passport_series_number: passport,
       identity_document_front_path: paths.front,
       identity_document_back_path: paths.back,
-      identity_selfie_path: paths.selfie,
       identity_submitted_at: submittedAt,
       personal_data_consent_at: submittedAt,
       personal_data_consent_version: 'mortgage-identity-v1',
