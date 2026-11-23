@@ -50,6 +50,14 @@ export default function RegisterPage() {
 
   const update=(key:keyof typeof form,value:string)=>setForm(v=>({...v,[key]:value}))
   const getRedirectTo=()=>{ const next=new URLSearchParams(window.location.search).get('next'); return next && next.startsWith('/') ? next : '/account' }
+  const completeLogin=()=>{
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('authModal') === '1' && window.parent !== window) {
+      window.parent.postMessage({ type: 'ROYALHOUSE_AUTH_COMPLETE' }, window.location.origin)
+      return
+    }
+    router.replace(getRedirectTo())
+  }
 
   useEffect(()=>{
     let mounted=true
@@ -90,7 +98,7 @@ export default function RegisterPage() {
       }
       if(loginPage) setAutoPasskeyReady(true)
       if(!loginPage && accountResponse?.ok){
-        router.replace(getRedirectTo())
+        completeLogin()
       }
     }
     void load()
@@ -139,7 +147,7 @@ export default function RegisterPage() {
           throw new Error(t('Amaldagi oferta holatini tekshirib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.', 'Не удалось проверить статус действующей оферты. Попробуйте позже.'))
         }
         setOffer(offerStatus.offer)
-        if (offerStatus.accepted) { router.replace(getRedirectTo()); return }
+        if (offerStatus.accepted) { completeLogin(); return }
         setOfferAcceptanceOnly(true)
         setVerified(true)
         setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
@@ -230,7 +238,7 @@ export default function RegisterPage() {
       if (!offerStatusResponse.ok || !offerStatus.offer?.version) {
         throw new Error(t('Amaldagi oferta holatini tekshirib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.', 'Не удалось проверить статус действующей оферты. Попробуйте позже.'))
       }
-      if (offerStatus.accepted) { router.replace(getRedirectTo()); return }
+      if (offerStatus.accepted) { completeLogin(); return }
       setOffer(offerStatus.offer)
       const supabase=createClient()
       const {data:{user}}=await supabase.auth.getUser()
@@ -329,7 +337,7 @@ export default function RegisterPage() {
         const {error:consentError}=await supabase.from('offer_consents').insert({user_id:user.id,phone:normalizedPhone,offer_version:offer.version,audience:accountType === 'partner' ? 'partner' : 'public',marketing_consent:true})
         if(consentError) throw consentError
       }
-      router.replace(getRedirectTo())
+      completeLogin()
     }catch(e){
       const err = e && typeof e === 'object' ? e as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown } : null
       const code = typeof err?.code === 'string' ? err.code : ''
@@ -361,7 +369,7 @@ export default function RegisterPage() {
         })
         if(consentError) throw consentError
       }
-      router.replace(getRedirectTo())
+      completeLogin()
     }catch(error){
       setMessage(error instanceof Error?error.message:t('Oferta roziligini saqlashda xatolik.','Ошибка сохранения согласия с офертой.'))
     }finally{setLoading(false)}
