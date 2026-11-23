@@ -3,11 +3,19 @@
 import { useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const isReviewable = (row: { listing_type?: string | null; property_type?: string | null; taxonomy_code?: string | null }) =>
   row.listing_type === 'service' ||
   row.property_type === 'service' ||
   row.taxonomy_code === 'rent_dacha' ||
   Boolean(row.taxonomy_code?.startsWith('services_'))
+
+function getListingId(href: string | null) {
+  const match = href?.match(/(?:^|\/)listings\/([^/?#]+)/)
+  const id = match?.[1] || ''
+  return UUID_PATTERN.test(id) ? id : null
+}
 
 export default function ListingCardRatingFix() {
   useEffect(() => {
@@ -16,6 +24,33 @@ export default function ListingCardRatingFix() {
     let observer: MutationObserver | null = null
     let running = false
     let rerun = false
+    const processedIds = new Set<string>()
+    const pendingIds = new Set<string>()
+
+    const schedule = () => {
+      if (disposed || timer !== null) return
+      timer = window.setTimeout(() => {
+        timer = null
+        void run().catch(() => {})
+      }, 120)
+    }
+
+    const collectNewIds = (root: ParentNode) => {
+      const links: HTMLAnchorElement[] = []
+      if (root instanceof HTMLAnchorElement) links.push(root)
+      root.querySelectorAll('a[href*="/listings/"]').forEach((node) => {
+        if (node instanceof HTMLAnchorElement) links.push(node)
+      })
+
+      let added = false
+      for (const link of links) {
+        const id = getListingId(link.getAttribute('href'))
+        if (!id || processedIds.has(id)) continue
+        pendingIds.add(id)
+        added = true
+      }
+      if (added) schedule()
+    }
 
     const run = async () => {
       if (disposed) return
@@ -24,39 +59,28 @@ export default function ListingCardRatingFix() {
         return
       }
 
-      const path = window.location.pathname
-      if (path !== '/' && !path.startsWith('/listings')) return
-
-      const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/listings/"]'))
-      const ids = [...new Set(
-        links
-          .map((link) => {
-            const href = link.getAttribute('href') || ''
-            const match = href.match(/\/listings\/([^/?#]+)/)
-            return match?.[1] || null
-          })
-          .filter(Boolean) as string[]
-      )]
-
+      const ids = [...pendingIds]
+      pendingIds.clear()
       if (!ids.length) return
 
       running = true
-      rerun = false
+      ids.forEach((id) => processedIds.add(id))
       try {
         const db = createClient()
-
-        // Read the real listing row. The homepage listing_search view has changed
-        // several times, so the review badge must not depend on rating columns in it.
         const { data: listingRows, error: listingError } = await db
           .from('listings')
           .select('id,listing_type,property_type,taxonomy_code')
           .in('id', ids)
 
-        if (listingError || disposed) return
+        if (listingError) {
+          ids.forEach((id) => processedIds.delete(id))
+          return
+        }
+        if (disposed) return
 
         const reviewableIds = (listingRows || [])
           .filter(isReviewable)
-          .map((row) => String(row.id))
+          .map((row: any) => String(row.id))
 
         if (!reviewableIds.length) return
 
@@ -66,7 +90,11 @@ export default function ListingCardRatingFix() {
           .in('listing_id', reviewableIds)
           .eq('status', 'published')
 
-        if (reviewsError || disposed) return
+        if (reviewsError) {
+          reviewableIds.forEach((id) => processedIds.delete(id))
+          return
+        }
+        if (disposed) return
 
         const grouped = new Map<string, number[]>()
         for (const row of reviews || []) {
@@ -84,24 +112,17 @@ export default function ListingCardRatingFix() {
           ratings.set(listingId, { score, count: values.length })
         }
 
+        const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/listings/"]'))
         for (const link of links) {
           if (link.querySelector('[data-rh-rating-card]')) continue
-
-          const href = link.getAttribute('href') || ''
-          const match = href.match(/\/listings\/([^/?#]+)/)
-          const id = match?.[1]
-          if (!id) continue
-
-          const listing = (listingRows || []).find((row) => String(row.id) === id)
+          const id = getListingId(link.getAttribute('href'))
+          if (!id || !ids.includes(id)) continue
+          const listing = (listingRows || []).find((row: any) => String(row.id) === id)
           if (!listing || !isReviewable(listing)) continue
 
           const rating = ratings.get(id)
           if (!rating || rating.count === 0) continue
 
-          // PropertyCard has a stable two-block structure:
-          // image block -> .p-4 content block. Put the rating inside the content
-          // block, immediately before the seller row. This is the actual card,
-          // not a guessed paragraph/meta selector.
           const content = link.querySelector<HTMLElement>(':scope > div.p-4')
           if (!content) continue
 
@@ -117,21 +138,22 @@ export default function ListingCardRatingFix() {
         }
       } finally {
         running = false
-        if (rerun && !disposed) schedule()
+        if (rerun && pendingIds.size && !disposed) {
+          rerun = false
+          schedule()
+        }
       }
     }
 
-    const schedule = () => {
-      if (disposed || timer !== null) return
-      timer = window.setTimeout(() => {
-        timer = null
-        void run().catch(() => {})
-      }, 100)
-    }
-
-    observer = new MutationObserver(() => schedule())
+    collectNewIds(document)
+    observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof HTMLElement) collectNewIds(node)
+        }
+      }
+    })
     observer.observe(document.body, { childList: true, subtree: true })
-    schedule()
 
     return () => {
       disposed = true
