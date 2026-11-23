@@ -133,6 +133,10 @@ async function prepareIdentityImage(file: File): Promise<File> {
 export default function MortgageCalculatorPage() {
   const { lang } = useI18n()
   const [propertyPrice, setPropertyPrice] = useState('1 000 000 000')
+  const [propertyCurrency, setPropertyCurrency] = useState<'UZS' | 'USD'>('UZS')
+  const [usdRate, setUsdRate] = useState<number | null>(null)
+  const [usdRateDate, setUsdRateDate] = useState('')
+  const [usdRateLoading, setUsdRateLoading] = useState(true)
   const [downPayment, setDownPayment] = useState('200 000 000')
   const [downPercent, setDownPercent] = useState('20')
   const [rate, setRate] = useState('24')
@@ -178,23 +182,54 @@ export default function MortgageCalculatorPage() {
     setMarket(nextMarket)
     setProgramId(nextProgramId)
     setListingId(nextListingId)
-    if (nextListingId) {
-      fetch('/api/mortgage/listing?id=' + encodeURIComponent(nextListingId))
-        .then(r => r.json())
-        .then(d => {
-          if (d.listing) {
-            setPropertyPrice(formatInput(String(d.listing.price)))
-            setListingTitle(d.listing.title_ru || d.listing.title || '')
-          }
-        })
-        .catch(() => {})
-    }
-    const selectedProgram = getMortgagePrograms(market).find(p => p.id === nextProgramId)
+
+    const selectedProgram = getMortgagePrograms(nextMarket).find(p => p.id === nextProgramId)
     if (selectedProgram) {
       setRate(String(selectedProgram.rateMin))
       setDownPercent(String(selectedProgram.downPaymentMin))
       setYears(String(Math.min(15, Math.max(1, Math.round(selectedProgram.termMonths / 12)))))
     }
+
+    const loadCurrencyAndListing = async () => {
+      let liveRate: number | null = null
+      try {
+        const rateResponse = await fetch('/api/currency/usd', { cache: 'no-store' })
+        if (!rateResponse.ok) throw new Error('USD kursi olinmadi')
+        const rateData = await rateResponse.json()
+        const officialUsdRate = Number(rateData.rates?.USD?.rate)
+        if (!Number.isFinite(officialUsdRate) || officialUsdRate <= 0) throw new Error('USD kursi noto‘g‘ri')
+        liveRate = officialUsdRate
+        setUsdRate(officialUsdRate)
+        setUsdRateDate(rateData.rates?.USD?.date || rateData.date || '')
+      } catch {
+        setUsdRate(null)
+      } finally {
+        setUsdRateLoading(false)
+      }
+
+      if (nextListingId) {
+        try {
+          const response = await fetch('/api/mortgage/listing?id=' + encodeURIComponent(nextListingId))
+          const data = await response.json()
+          if (data.listing) {
+            const listingCurrency = String(data.listing.currency || 'UZS').toUpperCase()
+            const listingAmount = Number(data.listing.price) || 0
+            if (listingCurrency === 'USD') {
+              setPropertyCurrency('USD')
+              setPropertyPrice(formatInput(String(Math.round(liveRate ? listingAmount * liveRate : listingAmount))))
+            } else {
+              setPropertyCurrency('UZS')
+              setPropertyPrice(formatInput(String(listingAmount)))
+            }
+            setListingTitle(data.listing.title_ru || data.listing.title || '')
+          }
+        } catch {
+          // Keep the default calculator values if the listing cannot be loaded.
+        }
+      }
+    }
+
+    void loadCurrencyAndListing()
   }, [])
 
   const t = lang === 'ru' ? {
@@ -230,6 +265,8 @@ export default function MortgageCalculatorPage() {
   }
 
   const price = Number(propertyPrice.replace(/\D/g, '')) || 0
+  const displayPropertyPrice = propertyCurrency === 'USD' && usdRate ? formatInput(String(Math.round(price / usdRate))) : propertyPrice
+  const exchangeRateLabel = usdRate ? nf.format(usdRate) : ''
   const parsedDownPercent = clamp(Number(downPercent.replace(',', '.')) || 0, 0, 100)
   const down = clamp(Number(downPayment.replace(/\D/g, '')) || 0, 0, price)
   const annualRate = clamp(Number(rate.replace(',', '.')) || 0, 0, 100)
@@ -415,7 +452,35 @@ export default function MortgageCalculatorPage() {
       <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="grid gap-5 sm:grid-cols-2">
-            <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.property}</span><div className="relative"><input inputMode="numeric" value={propertyPrice} onChange={e=>{const value=formatInput(e.target.value);setPropertyPrice(value);const p=Number(value.replace(/\D/g,''))||0;const pct=clamp(Number(downPercent.replace(',','.'))||0,0,100);setDownPayment(formatInput(String(Math.round(p*pct/100))))}} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-16 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div></label>
+            <label className="sm:col-span-2">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm font-extrabold">{t.property}</span>
+                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1" aria-label={lang === 'ru' ? 'Валюта цены' : 'Narx valyutasi'}>
+                  <button type="button" onClick={()=>setPropertyCurrency('UZS')} className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${propertyCurrency === 'UZS' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>UZS · so‘m</button>
+                  <button type="button" disabled={!usdRate} onClick={()=>setPropertyCurrency('USD')} className={`rounded-lg px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${propertyCurrency === 'USD' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>USD · $</button>
+                </div>
+              </div>
+              <div className="relative">
+                <input inputMode="numeric" value={displayPropertyPrice} onChange={e=>{
+                  const raw = Number(e.target.value.replace(/\D/g,'')) || 0
+                  const value = propertyCurrency === 'USD' && usdRate ? Math.round(raw * usdRate) : raw
+                  setPropertyPrice(formatInput(String(value)))
+                  const pct=clamp(Number(downPercent.replace(',','.'))||0,0,100)
+                  setDownPayment(formatInput(String(Math.round(value*pct/100))))
+                }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-20 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{propertyCurrency === 'USD' ? '$' : 'so‘m'}</span>
+              </div>
+              <span className="mt-2 block text-xs font-medium text-slate-400">
+                {usdRateLoading
+                  ? (lang === 'ru' ? 'Загрузка официального курса ЦБ...' : 'Markaziy bankning rasmiy kursi yuklanmoqda...')
+                  : usdRate
+                    ? (lang === 'ru'
+                      ? `Курс ЦБ: 1 USD = ${exchangeRateLabel} сум · дата курса: ${usdRateDate}`
+                      : `Markaziy bank kursi: 1 USD = ${exchangeRateLabel} so‘m · kurs sanasi: ${usdRateDate}`)
+                    : (lang === 'ru' ? 'Курс ЦБ временно недоступен. Расчёт в USD отключён.' : 'Markaziy bank kursi vaqtincha mavjud emas. USD hisoblash vaqtincha o‘chirilgan.')
+                }
+              </span>
+            </label>
 
             <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -453,7 +518,7 @@ export default function MortgageCalculatorPage() {
               <button type="button" disabled={leadSubmitting || compressingImages} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{compressingImages ? (lang==='ru'?'Сжатие фото...':'Rasmlar kichraytirilmoqda...') : leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
             </div>
           </div>
-          <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
+          <button type="button" onClick={()=>{setPropertyPrice('');setPropertyCurrency('UZS');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
         </div>
 
         <div className="min-w-0 max-w-full overflow-hidden rounded-3xl bg-slate-900 p-4 text-white shadow-lg sm:p-8">
