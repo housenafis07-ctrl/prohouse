@@ -41,7 +41,9 @@ test('eligible-count SQL function uses a valid dollar-quoted body', () => {
 test('existing users must accept the current offer before becoming marketing-eligible', () => {
   assert.ok(registration.includes('setOfferAcceptanceOnly(true)'))
   assert.ok(registration.includes('async function acceptCurrentOffer'))
-  assert.ok(registration.includes(".eq('marketing_consent', true)"))
+  assert.match(registration, /\.eq\('offer_version',\s*offer\.version\)/)
+  assert.match(registration, /\.eq\('audience'/)
+  assert.doesNotMatch(registration, /\.eq\('marketing_consent',\s*true\)/)
 })
 
 const adminTelegramPage = await readFile(new URL('../app/admin/telegram/page.tsx', import.meta.url), 'utf8')
