@@ -123,7 +123,7 @@ async function prepareIdentityImage(file: File): Promise<File> {
       throw new Error('Rasmni 4.5 MB gacha sifatini saqlagan holda kichraytirib bo‘lmadi. Iltimos, tiniqroq va kichikroq rasm tanlang.')
     }
 
-    const baseName = file.name.replace(/\\.[^.]+$/, '') || 'passport'
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'passport'
     return new File([blob], baseName + '-compressed.jpg', { type: 'image/jpeg', lastModified: Date.now() })
   } finally {
     bitmap.close()
