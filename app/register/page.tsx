@@ -130,15 +130,16 @@ export default function RegisterPage() {
       // a duplicate account or replacing their realtor profile.
       const requestedType = new URLSearchParams(window.location.search).get('type')
       if(data.profileExists && requestedType !== 'partner'){
-        if(!offer?.version) throw new Error(t('Amaldagi oferta yuklanmadi. Sahifani yangilang.','Не удалось загрузить действующую оферту. Обновите страницу.'))
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if(!user) throw new Error(t('Sessiya topilmadi. Qayta kirib ko‘ring.','Сессия не найдена. Войдите снова.'))
-        const { data: acceptedOffer, error: acceptedOfferError } = await supabase
-          .from('offer_consents').select('id').eq('user_id', user.id)
-          .eq('offer_version', offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').limit(1).maybeSingle()
-        if(acceptedOfferError) throw acceptedOfferError
-        if(acceptedOffer){ router.replace(getRedirectTo()); return }
+        const offerStatusResponse = await fetch('/api/account/offer-status', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        })
+        const offerStatus = await offerStatusResponse.json().catch(() => ({}))
+        if (!offerStatusResponse.ok || !offerStatus.offer?.version) {
+          throw new Error(t('Amaldagi oferta holatini tekshirib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.', 'Не удалось проверить статус действующей оферты. Попробуйте позже.'))
+        }
+        setOffer(offerStatus.offer)
+        if (offerStatus.accepted) { router.replace(getRedirectTo()); return }
         setOfferAcceptanceOnly(true)
         setVerified(true)
         setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
@@ -221,16 +222,22 @@ export default function RegisterPage() {
       const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({challenge:options.challenge,response:assertion})})
       const result=await verifyResponse.json()
       if(!verifyResponse.ok) throw new Error(result.error||'PASSKEY_LOGIN_FAILED')
+      const offerStatusResponse = await fetch('/api/account/offer-status', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      const offerStatus = await offerStatusResponse.json().catch(() => ({}))
+      if (!offerStatusResponse.ok || !offerStatus.offer?.version) {
+        throw new Error(t('Amaldagi oferta holatini tekshirib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.', 'Не удалось проверить статус действующей оферты. Попробуйте позже.'))
+      }
+      if (offerStatus.accepted) { router.replace(getRedirectTo()); return }
+      setOffer(offerStatus.offer)
       const supabase=createClient()
       const {data:{user}}=await supabase.auth.getUser()
-      if(!user) throw new Error(t('Sessiya yaratilmadi. SMS orqali kirib ko‘ring.','Сессия не создана. Попробуйте войти по SMS.'))
-      if(!offer?.version) throw new Error(t('Amaldagi oferta yuklanmadi. Sahifani yangilang.','Не удалось загрузить действующую оферту. Обновите страницу.'))
-      const {data:acceptedOffer,error:acceptedOfferError}=await supabase.from('offer_consents').select('id')
-        .eq('user_id',user.id).eq('offer_version',offer.version).eq('audience', accountType === 'partner' ? 'partner' : 'public').limit(1).maybeSingle()
-      if(acceptedOfferError) throw acceptedOfferError
-      if(acceptedOffer){router.replace(getRedirectTo());return}
-      const {data:profile}=await supabase.from('profiles').select('phone').eq('id',user.id).maybeSingle()
-      if(profile?.phone) setPhone(profile.phone)
+      if(user){
+        const {data:profile}=await supabase.from('profiles').select('phone').eq('id',user.id).maybeSingle()
+        if(profile?.phone) setPhone(profile.phone)
+      }
       setVerified(true)
       setOfferAcceptanceOnly(true)
       setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
