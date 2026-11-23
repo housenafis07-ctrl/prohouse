@@ -463,12 +463,23 @@ export default function MortgageCalculatorPage() {
                 <input inputMode="numeric" value={displayPropertyPrice} onChange={e=>{
                   const raw = Number(e.target.value.replace(/\D/g,'')) || 0
                   const value = propertyCurrency === 'USD' && usdRate ? Math.round(raw * usdRate) : raw
-                  const formatted = formatInput(String(value))
-                  setPropertyPrice(formatted)
+                  setPropertyPrice(formatInput(String(value)))
                   const pct=clamp(Number(downPercent.replace(',','.'))||0,0,100)
                   setDownPayment(formatInput(String(Math.round(value*pct/100))))
                 }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-20 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/>
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{propertyCurrency === 'USD' ? '
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{propertyCurrency === 'USD' ? '$' : 'so‘m'}</span>
+              </div>
+              <span className="mt-2 block text-xs font-medium text-slate-400">
+                {usdRateLoading
+                  ? (lang === 'ru' ? 'Загрузка официального курса ЦБ...' : 'Markaziy bankning rasmiy kursi yuklanmoqda...')
+                  : usdRate
+                    ? (lang === 'ru'
+                      ? `Курс ЦБ: 1 USD = ${exchangeRateLabel} сум · дата курса: ${usdRateDate}`
+                      : `Markaziy bank kursi: 1 USD = ${exchangeRateLabel} so‘m · kurs sanasi: ${usdRateDate}`)
+                    : (lang === 'ru' ? 'Курс ЦБ временно недоступен. Расчёт в USD отключён.' : 'Markaziy bank kursi vaqtincha mavjud emas. USD hisoblash vaqtincha o‘chirilgan.')
+                }
+              </span>
+            </label>
 
             <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-4 sm:grid-cols-2">
