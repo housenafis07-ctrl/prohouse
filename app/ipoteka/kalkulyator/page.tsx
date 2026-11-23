@@ -103,12 +103,24 @@ export default function MortgageCalculatorPage() {
   const [passportFront, setPassportFront] = useState<File | null>(null)
   const [passportBack, setPassportBack] = useState<File | null>(null)
   const [identityConsent, setIdentityConsent] = useState(false)
+  const [loginModalOpen, setLoginModalOpen] = useState(false)
   const [leadStatus, setLeadStatus] = useState('')
   const [leadError, setLeadError] = useState('')
   const [leadSubmitting, setLeadSubmitting] = useState(false)
   const [submittedLeadId, setSubmittedLeadId] = useState('')
   const [market, setMarket] = useState<'primary' | 'secondary'>('primary')
   const router = useRouter()
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'ROYALHOUSE_AUTH_COMPLETE') return
+      setLoginModalOpen(false)
+      setLeadError('')
+      setLeadStatus(lang === 'ru' ? 'Вход выполнен. Данные и выбранные документы сохранены — отправьте заявку.' : 'Tizimga muvaffaqiyatli kirdingiz. Kiritilgan ma’lumotlar va tanlangan hujjatlar saqlandi — arizani yuboring.')
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [lang])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -205,6 +217,13 @@ export default function MortgageCalculatorPage() {
 
     setLeadSubmitting(true)
     try {
+      const sessionResponse = await fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' })
+      if (sessionResponse.status === 401) {
+        setLoginModalOpen(true)
+        setLeadStatus(lang === 'ru' ? 'Войдите по SMS или Passkey. После входа вернётесь к заполненной заявке.' : 'Telefon raqami va SMS kodi yoki Passkey orqali kiring. Kirgach, to‘ldirilgan arizaga qaytasiz.')
+        return
+      }
+      if (!sessionResponse.ok) throw new Error(lang === 'ru' ? 'Не удалось проверить вход. Повторите попытку.' : 'Kirish holatini tekshirib bo‘lmadi. Qayta urinib ko‘ring.')
       const response = await fetch('/api/mortgage/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -376,5 +395,6 @@ export default function MortgageCalculatorPage() {
         <div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600"><span className="font-black text-slate-900">{t.sources}:</span> {lang === 'ru' ? 'my.gov.uz и актуальные кредитные условия банков. Цифры калькулятора не заменяют предложение банка.' : 'my.gov.uz va banklarning amaldagi kredit shartlari. Kalkulyatordagi raqamlar bank taklifi o‘rnini bosmaydi.'}</div>
       </div>
     </section>
+  {loginModalOpen && <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={lang === 'ru' ? 'Вход в RoyalHouse' : 'RoyalHouse tizimiga kirish'}><div className="relative h-[100dvh] w-full overflow-hidden bg-white sm:h-[min(90dvh,820px)] sm:max-w-xl sm:rounded-3xl"><button type="button" onClick={() => setLoginModalOpen(false)} className="absolute right-3 top-3 z-10 rounded-full bg-white/95 px-3 py-1.5 text-xl font-bold text-slate-500 shadow" aria-label={lang === 'ru' ? 'Закрыть' : 'Yopish'}>×</button><iframe title={lang === 'ru' ? 'Вход в RoyalHouse' : 'RoyalHouse tizimiga kirish'} src="/account/login?next=%2Fipoteka%2Fkalkulyator&authModal=1" className="h-full w-full border-0" /></div></div>}
   </main>
 }
