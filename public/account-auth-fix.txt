@@ -1,0 +1,2 @@
+Account OTP fix deployed from main after the profile contact schema was synchronized.
+2026-10-28

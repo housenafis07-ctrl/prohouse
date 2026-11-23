@@ -1,0 +1,134 @@
+import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { createClient } from '@/utils/supabase/server'
+import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export async function GET(request: Request) {
+  const cookieStore = await cookies()
+  const phoneSessionUserId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  let userId = phoneSessionUserId
+  if (!userId) {
+    const supabase = await createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    userId = authUser?.id || null
+  }
+  const admin = serviceClient()
+  const referer = request.headers.get('referer') || ''
+  const requestedFlow = new URL(request.url).searchParams.get('flow')
+  const flow = requestedFlow === 'service' || requestedFlow === 'property' ? requestedFlow : (referer.includes('/listings/new/service') ? 'service' : 'property')
+  const editMatch = referer.match(/\/account\/listings\/([^/?#]+)\/edit(?:[/?#]|$)/)
+
+  const [{ data: categories, error: categoryError }, { data: attributes, error: attributeError }] = await Promise.all([
+    admin
+      .from('listing_categories')
+      .select('code,parent_code,name_uz,name_ru,section_code,listing_type,property_type,entity_type,is_listable,is_mortgage_filter,is_new_construction_filter,sort_order')
+      .eq('is_active', true)
+      .eq('is_listable', true)
+      .order('section_code')
+      .order('sort_order'),
+    admin
+      .from('category_attributes')
+      .select('id,category_code,code,name_uz,name_ru,data_type,options,unit,is_required,sort_order')
+      .eq('is_active', true)
+      .order('sort_order'),
+  ])
+
+  if (categoryError || attributeError) {
+    return NextResponse.json({ error: categoryError?.message || attributeError?.message }, { status: 500 })
+  }
+
+  // When editing, scope metadata from the listing itself rather than the
+  // partner's create permissions. This preserves the taxonomy already saved
+  // on the listing and prevents steps 1–2 from becoming empty.
+  if (editMatch && userId) {
+    const listingId = editMatch[1]
+    const { data: listingForScope } = await admin
+      .from('listings')
+      .select('taxonomy_code')
+      .eq('id', listingId)
+      .eq('owner_id', userId)
+      .maybeSingle()
+
+    const existingCategory = (categories || []).find((c) => c.code === listingForScope?.taxonomy_code)
+    if (existingCategory) {
+      const scopedCategories = (categories || []).filter((c) => c.entity_type === existingCategory.entity_type)
+      const scopedAttributes = (attributes || []).filter((a) => scopedCategories.some((c) => c.code === a.category_code))
+      return NextResponse.json(
+        { categories: scopedCategories, attributes: scopedAttributes, partnerType: null, scope: existingCategory.entity_type },
+        { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+      )
+    }
+  }
+
+  let partnerType: string | null = 'owner'
+  let accountProfile: { user_id: string; phone: string | null; full_name: string | null; account_type: string | null; partner_type: string | null } | null = null
+  if (userId) {
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('phone,full_name,account_type,partner_type')
+      .eq('id', userId)
+      .maybeSingle()
+    if (profile) accountProfile = { user_id: userId, phone: profile.phone, full_name: profile.full_name, account_type: profile.account_type, partner_type: profile.partner_type }
+
+    if (profile?.account_type === 'individual') {
+      partnerType = 'owner'
+    } else if (profile?.account_type === 'partner') {
+      const { data: partnerProfile } = await admin
+        .from('partner_profiles')
+        .select('partner_type')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      partnerType = partnerProfile?.partner_type || (
+        ['owner', 'realtor', 'agency', 'developer', 'contractor', 'service_provider'].includes(profile.partner_type || '')
+          ? profile.partner_type
+          : null
+      )
+    }
+  }
+
+  // Individual-owner permissions are the baseline for every account.
+  // A logged-in partner must not lose access to categories that any
+  // individual can publish merely because their current partner role differs.
+  const { data: ownerPermissions } = await admin
+    .from('partner_category_permissions')
+    .select('category_code')
+    .eq('partner_type', 'owner')
+    .eq('can_create', true)
+  const allowedCodes = new Set((ownerPermissions || []).map((x) => x.category_code))
+
+  // Add the current partner role's extra permissions without replacing the
+  // individual-owner baseline. Categories restricted for both roles remain
+  // marked as partner-only in the wizard.
+  if (partnerType && partnerType !== 'owner') {
+    const { data: partnerPermissions } = await admin
+      .from('partner_category_permissions')
+      .select('category_code')
+      .eq('partner_type', partnerType)
+      .eq('can_create', true)
+    for (const permission of partnerPermissions || []) {
+      allowedCodes.add(permission.category_code)
+    }
+  }
+
+  // These are separate listing flows. The property wizard must always receive
+  // the active/listable property taxonomy; partner_category_permissions currently
+  // contains service-provider-only permissions for some accounts, which otherwise
+  // makes the property wizard's section picker completely empty. Service taxonomy
+  // is returned only to the dedicated service wizard.
+  const filtered = (categories || []).filter((c) => {
+    const isServiceCategory = c.entity_type === 'service' && c.section_code === 'services'
+    if (flow === 'service') return isServiceCategory
+    return c.entity_type === 'property' && c.section_code !== 'services'
+  })
+  const filteredAttributes = (attributes || []).filter((a) => filtered.some((c) => c.code === a.category_code))
+
+  return NextResponse.json(
+    { categories: filtered, attributes: filteredAttributes, partnerType, allowedCategoryCodes: Array.from(allowedCodes || []), accountProfile },
+    { headers: { 'Cache-Control': 'private, no-store, max-age=0' } },
+  )
+}

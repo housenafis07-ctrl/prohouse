@@ -6,7 +6,7 @@ import { getListingImageUrl } from '@/lib/listing-image'
 const HOME_HERO_IMAGE = 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=85'
 const HOME_LISTING_FIELDS = [
   'id', 'title', 'title_ru', 'listing_type', 'taxonomy_code', 'property_type',
-  'price', 'currency', 'area_m2', 'rooms', 'floor', 'floors_total', 'land_area',
+  'price', 'currency', 'area_m2', 'rooms', 'floor', 'floors_total',
   'district', 'city', 'seller_name', 'is_verified', 'is_mortgage_available',
   'is_featured', 'promotion_badge', 'effective_promotion_badge', 'promoted_until',
   'published_at', 'effective_promotion_rank',
@@ -42,8 +42,6 @@ async function loadHomeListings(): Promise<{ listings: HomeListing[]; activeCoun
   }
 
   try {
-    // Public listing data is rendered on the server and cached briefly to
-    // remove the browser-side request waterfall without hiding new listings.
     const db = createSupabaseClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       global: {
@@ -54,6 +52,9 @@ async function loadHomeListings(): Promise<{ listings: HomeListing[]; activeCoun
       },
     })
 
+    // Production's current listing_search view omits primary_image_url and
+    // land_area. Fetch the two small public projections in parallel, rather
+    // than waiting for listing IDs and then starting a second request.
     const [listingResult, imageResult] = await Promise.all([
       db
         .from('listing_search')
@@ -62,9 +63,6 @@ async function loadHomeListings(): Promise<{ listings: HomeListing[]; activeCoun
         .order('effective_promotion_rank', { ascending: false })
         .order('published_at', { ascending: false })
         .limit(60),
-      // Production's current listing_search view does not expose image/land
-      // columns. Fetch this small metadata projection in parallel, not after
-      // the listing query, to avoid the old sequential browser waterfall.
       db
         .from('listings')
         .select('id,primary_image_url,land_area')

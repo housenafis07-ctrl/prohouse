@@ -38,7 +38,7 @@ export default function ListingCardRatingFix() {
     const collectNewIds = (root: ParentNode) => {
       const links: HTMLAnchorElement[] = []
       if (root instanceof HTMLAnchorElement) links.push(root)
-      root.querySelectorAll?.('a[href*="/listings/"]').forEach((node) => {
+      root.querySelectorAll('a[href*="/listings/"]').forEach((node) => {
         if (node instanceof HTMLAnchorElement) links.push(node)
       })
 

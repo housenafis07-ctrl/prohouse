@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 249 227" role="img" aria-label="Click">
+  <rect width="249" height="227" rx="2" fill="#000"/>
+  <g transform="translate(0 58)">
+    <path d="M31 0c14 0 27 6 37 16l12 11-12 11c-10 10-23 16-37 16S4 48 0 38l-3-11 3-11C4 6 17 0 31 0Zm0 13c-8 0-15 3-22 8l-5 6 5 6c7 5 14 8 22 8s15-3 22-8l5-6-5-6c-7-5-14-8-22-8Z" fill="#0066ff" transform="translate(4 0)"/>
+    <text x="72" y="47" font-family="Arial,Helvetica,sans-serif" font-size="48" font-weight="700" fill="#fff">click</text>
+  </g>
+</svg>
