@@ -196,10 +196,11 @@ export default function MortgageCalculatorPage() {
         const rateResponse = await fetch('/api/currency/usd', { cache: 'no-store' })
         if (!rateResponse.ok) throw new Error('USD kursi olinmadi')
         const rateData = await rateResponse.json()
-        if (!Number.isFinite(rateData.rate) || rateData.rate <= 0) throw new Error('USD kursi noto‘g‘ri')
-        liveRate = rateData.rate
-        setUsdRate(rateData.rate)
-        setUsdRateDate(rateData.date || '')
+        const officialUsdRate = Number(rateData.rates?.USD?.rate)
+        if (!Number.isFinite(officialUsdRate) || officialUsdRate <= 0) throw new Error('USD kursi noto‘g‘ri')
+        liveRate = officialUsdRate
+        setUsdRate(officialUsdRate)
+        setUsdRateDate(rateData.rates?.USD?.date || rateData.date || '')
       } catch {
         setUsdRate(null)
       } finally {
