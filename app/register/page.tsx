@@ -67,14 +67,27 @@ export default function RegisterPage() {
         }).catch(() => null)
       }
 
-      const offerPromise = createClient().from('offer_versions').select('version,title,content,audience').eq('audience', accountType === 'partner' ? 'partner' : 'public').eq('is_active',true).maybeSingle()
+      const audience = accountType === 'partner' ? 'partner' : 'public'
+      const offerPromise = fetch(`/api/offer/active?audience=${audience}`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      }).then(async response => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload.error || 'ACTIVE_OFFER_LOAD_FAILED')
+        return payload.offer as Offer
+      })
       const accountPromise = loginPage
         ? Promise.resolve(null)
         : fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null)
-      const [offerResult, accountResponse] = await Promise.all([offerPromise, accountPromise])
+      const [offerResult, accountResponse] = await Promise.allSettled([offerPromise, accountPromise])
 
       if(!mounted) return
-      if(offerResult.data) setOffer(offerResult.data)
+      if(offerResult.status === 'fulfilled') {
+        setOffer(offerResult.value)
+      } else {
+        console.error('[registration] active offer load failed', offerResult.reason)
+        setOffer(null)
+      }
       if(loginPage) setAutoPasskeyReady(true)
       if(!loginPage && accountResponse?.ok){
         router.replace(getRedirectTo())
