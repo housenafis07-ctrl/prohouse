@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     const auth = await createClient()
     const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Hujjatlarni xavfsiz yuborish uchun avval shaxsiy kabinetingizga kiring.' }, { status: 401 })
     const admin = serviceClient()
     let listingId = typeof body.listingId === 'string' ? body.listingId : null
     if (listingId) {

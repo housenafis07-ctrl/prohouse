@@ -99,12 +99,28 @@ export default function MortgageCalculatorPage() {
   const [programId, setProgramId] = useState('')
   const [applicantName, setApplicantName] = useState('')
   const [applicantPhone, setApplicantPhone] = useState('')
+  const [pinfl, setPinfl] = useState('')
+  const [passportFront, setPassportFront] = useState<File | null>(null)
+  const [passportBack, setPassportBack] = useState<File | null>(null)
+  const [identityConsent, setIdentityConsent] = useState(false)
+  const [loginModalOpen, setLoginModalOpen] = useState(false)
   const [leadStatus, setLeadStatus] = useState('')
   const [leadError, setLeadError] = useState('')
   const [leadSubmitting, setLeadSubmitting] = useState(false)
   const [submittedLeadId, setSubmittedLeadId] = useState('')
   const [market, setMarket] = useState<'primary' | 'secondary'>('primary')
   const router = useRouter()
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'ROYALHOUSE_AUTH_COMPLETE') return
+      setLoginModalOpen(false)
+      setLeadError('')
+      setLeadStatus(lang === 'ru' ? 'Вход выполнен. Данные и выбранные документы сохранены — отправьте заявку.' : 'Tizimga muvaffaqiyatli kirdingiz. Kiritilgan ma’lumotlar va tanlangan hujjatlar saqlandi — arizani yuboring.')
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [lang])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -191,6 +207,9 @@ export default function MortgageCalculatorPage() {
     setLeadError('')
     if (!selectedProgram) { setLeadError(lang === 'ru' ? 'Выберите банк.' : 'Bankni tanlang.'); return }
     if (applicantName.trim().length < 2 || applicantPhone.trim().length < 7) { setLeadError(lang === 'ru' ? 'Введите имя и телефон.' : 'Ism va telefonni kiriting.'); return }
+    if (!/^[0-9]{14}$/.test(pinfl)) { setLeadError(lang === 'ru' ? 'Введите ПИНФЛ из 14 цифр.' : 'JSHSHIR 14 ta raqamdan iborat bo‘lishi kerak.'); return }
+    if (!passportFront || !passportBack) { setLeadError(lang === 'ru' ? 'Загрузите обе стороны паспорта или ID-карты.' : 'Pasport yoki ID-kartaning old va orqa rasmlarini yuklang.'); return }
+    if (!identityConsent) { setLeadError(lang === 'ru' ? 'Подтвердите согласие на обработку персональных данных.' : 'Shaxsga doir ma’lumotlarni qayta ishlashga rozilik bering.'); return }
     if (price <= 0 || down < 0 || down > price || months < 1) {
       setLeadError(lang === 'ru' ? 'Проверьте стоимость жилья, взнос и срок кредита.' : 'Uy narxi, boshlang‘ich badal va kredit muddatini tekshiring.')
       return
@@ -198,6 +217,13 @@ export default function MortgageCalculatorPage() {
 
     setLeadSubmitting(true)
     try {
+      const sessionResponse = await fetch('/api/account/profile', { cache: 'no-store', credentials: 'same-origin' })
+      if (sessionResponse.status === 401) {
+        setLoginModalOpen(true)
+        setLeadStatus(lang === 'ru' ? 'Войдите по SMS или Passkey. После входа вернётесь к заполненной заявке.' : 'Telefon raqami va SMS kodi yoki Passkey orqali kiring. Kirgach, to‘ldirilgan arizaga qaytasiz.')
+        return
+      }
+      if (!sessionResponse.ok) throw new Error(lang === 'ru' ? 'Не удалось проверить вход. Повторите попытку.' : 'Kirish holatini tekshirib bo‘lmadi. Qayta urinib ko‘ring.')
       const response = await fetch('/api/mortgage/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,8 +231,17 @@ export default function MortgageCalculatorPage() {
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(result.error || (lang === 'ru' ? 'Заявка не отправлена.' : 'Ariza yuborilmadi.'))
+      const documents = new FormData()
+      documents.set('leadId', result.leadId)
+      documents.set('pinfl', pinfl)
+      documents.set('consent', 'true')
+      documents.set('front', passportFront)
+      documents.set('back', passportBack)
+      const uploadResponse = await fetch('/api/mortgage/identity', { method: 'POST', body: documents, credentials: 'same-origin' })
+      const uploadResult = await uploadResponse.json().catch(() => ({}))
+      if (!uploadResponse.ok) throw new Error(uploadResult.error || (lang === 'ru' ? 'Заявка создана, но документы не загружены. Повторите попытку.' : 'Ariza yaratildi, ammo hujjatlar yuklanmadi. Qayta urinib ko‘ring.'))
       setSubmittedLeadId(result.leadId || '')
-      setLeadStatus(lang === 'ru' ? 'Заявка отправлена. Следующий шаг — подтвердить личность и загрузить документы.' : 'Ariza yuborildi. Keyingi qadam — shaxsingizni tasdiqlash va hujjatlarni yuklash.')
+      setLeadStatus(lang === 'ru' ? 'Заявка и документы успешно отправлены.' : 'Ariza va hujjatlar muvaffaqiyatli yuborildi.')
     } catch (error) {
       setLeadError(error instanceof Error
         ? error.message
@@ -322,10 +357,16 @@ export default function MortgageCalculatorPage() {
                 <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Банк':'Bank'}</span><select value={programId} onChange={e=>{setProgramId(e.target.value);const p=availablePrograms.find(x=>x.id===e.target.value);if(p){setRate(String(p.rateMin));setDownPercent(String(p.downPaymentMin));setYears(String(Math.min(15,Math.max(1,Math.round(p.termMonths/12)))));}}} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black"><option value="">{lang==='ru'?'Выберите программу':'Bank dasturini tanlang'}</option>{availablePrograms.map(p=><option key={p.id} value={p.id}>{p.bank} — {p.program} · {p.rateLabel}</option>)}</select></label>
                 <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Ваше имя':'Ismingiz'}</span><input value={applicantName} onChange={e=>setApplicantName(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
                 <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Телефон':'Telefon'}</span><input value={applicantPhone} onChange={e=>setApplicantPhone(e.target.value)} placeholder="+998 90 123 45 67" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
+                <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'ПИНФЛ (14 цифр)':'JSHSHIR (14 ta raqam)'}</span><input inputMode="numeric" autoComplete="off" value={pinfl} onChange={e=>setPinfl(e.target.value.replace(/\D/g,'').slice(0,14))} maxLength={14} placeholder="14 ta raqam" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black tracking-wider" /></label>
+                <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — лицевая сторона':'Pasport / ID-karta — old tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setPassportFront(e.target.files?.[0] || null)} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportFront ? passportFront.name : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
+                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — обратная сторона':'Pasport / ID-karta — orqa tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setPassportBack(e.target.files?.[0] || null)} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportBack ? passportBack.name : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
+                </div>
+                <label className="sm:col-span-2 flex items-start gap-3 text-xs leading-5 text-slate-600"><input type="checkbox" checked={identityConsent} onChange={e=>setIdentityConsent(e.target.checked)} className="mt-1"/><span>{lang==='ru'?'Я согласен(на) на обработку ПИНФЛ и изображений паспорта / ID-карты для рассмотрения ипотечной заявки и передачи выбранному банку.':'Men JSHSHIR va pasport/ID-karta rasmlarimni ipoteka arizasini ko‘rib chiqish hamda tanlangan bankka yuborish maqsadida qayta ishlashga roziman.'}</span></label>
               </div>
               {selectedProgram && <p className="mt-3 text-xs font-semibold text-slate-600">{lang==='ru'?'Программа':'Dastur'}: <b>{lang==='ru'?selectedProgram.programRu:selectedProgram.program}</b> · {selectedProgram.rateLabel} · {selectedProgram.downPaymentLabel}</p>}
               {leadError && <p className="mt-3 text-sm font-bold text-red-600">{leadError}</p>}
-              {leadStatus && <div className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}{submittedLeadId && <Link href={'/account/mortgage/verify?leadId=' + encodeURIComponent(submittedLeadId)} className="mt-3 inline-flex rounded-xl bg-white px-4 py-2.5 font-black text-emerald-800">{lang==='ru'?'Подтвердить личность и загрузить документы':'Shaxsni tasdiqlash va hujjatlarni yuklash'} →</Link>}</div>}
+              {leadStatus && <div className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}{submittedLeadId && <Link href="/account/mortgage" className="mt-3 inline-flex rounded-xl bg-white px-4 py-2.5 font-black text-emerald-800">{lang==='ru'?'Мои заявки':'Ipoteka arizalarim'} →</Link>}</div>}
               <button type="button" disabled={leadSubmitting} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
             </div>
           </div>
@@ -354,5 +395,6 @@ export default function MortgageCalculatorPage() {
         <div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600"><span className="font-black text-slate-900">{t.sources}:</span> {lang === 'ru' ? 'my.gov.uz и актуальные кредитные условия банков. Цифры калькулятора не заменяют предложение банка.' : 'my.gov.uz va banklarning amaldagi kredit shartlari. Kalkulyatordagi raqamlar bank taklifi o‘rnini bosmaydi.'}</div>
       </div>
     </section>
+  {loginModalOpen && <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={lang === 'ru' ? 'Вход в RoyalHouse' : 'RoyalHouse tizimiga kirish'}><div className="relative h-[100dvh] w-full overflow-hidden bg-white sm:h-[min(90dvh,820px)] sm:max-w-xl sm:rounded-3xl"><button type="button" onClick={() => setLoginModalOpen(false)} className="absolute right-3 top-3 z-10 rounded-full bg-white/95 px-3 py-1.5 text-xl font-bold text-slate-500 shadow" aria-label={lang === 'ru' ? 'Закрыть' : 'Yopish'}>×</button><iframe title={lang === 'ru' ? 'Вход в RoyalHouse' : 'RoyalHouse tizimiga kirish'} src="/account/login?next=%2Fipoteka%2Fkalkulyator&authModal=1" className="h-full w-full border-0" /></div></div>}
   </main>
 }
