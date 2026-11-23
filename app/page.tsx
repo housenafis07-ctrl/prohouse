@@ -9,7 +9,7 @@ const HOME_LISTING_FIELDS = [
   'price', 'currency', 'area_m2', 'rooms', 'floor', 'floors_total', 'land_area',
   'district', 'city', 'seller_name', 'is_verified', 'is_mortgage_available',
   'is_featured', 'promotion_badge', 'effective_promotion_badge', 'promoted_until',
-  'published_at', 'effective_promotion_rank', 'primary_image_url',
+  'published_at', 'effective_promotion_rank',
 ].join(',')
 
 export const metadata: Metadata = {
@@ -54,26 +54,45 @@ async function loadHomeListings(): Promise<{ listings: HomeListing[]; activeCoun
       },
     })
 
-    const { data, count, error } = await db
-      .from('listing_search')
-      .select(HOME_LISTING_FIELDS, { count: 'exact' })
-      .eq('status', 'active')
-      .order('effective_promotion_rank', { ascending: false })
-      .order('published_at', { ascending: false })
-      .limit(60)
+    const [listingResult, imageResult] = await Promise.all([
+      db
+        .from('listing_search')
+        .select(HOME_LISTING_FIELDS, { count: 'exact' })
+        .eq('status', 'active')
+        .order('effective_promotion_rank', { ascending: false })
+        .order('published_at', { ascending: false })
+        .limit(60),
+      // Production's current listing_search view does not expose image/land
+      // columns. Fetch this small metadata projection in parallel, not after
+      // the listing query, to avoid the old sequential browser waterfall.
+      db
+        .from('listings')
+        .select('id,primary_image_url,land_area')
+        .eq('status', 'active')
+        .limit(1000),
+    ])
 
-    if (error) {
-      console.error('[home-listings] query failed', error.message)
+    if (listingResult.error) {
+      console.error('[home-listings] query failed', listingResult.error.message)
       return { listings: [], activeCount: 0 }
     }
 
-    const listings: HomeListing[] = (data || []).map((row: any) => ({
-      ...row,
-      promotion_badge: row.effective_promotion_badge ?? row.promotion_badge ?? null,
-      image_url: row.primary_image_url ? getListingImageUrl(row.primary_image_url, 'card') : undefined,
-    }))
+    if (imageResult.error) {
+      console.warn('[home-listings] image metadata query failed', imageResult.error.message)
+    }
 
-    return { listings, activeCount: count ?? listings.length }
+    const imageById = new Map((imageResult.data || []).map((row: any) => [String(row.id), row]))
+    const listings: HomeListing[] = (listingResult.data || []).map((row: any) => {
+      const image = imageById.get(String(row.id))
+      return {
+        ...row,
+        land_area: image?.land_area ?? null,
+        promotion_badge: row.effective_promotion_badge ?? row.promotion_badge ?? null,
+        image_url: image?.primary_image_url ? getListingImageUrl(image.primary_image_url, 'card') : undefined,
+      }
+    })
+
+    return { listings, activeCount: listingResult.count ?? listings.length }
   } catch (error) {
     console.error('[home-listings] unexpected query failure', error)
     return { listings: [], activeCount: 0 }
