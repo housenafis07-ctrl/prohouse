@@ -133,6 +133,10 @@ async function prepareIdentityImage(file: File): Promise<File> {
 export default function MortgageCalculatorPage() {
   const { lang } = useI18n()
   const [propertyPrice, setPropertyPrice] = useState('1 000 000 000')
+  const [propertyCurrency, setPropertyCurrency] = useState<'UZS' | 'USD'>('UZS')
+  const [usdRate, setUsdRate] = useState<number | null>(null)
+  const [usdRateDate, setUsdRateDate] = useState('')
+  const [usdRateLoading, setUsdRateLoading] = useState(true)
   const [downPayment, setDownPayment] = useState('200 000 000')
   const [downPercent, setDownPercent] = useState('20')
   const [rate, setRate] = useState('24')
@@ -178,23 +182,53 @@ export default function MortgageCalculatorPage() {
     setMarket(nextMarket)
     setProgramId(nextProgramId)
     setListingId(nextListingId)
-    if (nextListingId) {
-      fetch('/api/mortgage/listing?id=' + encodeURIComponent(nextListingId))
-        .then(r => r.json())
-        .then(d => {
-          if (d.listing) {
-            setPropertyPrice(formatInput(String(d.listing.price)))
-            setListingTitle(d.listing.title_ru || d.listing.title || '')
-          }
-        })
-        .catch(() => {})
-    }
-    const selectedProgram = getMortgagePrograms(market).find(p => p.id === nextProgramId)
+
+    const selectedProgram = getMortgagePrograms(nextMarket).find(p => p.id === nextProgramId)
     if (selectedProgram) {
       setRate(String(selectedProgram.rateMin))
       setDownPercent(String(selectedProgram.downPaymentMin))
       setYears(String(Math.min(15, Math.max(1, Math.round(selectedProgram.termMonths / 12)))))
     }
+
+    const loadCurrencyAndListing = async () => {
+      let liveRate: number | null = null
+      try {
+        const rateResponse = await fetch('/api/currency/usd', { cache: 'no-store' })
+        if (!rateResponse.ok) throw new Error('USD kursi olinmadi')
+        const rateData = await rateResponse.json()
+        if (!Number.isFinite(rateData.rate) || rateData.rate <= 0) throw new Error('USD kursi noto‘g‘ri')
+        liveRate = rateData.rate
+        setUsdRate(rateData.rate)
+        setUsdRateDate(rateData.date || '')
+      } catch {
+        setUsdRate(null)
+      } finally {
+        setUsdRateLoading(false)
+      }
+
+      if (nextListingId) {
+        try {
+          const response = await fetch('/api/mortgage/listing?id=' + encodeURIComponent(nextListingId))
+          const data = await response.json()
+          if (data.listing) {
+            const listingCurrency = String(data.listing.currency || 'UZS').toUpperCase()
+            const listingAmount = Number(data.listing.price) || 0
+            if (listingCurrency === 'USD') {
+              setPropertyCurrency('USD')
+              setPropertyPrice(formatInput(String(Math.round(liveRate ? listingAmount * liveRate : listingAmount))))
+            } else {
+              setPropertyCurrency('UZS')
+              setPropertyPrice(formatInput(String(listingAmount)))
+            }
+            setListingTitle(data.listing.title_ru || data.listing.title || '')
+          }
+        } catch {
+          // Keep the default calculator values if the listing cannot be loaded.
+        }
+      }
+    }
+
+    void loadCurrencyAndListing()
   }, [])
 
   const t = lang === 'ru' ? {
@@ -230,6 +264,8 @@ export default function MortgageCalculatorPage() {
   }
 
   const price = Number(propertyPrice.replace(/\D/g, '')) || 0
+  const displayPropertyPrice = propertyCurrency === 'USD' && usdRate ? formatInput(String(Math.round(price / usdRate))) : propertyPrice
+  const exchangeRateLabel = usdRate ? nf.format(usdRate) : ''
   const parsedDownPercent = clamp(Number(downPercent.replace(',', '.')) || 0, 0, 100)
   const down = clamp(Number(downPayment.replace(/\D/g, '')) || 0, 0, price)
   const annualRate = clamp(Number(rate.replace(',', '.')) || 0, 0, 100)
@@ -415,7 +451,102 @@ export default function MortgageCalculatorPage() {
       <div className="grid gap-6 lg:grid-cols-[1.08fr_.92fr]">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="grid gap-5 sm:grid-cols-2">
-            <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.property}</span><div className="relative"><input inputMode="numeric" value={propertyPrice} onChange={e=>{const value=formatInput(e.target.value);setPropertyPrice(value);const p=Number(value.replace(/\D/g,''))||0;const pct=clamp(Number(downPercent.replace(',','.'))||0,0,100);setDownPayment(formatInput(String(Math.round(p*pct/100))))}} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-16 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div></label>
+            <label className="sm:col-span-2">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm font-extrabold">{t.property}</span>
+                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1" aria-label={lang === 'ru' ? 'Валюта цены' : 'Narx valyutasi'}>
+                  <button type="button" onClick={()=>setPropertyCurrency('UZS')} className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${propertyCurrency === 'UZS' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>UZS · so‘m</button>
+                  <button type="button" disabled={!usdRate} onClick={()=>setPropertyCurrency('USD')} className={`rounded-lg px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${propertyCurrency === 'USD' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>USD · $</button>
+                </div>
+              </div>
+              <div className="relative">
+                <input inputMode="numeric" value={displayPropertyPrice} onChange={e=>{
+                  const raw = Number(e.target.value.replace(/\D/g,'')) || 0
+                  const value = propertyCurrency === 'USD' && usdRate ? Math.round(raw * usdRate) : raw
+                  const formatted = formatInput(String(value))
+                  setPropertyPrice(formatted)
+                  const pct=clamp(Number(downPercent.replace(',','.'))||0,0,100)
+                  setDownPayment(formatInput(String(Math.round(value*pct/100))))
+                }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-20 text-lg font-black outline-none focus:border-emerald-500 focus:bg-white"/>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{propertyCurrency === 'USD' ? '
+
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label><span className="mb-2 block text-sm font-extrabold">{t.downSum}</span><div className="relative"><input inputMode="numeric" value={downPayment} onChange={e=>syncDownFromSum(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-16 font-black outline-none focus:border-emerald-500"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">so‘m</span></div></label>
+                <label><span className="mb-2 block text-sm font-extrabold">{t.downPercent}</span><div className="relative"><input inputMode="decimal" value={downPercent} onChange={e=>syncDownFromPercent(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 font-black outline-none focus:border-emerald-500"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span></div></label>
+              </div>
+              <input type="range" min="0" max="100" step="1" value={parsedDownPercent} onChange={e=>syncDownFromPercent(e.target.value)} className="mt-4 w-full accent-emerald-600" aria-label={t.downPercent}/>
+              <div className="mt-1 flex justify-between text-xs font-bold text-slate-400"><span>0%</span><span>15%</span><span>30%</span><span>50%</span><span>75%</span><span>100%</span></div>
+            </div>
+
+            <label><span className="mb-2 block text-sm font-extrabold">{t.rate}</span><div className="relative"><input inputMode="decimal" value={rate} onChange={e=>setRate(e.target.value.replace(/[^0-9.,]/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-12 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">%</span></div></label>
+            <label><span className="mb-2 block text-sm font-extrabold">{t.term}</span><div className="relative"><input inputMode="numeric" value={years} onChange={e=>setYears(e.target.value.replace(/\D/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-12 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{t.years}</span></div><input type="range" min="1" max="30" value={termYears} onChange={e=>setYears(e.target.value)} className="mt-3 w-full accent-emerald-600"/></label>
+            <label><span className="mb-2 block text-sm font-extrabold">{t.grace}</span><div className="relative"><input inputMode="numeric" value={graceMonths} onChange={e=>setGraceMonths(e.target.value.replace(/\D/g,''))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 pr-20 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">{lang==='ru'?'мес.':'oy'}</span></div><input type="range" min="0" max={Math.max(0, months - 1)} value={grace} onChange={e=>setGraceMonths(e.target.value)} className="mt-3 w-full accent-emerald-600"/><span className="mt-1 block text-xs text-slate-400">{t.graceHint}</span></label>
+            <label><span className="mb-2 block text-sm font-extrabold">{t.payment}</span><select value={paymentType} onChange={e=>setPaymentType(e.target.value as PaymentType)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"><option value="annuity">{t.annuity}</option><option value="differentiated">{t.differentiated}</option></select></label>
+            <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{t.income}</span><input inputMode="numeric" value={income} onChange={setNumber(setIncome)} placeholder="0" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-emerald-500 focus:bg-white"/><span className="mt-2 block text-xs text-slate-400">{t.incomeHint}{incomeValue>0 && <> · {incomeLoad.toFixed(0)}% {lang==='ru'?'дохода':'daromad'}</>}</span></label>
+            <div className="sm:col-span-2 rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{lang==='ru'?'Заявка на ипотеку':'Ipoteka arizasi'}</p><p className="mt-1 text-sm text-slate-600">{listingTitle ? (lang==='ru'?'Объект: ':'Obyekt: ') + listingTitle : (lang==='ru'?'Укажите банк и контакты для заявки.':'Bank va aloqa ma’lumotlarini kiriting.')}</p></div>
+                {listingId && <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-emerald-700">{lang==='ru'?'Цена объекта заполнена':'Uy narxi avtomatik to‘ldirildi'}</span>}
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Банк':'Bank'}</span><select value={programId} onChange={e=>{setProgramId(e.target.value);const p=availablePrograms.find(x=>x.id===e.target.value);if(p){setRate(String(p.rateMin));setDownPercent(String(p.downPaymentMin));setYears(String(Math.min(15,Math.max(1,Math.round(p.termMonths/12)))));}}} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black"><option value="">{lang==='ru'?'Выберите программу':'Bank dasturini tanlang'}</option>{availablePrograms.map(p=><option key={p.id} value={p.id}>{p.bank} — {p.program} · {p.rateLabel}</option>)}</select></label>
+                <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Ваше имя':'Ismingiz'}</span><input value={applicantName} onChange={e=>setApplicantName(e.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
+                <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Телефон':'Telefon'}</span><input value={applicantPhone} onChange={e=>setApplicantPhone(e.target.value)} placeholder="+998 90 123 45 67" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
+                <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'ПИНФЛ (14 цифр)':'JSHSHIR (14 ta raqam)'}</span><input inputMode="numeric" autoComplete="off" value={pinfl} onChange={e=>setPinfl(e.target.value.replace(/\D/g,'').slice(0,14))} maxLength={14} placeholder="14 ta raqam" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black tracking-wider" /></label>
+                <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — лицевая сторона':'Pasport / ID-karta — old tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>void handleIdentityImage('front', e.target.files?.[0] || undefined)} disabled={compressingImages} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportFront ? `${passportFront.name} · ${(passportFront.size / 1024 / 1024).toFixed(2)} MB` : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
+                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — обратная сторона':'Pasport / ID-karta — orqa tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>void handleIdentityImage('back', e.target.files?.[0] || undefined)} disabled={compressingImages} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportBack ? `${passportBack.name} · ${(passportBack.size / 1024 / 1024).toFixed(2)} MB` : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
+                </div>
+                <label className="sm:col-span-2 flex items-start gap-3 text-xs leading-5 text-slate-600"><input type="checkbox" checked={identityConsent} onChange={e=>setIdentityConsent(e.target.checked)} className="mt-1"/><span>{lang==='ru'?'Я согласен(на) на обработку ПИНФЛ и изображений паспорта / ID-карты для рассмотрения ипотечной заявки и передачи выбранному банку.':'Men JSHSHIR va pasport/ID-karta rasmlarimni ipoteka arizasini ko‘rib chiqish hamda tanlangan bankka yuborish maqsadida qayta ishlashga roziman.'}</span></label>
+              </div>
+              {selectedProgram && <p className="mt-3 text-xs font-semibold text-slate-600">{lang==='ru'?'Программа':'Dastur'}: <b>{lang==='ru'?selectedProgram.programRu:selectedProgram.program}</b> · {selectedProgram.rateLabel} · {selectedProgram.downPaymentLabel}</p>}
+              {leadError && <p className="mt-3 text-sm font-bold text-red-600">{leadError}</p>}
+              {leadStatus && <div className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}{submittedLeadId && <Link href="/account/mortgage" className="mt-3 inline-flex rounded-xl bg-white px-4 py-2.5 font-black text-emerald-800">{lang==='ru'?'Мои заявки':'Ipoteka arizalarim'} →</Link>}</div>}
+              <button type="button" disabled={leadSubmitting || compressingImages} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{compressingImages ? (lang==='ru'?'Сжатие фото...':'Rasmlar kichraytirilmoqda...') : leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
+            </div>
+          </div>
+          <button type="button" onClick={()=>{setPropertyPrice('');setPropertyCurrency('UZS');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
+        </div>
+
+        <div className="min-w-0 max-w-full overflow-hidden rounded-3xl bg-slate-900 p-4 text-white shadow-lg sm:p-8">
+          <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-400">{t.result}</p><p className="mt-2 text-sm text-slate-400">{t.calc}</p></div><div className="flex shrink-0 flex-col items-end gap-2"><span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">{termYears} {t.years}</span><button type="button" onClick={()=>setShowSchedule(v=>!v)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-white/10"><span>{showSchedule ? t.hideDetails : t.details}</span><span className={`text-base transition-transform ${showSchedule ? 'rotate-180' : ''}`}>⌄</span></button></div></div>
+          <div className="mt-8"><p className="text-sm font-bold text-slate-400">{t.monthly}</p><p className="mt-1 break-words text-2xl font-black tracking-tight text-emerald-400 sm:text-4xl">{money(firstMonthly)}</p>{grace>0 && <p className="mt-2 text-xs text-slate-400">{grace} {lang==='ru'?'мес.':'oy'} → {t.monthlyAfterGrace}: <span className="font-bold text-white">{money(regularMonthly)}</span></p>}</div>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.loan}</p><p className="mt-1 text-lg font-black">{money(principal)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.ratio}</p><p className="mt-1 text-lg font-black">{parsedDownPercent.toFixed(1)}%</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.total}</p><p className="mt-1 text-lg font-black">{money(total)}</p></div><div className="rounded-2xl bg-white/5 p-4"><p className="text-xs text-slate-400">{t.overpay}</p><p className="mt-1 text-lg font-black">{money(overpayment)}</p></div></div>
+          <p className="mt-6 text-xs leading-5 text-slate-400">{t.disclaimer}</p>
+
+          {showSchedule && <div className="mt-6 min-w-0 max-w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]"><div className="flex min-w-0 flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="font-black text-white">{t.scheduleTitle}</p><p className="mt-1 text-xs leading-5 text-slate-400">{t.scheduleHint}</p></div><button type="button" onClick={downloadExcel} className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-slate-950 hover:bg-emerald-400 sm:w-auto">↓ {t.excel}</button></div><div className="max-h-[520px] overflow-y-auto"><div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[700px] text-left text-xs"><thead className="sticky top-0 bg-slate-800 text-slate-300"><tr><th className="px-3 py-3">{t.month}</th><th className="px-3 py-3">{t.paymentCol}</th><th className="px-3 py-3">{t.principalCol}</th><th className="px-3 py-3">{t.interestCol}</th><th className="px-3 py-3">{t.balanceCol}</th></tr></thead><tbody className="divide-y divide-white/5">{schedule.map(row=><tr key={row.month} className="text-slate-200"><td className="px-3 py-2.5 font-bold">{row.month}{row.month<=grace && <span className="ml-1 text-emerald-400">*</span>}</td><td className="px-3 py-2.5 font-bold">{money(row.payment)}</td><td className="px-3 py-2.5">{money(row.principalPaid)}</td><td className="px-3 py-2.5">{money(row.interest)}</td><td className="px-3 py-2.5">{money(row.balance)}</td></tr>)}</tbody></table></div><div className="divide-y divide-white/10 sm:hidden">{schedule.map(row=><article key={row.month} className="min-w-0 p-3 text-xs text-slate-200"><div className="mb-2 flex items-center justify-between gap-3"><span className="font-black">{t.month} {row.month}{row.month<=grace && <span className="ml-1 text-emerald-400">*</span>}</span><span className="max-w-[65%] break-words text-right font-black text-emerald-300">{money(row.payment)}</span></div><div className="grid grid-cols-2 gap-x-3 gap-y-2"><div className="min-w-0"><span className="block text-[10px] leading-4 text-slate-400">{t.principalCol}</span><span className="block break-words font-semibold">{money(row.principalPaid)}</span></div><div className="min-w-0"><span className="block text-[10px] leading-4 text-slate-400">{t.interestCol}</span><span className="block break-words font-semibold">{money(row.interest)}</span></div><div className="col-span-2 min-w-0"><span className="block text-[10px] leading-4 text-slate-400">{t.balanceCol}</span><span className="block break-words font-semibold">{money(row.balance)}</span></div></div></article>)}</div></div>{grace>0 && <p className="border-t border-white/10 px-4 py-3 text-[11px] leading-5 text-slate-400">* {t.graceMark}: faqat foiz to‘lovi.</p>}</div>}
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-emerald-100 bg-emerald-50 p-5 sm:p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="font-black text-slate-900">{t.subsidy}</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{t.subsidyText}</p></div><a href="https://my.gov.uz/uz/service/325" target="_blank" rel="noreferrer" className="shrink-0 rounded-xl bg-emerald-600 px-4 py-3 text-center text-sm font-black text-white hover:bg-emerald-700">{t.mygov} →</a></div></div>
+    </section>
+
+    <section className="border-t border-slate-200 bg-white">
+      <div className="mx-auto max-w-[1100px] px-4 py-10 sm:px-6 sm:py-14">
+        <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">FAQ</p>
+        <h2 className="mt-2 text-3xl font-black tracking-tight">{t.faqTitle}</h2>
+        <p className="mt-2 text-sm text-slate-500">{t.faqSub}</p>
+        <div className="mt-8 divide-y divide-slate-200 rounded-3xl border border-slate-200 bg-white">{faq.map(([q,a],i)=><details key={q} open={i===0} className="group p-5 sm:p-6"><summary className="cursor-pointer list-none pr-8 text-base font-black marker:hidden">{q}<span className="float-right text-slate-400 transition group-open:rotate-180">⌄</span></summary><p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">{a}</p></details>)}</div>
+        <div className="mt-8 rounded-2xl bg-slate-50 p-5 text-sm text-slate-600"><span className="font-black text-slate-900">{t.sources}:</span> {lang === 'ru' ? 'my.gov.uz и актуальные кредитные условия банков. Цифры калькулятора не заменяют предложение банка.' : 'my.gov.uz va banklarning amaldagi kredit shartlari. Kalkulyatordagi raqamlar bank taklifi o‘rnini bosmaydi.'}</div>
+      </div>
+    </section>
+  {loginModalOpen && <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={lang === 'ru' ? 'Вход в RoyalHouse' : 'RoyalHouse tizimiga kirish'}><div className="relative h-[100dvh] w-full overflow-hidden bg-white sm:h-[min(90dvh,820px)] sm:max-w-xl sm:rounded-3xl"><button type="button" onClick={() => setLoginModalOpen(false)} className="absolute right-3 top-3 z-10 rounded-full bg-white/95 px-3 py-1.5 text-xl font-bold text-slate-500 shadow" aria-label={lang === 'ru' ? 'Закрыть' : 'Yopish'}>×</button><iframe title={lang === 'ru' ? 'Вход в RoyalHouse' : 'RoyalHouse tizimiga kirish'} src="/account/login?next=%2Fipoteka%2Fkalkulyator&authModal=1" className="h-full w-full border-0" /></div></div>}
+  </main>
+}
+ : 'so‘m'}</span>
+              </div>
+              <span className="mt-2 block text-xs font-medium text-slate-400">
+                {usdRateLoading
+                  ? (lang === 'ru' ? 'Загрузка официального курса ЦБ...' : 'Markaziy bankning rasmiy kursi yuklanmoqda...')
+                  : usdRate
+                    ? (lang === 'ru'
+                      ? `Курс ЦБ: 1 USD = ${exchangeRateLabel} сум · дата курса: ${usdRateDate}`
+                      : `Markaziy bank kursi: 1 USD = ${exchangeRateLabel} so‘m · kurs sanasi: ${usdRateDate}`)
+                    : (lang === 'ru' ? 'Курс ЦБ временно недоступен. Расчёт в USD отключён.' : 'Markaziy bank kursi vaqtincha mavjud emas. USD hisoblash vaqtincha o‘chirilgan.')
+                }
+              </span>
+            </label>
 
             <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-4 sm:grid-cols-2">
