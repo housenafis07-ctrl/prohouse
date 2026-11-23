@@ -83,6 +83,53 @@ function escapeXml(value: string) {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
 
+const MAX_IDENTITY_IMAGE_BYTES = 4.5 * 1024 * 1024
+
+async function prepareIdentityImage(file: File): Promise<File> {
+  const supported = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+  if (file.size <= MAX_IDENTITY_IMAGE_BYTES && supported) return file
+
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(file)
+  } catch {
+    throw new Error('Rasmni ochib bo‘lmadi. Iltimos, JPG yoki PNG formatidagi rasmni tanlang.')
+  }
+
+  try {
+    const maxDimension = 2400
+    let scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height))
+    let quality = 0.88
+    let blob: Blob | null = null
+
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Rasmni qayta ishlash imkoni bo‘lmadi.')
+      context.fillStyle = '#ffffff'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+
+      blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality))
+      if (blob && blob.size <= MAX_IDENTITY_IMAGE_BYTES) break
+
+      if (quality > 0.62) quality = Math.max(0.62, quality - 0.08)
+      else scale *= 0.85
+    }
+
+    if (!blob || blob.size > MAX_IDENTITY_IMAGE_BYTES) {
+      throw new Error('Rasmni 4.5 MB gacha sifatini saqlagan holda kichraytirib bo‘lmadi. Iltimos, tiniqroq va kichikroq rasm tanlang.')
+    }
+
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'passport'
+    return new File([blob], baseName + '-compressed.jpg', { type: 'image/jpeg', lastModified: Date.now() })
+  } finally {
+    bitmap.close()
+  }
+}
+
 export default function MortgageCalculatorPage() {
   const { lang } = useI18n()
   const [propertyPrice, setPropertyPrice] = useState('1 000 000 000')
@@ -102,6 +149,7 @@ export default function MortgageCalculatorPage() {
   const [pinfl, setPinfl] = useState('')
   const [passportFront, setPassportFront] = useState<File | null>(null)
   const [passportBack, setPassportBack] = useState<File | null>(null)
+  const [compressingImages, setCompressingImages] = useState(false)
   const [identityConsent, setIdentityConsent] = useState(false)
   const [loginModalOpen, setLoginModalOpen] = useState(false)
   const [leadStatus, setLeadStatus] = useState('')
@@ -201,6 +249,23 @@ export default function MortgageCalculatorPage() {
   const schedule = useMemo(() => buildSchedule(principal, annualRate, months, paymentType, grace), [principal, annualRate, months, paymentType, grace])
   const availablePrograms = useMemo(() => getMortgagePrograms(market), [market])
   const selectedProgram = availablePrograms.find(p => p.id === programId) || null
+  const handleIdentityImage = async (side: 'front' | 'back', file?: File) => {
+    if (!file) return
+    setLeadError('')
+    setCompressingImages(true)
+    try {
+      const prepared = await prepareIdentityImage(file)
+      if (side === 'front') setPassportFront(prepared)
+      else setPassportBack(prepared)
+    } catch (error) {
+      if (side === 'front') setPassportFront(null)
+      else setPassportBack(null)
+      setLeadError(error instanceof Error ? error.message : 'Rasmni tayyorlashda xatolik yuz berdi.')
+    } finally {
+      setCompressingImages(false)
+    }
+  }
+
   const submitMortgageLead = async () => {
     if (leadSubmitting) return
     setLeadStatus('')
@@ -377,15 +442,15 @@ export default function MortgageCalculatorPage() {
                 <label><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'Телефон':'Telefon'}</span><input value={applicantPhone} onChange={e=>setApplicantPhone(e.target.value)} placeholder="+998 90 123 45 67" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black" /></label>
                 <label className="sm:col-span-2"><span className="mb-2 block text-sm font-extrabold">{lang==='ru'?'ПИНФЛ (14 цифр)':'JSHSHIR (14 ta raqam)'}</span><input inputMode="numeric" autoComplete="off" value={pinfl} onChange={e=>setPinfl(e.target.value.replace(/\D/g,'').slice(0,14))} maxLength={14} placeholder="14 ta raqam" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 font-black tracking-wider" /></label>
                 <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
-                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — лицевая сторона':'Pasport / ID-karta — old tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setPassportFront(e.target.files?.[0] || null)} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportFront ? passportFront.name : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
-                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — обратная сторона':'Pasport / ID-karta — orqa tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setPassportBack(e.target.files?.[0] || null)} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportBack ? passportBack.name : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
+                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — лицевая сторона':'Pasport / ID-karta — old tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>void handleIdentityImage('front', e.target.files?.[0] || undefined)} disabled={compressingImages} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportFront ? `${passportFront.name} · ${(passportFront.size / 1024 / 1024).toFixed(2)} MB` : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
+                  <label className="rounded-2xl border border-dashed border-emerald-300 bg-white p-4 text-sm font-extrabold"><span>{lang==='ru'?'Паспорт / ID — обратная сторона':'Pasport / ID-karta — orqa tomoni'}</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>void handleIdentityImage('back', e.target.files?.[0] || undefined)} disabled={compressingImages} className="mt-3 block w-full text-xs"/><span className="mt-2 block text-xs font-normal text-slate-500">{passportBack ? `${passportBack.name} · ${(passportBack.size / 1024 / 1024).toFixed(2)} MB` : (lang==='ru'?'JPG, PNG или WebP · до 5 МБ':'JPG, PNG yoki WebP · 5 MB gacha')}</span></label>
                 </div>
                 <label className="sm:col-span-2 flex items-start gap-3 text-xs leading-5 text-slate-600"><input type="checkbox" checked={identityConsent} onChange={e=>setIdentityConsent(e.target.checked)} className="mt-1"/><span>{lang==='ru'?'Я согласен(на) на обработку ПИНФЛ и изображений паспорта / ID-карты для рассмотрения ипотечной заявки и передачи выбранному банку.':'Men JSHSHIR va pasport/ID-karta rasmlarimni ipoteka arizasini ko‘rib chiqish hamda tanlangan bankka yuborish maqsadida qayta ishlashga roziman.'}</span></label>
               </div>
               {selectedProgram && <p className="mt-3 text-xs font-semibold text-slate-600">{lang==='ru'?'Программа':'Dastur'}: <b>{lang==='ru'?selectedProgram.programRu:selectedProgram.program}</b> · {selectedProgram.rateLabel} · {selectedProgram.downPaymentLabel}</p>}
               {leadError && <p className="mt-3 text-sm font-bold text-red-600">{leadError}</p>}
               {leadStatus && <div className="mt-3 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">{leadStatus}{submittedLeadId && <Link href="/account/mortgage" className="mt-3 inline-flex rounded-xl bg-white px-4 py-2.5 font-black text-emerald-800">{lang==='ru'?'Мои заявки':'Ipoteka arizalarim'} →</Link>}</div>}
-              <button type="button" disabled={leadSubmitting} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
+              <button type="button" disabled={leadSubmitting || compressingImages} onClick={()=>void submitMortgageLead()} className="mt-4 w-full rounded-2xl bg-emerald-600 px-5 py-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{compressingImages ? (lang==='ru'?'Сжатие фото...':'Rasmlar kichraytirilmoqda...') : leadSubmitting ? (lang==='ru'?'Отправка...':'Yuborilmoqda...') : (lang==='ru'?'Подать заявку':'Buyurtma yuborish')}</button>
             </div>
           </div>
           <button type="button" onClick={()=>{setPropertyPrice('');setDownPayment('');setDownPercent('0');setRate('');setYears('15');setGraceMonths('0');setIncome('');setShowSchedule(false)}} className="mt-6 text-sm font-bold text-slate-500 hover:text-slate-900">{t.clear}</button>
