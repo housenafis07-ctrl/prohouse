@@ -37,10 +37,6 @@ export async function POST(request: NextRequest) {
 
     if (!leadId) return NextResponse.json({ error: 'Ariza identifikatori topilmadi.' }, { status: 400 })
     if (!/^[0-9]{14}$/.test(pinfl)) return NextResponse.json({ error: 'JSHSHIR 14 ta raqamdan iborat bo‘lishi kerak.' }, { status: 400 })
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return NextResponse.json({ error: 'Tug‘ilgan sanani tekshiring.' }, { status: 400 })
-    const parsedDob = new Date(`${dob}T00:00:00.000Z`)
-    if (Number.isNaN(parsedDob.getTime()) || parsedDob.toISOString().slice(0, 10) !== dob || parsedDob.getTime() > Date.now()) return NextResponse.json({ error: 'Tug‘ilgan sana haqiqiy bo‘lishi va kelajakda bo‘lmasligi kerak.' }, { status: 400 })
-    if (!/^[A-Z0-9]{6,12}$/.test(passport)) return NextResponse.json({ error: 'Pasport seriyasi va raqamini tekshiring.' }, { status: 400 })
     if (!consent) return NextResponse.json({ error: 'Shaxsga doir ma’lumotlarni qayta ishlashga rozilik berishingiz kerak.' }, { status: 400 })
 
     const files = Object.fromEntries(FIELDS.map(field => [field, form.get(field)])) as Record<typeof FIELDS[number], FormDataEntryValue | null>
