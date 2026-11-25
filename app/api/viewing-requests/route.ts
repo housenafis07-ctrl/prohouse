@@ -49,11 +49,13 @@ export async function POST(request: NextRequest) {
   const db = serviceClient()
   const { data: listing, error: listingError } = await db
     .from('listings')
-    .select('id,owner_id,title,listing_type,taxonomy_code')
+    .select('id,owner_id,title,status,listing_type,taxonomy_code')
     .eq('id', listingId)
+    .eq('status', 'active')
     .maybeSingle()
   if (listingError) return NextResponse.json({ error: 'E’lonni tekshirishda xatolik.' }, { status: 500 })
   if (!listing) return NextResponse.json({ error: 'E’lon topilmadi.' }, { status: 404 })
+  if (!listing.owner_id) return NextResponse.json({ error: 'Bu e’lon egasi bilan bog‘lanish imkoni yo‘q.' }, { status: 409 })
   if (listing.owner_id === user.id) return NextResponse.json({ error: 'O‘z e’loningiz uchun ko‘rish so‘rovi yubora olmaysiz.' }, { status: 400 })
 
   // Daily/vacation rentals have a separate date-based reservation and payment lifecycle.
