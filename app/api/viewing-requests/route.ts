@@ -18,18 +18,48 @@ export async function GET() {
 
   const db = serviceClient()
   const selection = 'id,listing_id,requester_id,owner_id,requested_at,note,status,responded_at,created_at,updated_at,listing:listings(id,title,title_ru,city,district,price,currency)'
-  // Query incoming and outgoing requests separately for a deterministic inbox.
-  const { data: requests, error: inboxError } = await db
-    .from('property_viewing_requests')
-    .select(selection)
-    .or(`requester_id.eq.${user.id},owner_id.eq.${user.id}`)
-    .order('requested_at', { ascending: true })
-    .limit(100)
-  if (inboxError) {
-    console.error('[viewing-requests] inbox query failed', inboxError)
-    return NextResponse.json({ error: 'Ko‘rish so‘rovlarini yuklab bo‘lmadi.' }, { status: 500 })
+
+  // Query each ownership direction independently. This avoids an OR filter
+  // hiding owner-side rows and makes inbox failures attributable to one side.
+  const [incomingResult, outgoingResult] = await Promise.all([
+    db
+      .from('property_viewing_requests')
+      .select(selection)
+      .eq('owner_id', user.id)
+      .order('requested_at', { ascending: true })
+      .limit(100),
+    db
+      .from('property_viewing_requests')
+      .select(selection)
+      .eq('requester_id', user.id)
+      .order('requested_at', { ascending: true })
+      .limit(100),
+  ])
+
+  if (incomingResult.error || outgoingResult.error) {
+    console.error('[viewing-requests] inbox query failed', {
+      userId: user.id,
+      incomingError: incomingResult.error,
+      outgoingError: outgoingResult.error,
+    })
+    return NextResponse.json(
+      { error: 'Ko‘rish so‘rovlarini yuklab bo‘lmadi.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    )
   }
-  return NextResponse.json({ requests: requests || [], currentUserId: user.id })
+
+  const byId = new Map<string, any>()
+  for (const item of [...(incomingResult.data || []), ...(outgoingResult.data || [])]) {
+    byId.set(item.id, item)
+  }
+  const requests = [...byId.values()].sort(
+    (a, b) => new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime()
+  )
+
+  return NextResponse.json(
+    { requests, currentUserId: user.id },
+    { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+  )
 }
 
 export async function POST(request: NextRequest) {
