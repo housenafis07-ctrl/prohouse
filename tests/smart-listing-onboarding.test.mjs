@@ -235,7 +235,7 @@ test('listing wizard exposes services and construction service routes without mi
 
 test('service wizard preselects a requested service category from its URL', () => {
   assert.doesNotMatch(serviceWizard, /useSearchParams/)
-  assert.match(serviceWizard, /params\.get\('taxonomy'\)/)
+  assert.match(serviceWizard, /new URLSearchParams\(window\.location\.search\)\.get\('taxonomy'\)/)
   assert.match(serviceWizard, /setSelectedCode\(requestedCategory\.code\)/)
   assert.match(serviceWizard, /setForm\(current => \(\{ \.\.\.current, taxonomy_code: requestedCategory\.code \}\)\)/)
 })
