@@ -158,38 +158,21 @@ export default function MyListingsPage() {
     listingRows.forEach(item => { nextEngagement[item.id] = emptyEngagement() })
 
     if (listingRows.length > 0) {
-      const { data: events, error: eventsError } = await db
-        .from('listing_events')
-        .select('listing_id,event_type,user_id,session_id,created_at')
-        .in('listing_id', listingRows.map(item => item.id))
-        .in('event_type', ['view', 'share', 'phone_click', 'chat_start'])
-
-      if (!eventsError) {
-        const uniqueByListing: Record<string, Set<string>> = {}
-        const todayStart = new Date()
-        todayStart.setHours(0, 0, 0, 0)
-
-        for (const event of events || []) {
-          if (!nextEngagement[event.listing_id]) nextEngagement[event.listing_id] = emptyEngagement()
-          const stats = nextEngagement[event.listing_id]
-
-          if (event.event_type === 'view') {
-            stats.views += 1
-            if (!uniqueByListing[event.listing_id]) uniqueByListing[event.listing_id] = new Set<string>()
-            const key = event.session_id || (event.user_id ? `user:${event.user_id}` : `event:${event.created_at}`)
-            uniqueByListing[event.listing_id].add(key)
-            if (new Date(event.created_at) >= todayStart) stats.todayViews += 1
-          } else if (event.event_type === 'share') stats.shares += 1
-          else if (event.event_type === 'phone_click') stats.phoneClicks += 1
-          else if (event.event_type === 'chat_start') stats.chatStarts += 1
+      // Stats are loaded server-side using the same signed account cookie as
+      // /api/account/listings; browser Supabase RLS cannot see phone-backed users.
+      const statsResponse = await fetch('/api/account/listings/engagement', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      const statsResult = await statsResponse.json().catch(() => ({}))
+      if (statsResponse.ok && statsResult.engagement && typeof statsResult.engagement === 'object') {
+        for (const [id, value] of Object.entries(statsResult.engagement as Record<string, ListingEngagement>)) {
+          if (nextEngagement[id]) nextEngagement[id] = { ...emptyEngagement(), ...value }
         }
-
-        Object.entries(uniqueByListing).forEach(([id, keys]) => {
-          if (nextEngagement[id]) nextEngagement[id].uniqueViews = keys.size
-        })
+      } else {
+        console.error('[MyListingsPage] engagement stats failed', statsResult.error || statsResponse.status)
       }
     }
-
     setEngagement(nextEngagement)
 
     if (profile?.account_type === 'individual') {
