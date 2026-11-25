@@ -17,15 +17,20 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Tizimga kiring.' }, { status: 401 })
 
   const db = serviceClient()
-  const { data, error } = await db
-    .from('property_viewing_requests')
-    .select('id,listing_id,requester_id,owner_id,requested_at,note,status,responded_at,created_at,updated_at,listing:listings(id,title,title_ru,city,district,price,currency)')
-    .or(`requester_id.eq.${user.id},owner_id.eq.${user.id}`)
-    .order('requested_at', { ascending: true })
-    .limit(100)
-
-  if (error) return NextResponse.json({ error: 'Ko‘rish so‘rovlarini yuklab bo‘lmadi.' }, { status: 500 })
-  return NextResponse.json({ requests: data || [], currentUserId: user.id })
+  const selection = 'id,listing_id,requester_id,owner_id,requested_at,note,status,responded_at,created_at,updated_at,listing:listings(id,title,title_ru,city,district,price,currency)'
+  // Query incoming and outgoing requests separately for a deterministic inbox.
+  const [incoming, outgoing] = await Promise.all([
+    db.from('property_viewing_requests').select(selection).eq('owner_id', user.id).order('requested_at', { ascending: true }).limit(100),
+    db.from('property_viewing_requests').select(selection).eq('requester_id', user.id).order('requested_at', { ascending: true }).limit(100),
+  ])
+  if (incoming.error || outgoing.error) {
+    console.error('[viewing-requests] inbox query failed', { incoming: incoming.error, outgoing: outgoing.error })
+    return NextResponse.json({ error: 'Ko‘rish so‘rovlarini yuklab bo‘lmadi.' }, { status: 500 })
+  }
+  const requests = [...(incoming.data || []), ...(outgoing.data || [])]
+    .sort((a, b) => new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime())
+    .slice(0, 100)
+  return NextResponse.json({ requests, currentUserId: user.id })
 }
 
 export async function POST(request: NextRequest) {
@@ -93,7 +98,9 @@ export async function POST(request: NextRequest) {
   if (createError) return NextResponse.json({ error: 'Ko‘rish so‘rovini saqlab bo‘lmadi.' }, { status: 500 })
 
   const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(requestedAt)
-  await queueTelegramNotification(db, listing.owner_id, 'viewing_requested', `🏠 RoyalHouse — yangi ko‘rish so‘rovi\nE’lon: ${listing.title}\nSana: ${dateLabel}\nMijoz kabinetidagi ko‘rish so‘rovlari orqali tasdiqlang yoki rad eting.`)
+  const noteLine = note ? `\nIzoh: ${note}` : ''
+  const accountUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'}/account/viewings`
+  await queueTelegramNotification(db, listing.owner_id, 'viewing_requested', `🏠 RoyalHouse — yangi ko‘rish so‘rovi\nE’lon: ${listing.title}\nSana: ${dateLabel}${noteLine}\nSo‘rovni shaxsiy kabinetda ko‘rib chiqing: ${accountUrl}`)
   await deliverPendingTelegramNotifications(db, 20)
 
   return NextResponse.json({ request: created }, { status: 201 })
