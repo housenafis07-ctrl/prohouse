@@ -65,7 +65,7 @@ async function run(request: Request) {
 
       for (const listing of fresh) {
         const listingUrl = `/listings/${encodeURIComponent(listing.id)}`
-        const { data: delivery, error: insertError } = await db.from('saved_search_alert_deliveries').upsert({
+        const { error: insertError } = await db.from('saved_search_alert_deliveries').upsert({
           saved_search_id: search.id,
           user_id: search.user_id,
           listing_id: listing.id,
@@ -82,7 +82,7 @@ async function run(request: Request) {
         const body = [listing.title || 'Saqlangan qidiruvingizga mos yangi e’lon', price].filter(Boolean).join(' · ')
         const message = `🔔 RoyalHouse — saqlangan qidiruvingizga yangi e’lon topildi\n\n🏠 ${listing.title || 'Yangi e’lon'}${price ? `\n💰 ${price}` : ''}\n\n🔗 ${SITE_URL}${listingUrl}`
 
-        if (search.notify_push && pushReady) {
+        if (search.notify_push && pushReady && !delivery.push_sent_at) {
           const { data: subscriptions, error: subscriptionError } = await db.from('push_subscriptions').select('id,endpoint,p256dh,auth').eq('user_id', search.user_id)
           if (subscriptionError) throw subscriptionError
           let sent = false
@@ -108,7 +108,7 @@ async function run(request: Request) {
 
         const { data: link, error: linkError } = await db.from('telegram_user_links').select('profile_id').eq('profile_id', search.user_id).maybeSingle()
         if (linkError) throw linkError
-        if (link) {
+        if (link && !delivery.telegram_queued_at) {
           const { error: queueError } = await db.from('telegram_notification_queue').insert({
             profile_id: search.user_id,
             event_type: 'saved_search_new_listing',
