@@ -22,7 +22,10 @@ function searchUrl(query: Record<string, unknown>) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query || {})) {
     if (value === null || value === undefined || value === '' || typeof value === 'object') continue
-    params.set(key, String(value))
+    // Saved-search UI stores the property filter as "type"; the search API
+    // expects "property_type". Keep the persisted saved-search contract intact.
+    const apiKey = key === 'type' ? 'property_type' : key
+    params.set(apiKey, String(value))
   }
   params.set('limit', '48')
   params.set('sort', 'newest')
