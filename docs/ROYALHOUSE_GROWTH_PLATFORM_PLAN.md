@@ -16,12 +16,12 @@ This branch is isolated from `main`. No Production database changes are part of 
 ## Workstreams
 
 ### 1. Retention and conversion
-1. Upgrade saved-search and saved-favorite price alerts from browser-only polling to server-triggered processing.
+1. Upgrade saved-search alerts from browser-only polling to server-triggered processing; the cron endpoint sends browser push and queues Telegram messages for users with a verified bot link.
 2. Reuse existing `saved_searches`, `notifications`, `push_subscriptions`, and push delivery infrastructure.
 3. Add a universal appointment request flow for sale/rent listings. Keep vacation rental booking rules separate.
 4. Add shareable family shortlists with explicit access controls; do not expose private saved searches or user account data.
 
-Acceptance: idempotent alert delivery, ownership-safe reads/writes, no duplicate notification per matching listing/search, appointment status lifecycle and owner notifications, private-by-default shortlist access.
+Acceptance: idempotent alert delivery, ownership-safe reads/writes, no duplicate notification per matching listing/search, retryable push/Telegram delivery, appointment status lifecycle and owner notifications, private-by-default shortlist access. The new cron endpoint still needs an approved scheduler cadence (target: every 10 minutes); do not assume Vercel Hobby supports that frequency.
 
 ### 2. Market intelligence
 1. Build a market metrics data contract using published/active listings and clearly label asking-price data.
