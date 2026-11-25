@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
     })
     .select('id,listing_id,requester_id,owner_id,requested_at,note,status,created_at')
     .single()
+  if (createError?.code === '23505') return NextResponse.json({ error: 'Bu e’lon bo‘yicha faol ko‘rish so‘rovingiz mavjud.' }, { status: 409 })
   if (createError) return NextResponse.json({ error: 'Ko‘rish so‘rovini saqlab bo‘lmadi.' }, { status: 500 })
 
   const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(requestedAt)
