@@ -106,7 +106,7 @@ export default function RegisterPage() {
   },[router, pathname, accountType])
 
   useEffect(()=>{
-    if(pathname !== '/account/login' || !autoPasskeyReady || !offer?.version || autoPasskeyAttemptedRef.current) return
+    if(pathname !== '/account/login' || !autoPasskeyReady || autoPasskeyAttemptedRef.current) return
     if(window.localStorage.getItem('royalhouse-passkey-preferred') !== '1') return
     autoPasskeyAttemptedRef.current = true
     void loginWithPasskey()
@@ -137,20 +137,10 @@ export default function RegisterPage() {
       // Existing accounts can still add a second role (partner) without creating
       // a duplicate account or replacing their realtor profile.
       const requestedType = new URLSearchParams(window.location.search).get('type')
+      // Existing users sign in after phone verification. Offer review remains
+      // available through the optional link on this page and never blocks access.
       if(data.profileExists && requestedType !== 'partner'){
-        const offerStatusResponse = await fetch('/api/account/offer-status', {
-          cache: 'no-store',
-          credentials: 'same-origin',
-        })
-        const offerStatus = await offerStatusResponse.json().catch(() => ({}))
-        if (!offerStatusResponse.ok || !offerStatus.offer?.version) {
-          throw new Error(t('Amaldagi oferta holatini tekshirib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.', 'Не удалось проверить статус действующей оферты. Попробуйте позже.'))
-        }
-        setOffer(offerStatus.offer)
-        if (offerStatus.accepted) { completeLogin(); return }
-        setOfferAcceptanceOnly(true)
-        setVerified(true)
-        setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
+        completeLogin()
         return
       }
 
@@ -230,25 +220,10 @@ export default function RegisterPage() {
       const verifyResponse=await fetch('/api/auth/passkey/verify',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',body:JSON.stringify({challenge:options.challenge,response:assertion})})
       const result=await verifyResponse.json()
       if(!verifyResponse.ok) throw new Error(result.error||'PASSKEY_LOGIN_FAILED')
-      const offerStatusResponse = await fetch('/api/account/offer-status', {
-        cache: 'no-store',
-        credentials: 'same-origin',
-      })
-      const offerStatus = await offerStatusResponse.json().catch(() => ({}))
-      if (!offerStatusResponse.ok || !offerStatus.offer?.version) {
-        throw new Error(t('Amaldagi oferta holatini tekshirib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.', 'Не удалось проверить статус действующей оферты. Попробуйте позже.'))
-      }
-      if (offerStatus.accepted) { completeLogin(); return }
-      setOffer(offerStatus.offer)
-      const supabase=createClient()
-      const {data:{user}}=await supabase.auth.getUser()
-      if(user){
-        const {data:profile}=await supabase.from('profiles').select('phone').eq('id',user.id).maybeSingle()
-        if(profile?.phone) setPhone(profile.phone)
-      }
-      setVerified(true)
-      setOfferAcceptanceOnly(true)
-      setMessage(t('Davom etish uchun yangilangan ommaviy ofertani qabul qiling.','Чтобы продолжить, примите обновлённую публичную оферту.'))
+      // A successful Passkey assertion is sufficient to sign in an existing
+      // account. Loading or accepting an updated offer is not an authentication gate.
+      completeLogin()
+      return
     }catch(e){
       const cancelled = e instanceof Error && e.name === 'NotAllowedError'
       setMessage(cancelled
@@ -377,7 +352,7 @@ export default function RegisterPage() {
 
   return <main className="min-h-screen bg-slate-50 px-4 py-10"><div className="mx-auto max-w-2xl"><Link href="/" className="text-sm font-semibold text-emerald-700">← Royalhouse</Link><div className="mt-5 rounded-3xl bg-white p-6 shadow-sm sm:p-8"><h1 className="text-3xl font-extrabold text-slate-900">{offerAcceptanceOnly?t('Ommaviy ofertani tasdiqlash','Подтверждение публичной оферты'):verified?t('Profilni to‘ldirish','Заполнить профиль'):t('Royalhouse’ga kirish','Вход в Royalhouse')}</h1><p className="mt-2 text-slate-500">{offerAcceptanceOnly?t('Telefon raqamingiz tasdiqlandi. Davom etish uchun ofertani qabul qiling.','Номер телефона подтверждён. Примите оферту, чтобы продолжить.'):verified?t('Telefon raqamingiz tasdiqlandi.','Номер телефона подтверждён.'):t('Telefon raqamingiz orqali davom eting.','Продолжите с помощью номера телефона.')}</p>
 
-    {!verified && <form onSubmit={e=>{e.preventDefault();void (sent ? verifyCode() : sendCode())}} className="mt-6 space-y-5"><div><label className="mb-2 block text-sm font-semibold">{t('Telefon raqami','Номер телефона')}</label><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3"/><button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent?t('Qayta yuborish','Отправить повторно'):t('SMS yuborish','SMS отправить')}</button></div>{!sent&&<button type="button" disabled={loading} onClick={()=>void loginWithPasskey()} className="mt-3 w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold text-emerald-800 disabled:opacity-50">{t('🔐 Passkey bilan kirish','🔐 Войти с Passkey')}</button>}<div className="mt-3 rounded-lg border border-slate-800 bg-white px-3 py-2 text-center text-xs leading-4 text-slate-700 sm:text-sm"><span>{t('Davom etish orqali siz e’lonlar, platforma yangiliklari va reklama xabarlarini, jumladan Telegram orqali olish shartlari ham kiritilgan ','Продолжая, вы принимаете публичную оферту, включая условия объявлений, новостей платформы и рекламных сообщений, в том числе через Telegram: ')}</span><button type="button" onClick={()=>setOfferOpen(true)} className="font-semibold underline underline-offset-2 hover:text-emerald-700">{t(accountType === 'partner' ? 'Hamkorlik ofertasi shartlariga' : 'Ommaviy Oferta Shartlariga', accountType === 'partner' ? 'условиям оферты для партнёров' : 'условия Публичной оферты')}</button><span>{t(' rozilik bildirasiz.','.')}</span></div></div>{sent&&<div><label className="mb-2 block text-sm font-semibold">{t('SMS kodi','SMS-код')}</label><input ref={otpInputRef} value={code} onChange={e=>handleOtpInput(e.target.value)} onInput={e=>handleOtpInput(e.currentTarget.value)} onKeyDown={handleOtpKeyDown} type="text" inputMode="numeric" autoComplete="one-time-code" name="one-time-code" enterKeyHint="done" pattern="[0-9]*" aria-label={t('SMS kodi','SMS-код')} autoFocus disabled={loading} className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-center text-2xl font-bold tracking-[0.55em] text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="••••••" /></div>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}{sent&&<button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Tekshirilmoqda...','Проверка...'):t('Kirish','Войти')}</button>}</form>}
+    {!verified && <form onSubmit={e=>{e.preventDefault();void (sent ? verifyCode() : sendCode())}} className="mt-6 space-y-5"><div><label className="mb-2 block text-sm font-semibold">{t('Telefon raqami','Номер телефона')}</label><div className="flex gap-2"><input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" autoComplete="tel" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3"/><button type="button" disabled={loading} onClick={sendCode} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{sent?t('Qayta yuborish','Отправить повторно'):t('SMS yuborish','SMS отправить')}</button></div>{!sent&&<button type="button" disabled={loading} onClick={()=>void loginWithPasskey()} className="mt-3 w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold text-emerald-800 disabled:opacity-50">{t('🔐 Passkey bilan kirish','🔐 Войти с Passkey')}</button>}<div className="mt-3 rounded-lg border border-slate-800 bg-white px-3 py-2 text-center text-xs leading-4 text-slate-700 sm:text-sm"><span>{t('Ommaviy oferta shartlari bilan quyidagi havola orqali istalgan vaqtda tanishishingiz mumkin: ','Вы можете в любое время ознакомиться с условиями публичной оферты по ссылке: ')}</span><button type="button" onClick={()=>setOfferOpen(true)} className="font-semibold underline underline-offset-2 hover:text-emerald-700">{t(accountType === 'partner' ? 'Hamkorlik ofertasi shartlariga' : 'Ommaviy Oferta Shartlariga', accountType === 'partner' ? 'условиям оферты для партнёров' : 'условия Публичной оферты')}</button><span>{t('','')}</span></div></div>{sent&&<div><label className="mb-2 block text-sm font-semibold">{t('SMS kodi','SMS-код')}</label><input ref={otpInputRef} value={code} onChange={e=>handleOtpInput(e.target.value)} onInput={e=>handleOtpInput(e.currentTarget.value)} onKeyDown={handleOtpKeyDown} type="text" inputMode="numeric" autoComplete="one-time-code" name="one-time-code" enterKeyHint="done" pattern="[0-9]*" aria-label={t('SMS kodi','SMS-код')} autoFocus disabled={loading} className="h-14 w-full rounded-xl border border-slate-200 bg-white px-5 text-center text-2xl font-bold tracking-[0.55em] text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" placeholder="••••••" /></div>}{message&&<div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</div>}{sent&&<button type="submit" disabled={loading} className="w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white disabled:opacity-50">{loading?t('Tekshirilmoqda...','Проверка...'):t('Kirish','Войти')}</button>}</form>}
 
     {verified && offerAcceptanceOnly && <form onSubmit={acceptCurrentOffer} className="mt-6 space-y-5">
       <div className="rounded-2xl border border-slate-200 p-4">
