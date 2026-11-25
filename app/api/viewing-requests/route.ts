@@ -8,21 +8,22 @@ import { queueTelegramNotification, deliverPendingTelegramNotifications } from '
 const statuses = new Set(['confirmed', 'declined', 'cancelled', 'completed'])
 
 async function currentUser() {
-  const auth = await createClient()
-  const { data: { user } } = await auth.auth.getUser()
-  if (user) return { id: user.id }
-
-  // RoyalHouse also signs in users through its first-party account session.
-  // Verify the signature and expiration before trusting its user ID.
+  // The main /account dashboard authenticates through this signed cookie
+  // (see /api/account/profile). Prefer the same identity source here so a
+  // stale Supabase browser session cannot override the account being shown.
   const store = await cookies()
   const accountUserId = readAccountSession(store.get(ACCOUNT_SESSION_COOKIE)?.value)
-  if (!accountUserId) return null
+  if (accountUserId) {
+    const { data, error } = await serviceClient().auth.admin.getUserById(accountUserId)
+    if (error || !data.user) return null
+    return { id: data.user.id }
+  }
 
-  // Confirm the signed account still exists. All inbox operations below
-  // continue to filter by this authenticated ID on the server.
-  const { data, error } = await serviceClient().auth.admin.getUserById(accountUserId)
-  if (error || !data.user) return null
-  return { id: data.user.id }
+  // Retain Supabase Auth as a fallback for users who do not use the
+  // first-party phone-backed account session.
+  const auth = await createClient()
+  const { data: { user } } = await auth.auth.getUser()
+  return user ? { id: user.id } : null
 }
 
 export async function GET() {
