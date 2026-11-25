@@ -21,6 +21,9 @@ create index if not exists property_viewing_requests_requester_idx
   on public.property_viewing_requests(requester_id, created_at desc);
 create index if not exists property_viewing_requests_listing_time_idx
   on public.property_viewing_requests(listing_id, requested_at);
+create unique index if not exists property_viewing_requests_one_active_per_requester_idx
+  on public.property_viewing_requests(listing_id, requester_id)
+  where status in ('pending', 'confirmed');
 
 alter table public.property_viewing_requests enable row level security;
 revoke all on public.property_viewing_requests from anon, authenticated;
