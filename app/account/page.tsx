@@ -295,6 +295,7 @@ export default function AccountPage() {
     { href: '/listings/new', icon: '+', uz: 'E’lon joylashtirish', ru: 'Разместить объявление' },
     { href: '/account/listings', icon: '▣', uz: 'Mening e’lonlarim', ru: 'Мои объявления' },
     { href: '/account/bookings', icon: '✓', uz: 'Mening bronlarim', ru: 'Мои бронирования' },
+    { href: '/account/viewings', icon: '◷', uz: 'Ko‘rish so‘rovlari', ru: 'Запросы на просмотр' },
     { href: '/account/mortgage', icon: '⌂', uz: 'Ipoteka arizalarim', ru: 'Ипотечные заявки' },
     { href: '/chat', icon: '◌', uz: 'Xabarlar', ru: 'Сообщения' },
     { href: '/account/favorites', icon: '♡', uz: 'Saqlanganlar', ru: 'Избранное' },
@@ -391,6 +392,7 @@ export default function AccountPage() {
                     <Link href="/listings/new" className="min-w-0 break-words rounded-2xl bg-emerald-50 p-4 transition hover:bg-emerald-100"><b className="block text-sm font-black text-emerald-800">+ {ru ? 'Новое объявление' : 'Yangi e’lon'}</b><span className="mt-1 block text-xs text-emerald-700/80">{ru ? 'Разместить объект' : 'Obyekt joylashtirish'}</span></Link>
                     <Link href="/account/monetization" className="min-w-0 break-words rounded-2xl bg-amber-50 p-4 transition hover:bg-amber-100"><b className="block text-sm font-black text-amber-800">★ {ru ? 'Продвижение' : 'Ilgari surish'}</b><span className="mt-1 block text-xs text-amber-700/80">{ru ? 'Больше просмотров' : 'Ko‘proq ko‘rishlar'}</span></Link>
                     <Link href="/account/bookings" className="min-w-0 break-words rounded-2xl bg-blue-50 p-4 transition hover:bg-blue-100"><b className="block text-sm font-black text-blue-800">✓ {ru ? 'Бронирования' : 'Bronlar'}</b><span className="mt-1 block text-xs text-blue-700/80">{ru ? 'Контроль заявок' : 'Arizalarni boshqarish'}</span></Link>
+                    <Link href="/account/viewings" className="min-w-0 break-words rounded-2xl bg-emerald-50 p-4 transition hover:bg-emerald-100"><b className="block text-sm font-black text-emerald-800">◷ {ru ? 'Просмотры' : 'Ko‘rishlar'}</b><span className="mt-1 block text-xs text-emerald-700/80">{ru ? 'Запросы и подтверждения' : 'So‘rov va tasdiqlar'}</span></Link>
                     <Link href="/account/wallet" className="min-w-0 break-words rounded-2xl bg-violet-50 p-4 transition hover:bg-violet-100"><b className="block text-sm font-black text-violet-800">₿ {ru ? 'Счёт и платежи' : 'Hisob va to‘lovlar'}</b><span className="mt-1 block text-xs text-violet-700/80">{ru ? 'Платежи и история' : 'To‘lovlar va tarix'}</span></Link>
                   </div>
                 </section>
