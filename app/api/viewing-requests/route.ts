@@ -98,9 +98,9 @@ export async function POST(request: NextRequest) {
   if (createError) return NextResponse.json({ error: 'Ko‘rish so‘rovini saqlab bo‘lmadi.' }, { status: 500 })
 
   const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(requestedAt)
-  const noteLine = note ? `\\nIzoh: ${note}` : ''
+  const noteLine = note ? `\nIzoh: ${note}` : ''
   const accountUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'}/account/viewings`
-  await queueTelegramNotification(db, listing.owner_id, 'viewing_requested', `🏠 RoyalHouse — yangi ko‘rish so‘rovi\\nE’lon: ${listing.title}\\nSana: ${dateLabel}${noteLine}\\nSo‘rovni shaxsiy kabinetda ko‘rib chiqing: ${accountUrl}`)
+  await queueTelegramNotification(db, listing.owner_id, 'viewing_requested', `🏠 RoyalHouse — yangi ko‘rish so‘rovi\nE’lon: ${listing.title}\nSana: ${dateLabel}${noteLine}\nSo‘rovni shaxsiy kabinetda ko‘rib chiqing: ${accountUrl}`)
   await deliverPendingTelegramNotifications(db, 20)
 
   return NextResponse.json({ request: created }, { status: 201 })
