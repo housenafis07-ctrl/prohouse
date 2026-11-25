@@ -48,7 +48,7 @@ export async function GET() {
     )
   }
 
-  const byId = new Map<string, (typeof incomingResult.data)[number]>()
+  const byId = new Map<string, any>()
   for (const item of [...(incomingResult.data || []), ...(outgoingResult.data || [])]) {
     byId.set(item.id, item)
   }
