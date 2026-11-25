@@ -19,18 +19,17 @@ export async function GET() {
   const db = serviceClient()
   const selection = 'id,listing_id,requester_id,owner_id,requested_at,note,status,responded_at,created_at,updated_at,listing:listings(id,title,title_ru,city,district,price,currency)'
   // Query incoming and outgoing requests separately for a deterministic inbox.
-  const [incoming, outgoing] = await Promise.all([
-    db.from('property_viewing_requests').select(selection).eq('owner_id', user.id).order('requested_at', { ascending: true }).limit(100),
-    db.from('property_viewing_requests').select(selection).eq('requester_id', user.id).order('requested_at', { ascending: true }).limit(100),
-  ])
-  if (incoming.error || outgoing.error) {
-    console.error('[viewing-requests] inbox query failed', { incoming: incoming.error, outgoing: outgoing.error })
+  const { data: requests, error: inboxError } = await db
+    .from('property_viewing_requests')
+    .select(selection)
+    .or(\`requester_id.eq.\${user.id},owner_id.eq.\${user.id}\`)
+    .order('requested_at', { ascending: true })
+    .limit(100)
+  if (inboxError) {
+    console.error('[viewing-requests] inbox query failed', inboxError)
     return NextResponse.json({ error: 'Ko‘rish so‘rovlarini yuklab bo‘lmadi.' }, { status: 500 })
   }
-  const requests = [...(incoming.data || []), ...(outgoing.data || [])]
-    .sort((a, b) => new Date(a.requested_at).getTime() - new Date(b.requested_at).getTime())
-    .slice(0, 100)
-  return NextResponse.json({ requests, currentUserId: user.id })
+  return NextResponse.json({ requests: requests || [], currentUserId: user.id })
 }
 
 export async function POST(request: NextRequest) {
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   const { data: existing, error: existingError } = await db
     .from('property_viewing_requests')
-    .select('id,status')
+    .select('id,status,requested_at')
     .eq('listing_id', listingId)
     .eq('requester_id', user.id)
     .in('status', ['pending', 'confirmed'])
@@ -81,29 +80,60 @@ export async function POST(request: NextRequest) {
     const missingTable = existingError.code === '42P01' || existingError.code === 'PGRST205'
     return NextResponse.json({ error: missingTable ? 'Ko‘rish so‘rovlari xizmati hali bazada faollashtirilmagan. Texnik sozlash talab qilinadi.' : 'Oldingi so‘rovni tekshirishda xatolik.' }, { status: missingTable ? 503 : 500 })
   }
-  if (existing) return NextResponse.json({ error: 'Bu e’lon bo‘yicha faol ko‘rish so‘rovingiz mavjud.' }, { status: 409 })
 
-  const { data: created, error: createError } = await db
-    .from('property_viewing_requests')
-    .insert({
-      listing_id: listing.id,
-      requester_id: user.id,
-      owner_id: listing.owner_id,
-      requested_at: requestedAt.toISOString(),
-      note,
-    })
-    .select('id,listing_id,requester_id,owner_id,requested_at,note,status,created_at')
-    .single()
-  if (createError?.code === '23505') return NextResponse.json({ error: 'Bu e’lon bo‘yicha faol ko‘rish so‘rovingiz mavjud.' }, { status: 409 })
-  if (createError) return NextResponse.json({ error: 'Ko‘rish so‘rovini saqlab bo‘lmadi.' }, { status: 500 })
+  const accountUrl = \`\${process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'}/account/viewings\`
+  let savedRequest: any = null
+  let rescheduled = false
+
+  if (existing?.status === 'confirmed') {
+    return NextResponse.json({
+      error: 'Bu so‘rov allaqachon tasdiqlangan. Yangi vaqt yuborish uchun avval shaxsiy kabinetda mavjud so‘rovni bekor qiling.',
+      existingRequestId: existing.id,
+      accountUrl,
+    }, { status: 409 })
+  }
+
+  if (existing?.status === 'pending') {
+    const { data: updated, error: updateError } = await db
+      .from('property_viewing_requests')
+      .update({ requested_at: requestedAt.toISOString(), note: note || null })
+      .eq('id', existing.id)
+      .eq('status', 'pending')
+      .select('id,listing_id,requester_id,owner_id,requested_at,note,status,created_at,updated_at')
+      .maybeSingle()
+    if (updateError) return NextResponse.json({ error: 'Mavjud so‘rov vaqtini yangilab bo‘lmadi.' }, { status: 500 })
+    if (!updated) return NextResponse.json({ error: 'So‘rov ayni vaqtda boshqa foydalanuvchi tomonidan o‘zgartirildi. Sahifani yangilang.' }, { status: 409 })
+    savedRequest = updated
+    rescheduled = true
+  } else {
+    const { data: created, error: createError } = await db
+      .from('property_viewing_requests')
+      .insert({
+        listing_id: listing.id,
+        requester_id: user.id,
+        owner_id: listing.owner_id,
+        requested_at: requestedAt.toISOString(),
+        note: note || null,
+      })
+      .select('id,listing_id,requester_id,owner_id,requested_at,note,status,created_at,updated_at')
+      .single()
+    if (createError?.code === '23505') return NextResponse.json({ error: 'Bu e’lon bo‘yicha faol so‘rov boshqa oynada yuborilgan. Shaxsiy kabinetdan tekshiring.', accountUrl }, { status: 409 })
+    if (createError) return NextResponse.json({ error: 'Ko‘rish so‘rovini saqlab bo‘lmadi.' }, { status: 500 })
+    savedRequest = created
+  }
 
   const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(requestedAt)
-  const noteLine = note ? `\nIzoh: ${note}` : ''
-  const accountUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'}/account/viewings`
-  await queueTelegramNotification(db, listing.owner_id, 'viewing_requested', `🏠 RoyalHouse — yangi ko‘rish so‘rovi\nE’lon: ${listing.title}\nSana: ${dateLabel}${noteLine}\nSo‘rovni shaxsiy kabinetda ko‘rib chiqing: ${accountUrl}`)
+  const noteLine = note ? \`\\nIzoh: \${note}\` : ''
+  const messageTitle = rescheduled ? '🔄 Ko‘rish so‘rovi vaqti yangilandi' : '🏠 RoyalHouse — yangi ko‘rish so‘rovi'
+  await queueTelegramNotification(
+    db,
+    listing.owner_id,
+    rescheduled ? 'viewing_rescheduled' : 'viewing_requested',
+    \`\${messageTitle}\\nE’lon: \${listing.title}\\nSana: \${dateLabel}\${noteLine}\\nSo‘rovni ko‘rish va boshqarish: \${accountUrl}\`
+  )
   await deliverPendingTelegramNotifications(db, 20)
 
-  return NextResponse.json({ request: created }, { status: 201 })
+  return NextResponse.json({ request: savedRequest, rescheduled, accountUrl }, { status: rescheduled ? 200 : 201 })
 }
 
 export async function PATCH(request: NextRequest) {
