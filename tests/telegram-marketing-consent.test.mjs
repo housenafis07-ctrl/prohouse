@@ -38,12 +38,11 @@ test('eligible-count SQL function uses a valid dollar-quoted body', () => {
   assert.ok(migration.includes('\n$$;\n\nrevoke all on function public.get_telegram_marketing_eligible_count()'))
 })
 
-test('existing users must accept the current offer before becoming marketing-eligible', () => {
-  assert.ok(registration.includes('setOfferAcceptanceOnly(true)'))
-  assert.ok(registration.includes('async function acceptCurrentOffer'))
-  assert.match(registration, /\.eq\('offer_version',\s*offer\.version\)/)
-  assert.match(registration, /\.eq\('audience'/)
-  assert.doesNotMatch(registration, /\.eq\('marketing_consent',\s*true\)/)
+test('existing users can sign in without an updated offer blocking authentication', () => {
+  assert.match(registration, /if\(data\.profileExists && requestedType !== 'partner'\)\s*\{\s*completeLogin\(\)\s*return\s*\}/)
+  assert.doesNotMatch(registration, /setOfferAcceptanceOnly\(true\)/)
+  assert.doesNotMatch(registration, /marketing_consent:\s*true/)
+  assert.match(migration, /oc\.marketing_consent = true/)
 })
 
 const adminTelegramPage = await readFile(new URL('../app/admin/telegram/page.tsx', import.meta.url), 'utf8')
