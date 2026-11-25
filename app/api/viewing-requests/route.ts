@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 import { createClient } from '@/utils/supabase/server'
 import { serviceClient } from '@/utils/admin/auth'
 import { queueTelegramNotification, deliverPendingTelegramNotifications } from '@/utils/telegram/notifications'
@@ -7,9 +9,20 @@ const statuses = new Set(['confirmed', 'declined', 'cancelled', 'completed'])
 
 async function currentUser() {
   const auth = await createClient()
-  const { data: { user }, error } = await auth.auth.getUser()
-  if (error || !user) return null
-  return user
+  const { data: { user } } = await auth.auth.getUser()
+  if (user) return { id: user.id }
+
+  // RoyalHouse also signs in users through its first-party account session.
+  // Verify the signature and expiration before trusting its user ID.
+  const store = await cookies()
+  const accountUserId = readAccountSession(store.get(ACCOUNT_SESSION_COOKIE)?.value)
+  if (!accountUserId) return null
+
+  // Confirm the signed account still exists. All inbox operations below
+  // continue to filter by this authenticated ID on the server.
+  const { data, error } = await serviceClient().auth.admin.getUserById(accountUserId)
+  if (error || !data.user) return null
+  return { id: data.user.id }
 }
 
 export async function GET() {
