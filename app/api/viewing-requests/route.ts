@@ -67,7 +67,6 @@ export async function POST(request: NextRequest) {
     .eq('listing_id', listingId)
     .eq('requester_id', user.id)
     .in('status', ['pending', 'confirmed'])
-    .gte('requested_at', new Date(now - 24 * 60 * 60 * 1000).toISOString())
     .limit(1)
     .maybeSingle()
   if (existingError) return NextResponse.json({ error: 'Oldingi so‘rovni tekshirishda xatolik.' }, { status: 500 })
