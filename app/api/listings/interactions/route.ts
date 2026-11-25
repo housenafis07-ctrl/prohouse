@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { cookies } from 'next/headers'
+import { serviceClient } from '@/utils/admin/auth'
+import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
 const eventTypes = new Set(['view','favorite','unfavorite','phone_click','chat_start','share','mortgage_click','map_open'])
 const VIEW_DEDUPE_HOURS = 24
@@ -7,6 +10,10 @@ const VIEW_DEDUPE_HOURS = 24
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const accountUserId = readAccountSession(cookieStore.get(ACCOUNT_SESSION_COOKIE)?.value)
+  const effectiveUserId = accountUserId || user?.id || null
+  const admin = serviceClient()
   const body = await request.json().catch(() => null)
   if (!body || typeof body !== 'object' || typeof body.listingId !== 'string') {
     return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 })
@@ -16,17 +23,17 @@ export async function POST(request: Request) {
   const action = typeof body.action === 'string' ? body.action : ''
   const sessionId = typeof body.sessionId === 'string' && body.sessionId.trim() ? body.sessionId.trim().slice(0, 128) : null
 
-  const { data: listing } = await supabase.from('listings').select('id,status,owner_id').eq('id', listingId).maybeSingle()
-  if (!listing || (listing.status !== 'active' && listing.owner_id !== user?.id)) {
+  const { data: listing } = await admin.from('listings').select('id,status,owner_id').eq('id', listingId).maybeSingle()
+  if (!listing || (listing.status !== 'active' && listing.owner_id !== effectiveUserId)) {
     return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
   }
 
   if (action === 'view') {
-    if (user?.id === listing.owner_id) return NextResponse.json({ ok: true, recorded: false })
+    if (effectiveUserId === listing.owner_id) return NextResponse.json({ ok: true, recorded: false })
     // A page refresh/reopen from the same browser must not inflate the view count.
     // Authenticated users fall back to user_id when a session id is unavailable.
     const since = new Date(Date.now() - VIEW_DEDUPE_HOURS * 60 * 60 * 1000).toISOString()
-    let duplicateQuery = supabase
+    let duplicateQuery = admin
       .from('listing_events')
       .select('id')
       .eq('listing_id', listingId)
@@ -35,7 +42,7 @@ export async function POST(request: Request) {
       .limit(1)
 
     if (sessionId) duplicateQuery = duplicateQuery.eq('session_id', sessionId)
-    else if (user?.id) duplicateQuery = duplicateQuery.eq('user_id', user.id)
+    else if (effectiveUserId) duplicateQuery = duplicateQuery.eq('user_id', effectiveUserId)
     else return NextResponse.json({ ok: true, recorded: false })
 
     const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle()
@@ -57,9 +64,9 @@ export async function POST(request: Request) {
   }
 
   if (!eventTypes.has(action)) return NextResponse.json({ error: 'INVALID_ACTION' }, { status: 400 })
-  const { error } = await supabase.from('listing_events').insert({
+  const { error } = await admin.from('listing_events').insert({
     listing_id: listingId,
-    user_id: user?.id ?? null,
+    user_id: effectiveUserId,
     session_id: sessionId,
     event_type: action,
     metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {},
