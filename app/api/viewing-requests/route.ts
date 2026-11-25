@@ -25,7 +25,7 @@ export async function GET() {
     .limit(100)
 
   if (error) return NextResponse.json({ error: 'Ko‘rish so‘rovlarini yuklab bo‘lmadi.' }, { status: 500 })
-  return NextResponse.json({ requests: data || [] })
+  return NextResponse.json({ requests: data || [], currentUserId: user.id })
 }
 
 export async function POST(request: NextRequest) {
