@@ -22,7 +22,7 @@ export async function GET() {
   const { data: requests, error: inboxError } = await db
     .from('property_viewing_requests')
     .select(selection)
-    .or(\`requester_id.eq.\${user.id},owner_id.eq.\${user.id}\`)
+    .or(`requester_id.eq.${user.id},owner_id.eq.${user.id}`)
     .order('requested_at', { ascending: true })
     .limit(100)
   if (inboxError) {
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: missingTable ? 'Ko‘rish so‘rovlari xizmati hali bazada faollashtirilmagan. Texnik sozlash talab qilinadi.' : 'Oldingi so‘rovni tekshirishda xatolik.' }, { status: missingTable ? 503 : 500 })
   }
 
-  const accountUrl = \`\${process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'}/account/viewings\`
+  const accountUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz'}/account/viewings`
   let savedRequest: any = null
   let rescheduled = false
 
@@ -123,13 +123,13 @@ export async function POST(request: NextRequest) {
   }
 
   const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(requestedAt)
-  const noteLine = note ? \`\\nIzoh: \${note}\` : ''
+  const noteLine = note ? `\nIzoh: ${note}` : ''
   const messageTitle = rescheduled ? '🔄 Ko‘rish so‘rovi vaqti yangilandi' : '🏠 RoyalHouse — yangi ko‘rish so‘rovi'
   await queueTelegramNotification(
     db,
     listing.owner_id,
     rescheduled ? 'viewing_rescheduled' : 'viewing_requested',
-    \`\${messageTitle}\\nE’lon: \${listing.title}\\nSana: \${dateLabel}\${noteLine}\\nSo‘rovni ko‘rish va boshqarish: \${accountUrl}\`
+    `${messageTitle}\nE’lon: ${listing.title}\nSana: ${dateLabel}${noteLine}\nSo‘rovni ko‘rish va boshqarish: ${accountUrl}`
   )
   await deliverPendingTelegramNotifications(db, 20)
 
