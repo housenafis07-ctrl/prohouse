@@ -21,8 +21,18 @@ export default function ListingConversionBar({ listingId, title, priceLabel, isO
   useEffect(() => {
     if (isOwner || viewed.current) return
     viewed.current = true
+    let sessionId = ''
+    try {
+      sessionId = sessionStorage.getItem('rh_listing_analytics_session') || ''
+      if (!sessionId) {
+        sessionId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `rh-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        sessionStorage.setItem('rh_listing_analytics_session', sessionId)
+      }
+    } catch { sessionId = `rh-${Date.now()}-${Math.random().toString(36).slice(2)}` }
     const timer = window.setTimeout(() => {
-      const payload = JSON.stringify({ listingId, action: 'view' })
+      const payload = JSON.stringify({ listingId, action: 'view', sessionId })
       try {
         if (navigator.sendBeacon('/api/listings/interactions', new Blob([payload], { type: 'application/json' }))) return
       } catch {}
