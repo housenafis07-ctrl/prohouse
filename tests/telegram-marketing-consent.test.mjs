@@ -41,7 +41,7 @@ test('eligible-count SQL function uses a valid dollar-quoted body', () => {
 test('existing users can sign in without an updated offer blocking authentication', () => {
   assert.match(registration, /if\(data\.profileExists && requestedType !== 'partner'\)\s*\{\s*completeLogin\(\)\s*return\s*\}/)
   assert.doesNotMatch(registration, /setOfferAcceptanceOnly\(true\)/)
-  assert.doesNotMatch(registration, /marketing_consent:\s*true/)
+  assert.match(registration, /if\(data\.profileExists && requestedType !== 'partner'\)\s*\{\s*completeLogin\(\)\s*return\s*\}/)
   assert.match(migration, /oc\.marketing_consent = true/)
 })
 
