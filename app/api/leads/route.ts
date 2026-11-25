@@ -68,6 +68,15 @@ export async function POST(request: NextRequest) {
       })
       if (messageError) throw messageError
 
+      // Record chat engagement for the seller's listing analytics.
+      const { error: chatEventError } = await admin.from('listing_events').insert({
+        listing_id: listing.id,
+        user_id: user!.id,
+        event_type: 'chat_start',
+        metadata: { source: 'listing_lead', conversation_id: conversationId },
+      })
+      if (chatEventError) console.error('[Listing chat analytics] Insert failed', chatEventError)
+
       // Keep the first listing inquiry in the site's in-app notification center too.
       try {
         const { error: notificationError } = await admin.from('notifications').insert({
