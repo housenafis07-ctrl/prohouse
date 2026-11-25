@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { useI18n } from '@/app/components/I18nProvider'
 
 export default function ViewingRequestButton({ listingId }: { listingId: string }) {
@@ -51,7 +52,7 @@ export default function ViewingRequestButton({ listingId }: { listingId: string 
       <button type="button" onClick={() => { setOpen(true); setSuccess(false); setError('') }} className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-black text-emerald-800 transition hover:bg-emerald-100">
         {ru ? '📅 Записаться на просмотр' : '📅 Ko‘rish vaqtini belgilash'}
       </button>
-      {open && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true">
+      {open && typeof document !== 'undefined' && createPortal(<div className="fixed inset-0 z-[10000] isolate flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true">
         <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -77,7 +78,7 @@ export default function ViewingRequestButton({ listingId }: { listingId: string 
             </div>
           </>}
         </div>
-      </div>}
+      </div>, document.body)}
     </div>
   )
 }

@@ -71,7 +71,11 @@ export async function POST(request: NextRequest) {
     .in('status', ['pending', 'confirmed'])
     .limit(1)
     .maybeSingle()
-  if (existingError) return NextResponse.json({ error: 'Oldingi so‘rovni tekshirishda xatolik.' }, { status: 500 })
+  if (existingError) {
+    console.error('[viewing-requests] active request lookup failed', existingError)
+    const missingTable = existingError.code === '42P01' || existingError.code === 'PGRST205'
+    return NextResponse.json({ error: missingTable ? 'Ko‘rish so‘rovlari xizmati hali bazada faollashtirilmagan. Texnik sozlash talab qilinadi.' : 'Oldingi so‘rovni tekshirishda xatolik.' }, { status: missingTable ? 503 : 500 })
+  }
   if (existing) return NextResponse.json({ error: 'Bu e’lon bo‘yicha faol ko‘rish so‘rovingiz mavjud.' }, { status: 409 })
 
   const { data: created, error: createError } = await db
@@ -88,7 +92,7 @@ export async function POST(request: NextRequest) {
   if (createError?.code === '23505') return NextResponse.json({ error: 'Bu e’lon bo‘yicha faol ko‘rish so‘rovingiz mavjud.' }, { status: 409 })
   if (createError) return NextResponse.json({ error: 'Ko‘rish so‘rovini saqlab bo‘lmadi.' }, { status: 500 })
 
-  const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(requestedAt)
+  const dateLabel = new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(requestedAt)
   await queueTelegramNotification(db, listing.owner_id, 'viewing_requested', `🏠 RoyalHouse — yangi ko‘rish so‘rovi\nE’lon: ${listing.title}\nSana: ${dateLabel}\nMijoz kabinetidagi ko‘rish so‘rovlari orqali tasdiqlang yoki rad eting.`)
   await deliverPendingTelegramNotifications(db, 20)
 

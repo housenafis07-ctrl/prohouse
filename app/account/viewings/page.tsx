@@ -73,7 +73,7 @@ export default function ViewingRequestsPage() {
     completed: ru ? 'Завершено' : 'Yakunlandi',
   })[status]
 
-  const date = (value: string) => new Intl.DateTimeFormat(ru ? 'ru-RU' : 'uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  const date = (value: string) => new Intl.DateTimeFormat(ru ? 'ru-RU' : 'uz-UZ', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Tashkent' }).format(new Date(value))
 
   return <main className="min-h-screen bg-slate-50 text-slate-900">
     <header className="border-b border-slate-200 bg-white">
