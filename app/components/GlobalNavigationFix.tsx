@@ -275,7 +275,12 @@ export default function GlobalNavigationFix() {
         : 'Mavjud uy xizmatlari saqlandi. Sug‘urta hamkor kompaniyalar API integratsiyasiga tayyorlangan.'
 
       render()
-      modal.append(closeButton, head, tabContainer, search, grid, note)
+      const publishServiceLink = document.createElement('a')
+      publishServiceLink.href = '/listings/new/service'
+      publishServiceLink.textContent = ru ? 'Разместить объявление об услуге' : 'Xizmat e’lonini joylashtirish'
+      publishServiceLink.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;box-sizing:border-box;margin:0 0 16px;padding:14px 18px;border-radius:14px;background:#059669;color:#fff;font-size:14px;font-weight:800;text-decoration:none;'
+
+      modal.append(closeButton, head, tabContainer, publishServiceLink, search, grid, note)
       overlay.appendChild(modal)
       document.body.appendChild(overlay)
       document.body.style.overflow = 'hidden'
