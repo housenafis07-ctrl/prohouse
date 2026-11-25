@@ -15,6 +15,7 @@ export default function ViewingRequestButton({ listingId }: { listingId: string 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [rescheduled, setRescheduled] = useState(false)
 
   useEffect(() => {
     const next = new Date(Date.now() + 2 * 60 * 60 * 1000)
@@ -39,6 +40,7 @@ export default function ViewingRequestButton({ listingId }: { listingId: string 
         return
       }
       if (!response.ok) throw new Error(result.error || (ru ? 'Не удалось отправить запрос.' : 'So‘rov yuborilmadi.'))
+      setRescheduled(Boolean(result.rescheduled))
       setSuccess(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : (ru ? 'Ошибка отправки.' : 'Yuborishda xatolik.'))
@@ -63,9 +65,10 @@ export default function ViewingRequestButton({ listingId }: { listingId: string 
           </div>
           {success ? <div className="mt-6 rounded-2xl bg-emerald-50 p-5 text-center">
             <div className="text-3xl text-emerald-600">✓</div>
-            <p className="mt-2 font-black text-emerald-800">{ru ? 'Запрос отправлен' : 'So‘rov yuborildi'}</p>
+            <p className="mt-2 font-black text-emerald-800">{rescheduled ? (ru ? 'Время запроса обновлено' : 'So‘rov vaqti yangilandi') : (ru ? 'Запрос отправлен' : 'So‘rov yuborildi')}</p>
             <p className="mt-1 text-sm text-slate-600">{ru ? 'Ожидайте подтверждения владельца.' : 'E’lon egasining tasdig‘ini kuting.'}</p>
-            <button type="button" onClick={() => setOpen(false)} className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white">{ru ? 'Готово' : 'Tayyor'}</button>
+            <a href="/account/viewings" className="mt-3 inline-block text-sm font-bold text-emerald-700 underline">{ru ? 'Открыть мои запросы' : 'Ko‘rish so‘rovlarimni ochish'}</a>
+            <button type="button" onClick={() => setOpen(false)} className="mt-4 block w-full rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white">{ru ? 'Готово' : 'Tayyor'}</button>
           </div> : <>
             <label className="mt-5 block text-sm font-bold text-slate-700">{ru ? 'Желаемые дата и время' : 'Istalgan sana va vaqt'}</label>
             <input type="datetime-local" value={requestedAt} min={new Date(Date.now() + 60 * 60 * 1000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setRequestedAt(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500" />
