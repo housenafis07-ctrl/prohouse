@@ -67,7 +67,7 @@ export default function ViewingRequestButton({ listingId }: { listingId: string 
             <button type="button" onClick={() => setOpen(false)} className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white">{ru ? 'Готово' : 'Tayyor'}</button>
           </div> : <>
             <label className="mt-5 block text-sm font-bold text-slate-700">{ru ? 'Желаемые дата и время' : 'Istalgan sana va vaqt'}</label>
-            <input type="datetime-local" value={requestedAt} min={new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)} onChange={e => setRequestedAt(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500" />
+            <input type="datetime-local" value={requestedAt} min={new Date(Date.now() + 60 * 60 * 1000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setRequestedAt(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500" />
             <label className="mt-4 block text-sm font-bold text-slate-700">{ru ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}</label>
             <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={1000} rows={3} placeholder={ru ? 'Например, удобное время для звонка...' : 'Masalan, bog‘lanish uchun qulay vaqt...'} className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500" />
             {error && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
