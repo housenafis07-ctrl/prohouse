@@ -86,6 +86,7 @@ export default function MyListingsPage() {
   const [status, setStatus] = useState<Status>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [statsWarning, setStatsWarning] = useState('')
   const [actionId, setActionId] = useState('')
   const [usage, setUsage] = useState<{ isIndividual: boolean; used: number; freeLimit: number; remaining: number | null } | null>(null)
   const [engagement, setEngagement] = useState<Record<string, ListingEngagement>>({})
@@ -101,7 +102,7 @@ export default function MyListingsPage() {
         deleteListing: 'Удалить объявление', deleteBusy: 'Удаление...', confirmDelete: 'Удалить это объявление навсегда? Это действие нельзя отменить.',
         cancel: 'Отменить', cancelBusy: 'Отмена...', saveBusy: 'Сохранение...', rented: 'Сдано', sold: 'Продано', close: 'Закрыть',
         resubmit: 'Отправить на модерацию', updated: 'Обновлено', room: 'комн.', floor: 'эт.',
-        stats: 'Статистика объявления', totalViews: 'Всего просмотров', uniqueViews: 'Уникальные', todayViews: 'Сегодня', shares: 'Поделились', phone: 'Телефон', chat: 'Чат',
+        stats: 'Статистика объявления', statsUnavailable: 'Статистика временно недоступна.', totalViews: 'Всего просмотров', uniqueViews: 'Уникальные', todayViews: 'Сегодня', shares: 'Поделились', phone: 'Телефон', chat: 'Чат',
         share: 'Поделиться', copied: 'Ссылка скопирована',
         moderationReason: 'Причина отклонения:', moderationNote: 'Комментарий модерации:', errorLoad: 'Не удалось загрузить объявления.',
         tabs: { all: 'Все', draft: 'Черновики', moderation: 'На модерации', active: 'Активные', rejected: 'Отклонённые', sold: 'Проданные', rented: 'Сданные', archived: 'Архив' },
@@ -116,7 +117,7 @@ export default function MyListingsPage() {
         deleteListing: 'E’lonni o‘chirish', deleteBusy: 'O‘chirilmoqda...', confirmDelete: 'Bu e’lon butunlay o‘chiriladi. Davom etishni xohlaysizmi?',
         cancel: 'Bekor qilish', cancelBusy: 'Bekor qilinmoqda...', saveBusy: 'Saqlanmoqda...', rented: 'Ijaraga berildi', sold: 'Sotildi', close: 'Yopish',
         resubmit: 'Qayta moderatsiyaga yuborish', updated: 'Yangilangan', room: 'xona', floor: 'qavat',
-        stats: 'E’lon statistikasi', totalViews: 'Jami ko‘rish', uniqueViews: 'Noyob ko‘rish', todayViews: 'Bugun', shares: 'Ulashish', phone: 'Telefon', chat: 'Chat',
+        stats: 'E’lon statistikasi', statsUnavailable: 'Statistika vaqtincha yuklanmadi.', totalViews: 'Jami ko‘rish', uniqueViews: 'Noyob ko‘rish', todayViews: 'Bugun', shares: 'Ulashish', phone: 'Telefon', chat: 'Chat',
         share: 'Ulashish', copied: 'Havola nusxalandi',
         moderationReason: 'Rad etish sababi:', moderationNote: 'Moderatsiya izohi:', errorLoad: 'E’lonlarni yuklab bo‘lmadi.',
         tabs: { all: 'Barchasi', draft: 'Qoralama', moderation: 'Moderatsiyada', active: 'Faol', rejected: 'Rad etilgan', sold: 'Sotilgan', rented: 'Ijaraga berilgan', archived: 'Arxiv' },
@@ -131,6 +132,7 @@ export default function MyListingsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
+    setStatsWarning('')
     const db = createClient()
     // Use the same phone-backed session as the cabinet profile and stats APIs.
     // Browser Supabase auth can point at a legacy user and incorrectly show an empty list.
@@ -158,38 +160,22 @@ export default function MyListingsPage() {
     listingRows.forEach(item => { nextEngagement[item.id] = emptyEngagement() })
 
     if (listingRows.length > 0) {
-      const { data: events, error: eventsError } = await db
-        .from('listing_events')
-        .select('listing_id,event_type,user_id,session_id,created_at')
-        .in('listing_id', listingRows.map(item => item.id))
-        .in('event_type', ['view', 'share', 'phone_click', 'chat_start'])
-
-      if (!eventsError) {
-        const uniqueByListing: Record<string, Set<string>> = {}
-        const todayStart = new Date()
-        todayStart.setHours(0, 0, 0, 0)
-
-        for (const event of events || []) {
-          if (!nextEngagement[event.listing_id]) nextEngagement[event.listing_id] = emptyEngagement()
-          const stats = nextEngagement[event.listing_id]
-
-          if (event.event_type === 'view') {
-            stats.views += 1
-            if (!uniqueByListing[event.listing_id]) uniqueByListing[event.listing_id] = new Set<string>()
-            const key = event.session_id || (event.user_id ? `user:${event.user_id}` : `event:${event.created_at}`)
-            uniqueByListing[event.listing_id].add(key)
-            if (new Date(event.created_at) >= todayStart) stats.todayViews += 1
-          } else if (event.event_type === 'share') stats.shares += 1
-          else if (event.event_type === 'phone_click') stats.phoneClicks += 1
-          else if (event.event_type === 'chat_start') stats.chatStarts += 1
+      // Stats are loaded server-side using the same signed account cookie as
+      // /api/account/listings; browser Supabase RLS cannot see phone-backed users.
+      const statsResponse = await fetch('/api/account/listings/engagement', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      const statsResult = await statsResponse.json().catch(() => ({}))
+      if (statsResponse.ok && statsResult.engagement && typeof statsResult.engagement === 'object') {
+        for (const [id, value] of Object.entries(statsResult.engagement as Record<string, ListingEngagement>)) {
+          if (nextEngagement[id]) nextEngagement[id] = { ...emptyEngagement(), ...value }
         }
-
-        Object.entries(uniqueByListing).forEach(([id, keys]) => {
-          if (nextEngagement[id]) nextEngagement[id].uniqueViews = keys.size
-        })
+      } else {
+        console.error('[MyListingsPage] engagement stats failed', statsResult.error || statsResponse.status)
+        setStatsWarning(text.statsUnavailable)
       }
     }
-
     setEngagement(nextEngagement)
 
     if (profile?.account_type === 'individual') {
@@ -305,6 +291,7 @@ export default function MyListingsPage() {
     <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-7 sm:py-10"><h1 className="text-3xl font-black">{text.title}</h1><p className="mt-2 text-sm text-slate-500">{text.sub}</p>
       {usage?.isIndividual && <div className="mt-5 rounded-3xl border border-emerald-100 bg-white p-5 shadow-sm"><p className="text-sm font-bold">{usage.used}/{usage.freeLimit}</p></div>}
       {error && <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}</div>}
+      {statsWarning && <div role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{statsWarning}</div>}
       <div className="mt-7 grid min-w-0 grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:grid-cols-4 lg:grid-cols-8">{(['all','draft','moderation','active','rejected','sold','rented','archived'] as Status[]).map(key => <button type="button" key={key} onClick={() => setStatus(key)} className={'min-w-0 break-words rounded-xl px-2 py-3 text-left ' + (status === key ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50')}><span className="block text-sm font-extrabold">{key === 'all' ? text.tabs.all : statusMeta[key].label}</span><span className="text-xs text-slate-400">{counts[key]}</span></button>)}</div>
       {loading ? <div className="mt-5 rounded-3xl bg-white p-10 text-center text-slate-500">{text.loading}</div> : visible.length === 0 ? <div className="mt-5 rounded-3xl bg-white p-10 text-center"><div className="text-4xl">⌂</div><h2 className="mt-3 break-words text-lg font-black sm:text-xl">{status === 'all' ? text.emptyAll : statusMeta[status].label + ' — ' + text.empty}</h2><Link href="/listings/new" className="mt-5 inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white">{text.place}</Link></div> : <div className="mt-5 space-y-4">{visible.map(item => {
         const image = item.primary_image_url ? getListingImageUrl(item.primary_image_url, 'thumbnail') : undefined
