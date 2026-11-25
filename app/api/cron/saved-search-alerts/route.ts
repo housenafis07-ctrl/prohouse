@@ -9,6 +9,7 @@ export const maxDuration = 60
 type PushConfig = { public_key: string | null; private_key: string | null }
 type SavedSearch = { id: string; user_id: string; name: string; query: Record<string, unknown>; created_at: string; notify_push: boolean; is_active: boolean }
 type SearchListing = { id: string; title: string; title_ru?: string | null; published_at?: string | null; price?: number | null; currency?: string | null }
+type AlertDelivery = { id: number; push_sent_at: string | null; telegram_queued_at: string | null }
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://royalhouse.uz').replace(/\/$/, '')
 
@@ -61,7 +62,8 @@ async function run(request: Request) {
       if (!response.ok) throw new Error(`Search API returned ${response.status}`)
       const result = await response.json()
       const rows = (result.data || []) as SearchListing[]
-      const fresh = rows.filter(row => row.id && (!row.published_at || new Date(row.published_at).getTime() >= new Date(search.created_at).getTime()))
+      const createdAt = new Date(search.created_at).getTime()
+      const fresh = rows.filter(row => row.id && row.published_at && new Date(row.published_at).getTime() >= createdAt)
 
       for (const listing of fresh) {
         const listingUrl = `/listings/${encodeURIComponent(listing.id)}`
@@ -71,9 +73,19 @@ async function run(request: Request) {
           listing_id: listing.id,
           listing_title: listing.title || 'Yangi e’lon',
           listing_url: listingUrl,
-        }, { onConflict: 'saved_search_id,listing_id', ignoreDuplicates: true }).select('id').maybeSingle()
+        }, { onConflict: 'saved_search_id,listing_id', ignoreDuplicates: true })
 
         if (insertError) throw insertError
+
+        // Read the canonical ledger row after the idempotent upsert. With ignoreDuplicates,
+        // Supabase returns no row for an existing record, so relying on upsert data is unsafe.
+        const { data: delivery, error: deliveryError } = await db
+          .from('saved_search_alert_deliveries')
+          .select('id,push_sent_at,telegram_queued_at')
+          .eq('saved_search_id', search.id)
+          .eq('listing_id', listing.id)
+          .maybeSingle()
+        if (deliveryError) throw deliveryError
         if (!delivery) continue
         matches++
 
@@ -106,7 +118,12 @@ async function run(request: Request) {
           }
         }
 
-        const { data: link, error: linkError } = await db.from('telegram_user_links').select('profile_id').eq('profile_id', search.user_id).maybeSingle()
+        const { data: link, error: linkError } = await db
+          .from('telegram_user_links')
+          .select('profile_id,verified_at')
+          .eq('profile_id', search.user_id)
+          .not('verified_at', 'is', null)
+          .maybeSingle()
         if (linkError) throw linkError
         if (link && !delivery.telegram_queued_at) {
           const { error: queueError } = await db.from('telegram_notification_queue').insert({
@@ -125,7 +142,7 @@ async function run(request: Request) {
     }
   }
 
-  // Deliver the queued Telegram messages using the platform's existing retry-aware dispatcher.
+  // Deliver queued Telegram messages using the platform's existing retry-aware dispatcher.
   const { deliverPendingTelegramNotifications } = await import('@/utils/telegram/notifications')
   const telegramDelivery = await deliverPendingTelegramNotifications(db, 100)
 
