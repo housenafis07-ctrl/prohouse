@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 import { isAcceptedListingImage, LISTING_IMAGE_ACCEPT, LISTING_IMAGE_MAX_SIZE } from '@/utils/listing-images'
@@ -28,7 +28,6 @@ const cleanDistrict = (v: string) => v.replace(/ tumani$/i, '').replace(/ shahri
 
 export default function ServiceListingWizardV2() {
   const router = useRouter()
-  const params = useSearchParams()
   const db = useMemo(() => createClient(), [])
   const { lang, setLang } = useI18n()
   const [loading, setLoading] = useState(true)
@@ -70,7 +69,7 @@ export default function ServiceListingWizardV2() {
         if (!active) return
         setCategories(serviceCategories)
         setPartnerType(d.partnerType || null)
-        const requestedTaxonomy = params.get('taxonomy')
+        const requestedTaxonomy = new URLSearchParams(window.location.search).get('taxonomy')
         const requestedCategory = requestedTaxonomy ? serviceCategories.find((category: Category) => category.code === requestedTaxonomy) : null
         if (requestedCategory) {
           setSelectedCode(requestedCategory.code)
