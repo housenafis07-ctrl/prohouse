@@ -130,8 +130,10 @@ export async function POST(request: Request) {
   const phone = phoneDigits(body?.phone)
   const experience = Number(body?.experience_years ?? 0)
   const agencyName = typeof body?.agency_name === 'string' ? body.agency_name.trim() : ''
-  const serviceAreas = Array.isArray(body?.service_areas)
-    ? body.service_areas.filter((v: unknown): v is string => typeof v === 'string').map((v: string) => v.trim()).filter(Boolean).slice(0, 20)
+  let rawServiceAreas: unknown = body?.service_areas
+  if (typeof rawServiceAreas === 'string') { try { rawServiceAreas = JSON.parse(rawServiceAreas) } catch { rawServiceAreas = [] } }
+  const serviceAreas = Array.isArray(rawServiceAreas)
+    ? rawServiceAreas.filter((v: unknown): v is string => typeof v === 'string').map((v: string) => v.trim()).filter(Boolean).slice(0, 20)
     : []
 
   if (!displayName) return NextResponse.json({ error: 'F.I.O. ni kiriting.' }, { status: 400 })
