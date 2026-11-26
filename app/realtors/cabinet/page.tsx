@@ -21,6 +21,7 @@ export default function RealtorCabinetPage() {
   const [message, setMessage] = useState('')
   const [name, setName] = useState('')
   const [certificate, setCertificate] = useState('')
+  const [certificateFile, setCertificateFile] = useState<File | null>(null)
   const [experience, setExperience] = useState('0')
   const [agencyName, setAgencyName] = useState('')
   const [serviceAreas, setServiceAreas] = useState('')
@@ -86,9 +87,18 @@ export default function RealtorCabinetPage() {
         return
       }
       if (!name.trim() || !certificate.trim()) throw new Error(tx('F.I.O. va malaka sertifikati raqamini kiriting.','Введите Ф.И.О. и номер квалификационного сертификата.'))
+      if (!certificateFile) throw new Error(tx('Malaka sertifikati yoki rieltorlik vakolat hujjatini yuklang.','Загрузите квалификационный сертификат или документ о полномочиях риелтора.'))
+      const applicationForm = new FormData()
+      applicationForm.set('display_name', name.trim())
+      applicationForm.set('phone', phone)
+      applicationForm.set('certificate_number', certificate.trim())
+      applicationForm.set('experience_years', String(Number(experience) || 0))
+      applicationForm.set('agency_name', agencyName.trim())
+      applicationForm.set('service_areas', JSON.stringify(serviceAreas.split(',').map(area => area.trim()).filter(Boolean).slice(0, 20)))
+      applicationForm.set('certificate_document', certificateFile)
       const applicationResponse = await fetch('/api/realtors/cabinet', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-        body: JSON.stringify({ display_name: name.trim(), phone, certificate_number: certificate.trim(), experience_years: Number(experience) || 0, agency_name: agencyName.trim(), service_areas: serviceAreas.split(',').map(area => area.trim()).filter(Boolean).slice(0, 20) }),
+        method: 'POST', credentials: 'same-origin',
+        body: applicationForm,
       })
       const applicationData = await applicationResponse.json().catch(() => ({}))
       if (!applicationResponse.ok) {
@@ -140,6 +150,11 @@ export default function RealtorCabinetPage() {
                   <div>
                     <label className="mb-2 block text-sm font-bold">{tx('Malaka sertifikati raqami','Номер квалификационного сертификата')}</label>
                     <input value={certificate} onChange={e => setCertificate(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold">{tx('Malaka sertifikati / vakolat hujjati (PDF, JPG, PNG)','Квалификационный сертификат / документ о полномочиях (PDF, JPG, PNG)')}</label>
+                    <input type="file" required accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e => setCertificateFile(e.target.files?.[0] || null)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm" />
+                    <p className="mt-1 text-xs text-slate-500">{tx('Hujjat 12 MB gacha. Admin arizani hujjat asosida tekshiradi.','Документ до 12 МБ. Администратор проверит заявку по документу.')}</p>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-bold">{tx('Tajriba (yil)','Опыт (лет)')}</label>
