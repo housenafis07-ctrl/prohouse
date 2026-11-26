@@ -477,7 +477,7 @@ export default function SmartListingWizard(){
     {limitReached?<div role="alert" className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm sm:p-6">
      <div className="flex items-start gap-3"><span aria-hidden="true" className="text-3xl">⚠️</span><div className="min-w-0 flex-1">
       <p className="text-xs font-black uppercase tracking-wider text-amber-800">E’lon joylashtirish limiti</p>
-      <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{accountProfile?.account_type==='partner'?'Hamkor tarifingizdagi e’lon limiti tugadi':'3 ta bepul e’lon limiti tugadi'}</h2>
+      <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{accountProfile?.account_type==='partner'?'Hamkor tarifingizdagi e’lon limiti tugadi':'Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi (3 ta e’lon)'}</h2>
       {accountProfile?.account_type==='partner'||accountProfile?.is_verified_realtor?<>
        <p className="mt-2 text-sm leading-6 text-slate-700">{accountProfile?.is_verified_realtor?'Rieltor maqomingiz tasdiqlangan. 3 ta bepul e’loningizdan keyin mavjud hamkor tariflaridan birini tanlab, limitni kengaytiring.':'Hamkor tarifingiz limitini kengaytirish uchun mavjud tarif paketlarini ko‘rib chiqing.'}</p>
        <Link href="/account/monetization" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white">Hamkor tariflarini ko‘rish <span className="ml-2" aria-hidden="true">→</span></Link>
