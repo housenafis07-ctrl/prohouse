@@ -49,3 +49,27 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('telegram-listing-imports', 'telegram-listing-imports', false, 8388608, array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update
 set public = false, file_size_limit = 8388608, allowed_mime_types = array['image/jpeg','image/png','image/webp'];
+
+
+-- One-time, expiring owner-consent links. Only the hash is persisted.
+create table if not exists public.telegram_listing_import_consents (
+  id uuid primary key default gen_random_uuid(),
+  import_id uuid not null references public.telegram_listing_imports(id) on delete cascade,
+  token_hash text not null unique,
+  owner_phone text not null,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists telegram_listing_import_consents_import_idx
+  on public.telegram_listing_import_consents(import_id, created_at desc);
+alter table public.telegram_listing_import_consents enable row level security;
+revoke all on table public.telegram_listing_import_consents from public, anon, authenticated;
+grant all on table public.telegram_listing_import_consents to service_role;
+
+-- The same private bucket also stores authorization evidence (PDF/JPEG/PNG).
+update storage.buckets
+set public = false,
+    file_size_limit = 12582912,
+    allowed_mime_types = array['image/jpeg','image/png','image/webp','application/pdf']
+where id = 'telegram-listing-imports';
