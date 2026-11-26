@@ -6,6 +6,8 @@ const webhook = await readFile(new URL('../app/api/telegram/webhook/route.ts', i
 const importer = await readFile(new URL('../utils/telegram/listing-import.ts', import.meta.url), 'utf8')
 const migration = await readFile(new URL('../supabase/migrations/20261126160000_telegram_ai_listing_imports.sql', import.meta.url), 'utf8')
 const draftRoute = await readFile(new URL('../app/api/listings/draft/route.ts', import.meta.url), 'utf8')
+const importDetailApi = await readFile(new URL('../app/api/account/listing-imports/[id]/route.ts', import.meta.url), 'utf8')
+const listingMetaApi = await readFile(new URL('../app/api/listings/meta/route.ts', import.meta.url), 'utf8')
 const consentApi = await readFile(new URL('../app/api/listing-import-consent/route.ts', import.meta.url), 'utf8')
 const accountImportsApi = await readFile(new URL('../app/api/account/listing-imports/route.ts', import.meta.url), 'utf8')
 const adminImportsApi = await readFile(new URL('../app/api/admin/telegram-listing-imports/route.ts', import.meta.url), 'utf8')
@@ -95,4 +97,29 @@ test('verified realtors retain three free listings and can buy existing partner 
   assert.match(realtorPlanMigration, /partner_start','partner_pro','partner_business/)
   assert.match(realtorPlanMigration, /is_verified_realtor/)
   assert.match(realtorPlanMigration, /create or replace function public.create_monetization_order/)
+})
+
+
+test('authorized imports continue through the existing listing wizard and moderation API', () => {
+  assert.match(importDetailApi, /authorization_status !== 'verified'/)
+  assert.match(importDetailApi, /createSignedUrl/)
+  assert.match(importDetailApi, /listing.status !== 'moderation'/)
+  assert.match(importDetailApi, /status: 'ready_for_moderation'/)
+  assert.match(listingWizard, /params.get\('importId'\)/)
+  assert.match(listingWizard, /telegram-import-/)
+  assert.match(listingWizard, /assert_individual_listing_limit|LISTING_LIMIT_REACHED/)
+  assert.match(listingMetaApi, /is_verified_realtor/)
+})
+
+test('listing quota is checked when an existing draft transitions into moderation', () => {
+  assert.match(draftRoute, /shouldCheckListingLimit/)
+  assert.match(draftRoute, /existingListing.status/)
+  assert.match(draftRoute, /supabase.rpc\('assert_individual_listing_limit'/)
+})
+
+test('source contact data is never silently treated as verified owner identity', () => {
+  assert.match(importer, /contact_phone/)
+  assert.match(importer, /owner_full_name: null/)
+  assert.match(importer, /owner_phone: null/)
+  assert.match(importDetailApi, /submitterIsOwner/)
 })
