@@ -78,7 +78,7 @@ export default function SmartListingWizard(){
  const [videoStatus,setVideoStatus]=useState<VideoState>('idle')
  const [success,setSuccess]=useState('')
  const [videoError,setVideoError]=useState('')
- const [accountProfile,setAccountProfile]=useState<{user_id:string;phone:string;full_name:string;account_type?:string}|null>(null)
+ const [accountProfile,setAccountProfile]=useState<{user_id:string;phone:string;full_name:string;account_type?:string;is_verified_realtor?:boolean}|null>(null)
  const wizardRef=useRef<HTMLElement|null>(null)
  const [keyboardInset,setKeyboardInset]=useState(0)
 
@@ -363,7 +363,7 @@ export default function SmartListingWizard(){
    const attrs=(meta.attributes||[]) as Attribute[]
    const profile=meta.accountProfile
    if(profile?.user_id&&profile?.phone){
-    setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual'})
+    setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual',is_verified_realtor:profile.is_verified_realtor===true})
     setAnswers(current=>({...current,phone:profile.phone,fullName:profile.full_name||''}))
    }
    const allowedCodes=new Set((meta.allowedCategoryCodes||[]) as string[])
@@ -478,9 +478,9 @@ export default function SmartListingWizard(){
      <div className="flex items-start gap-3"><span aria-hidden="true" className="text-3xl">⚠️</span><div className="min-w-0 flex-1">
       <p className="text-xs font-black uppercase tracking-wider text-amber-800">E’lon joylashtirish limiti</p>
       <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{accountProfile?.account_type==='partner'?'Hamkor tarifingizdagi e’lon limiti tugadi':'3 ta bepul e’lon limiti tugadi'}</h2>
-      {accountProfile?.account_type==='partner'?<>
-       <p className="mt-2 text-sm leading-6 text-slate-700">Hamkor tarifingiz limitini kengaytirish uchun mavjud tarif paketlarini ko‘rib chiqing.</p>
-       <Link href="/account/monetization" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white">Tarif paketlarini ko‘rish <span className="ml-2" aria-hidden="true">→</span></Link>
+      {accountProfile?.account_type==='partner'||accountProfile?.is_verified_realtor?<>
+       <p className="mt-2 text-sm leading-6 text-slate-700">{accountProfile?.is_verified_realtor?'Rieltor maqomingiz tasdiqlangan. 3 ta bepul e’loningizdan keyin mavjud hamkor tariflaridan birini tanlab, limitni kengaytiring.':'Hamkor tarifingiz limitini kengaytirish uchun mavjud tarif paketlarini ko‘rib chiqing.'}</p>
+       <Link href="/account/monetization" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white">Hamkor tariflarini ko‘rish <span className="ml-2" aria-hidden="true">→</span></Link>
       </>:<>
        <p className="mt-2 text-sm leading-6 text-slate-700">Dastlabki 3 ta e’lon bepul. 4-e’lon uchun quyidagi ikki yo‘ldan birini tanlang:</p>
        <div className="mt-4 grid gap-3 sm:grid-cols-2">
