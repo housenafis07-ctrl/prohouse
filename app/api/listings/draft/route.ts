@@ -146,54 +146,66 @@ export async function POST(request: Request) {
     : text(profile.company_name) || text(profile.full_name) || null
   const sellerPhone = text(profile.phone) || authPhone || null
 
-  if (status === 'moderation' && !listingId) {
-    // Prevent a realtor/owner from accidentally submitting an exact duplicate
-    // of their own active or pending listing. Keep the check scoped to the same
-    // account and compare the core property facts, not just a similar title.
-    const submittedTitle = text(data.title).toLocaleLowerCase().replace(/[\\s\\p{P}]+/gu, ' ').trim()
-    const submittedCity = text(data.city).toLocaleLowerCase()
-    const submittedDistrict = text(data.district).toLocaleLowerCase()
-    const submittedAddress = text(data.address).toLocaleLowerCase()
-    const submittedPrice = Number(data.price)
-    const submittedArea = numberOrNull(areaValue)
-    const submittedRooms = numberOrNull(roomsValue)
-    if (submittedTitle && Number.isFinite(submittedPrice)) {
-      const { data: existingListings, error: duplicateLookupError } = await supabase
-        .from('listings')
-        .select('id,listing_code,title,price,city,district,address,area_m2,rooms,status')
-        .eq('owner_id', userId)
-        .in('status', ['active', 'moderation'])
-        .neq('id', listingId || '00000000-0000-0000-0000-000000000000')
-        .limit(100)
-      if (duplicateLookupError) return NextResponse.json({ error: duplicateLookupError.message }, { status: 400 })
-      const duplicate = (existingListings || []).find((item) => {
-        const existingTitle = text(item.title).toLocaleLowerCase().replace(/[\\s\\p{P}]+/gu, ' ').trim()
-        const sameCoreFacts = existingTitle === submittedTitle
-          && Number(item.price) === submittedPrice
-          && text(item.city).toLocaleLowerCase() === submittedCity
-          && text(item.district).toLocaleLowerCase() === submittedDistrict
-          && Number(item.area_m2 ?? 0) === Number(submittedArea ?? 0)
-          && Number(item.rooms ?? 0) === Number(submittedRooms ?? 0)
-        if (!sameCoreFacts) return false
-        const existingAddress = text(item.address).toLocaleLowerCase()
-        // If both addresses are known, require them to match exactly. If neither
-        // is supplied, identical title + price + location + area/rooms is enough
-        // to treat this as a likely duplicate and stop accidental resubmission.
-        if (existingAddress && submittedAddress) return existingAddress === submittedAddress
-        return !existingAddress && !submittedAddress
-      })
-      if (duplicate) return NextResponse.json({
-        error: 'POSSIBLE_DUPLICATE_LISTING',
-        message: `Shunga juda o‘xshash e’loningiz allaqachon mavjud (ID: ${duplicate.listing_code || duplicate.id}). Yangi e’lon yaratish o‘rniga mavjud e’lonni tahrirlang.`,
-        existingListingId: duplicate.id,
-        existingListingCode: duplicate.listing_code,
-      }, { status: 409 })
+  if (status === 'moderation') {
+    // Duplicate detection applies only when creating a new listing.
+    if (!listingId) {
+      const submittedTitle = text(data.title).toLocaleLowerCase().replace(/[\\s\\p{P}]+/gu, ' ').trim()
+      const submittedCity = text(data.city).toLocaleLowerCase()
+      const submittedDistrict = text(data.district).toLocaleLowerCase()
+      const submittedAddress = text(data.address).toLocaleLowerCase()
+      const submittedPrice = Number(data.price)
+      const submittedArea = numberOrNull(areaValue)
+      const submittedRooms = numberOrNull(roomsValue)
+      if (submittedTitle && Number.isFinite(submittedPrice)) {
+        const { data: existingListings, error: duplicateLookupError } = await supabase
+          .from('listings')
+          .select('id,listing_code,title,price,city,district,address,area_m2,rooms,status')
+          .eq('owner_id', userId)
+          .in('status', ['active', 'moderation'])
+          .limit(100)
+        if (duplicateLookupError) return NextResponse.json({ error: duplicateLookupError.message }, { status: 400 })
+        const duplicate = (existingListings || []).find((item) => {
+          const existingTitle = text(item.title).toLocaleLowerCase().replace(/[\\s\\p{P}]+/gu, ' ').trim()
+          const sameCoreFacts = existingTitle === submittedTitle
+            && Number(item.price) === submittedPrice
+            && text(item.city).toLocaleLowerCase() === submittedCity
+            && text(item.district).toLocaleLowerCase() === submittedDistrict
+            && Number(item.area_m2 ?? 0) === Number(submittedArea ?? 0)
+            && Number(item.rooms ?? 0) === Number(submittedRooms ?? 0)
+          if (!sameCoreFacts) return false
+          const existingAddress = text(item.address).toLocaleLowerCase()
+          if (existingAddress && submittedAddress) return existingAddress === submittedAddress
+          return !existingAddress && !submittedAddress
+        })
+        if (duplicate) return NextResponse.json({
+          error: 'POSSIBLE_DUPLICATE_LISTING',
+          message: `Shunga juda o‘xshash e’loningiz allaqachon mavjud (ID: ${duplicate.listing_code || duplicate.id}). Yangi e’lon yaratish o‘rniga mavjud e’lonni tahrirlang.`,
+          existingListingId: duplicate.id,
+          existingListingCode: duplicate.listing_code,
+        }, { status: 409 })
+      }
     }
 
-    const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: userId })
-    if (limitError) {
-      if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({ error: 'LISTING_LIMIT_REACHED', message: 'Bepul faol e’lon limitingiz tugagan. Rieltor bo‘lsangiz, avval rieltor profilingiz tasdiqlanganini tekshiring yoki qo‘shimcha e’lon tarifini tanlang.' }, { status: 402 })
-      return NextResponse.json({ error: limitError.message }, { status: 400 })
+    // Drafts do not consume quota. Re-check at the exact transition into moderation,
+    // including a draft created in an earlier wizard step. Editing an already
+    // submitted listing must not consume a second free-listing slot.
+    let shouldCheckListingLimit = !listingId
+    if (listingId) {
+      const { data: existingListing, error: existingListingError } = await supabase
+        .from('listings').select('status').eq('id', listingId).eq('owner_id', userId).maybeSingle()
+      if (existingListingError) return NextResponse.json({ error: existingListingError.message }, { status: 400 })
+      if (!existingListing) return NextResponse.json({ error: 'LISTING_NOT_FOUND' }, { status: 404 })
+      shouldCheckListingLimit = !['active', 'moderation', 'reserved'].includes(existingListing.status)
+    }
+    if (shouldCheckListingLimit) {
+      const { error: limitError } = await supabase.rpc('assert_individual_listing_limit', { p_user_id: userId })
+      if (limitError) {
+        if (limitError.message.includes('LISTING_LIMIT_REACHED')) return NextResponse.json({
+          error: 'LISTING_LIMIT_REACHED',
+          message: 'Bepul faol e’lon limitingiz tugagan. Qo‘shimcha e’lonni xarid qiling yoki rieltor hamkorligi uchun hujjat topshiring.',
+        }, { status: 402 })
+        return NextResponse.json({ error: limitError.message }, { status: 400 })
+      }
     }
   }
 
