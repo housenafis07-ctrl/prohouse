@@ -43,3 +43,9 @@ grant all on table public.telegram_listing_imports to service_role;
 
 comment on table public.telegram_listing_imports is
   'Private staging queue for AI-parsed Telegram listings. Never public; requires verified owner/representative authority before conversion into listings.';
+
+-- Original media is retained in a private bucket for the later authorization and moderation workflow.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('telegram-listing-imports', 'telegram-listing-imports', false, 8388608, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update
+set public = false, file_size_limit = 8388608, allowed_mime_types = array['image/jpeg','image/png','image/webp'];
