@@ -66,7 +66,7 @@ async function downloadTelegramImage(fileId: string) {
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) throw new Error('IMPORT_IMAGE_TOO_LARGE')
   const contentType = response.headers.get('content-type') || 'image/jpeg'
   if (!/^image\/(jpeg|png|webp)$/i.test(contentType)) throw new Error('IMPORT_IMAGE_TYPE_NOT_SUPPORTED')
-  return { dataUrl: `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}`, contentType, size: bytes.byteLength }
+  return { dataUrl: `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}`, bytes, contentType, size: bytes.byteLength }
 }
 
 function getOutputText(payload: { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }) {
@@ -174,7 +174,7 @@ export async function handleTelegramListingImport(args: {
   await sendMessage(chatId, '⏳ E’lon matni va rasmlarini AI tahlil qilmoqda. Hozircha e’lon faqat maxfiy qoralama sifatida saqlanadi.')
   try {
     const extracted = await extractListing(sourceText, images)
-    const { data: link } = await admin.from('telegram_user_links').select('profile_id')
+    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number }> = []\n    for (const item of images) {\n      const path = `${telegramUserId}/${message.message_id}/${crypto.randomUUID()}`\n      const { error: uploadError } = await admin.storage.from('telegram-listing-imports').upload(path, item.bytes, { contentType: item.contentType, upsert: false })\n      if (uploadError) throw uploadError\n      storedMedia.push({ path, content_type: item.contentType, size_bytes: item.size })\n    }\n    const { data: link } = await admin.from('telegram_user_links').select('profile_id')
       .eq('telegram_user_id', telegramUserId).maybeSingle()
     const { error: insertError } = await admin.from('telegram_listing_imports').insert({
       telegram_user_id: telegramUserId,
@@ -184,7 +184,7 @@ export async function handleTelegramListingImport(args: {
       submitter_profile_id: link?.profile_id || null,
       source_forward_origin: forwardOrigin(message),
       source_text: sourceText,
-      source_media: images.map((item) => ({ content_type: item.contentType, size_bytes: item.size })),
+      source_media: storedMedia,
       ai_extracted: extracted,
       status: 'awaiting_authorization',
       authorization_status: 'pending',
