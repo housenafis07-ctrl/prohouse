@@ -11,6 +11,11 @@ const accountImportsApi = await readFile(new URL('../app/api/account/listing-imp
 const adminImportsApi = await readFile(new URL('../app/api/admin/telegram-listing-imports/route.ts', import.meta.url), 'utf8')
 const consentPage = await readFile(new URL('../app/listing-import-consent/page.tsx', import.meta.url), 'utf8')
 const accountImportsPage = await readFile(new URL('../app/account/listing-imports/page.tsx', import.meta.url), 'utf8')
+const realtorApplicationApi = await readFile(new URL('../app/api/realtors/cabinet/route.ts', import.meta.url), 'utf8')
+const realtorAdminApi = await readFile(new URL('../app/api/admin/realtors/route.ts', import.meta.url), 'utf8')
+const realtorApplicationPage = await readFile(new URL('../app/realtors/cabinet/page.tsx', import.meta.url), 'utf8')
+const listingWizard = await readFile(new URL('../app/listings/new/smart-wizard.tsx', import.meta.url), 'utf8')
+const realtorPlanMigration = await readFile(new URL('../supabase/migrations/20261126170000_verified_realtor_partner_tariffs.sql', import.meta.url), 'utf8')
 
 test('Telegram listing import is private and webhook-authenticated', () => {
   assert.match(webhook, /TELEGRAM_WEBHOOK_SECRET/)
@@ -66,4 +71,28 @@ test('Telegram album messages are grouped and deduplicated', () => {
 test('import drafts do not become listings until a separate authorized conversion step', () => {
   assert.match(migration, /status in \('processing','awaiting_authorization','awaiting_payment_choice','awaiting_realtor_review','authorized'/)
   assert.doesNotMatch(importer, /\.from\('listings'\)\.(insert|upsert|update)/)
+})
+
+
+test('realtor partner application requires a private qualification document and admin review', () => {
+  assert.match(realtorApplicationApi, /certificate_document/)
+  assert.match(realtorApplicationApi, /partner-verification-documents/)
+  assert.match(realtorApplicationPage, /certificateFile/)
+  assert.match(realtorAdminApi, /certificate_document_path/)
+  assert.match(realtorAdminApi, /createSignedUrl/)
+  assert.match(realtorAdminApi, /Tasdiqlashdan oldin malaka sertifikati/)
+})
+
+test('fourth individual listing offers one-time purchase or verified realtor application', () => {
+  assert.match(listingWizard, /product=extra_listing/)
+  assert.match(listingWizard, /realtors\/cabinet\?mode=register/)
+  assert.match(listingWizard, /3 ta bepul e’lon limiti tugadi/)
+})
+
+test('verified realtors retain three free listings and can buy existing partner subscriptions', () => {
+  assert.match(realtorPlanMigration, /free_limit integer := 3/)
+  assert.match(realtorPlanMigration, /mp\.audience='partner'/)
+  assert.match(realtorPlanMigration, /partner_start','partner_pro','partner_business/)
+  assert.match(realtorPlanMigration, /is_verified_realtor/)
+  assert.match(realtorPlanMigration, /create or replace function public.create_monetization_order/)
 })
