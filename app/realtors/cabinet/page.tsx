@@ -27,6 +27,7 @@ export default function RealtorCabinetPage() {
   const [serviceAreas, setServiceAreas] = useState('')
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('mode') === 'register') setMode('register')
     let active = true
     // A long-lived partner account session is not enough to bypass SMS.
     // Only a one-time signed handoff created by the main account's realtor
