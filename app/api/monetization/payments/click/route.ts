@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
       : crypto.randomUUID()
     if (!orderId) return NextResponse.json({ error: 'ORDER_REQUIRED' }, { status: 400 })
 
+    if (process.env.CLICK_ENABLED !== 'true') return NextResponse.json({ error: 'CLICK_DISABLED' }, { status: 503 })
+
     const serviceId = process.env.CLICK_SERVICE_ID
     const merchantId = process.env.CLICK_MERCHANT_ID
     if (!serviceId || !merchantId) {

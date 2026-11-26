@@ -30,17 +30,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!isCustomer && !isPartner) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 })
 
     const payload = (booking.provider_payload || {}) as Record<string, any>
-    const payme = (payload.payme || {}) as Record<string, any>
-    const paid = booking.payment_status === 'paid' && booking.status === 'confirmed' && booking.payment_provider === 'payme' && Boolean(booking.provider_payment_id) && Number.isFinite(Number(payme.amount)) && Number(payme.amount) > 0 && Boolean(booking.paid_at)
+    const providerPayload = (payload[booking.payment_provider] || {}) as Record<string, any>
+    const paid = booking.payment_status === 'paid' && booking.status === 'confirmed' && ['payme','click'].includes(booking.payment_provider) && Boolean(booking.provider_payment_id) && Boolean(booking.paid_at) && (booking.payment_provider === 'payme' ? Number(providerPayload.amount) > 0 : Number(booking.deposit_amount) > 0)
     const receipt = paid ? {
       bookingNumber: booking.id.slice(0, 8).toUpperCase(),
       bookingId: booking.id,
-      amount: Number(payme.amount) / 100,
+      amount: booking.payment_provider === 'payme' ? Number(providerPayload.amount) / 100 : Number(booking.deposit_amount),
       currency: booking.currency,
       paidAt: booking.paid_at,
       transactionId: booking.provider_payment_id,
       status: 'paid',
-      provider: 'Payme',
+      provider: booking.payment_provider === 'click' ? 'Click' : 'Payme',
     } : null
     return NextResponse.json({
       booking: {
