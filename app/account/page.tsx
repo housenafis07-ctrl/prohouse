@@ -294,6 +294,7 @@ export default function AccountPage() {
     { href: '/account', icon: '⌂', uz: 'Kabinet', ru: 'Кабинет' },
     { href: '/listings/new', icon: '+', uz: 'E’lon joylashtirish', ru: 'Разместить объявление' },
     { href: '/account/listings', icon: '▣', uz: 'Mening e’lonlarim', ru: 'Мои объявления' },
+    { href: '/account/listing-imports', icon: '✦', uz: 'AI import qoralamalari', ru: 'AI-черновики объявлений' },
     { href: '/account/bookings', icon: '✓', uz: 'Mening bronlarim', ru: 'Мои бронирования' },
     { href: '/account/viewings', icon: '◷', uz: 'Ko‘rish so‘rovlari', ru: 'Запросы на просмотр' },
     { href: '/account/mortgage', icon: '⌂', uz: 'Ipoteka arizalarim', ru: 'Ипотечные заявки' },
