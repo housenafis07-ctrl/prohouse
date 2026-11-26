@@ -107,8 +107,8 @@ begin
   end if;
 
   select phone into v_profile_phone from public.profiles where id = p_user_id;
-  v_profile_phone := regexp_replace(coalesce(v_profile_phone, ''), '\\D', '', 'g');
-  v_owner_phone := regexp_replace(coalesce(v_consent.owner_phone, ''), '\\D', '', 'g');
+  v_profile_phone := regexp_replace(coalesce(v_profile_phone, ''), '\D', '', 'g');
+  v_owner_phone := regexp_replace(coalesce(v_consent.owner_phone, ''), '\D', '', 'g');
   if v_profile_phone = '' or v_profile_phone <> v_owner_phone then
     return query select 'PHONE_MISMATCH'::text, v_consent.import_id; return;
   end if;
@@ -117,7 +117,7 @@ begin
   where id = v_consent.import_id
   for update;
   if not found or v_import.authorization_status <> 'pending'
-     or regexp_replace(coalesce(v_import.owner_phone, ''), '\\D', '', 'g') <> v_owner_phone then
+     or regexp_replace(coalesce(v_import.owner_phone, ''), '\D', '', 'g') <> v_owner_phone then
     return query select 'IMPORT_CHANGED'::text, v_consent.import_id; return;
   end if;
 
