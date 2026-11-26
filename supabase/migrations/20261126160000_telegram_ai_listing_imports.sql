@@ -73,3 +73,67 @@ set public = false,
     file_size_limit = 12582912,
     allowed_mime_types = array['image/jpeg','image/png','image/webp','application/pdf']
 where id = 'telegram-listing-imports';
+
+
+-- Atomically consume the one-time owner consent and verify the authenticated phone.
+create or replace function public.consume_telegram_listing_import_consent(
+  p_token_hash text,
+  p_user_id uuid
+)
+returns table(status text, import_id uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_consent public.telegram_listing_import_consents%rowtype;
+  v_import public.telegram_listing_imports%rowtype;
+  v_profile_phone text;
+  v_owner_phone text;
+begin
+  select * into v_consent
+  from public.telegram_listing_import_consents
+  where token_hash = p_token_hash
+  for update;
+
+  if not found then
+    return query select 'NOT_FOUND'::text, null::uuid; return;
+  end if;
+  if v_consent.consumed_at is not null then
+    return query select 'ALREADY_USED'::text, v_consent.import_id; return;
+  end if;
+  if v_consent.expires_at <= now() then
+    return query select 'EXPIRED'::text, v_consent.import_id; return;
+  end if;
+
+  select phone into v_profile_phone from public.profiles where id = p_user_id;
+  v_profile_phone := regexp_replace(coalesce(v_profile_phone, ''), '\\D', '', 'g');
+  v_owner_phone := regexp_replace(coalesce(v_consent.owner_phone, ''), '\\D', '', 'g');
+  if v_profile_phone = '' or v_profile_phone <> v_owner_phone then
+    return query select 'PHONE_MISMATCH'::text, v_consent.import_id; return;
+  end if;
+
+  select * into v_import from public.telegram_listing_imports
+  where id = v_consent.import_id
+  for update;
+  if not found or v_import.authorization_status <> 'pending'
+     or regexp_replace(coalesce(v_import.owner_phone, ''), '\\D', '', 'g') <> v_owner_phone then
+    return query select 'IMPORT_CHANGED'::text, v_consent.import_id; return;
+  end if;
+
+  update public.telegram_listing_import_consents set consumed_at = now() where id = v_consent.id;
+  update public.telegram_listing_imports
+  set authorization_status = 'verified',
+      authorization_method = 'owner_sms_otp',
+      authorized_at = now(),
+      authorized_by = p_user_id,
+      status = 'ready_for_moderation',
+      updated_at = now()
+  where id = v_import.id;
+
+  return query select 'VERIFIED'::text, v_import.id;
+end;
+$$;
+
+revoke all on function public.consume_telegram_listing_import_consent(text, uuid) from public, anon, authenticated;
+grant execute on function public.consume_telegram_listing_import_consent(text, uuid) to service_role;
