@@ -13,7 +13,7 @@ create table if not exists public.telegram_listing_imports (
   source_media jsonb not null default '[]'::jsonb,
   ai_extracted jsonb not null default '{}'::jsonb,
   status text not null default 'awaiting_authorization'
-    check (status in ('processing','awaiting_authorization','awaiting_payment_choice','awaiting_realtor_review','ready_for_moderation','rejected','failed')),
+    check (status in ('processing','awaiting_authorization','awaiting_payment_choice','awaiting_realtor_review','authorized','ready_for_moderation','rejected','failed')),
   authorization_status text not null default 'pending'
     check (authorization_status in ('pending','verified','rejected')),
   authorization_method text
