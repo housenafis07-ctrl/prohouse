@@ -35,29 +35,20 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   const token = typeof body?.token === 'string' ? body.token : ''
   if (!/^[A-Za-z0-9_-]{40,60}$/.test(token)) return NextResponse.json({ error: 'CONSENT_LINK_INVALID' }, { status: 400 })
+
   const db = serviceClient()
-  const [{ data: profile, error: profileError }, { data: consent, error: consentError }] = await Promise.all([
-    db.from('profiles').select('id,phone,full_name').eq('id', userId).maybeSingle(),
-    db.from('telegram_listing_import_consents').select('id,import_id,owner_phone,expires_at,consumed_at')
-      .eq('token_hash', tokenHash(token)).maybeSingle(),
-  ])
-  if (profileError || consentError) return NextResponse.json({ error: profileError?.message || consentError?.message }, { status: 500 })
-  if (!profile?.phone || !consent || consent.consumed_at || new Date(consent.expires_at).getTime() <= Date.now()) {
-    return NextResponse.json({ error: 'CONSENT_LINK_EXPIRED_OR_USED' }, { status: 410 })
-  }
-  if (normalizePhone(profile.phone) !== normalizePhone(consent.owner_phone)) {
-    return NextResponse.json({ error: 'OWNER_PHONE_MISMATCH', message: 'SMS OTP orqali kirgan akkaunt telefon raqami mulk egasi sifatida ko‘rsatilgan raqamga mos emas.' }, { status: 403 })
-  }
-  const now = new Date().toISOString()
-  const { data: consumed, error: consumeError } = await db.from('telegram_listing_import_consents')
-    .update({ consumed_at: now }).eq('id', consent.id).is('consumed_at', null).gt('expires_at', now).select('id').maybeSingle()
-  if (consumeError) return NextResponse.json({ error: consumeError.message }, { status: 500 })
-  if (!consumed) return NextResponse.json({ error: 'CONSENT_LINK_ALREADY_USED' }, { status: 409 })
-  const { error: updateError } = await db.from('telegram_listing_imports').update({
-    authorization_status: 'verified', authorization_method: 'owner_sms_otp',
-    authorized_at: now, authorized_by: userId, status: 'ready_for_moderation',
-    updated_at: now,
-  }).eq('id', consent.import_id).eq('authorization_status', 'pending')
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+  const hash = tokenHash(token)
+  const { data, error } = await db.rpc('consume_telegram_listing_import_consent', {
+    p_token_hash: hash,
+    p_user_id: userId,
+  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const result = Array.isArray(data) ? data[0] : data
+  const status = result?.status
+  if (status === 'PHONE_MISMATCH') return NextResponse.json({ error: 'OWNER_PHONE_MISMATCH', message: 'SMS OTP orqali kirgan akkaunt telefon raqami mulk egasi sifatida ko‘rsatilgan raqamga mos emas.' }, { status: 403 })
+  if (status === 'EXPIRED') return NextResponse.json({ error: 'CONSENT_LINK_EXPIRED' }, { status: 410 })
+  if (status === 'ALREADY_USED') return NextResponse.json({ error: 'CONSENT_LINK_ALREADY_USED' }, { status: 409 })
+  if (status === 'IMPORT_CHANGED') return NextResponse.json({ error: 'IMPORT_AUTHORIZATION_CHANGED' }, { status: 409 })
+  if (status !== 'VERIFIED') return NextResponse.json({ error: 'CONSENT_LINK_INVALID' }, { status: 404 })
   return NextResponse.json({ ok: true, message: 'Mulk egasi roziligi SMS OTP orqali tasdiqlandi. E’lon keyingi bosqichda moderatsiyaga tayyorlanadi.' })
 }
