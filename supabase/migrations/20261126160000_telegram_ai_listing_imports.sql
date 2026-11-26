@@ -128,7 +128,7 @@ begin
       authorization_method = 'owner_sms_otp',
       authorized_at = now(),
       authorized_by = p_user_id,
-      status = 'ready_for_moderation',
+      status = 'authorized',
       updated_at = now()
   where id = v_import.id;
 
