@@ -174,7 +174,14 @@ export async function handleTelegramListingImport(args: {
   await sendMessage(chatId, '⏳ E’lon matni va rasmlarini AI tahlil qilmoqda. Hozircha e’lon faqat maxfiy qoralama sifatida saqlanadi.')
   try {
     const extracted = await extractListing(sourceText, images)
-    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number }> = []\n    for (const item of images) {\n      const path = `${telegramUserId}/${message.message_id}/${crypto.randomUUID()}`\n      const { error: uploadError } = await admin.storage.from('telegram-listing-imports').upload(path, item.bytes, { contentType: item.contentType, upsert: false })\n      if (uploadError) throw uploadError\n      storedMedia.push({ path, content_type: item.contentType, size_bytes: item.size })\n    }\n    const { data: link } = await admin.from('telegram_user_links').select('profile_id')
+    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number }> = []
+    for (const item of images) {
+      const path = `${telegramUserId}/${message.message_id}/${crypto.randomUUID()}`
+      const { error: uploadError } = await admin.storage.from('telegram-listing-imports').upload(path, item.bytes, { contentType: item.contentType, upsert: false })
+      if (uploadError) throw uploadError
+      storedMedia.push({ path, content_type: item.contentType, size_bytes: item.size })
+    }
+    const { data: link } = await admin.from('telegram_user_links').select('profile_id')
       .eq('telegram_user_id', telegramUserId).maybeSingle()
     const { error: insertError } = await admin.from('telegram_listing_imports').insert({
       telegram_user_id: telegramUserId,
@@ -201,7 +208,7 @@ export async function handleTelegramListingImport(args: {
       `\nIshonchlilik: ${extracted.confidence === 'high' ? 'yuqori' : extracted.confidence === 'medium' ? 'o‘rta' : 'past'}`,
       `Yetishmayotgan ma’lumotlar: ${extracted.missing_fields.length ? extracted.missing_fields.join(', ') : 'aniqlanmadi'}`,
     ].filter(Boolean)
-    await sendMessage(chatId, `${details.join('\n')}\n\n🔒 Bu hali e’lon emas — maxfiy AI qoralamasi. Mulk egasi yoki qonuniy vakilning roziligi tasdiqlanmaguncha e’lon hech kim nomidan yuborilmaydi.\n\nQoralama: ${SITE_URL}/account/listings/imports`)
+    await sendMessage(chatId, `${details.join('\n')}\n\n🔒 Bu hali e’lon emas — maxfiy AI qoralamasi. Mulk egasi yoki qonuniy vakilning roziligi tasdiqlanmaguncha e’lon hech kim nomidan yuborilmaydi.\n\nKeyingi bosqichda mulk egasi yoki qonuniy vakil roziligi tekshiriladi. Hozircha ommaviy e’lon yaratilmagan.`)
   } catch (error) {
     console.error('[telegram-listing-import] failed', error)
     await sendMessage(chatId, 'AI tahlilida xatolik yuz berdi. E’lonni qayta forward qiling yoki keyinroq urinib ko‘ring.')
