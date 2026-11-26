@@ -1,0 +1,45 @@
+-- Private intake queue for Telegram AI listing imports.
+-- Imported third-party content must never enter public listings before authority is verified.
+create table if not exists public.telegram_listing_imports (
+  id uuid primary key default gen_random_uuid(),
+  telegram_user_id text not null,
+  source_chat_id text not null,
+  source_message_id bigint not null,
+  media_group_id text,
+  submitter_profile_id uuid references public.profiles(id) on delete set null,
+  source_forward_origin jsonb not null default '{}'::jsonb,
+  source_text text not null default '',
+  source_media jsonb not null default '[]'::jsonb,
+  ai_extracted jsonb not null default '{}'::jsonb,
+  status text not null default 'awaiting_authorization'
+    check (status in ('processing','awaiting_authorization','awaiting_payment_choice','awaiting_realtor_review','ready_for_moderation','rejected','failed')),
+  authorization_status text not null default 'pending'
+    check (authorization_status in ('pending','verified','rejected')),
+  authorization_method text
+    check (authorization_method is null or authorization_method in ('owner_sms_otp','owner_consent_link','power_of_attorney_review','admin_review')),
+  owner_full_name text,
+  owner_phone text,
+  authorization_document_path text,
+  authorized_at timestamptz,
+  authorized_by uuid references public.profiles(id) on delete set null,
+  listing_id uuid references public.listings(id) on delete set null,
+  last_error_code text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (telegram_user_id, source_chat_id, source_message_id)
+);
+
+create index if not exists telegram_listing_imports_submitter_created_idx
+  on public.telegram_listing_imports (submitter_profile_id, created_at desc);
+create index if not exists telegram_listing_imports_status_created_idx
+  on public.telegram_listing_imports (status, created_at desc);
+create index if not exists telegram_listing_imports_media_group_idx
+  on public.telegram_listing_imports (telegram_user_id, source_chat_id, media_group_id)
+  where media_group_id is not null;
+
+alter table public.telegram_listing_imports enable row level security;
+revoke all on table public.telegram_listing_imports from public, anon, authenticated;
+grant all on table public.telegram_listing_imports to service_role;
+
+comment on table public.telegram_listing_imports is
+  'Private staging queue for AI-parsed Telegram listings. Never public; requires verified owner/representative authority before conversion into listings.';
