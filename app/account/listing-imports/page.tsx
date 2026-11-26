@@ -44,7 +44,7 @@ export default function ListingImportsPage() {
     catch(e){setError(e instanceof Error?e.message:'Xatolik')}finally{setBusy('')}
   }
   const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);setMessage('Havola nusxalandi.')}catch{setMessage(value)}}
-  const stateLabel=(row:ImportRow)=>row.status==='ready_for_moderation'?'Moderatsiyaga yuborilgan':row.authorization_status==='verified'?'Vakolat tasdiqlangan':row.authorization_document_path?'Admin tekshiruvida':'Rozilik kutilmoqda'
+  const stateLabel=(row:ImportRow)=>row.status==='ready_for_moderation'?'Moderatsiyaga yuborilgan':row.authorization_status==='rejected'?'Vakolat rad etildi':row.authorization_status==='verified'?'Vakolat tasdiqlangan':row.authorization_document_path?'Admin tekshiruvida':'Rozilik kutilmoqda'
   return <main className="min-h-screen bg-slate-50 text-slate-900">
     <header className="border-b bg-white"><div className="mx-auto max-w-5xl px-4 py-5"><Link href="/account" className="text-sm font-bold text-emerald-700">← Shaxsiy kabinet</Link><h1 className="mt-3 text-2xl font-black sm:text-3xl">Telegram AI import qoralamalari</h1><p className="mt-2 text-sm text-slate-500">Mulk egasi roziligi yoki vakillik hujjatini tasdiqlash uchun yuboring. Tasdiqlanmaguncha e’lon joylashtirilmaydi.</p></div></header>
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-7">
