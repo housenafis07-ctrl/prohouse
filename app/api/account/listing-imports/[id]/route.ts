@@ -34,6 +34,7 @@ export async function GET(_request: Request, context: Context) {
       id: item.id,
       aiExtracted: item.ai_extracted || {},
       authorizationMethod: item.authorization_method,
+      submitterIsOwner: item.authorized_by === item.submitter_profile_id,
       ownerName: item.owner_full_name,
       ownerPhone: item.owner_phone,
       images: images.filter(Boolean),
