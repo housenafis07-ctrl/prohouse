@@ -73,6 +73,8 @@ export default function SmartListingWizard(){
  const [otp,setOtp]=useState('')
  const [verified,setVerified]=useState(false)
  const [listingId,setListingId]=useState<string|null>(null)
+ const [importId,setImportId]=useState<string|null>(null)
+ const [pendingImportReview,setPendingImportReview]=useState(false)
  const [videoStatus,setVideoStatus]=useState<VideoState>('idle')
  const [success,setSuccess]=useState('')
  const [videoError,setVideoError]=useState('')
@@ -103,6 +105,7 @@ export default function SmartListingWizard(){
  const current=questions[question]||'section'
  const currentAttribute=current.startsWith('attr:')?categoryAttributes.find(x=>x.code===current.slice(5))||null:null
  const progress=Math.round(((question+1)/questions.length)*100)
+ useEffect(()=>{if(!pendingImportReview||!selected)return;const reviewIndex=questions.indexOf('review');if(reviewIndex>=0){setQuestion(reviewIndex);setPendingImportReview(false)}},[pendingImportReview,selected,questions])
  const setAnswer=(key:keyof Answer,value:any)=>setAnswers(x=>({...x,[key]:value}))
  const setAttribute=(code:string,value:string)=>setAnswers(x=>({...x,attributes:{...x.attributes,[code]:value}}))
  const restricted=(c:Category)=>!allowedCategories.has(c.code)
@@ -336,6 +339,10 @@ export default function SmartListingWizard(){
   try{
    const response=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,step:7,data:payload(),status:'moderation'})})
    const data=await response.json();if(!response.ok)throw new Error(data.message||data.error||'E’lon moderatsiyaga yuborilmadi.')
+   if(importId){
+    const linked=await fetch('/api/account/listing-imports/'+encodeURIComponent(importId),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({listingId:data.listing.id})})
+    if(!linked.ok){const linkError=await linked.json().catch(()=>({}));console.error('[telegram-import] listing submitted but import link update failed',linkError)}
+   }
    setSuccess('E’lon moderatsiyaga yuborildi: '+(data.listing.listing_code||data.listing.id))
    setTimeout(()=>router.push('/account/listings'),1000)
   }catch(e){
@@ -359,12 +366,70 @@ export default function SmartListingWizard(){
     setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual'})
     setAnswers(current=>({...current,phone:profile.phone,fullName:profile.full_name||''}))
    }
-   setCategories(list);setAttributes(attrs);setAllowedCategories(new Set((meta.allowedCategoryCodes||[]) as string[]))
+   const allowedCodes=new Set((meta.allowedCategoryCodes||[]) as string[])
+   setCategories(list);setAttributes(attrs);setAllowedCategories(allowedCodes)
    const requested=params.get('taxonomy')
    if(requested){const found=list.find(x=>x.code===requested);if(found){setSelected(found);setSelectedSection(found.section_code);setQuestion(2)}}
+   const requestedImport=params.get('importId')
+   if(requestedImport){
+    const importResponse=await fetch('/api/account/listing-imports/'+encodeURIComponent(requestedImport),{cache:'no-store',credentials:'same-origin'})
+    const importData=await importResponse.json().catch(()=>({}))
+    if(importResponse.status===401){router.replace('/account/login?next='+encodeURIComponent('/listings/new?importId='+requestedImport));return}
+    if(!importResponse.ok||!importData.import)throw new Error(importData.message||importData.error||'AI qoralama topilmadi yoki vakolat tasdiqlanmagan.')
+    const imported=importData.import
+    const x=imported.aiExtracted||{}
+    const listingType=String(x.listing_type||'sale')
+    const propertyType=String(x.property_type||'unknown')
+    const categoryCode=listingType==='sale'
+      ? ({apartment:'sale_apartment',house:'sale_house',land:'sale_land',commercial:'sale_commercial',new_building:'sale_new_building',dacha:'sale_dacha'} as Record<string,string>)[propertyType]
+      : listingType==='daily'
+        ? (propertyType==='house'||propertyType==='dacha'?'rent_dacha':'rent_daily')
+        : ({apartment:'rent_long_term',house:'rent_dacha',commercial:'rent_commercial',dacha:'rent_dacha'} as Record<string,string>)[propertyType]
+    const found=categoryCode?list.find(item=>item.code===categoryCode):undefined
+    if(found){
+      setSelectedSection(found.section_code)
+      if(allowedCodes.has(found.code)){setSelected(found);setPendingImportReview(true)}
+      else{setRestrictedSelection(found);setQuestion(1)}
+    }else{
+      setSelectedSection(listingType==='sale'?'sale':'rent')
+      setQuestion(1)
+      setError('AI e’lon turini to‘liq aniqlay olmadi. Davom etishdan oldin e’lon kategoriyasini tanlang.')
+    }
+    const extractedAttributes:Record<string,string>={...answers.attributes}
+    if(x.rooms!=null)extractedAttributes.rooms=String(x.rooms)
+    if(x.area_m2!=null)extractedAttributes.area_m2=String(x.area_m2)
+    if(x.floor!=null)extractedAttributes.floor=String(x.floor)
+    if(x.floors_total!=null)extractedAttributes.floors_total=String(x.floors_total)
+    if(x.land_area!=null)extractedAttributes.land_area=String(x.land_area)
+    setAnswers(current=>({
+      ...current,
+      city:x.city||current.city,
+      district:x.district||current.district,
+      address:x.address||current.address,
+      title:x.title||current.title,
+      description:x.description||current.description,
+      price:x.price!=null&&['USD','UZS'].includes(x.currency)?String(x.price):current.price,
+      currency:x.currency==='USD'?'USD':'UZS',
+      attributes:{...current.attributes,...extractedAttributes},
+      ownership_type:imported.authorizationMethod==='owner_sms_otp'?'owner':'power_of_attorney',
+      mortgage:'false',
+    }))
+    const imageItems=await Promise.all((imported.images||[]).slice(0,10).map(async(image:any,index:number)=>{
+      const imageResponse=await fetch(image.url,{cache:'no-store'})
+      if(!imageResponse.ok)throw new Error('Import rasmini yuklab bo‘lmadi.')
+      const blob=await imageResponse.blob()
+      const mime=image.contentType||blob.type||'image/jpeg'
+      const extension=mime==='image/png'?'png':mime==='image/webp'?'webp':'jpg'
+      const file=new File([blob],`telegram-import-${index+1}.${extension}`,{type:mime})
+      return {file,preview:URL.createObjectURL(file)}
+    }))
+    if(!live){imageItems.forEach(item=>URL.revokeObjectURL(item.preview));return}
+    setImportId(requestedImport)
+    setImages(imageItems)
+   }
   }catch(e){if(live)setError(e instanceof Error?e.message:'E’lon turlarini yuklashda xatolik.')}
   finally{if(live)setLoading(false)}
- })();return()=>{live=false}},[db,params])
+ })();return()=>{live=false}},[db,params,router])
  useEffect(()=>{imagesRef.current=images},[images])
  useEffect(()=>()=>imagesRef.current.forEach(x=>URL.revokeObjectURL(x.preview)),[])
 
