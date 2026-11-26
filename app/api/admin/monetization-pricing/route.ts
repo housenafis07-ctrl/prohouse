@@ -10,19 +10,29 @@ export async function GET() {
 
   try {
     const db = serviceClient()
-    const [{ data: products, error: productsError }, { data: history, error: historyError }] = await Promise.all([
-      db.from('monetization_products')
-        .select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,audience,unit,quantity,active,updated_at')
-        .order('product_type', { ascending: true })
-        .order('price_uzs', { ascending: true }),
-      db.from('monetization_price_audit')
-        .select('id,product_code,admin_user_id,old_price_uzs,new_price_uzs,old_duration_days,new_duration_days,old_active,new_active,created_at')
-        .order('created_at', { ascending: false })
-        .limit(30),
-    ])
+    // Load the live catalog independently from the optional audit table.
+    // This keeps existing tariffs visible before the additive audit migration is applied.
+    const { data: products, error: productsError } = await db.from('monetization_products')
+      .select('code,name,name_ru,description,description_ru,price_uzs,duration_days,product_type,audience,unit,quantity,active,updated_at')
+      .order('product_type', { ascending: true })
+      .order('price_uzs', { ascending: true })
     if (productsError) throw productsError
-    if (historyError) throw historyError
-    return NextResponse.json({ products: products ?? [], history: history ?? [] })
+
+    const { data: history, error: historyError } = await db.from('monetization_price_audit')
+      .select('id,product_code,admin_user_id,old_price_uzs,new_price_uzs,old_duration_days,new_duration_days,old_active,new_active,created_at')
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    const auditReady = !historyError
+    const auditMissing = historyError?.code === '42P01' || historyError?.code === 'PGRST205'
+    if (historyError && !auditMissing) throw historyError
+
+    return NextResponse.json({
+      products: products ?? [],
+      history: history ?? [],
+      auditReady,
+      auditMessage: auditReady ? null : 'Tariflar yuklandi. Narxlarni saqlash uchun audit migratsiyasini qo‘llash kerak.',
+    })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Tariflar yuklanmadi' }, { status: 500 })
   }
