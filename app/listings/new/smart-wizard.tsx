@@ -338,7 +338,11 @@ export default function SmartListingWizard(){
   setBusy(true);setError('');setLimitReached(false)
   try{
    const response=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,step:7,data:payload(),status:'moderation'})})
-   const data=await response.json();if(!response.ok)throw new Error(data.message||data.error||'E’lon moderatsiyaga yuborilmadi.')
+   const data=await response.json()
+   if(!response.ok){
+    if(data.error==='LISTING_LIMIT_REACHED'){setLimitReached(true);setError('');return}
+    throw new Error(data.message||data.error||'E’lon moderatsiyaga yuborilmadi.')
+   }
    if(importId){
     const linked=await fetch('/api/account/listing-imports/'+encodeURIComponent(importId),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({listingId:data.listing.id})})
     if(!linked.ok){const linkError=await linked.json().catch(()=>({}));console.error('[telegram-import] listing submitted but import link update failed',linkError)}
