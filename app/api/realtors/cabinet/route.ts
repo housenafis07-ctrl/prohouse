@@ -146,7 +146,7 @@ export async function POST(request: Request) {
 
   const db = serviceClient()
   const { data: existing, error: lookupError } = await db.from('realtor_profiles')
-    .select('id,verification_status').eq('user_id', userId).maybeSingle()
+    .select('id,verification_status,certificate_document_path').eq('user_id', userId).maybeSingle()
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
   if (existing?.verification_status === 'verified') {
     return NextResponse.json({
