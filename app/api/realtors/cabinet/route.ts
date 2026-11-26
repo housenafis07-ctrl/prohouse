@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     const db = serviceClient()
     const [{ data: profile }, { data: realtor }] = await Promise.all([
       db.from('profiles').select('phone').eq('id', userId).maybeSingle(),
-      db.from('realtor_profiles').select('id,verification_status').eq('user_id', userId).maybeSingle(),
+      db.from('realtor_profiles').select('id,verification_status,certificate_document_path').eq('user_id', userId).maybeSingle(),
     ])
     const authorizedResponse = NextResponse.json({
       authorized: true,
@@ -148,10 +148,10 @@ export async function POST(request: Request) {
   const { data: existing, error: lookupError } = await db.from('realtor_profiles')
     .select('id,verification_status').eq('user_id', userId).maybeSingle()
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
-  if (existing) {
+  if (existing?.verification_status === 'verified') {
     return NextResponse.json({
       error: 'REALTOR_PROFILE_EXISTS',
-      message: 'Bu akkaunt uchun rieltor profili allaqachon mavjud.',
+      message: 'Bu akkaunt uchun rieltor profili allaqachon tasdiqlangan.',
       verificationStatus: existing.verification_status,
     }, { status: 409 })
   }
@@ -162,26 +162,30 @@ export async function POST(request: Request) {
   })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
 
-  const { data, error } = await db.from('realtor_profiles').insert({
-    user_id: userId,
+  const applicationFields = {
     display_name: displayName,
     phone: '+' + phone,
     certificate_number: certificate,
     certificate_document_path: documentPath,
     experience_years: experience,
     verification_status: 'pending',
-    rating: 0,
-    reviews_count: 0,
+    verification_rejection_reason: null,
+    rating: existing ? undefined : 0,
+    reviews_count: existing ? undefined : 0,
     agency_id: null,
     agency_name: agencyName || null,
     service_areas: serviceAreas,
     bio: 'Royalhouse rieltorlik kabineti orqali yuborilgan ariza.',
-  }).select('id,verification_status').single()
+  }
+  const { data, error } = existing
+    ? await db.from('realtor_profiles').update(applicationFields).eq('id', existing.id).select('id,verification_status').single()
+    : await db.from('realtor_profiles').insert({ user_id: userId, ...applicationFields }).select('id,verification_status').single()
 
   if (error) {
     await db.storage.from('partner-verification-documents').remove([documentPath])
     if (error.code === '23505') return NextResponse.json({ error: 'REALTOR_PROFILE_EXISTS', message: 'Bu akkaunt uchun ariza avval yuborilgan.' }, { status: 409 })
     return NextResponse.json({ error: 'REALTOR_APPLICATION_FAILED', message: error.message, code: error.code || null }, { status: 400 })
   }
-  return NextResponse.json({ ok: true, realtor: data }, { status: 201 })
+  if (existing?.certificate_document_path) await db.storage.from('partner-verification-documents').remove([existing.certificate_document_path])
+  return NextResponse.json({ ok: true, realtor: data, updated: Boolean(existing) }, { status: existing ? 200 : 201 })
 }
