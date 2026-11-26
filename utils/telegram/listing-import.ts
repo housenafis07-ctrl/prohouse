@@ -212,14 +212,12 @@ export async function handleTelegramListingImport(args: {
       owner_phone: extracted.owner_phone || null,
       updated_at: new Date().toISOString(),
     }
-    let savedId = existing?.id
     if (existing) {
       const { error: updateError } = await admin.from('telegram_listing_imports').update(payload).eq('id', existing.id)
       if (updateError) throw updateError
     } else {
       const { data: inserted, error: insertError } = await admin.from('telegram_listing_imports').insert(payload).select('id').single()
       if (insertError) throw insertError
-      savedId = inserted.id
     }
     const details = [
       `🏠 ${extracted.title || 'Sarlavha aniqlanmadi'}`,
