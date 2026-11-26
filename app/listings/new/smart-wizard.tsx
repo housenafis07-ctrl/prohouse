@@ -411,7 +411,7 @@ export default function SmartListingWizard(){
       price:x.price!=null&&['USD','UZS'].includes(x.currency)?String(x.price):current.price,
       currency:x.currency==='USD'?'USD':'UZS',
       attributes:{...current.attributes,...extractedAttributes},
-      ownership_type:imported.authorizationMethod==='owner_sms_otp'?'owner':'power_of_attorney',
+      ownership_type:imported.authorizationMethod==='owner_sms_otp'?(imported.submitterIsOwner?'owner':'representative'):'power_of_attorney',
       mortgage:'false',
     }))
     const imageItems=await Promise.all((imported.images||[]).slice(0,10).map(async(image:any,index:number)=>{
