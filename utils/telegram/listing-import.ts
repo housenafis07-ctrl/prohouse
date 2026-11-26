@@ -149,56 +149,78 @@ export async function handleTelegramListingImport(args: {
   if (!isForwarded(message)) return false
   const admin = serviceClient()
   const sourceChatId = String(chatId)
-  const { data: existing, error: existingError } = await admin.from('telegram_listing_imports')
-    .select('id,status,ai_extracted')
-    .eq('telegram_user_id', telegramUserId)
-    .eq('source_chat_id', sourceChatId)
-    .eq('source_message_id', message.message_id)
-    .maybeSingle()
-  if (existingError) throw existingError
-  if (existing) {
-    await sendMessage(chatId, 'Bu Telegram e’loni avval qabul qilingan. Vakolat tekshiruvi yakunlanmaguncha u saytda joylashtirilmaydi.')
-    return true
-  }
-
-  const sourceText = [message.text, message.caption].filter(Boolean).join('\n').slice(0, 7000)
-  const photo = message.photo?.slice().sort((a, b) => (b.file_size || 0) - (a.file_size || 0)).at(0)
-  const document = message.document
-  const mediaFileId = photo?.file_id || (document?.mime_type?.startsWith('image/') ? document.file_id : undefined)
-  const images = mediaFileId ? [await downloadTelegramImage(mediaFileId)] : []
-  if (!sourceText && !images.length) {
-    await sendMessage(chatId, 'AI tahlili uchun matn yoki rasmli e’lonni forward qiling.')
-    return true
-  }
-
-  await sendMessage(chatId, '⏳ E’lon matni va rasmlarini AI tahlil qilmoqda. Hozircha e’lon faqat maxfiy qoralama sifatida saqlanadi.')
   try {
-    const extracted = await extractListing(sourceText, images)
-    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number }> = []
-    for (const item of images) {
-      const path = `${telegramUserId}/${message.message_id}/${crypto.randomUUID()}`
-      const { error: uploadError } = await admin.storage.from('telegram-listing-imports').upload(path, item.bytes, { contentType: item.contentType, upsert: false })
-      if (uploadError) throw uploadError
-      storedMedia.push({ path, content_type: item.contentType, size_bytes: item.size })
+    let lookup = admin.from('telegram_listing_imports')
+      .select('id,status,ai_extracted,source_text,source_media,source_message_ids,source_message_id')
+      .eq('telegram_user_id', telegramUserId)
+      .eq('source_chat_id', sourceChatId)
+    if (message.media_group_id) lookup = lookup.eq('media_group_id', message.media_group_id)
+    else lookup = lookup.eq('source_message_id', message.message_id)
+    const { data: existing, error: existingError } = await lookup.maybeSingle()
+    if (existingError) throw existingError
+    const seenIds = Array.isArray(existing?.source_message_ids) ? existing.source_message_ids.map(Number) : [Number(existing?.source_message_id)]
+    if (existing && seenIds.includes(message.message_id)) {
+      await sendMessage(chatId, 'Bu Telegram xabari avval qabul qilingan. Qoralama maxfiy saqlanadi.')
+      return true
     }
+
+    const sourceTextPart = [message.text, message.caption].filter(Boolean).join('\n').slice(0, 7000)
+    const photo = message.photo?.slice().sort((a, b) => (b.file_size || 0) - (a.file_size || 0)).at(0)
+    const document = message.document
+    const mediaFileId = photo?.file_id || (document?.mime_type?.startsWith('image/') ? document.file_id : undefined)
+    const currentImage = mediaFileId ? await downloadTelegramImage(mediaFileId) : null
+    if (!sourceTextPart && !currentImage && !existing) {
+      await sendMessage(chatId, 'AI tahlili uchun matn yoki rasmli e’lonni forward qiling.')
+      return true
+    }
+
+    await sendMessage(chatId, '⏳ E’lon matni va rasmlarini AI tahlil qilmoqda. Hozircha e’lon faqat maxfiy qoralama sifatida saqlanadi.')
+    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number }> = Array.isArray(existing?.source_media) ? [...existing.source_media] : []
+    if (currentImage) {
+      const path = `${telegramUserId}/${message.media_group_id || message.message_id}/${message.message_id}-${crypto.randomUUID()}`
+      const { error: uploadError } = await admin.storage.from('telegram-listing-imports').upload(path, currentImage.bytes, { contentType: currentImage.contentType, upsert: false })
+      if (uploadError) throw uploadError
+      storedMedia.push({ path, content_type: currentImage.contentType, size_bytes: currentImage.size })
+    }
+
+    const imageInputs: Array<{ dataUrl: string }> = []
+    for (const stored of storedMedia.slice(-10)) {
+      const { data: blob, error: downloadError } = await admin.storage.from('telegram-listing-imports').download(stored.path)
+      if (downloadError || !blob) throw downloadError || new Error('IMPORT_IMAGE_READ_FAILED')
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      imageInputs.push({ dataUrl: `data:${stored.content_type};base64,${Buffer.from(bytes).toString('base64')}` })
+    }
+    const combinedText = [existing?.source_text, sourceTextPart].filter(Boolean).join('\n').slice(0, 7000)
+    const extracted = await extractListing(combinedText, imageInputs)
     const { data: link } = await admin.from('telegram_user_links').select('profile_id')
       .eq('telegram_user_id', telegramUserId).maybeSingle()
-    const { error: insertError } = await admin.from('telegram_listing_imports').insert({
+    const messageIds = [...new Set([...seenIds.filter(Number.isFinite), message.message_id])]
+    const payload = {
       telegram_user_id: telegramUserId,
       source_chat_id: sourceChatId,
-      source_message_id: message.message_id,
+      source_message_id: existing?.source_message_id || message.message_id,
+      source_message_ids: messageIds,
       media_group_id: message.media_group_id || null,
       submitter_profile_id: link?.profile_id || null,
-      source_forward_origin: forwardOrigin(message),
-      source_text: sourceText,
+      source_forward_origin: existing?.source_forward_origin || forwardOrigin(message),
+      source_text: combinedText,
       source_media: storedMedia,
       ai_extracted: extracted,
       status: 'awaiting_authorization',
       authorization_status: 'pending',
       owner_full_name: extracted.owner_full_name || null,
       owner_phone: extracted.owner_phone || null,
-    })
-    if (insertError) throw insertError
+      updated_at: new Date().toISOString(),
+    }
+    let savedId = existing?.id
+    if (existing) {
+      const { error: updateError } = await admin.from('telegram_listing_imports').update(payload).eq('id', existing.id)
+      if (updateError) throw updateError
+    } else {
+      const { data: inserted, error: insertError } = await admin.from('telegram_listing_imports').insert(payload).select('id').single()
+      if (insertError) throw insertError
+      savedId = inserted.id
+    }
     const details = [
       `🏠 ${extracted.title || 'Sarlavha aniqlanmadi'}`,
       extracted.price != null ? `💰 ${new Intl.NumberFormat('uz-UZ').format(extracted.price)} ${extracted.currency}` : '💰 Narx aniqlanmadi',
@@ -208,7 +230,7 @@ export async function handleTelegramListingImport(args: {
       `\nIshonchlilik: ${extracted.confidence === 'high' ? 'yuqori' : extracted.confidence === 'medium' ? 'o‘rta' : 'past'}`,
       `Yetishmayotgan ma’lumotlar: ${extracted.missing_fields.length ? extracted.missing_fields.join(', ') : 'aniqlanmadi'}`,
     ].filter(Boolean)
-    await sendMessage(chatId, `${details.join('\n')}\n\n🔒 Bu hali e’lon emas — maxfiy AI qoralamasi. Mulk egasi yoki qonuniy vakilning roziligi tasdiqlanmaguncha e’lon hech kim nomidan yuborilmaydi.\n\nKeyingi bosqichda mulk egasi yoki qonuniy vakil roziligi tekshiriladi. Hozircha ommaviy e’lon yaratilmagan.`)
+    await sendMessage(chatId, `${details.join('\n')}\n\n🔒 Bu hali e’lon emas — maxfiy AI qoralamasi. Mulk egasi yoki qonuniy vakil roziligi tasdiqlanmaguncha e’lon hech kim nomidan yuborilmaydi.\n\nQoralamani shaxsiy kabinetda ko‘ring: ${SITE_URL}/account/listing-imports`)
   } catch (error) {
     console.error('[telegram-listing-import] failed', error)
     await sendMessage(chatId, 'AI tahlilida xatolik yuz berdi. E’lonni qayta forward qiling yoki keyinroq urinib ko‘ring.')
