@@ -18,6 +18,7 @@ const realtorAdminApi = await readFile(new URL('../app/api/admin/realtors/route.
 const realtorApplicationPage = await readFile(new URL('../app/realtors/cabinet/page.tsx', import.meta.url), 'utf8')
 const listingWizard = await readFile(new URL('../app/listings/new/smart-wizard.tsx', import.meta.url), 'utf8')
 const realtorPlanMigration = await readFile(new URL('../supabase/migrations/20261126170000_verified_realtor_partner_tariffs.sql', import.meta.url), 'utf8')
+const monetizationPage = await readFile(new URL('../app/account/monetization/page.tsx', import.meta.url), 'utf8')
 
 test('Telegram listing import is private and webhook-authenticated', () => {
   assert.match(webhook, /TELEGRAM_WEBHOOK_SECRET/)
@@ -127,4 +128,10 @@ test('source contact data is never silently treated as verified owner identity',
 test('structured listing limit response opens the two-path quota choice', () => {
   assert.match(listingWizard, /data\.error==='LISTING_LIMIT_REACHED'/)
   assert.match(listingWizard, /setLimitReached\(true\)/)
+})
+
+test('partner subscriptions are shown only to partner accounts or verified realtors', () => {
+  assert.match(monetizationPage, /isVerifiedRealtor/)
+  assert.match(monetizationPage, /accountType==='partner'\|\|isVerifiedRealtor/)
+  assert.match(monetizationPage, /plans=useMemo/)
 })
