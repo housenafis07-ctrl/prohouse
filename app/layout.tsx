@@ -20,6 +20,7 @@ import RoyalhouseFooterFix from "./components/RoyalhouseFooterFix";
 import RoyalhouseContactFooter from "./components/RoyalhouseContactFooter";
 import AuthLanguageFix from "./components/AuthLanguageFix";
 import RoyalhousePartnersLinkFix from "./components/RoyalhousePartnersLinkFix";
+import RegisterPartnerDefaultFix from "./components/RegisterPartnerDefaultFix";
 import TaxCalculatorServiceFix from "./components/TaxCalculatorServiceFix";
 import RoyalhouseMobileHomeRedesign from "./components/RoyalhouseMobileHomeRedesign";
 import RoyalhouseMobileHomePolish from "./components/RoyalhouseMobileHomePolish";
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <LanguageRuntimeFix />
           <AuthLanguageFix />
           <RoyalhousePartnersLinkFix />
+          <RegisterPartnerDefaultFix />
           <GlobalNavigationGate />
           <RentalNavigationFix />
           <PurchaseNavigationFix />
