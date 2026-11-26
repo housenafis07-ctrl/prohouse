@@ -15,7 +15,7 @@ export async function GET(_request: Request, context: Context) {
   const { id } = await context.params
   const db = serviceClient()
   const { data: item, error } = await db.from('telegram_listing_imports')
-    .select('id,submitter_profile_id,ai_extracted,source_media,authorization_status,authorization_method,status,owner_full_name,owner_phone,created_at')
+    .select('id,submitter_profile_id,authorized_by,ai_extracted,source_media,authorization_status,authorization_method,status,owner_full_name,owner_phone,created_at')
     .eq('id', id).eq('submitter_profile_id', userId).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!item) return NextResponse.json({ error: 'IMPORT_NOT_FOUND' }, { status: 404 })
