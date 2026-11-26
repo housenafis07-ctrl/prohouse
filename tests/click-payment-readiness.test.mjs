@@ -38,7 +38,7 @@ test('booking receipt supports both payment providers without changing Payme amo
 })
 
 test('Click settlement is transactional and service-role only', () => {
-  const source = read('../supabase/migrations/20261126150000_click_rental_payment_hardening.sql')
+  const source = read('../supabase/migrations/20261126102000_click_rental_payment_hardening.sql')
   assert.match(source, /complete_click_monetization_payment/)
   assert.match(source, /complete_click_rental_payment/)
   assert.match(source, /activate_monetization_order/)
