@@ -65,14 +65,17 @@ export async function GET(request: Request) {
   }
 
   let partnerType: string | null = 'owner'
-  let accountProfile: { user_id: string; phone: string | null; full_name: string | null; account_type: string | null; partner_type: string | null } | null = null
+  let accountProfile: { user_id: string; phone: string | null; full_name: string | null; account_type: string | null; partner_type: string | null; is_verified_realtor: boolean } | null = null
   if (userId) {
     const { data: profile } = await admin
       .from('profiles')
       .select('phone,full_name,account_type,partner_type')
       .eq('id', userId)
       .maybeSingle()
-    if (profile) accountProfile = { user_id: userId, phone: profile.phone, full_name: profile.full_name, account_type: profile.account_type, partner_type: profile.partner_type }
+    if (profile) {
+      const { data: realtorProfile } = await admin.from('realtor_profiles').select('verification_status').eq('user_id', userId).maybeSingle()
+      accountProfile = { user_id: userId, phone: profile.phone, full_name: profile.full_name, account_type: profile.account_type, partner_type: profile.partner_type, is_verified_realtor: realtorProfile?.verification_status === 'verified' }
+    }
 
     if (profile?.account_type === 'individual') {
       partnerType = 'owner'
