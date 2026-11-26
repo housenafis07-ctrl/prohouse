@@ -150,6 +150,13 @@ export async function handleTelegramListingImport(args: {
   const admin = serviceClient()
   const sourceChatId = String(chatId)
   try {
+    const { data: accountLink, error: linkError } = await admin.from('telegram_user_links')
+      .select('profile_id').eq('telegram_user_id', telegramUserId).maybeSingle()
+    if (linkError) throw linkError
+    if (!accountLink?.profile_id) {
+      await sendMessage(chatId, `AI orqali e’lon qoralamasini saqlash uchun avval RoyalHouse akkauntingizni Telegram bilan ulang. Saytga kiring: ${SITE_URL}/account — “Telegramni ulash” bo‘limidan botni bog‘lang, so‘ng e’lonni qayta forward qiling.`)
+      return true
+    }
     let lookup = admin.from('telegram_listing_imports')
       .select('id,status,ai_extracted,source_text,source_media,source_message_ids,source_message_id,source_forward_origin')
       .eq('telegram_user_id', telegramUserId)
@@ -192,8 +199,6 @@ export async function handleTelegramListingImport(args: {
     }
     const combinedText = [existing?.source_text, sourceTextPart].filter(Boolean).join('\n').slice(0, 7000)
     const extracted = await extractListing(combinedText, imageInputs)
-    const { data: link } = await admin.from('telegram_user_links').select('profile_id')
-      .eq('telegram_user_id', telegramUserId).maybeSingle()
     const messageIds = [...new Set([...seenIds.filter(Number.isFinite), message.message_id])]
     const payload = {
       telegram_user_id: telegramUserId,
@@ -201,7 +206,7 @@ export async function handleTelegramListingImport(args: {
       source_message_id: existing?.source_message_id || message.message_id,
       source_message_ids: messageIds,
       media_group_id: message.media_group_id || null,
-      submitter_profile_id: link?.profile_id || null,
+      submitter_profile_id: accountLink.profile_id,
       source_forward_origin: existing?.source_forward_origin || forwardOrigin(message),
       source_text: combinedText,
       source_media: storedMedia,
