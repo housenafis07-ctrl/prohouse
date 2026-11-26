@@ -9,9 +9,8 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('listings')
-    .select('id,title,title_ru,price,city,district,status,listing_images(image_url,sort_order)')
+    .select('id,title,title_ru,price,city,district,status,primary_image_url,listing_images(image_url,sort_order)')
     .eq('owner_id', user.id)
-    .in('status', ['active', 'moderation'])
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -30,7 +29,8 @@ export async function GET() {
       city: listing.city,
       district: listing.district,
       status: listing.status,
-      image_url: primary?.image_url ?? null,
+      image_url: primary?.image_url ?? listing.primary_image_url ?? null,
+      is_promotable: ['active', 'moderation'].includes(listing.status),
     }
   })
 
