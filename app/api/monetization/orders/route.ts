@@ -29,9 +29,22 @@ export async function POST(request: NextRequest) {
     if (productError) return NextResponse.json({ error: productError.message }, { status: 500 })
     if (!product) return NextResponse.json({ error: 'PRODUCT_NOT_AVAILABLE' }, { status: 400 })
 
-    const listingRequired = ['top', 'up', 'highlight', 'premium'].includes(product.product_type || '')
+    const listingRequired = ['top', 'up', 'bump', 'highlight', 'premium'].includes(product.product_type || '')
     if (listingRequired && !listingId) {
       return NextResponse.json({ error: 'LISTING_REQUIRED' }, { status: 400 })
+    }
+    if (listingRequired && listingId) {
+      const { data: listing, error: listingError } = await supabase
+        .from('listings')
+        .select('id,status')
+        .eq('id', listingId)
+        .eq('owner_id', user.id)
+        .maybeSingle()
+      if (listingError) return NextResponse.json({ error: 'LISTING_CHECK_FAILED' }, { status: 500 })
+      if (!listing) return NextResponse.json({ error: 'LISTING_NOT_OWNED' }, { status: 400 })
+      if (!['active', 'moderation'].includes(listing.status)) {
+        return NextResponse.json({ error: 'LISTING_NOT_PROMOTABLE' }, { status: 400 })
+      }
     }
 
     const { data: orderId, error: orderError } = await supabase.rpc('create_monetization_order', {
