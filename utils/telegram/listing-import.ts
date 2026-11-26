@@ -151,7 +151,7 @@ export async function handleTelegramListingImport(args: {
   const sourceChatId = String(chatId)
   try {
     let lookup = admin.from('telegram_listing_imports')
-      .select('id,status,ai_extracted,source_text,source_media,source_message_ids,source_message_id')
+      .select('id,status,ai_extracted,source_text,source_media,source_message_ids,source_message_id,source_forward_origin')
       .eq('telegram_user_id', telegramUserId)
       .eq('source_chat_id', sourceChatId)
     if (message.media_group_id) lookup = lookup.eq('media_group_id', message.media_group_id)
