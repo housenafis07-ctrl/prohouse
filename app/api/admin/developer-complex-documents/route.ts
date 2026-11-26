@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, serviceClient } from '@/utils/admin/auth'
 
 export async function GET() {
-  const { admin, error } = await requireAdmin()
+  const { admin, error } = await requireAdmin('developer_documents.moderate')
   if (error || !admin) return NextResponse.json({ error: error || 'Unauthorized' }, { status: error === 'Forbidden' ? 403 : 401 })
   const db = serviceClient()
   const { data, error: queryError } = await db.from('developer_complex_documents')
@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const { admin, error } = await requireAdmin()
+  const { admin, error } = await requireAdmin('developer_documents.moderate')
   if (error || !admin) return NextResponse.json({ error: error || 'Unauthorized' }, { status: error === 'Forbidden' ? 403 : 401 })
   const body = await request.json().catch(() => null)
   const id = typeof body?.documentId === 'string' ? body.documentId : ''

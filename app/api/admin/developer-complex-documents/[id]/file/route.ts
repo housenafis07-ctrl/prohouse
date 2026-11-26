@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin, serviceClient } from '@/utils/admin/auth'
 export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}) {
- const {admin,error}=await requireAdmin()
+ const {admin,error}=await requireAdmin('developer_documents.moderate')
  if(error||!admin)return NextResponse.json({error:error||'Unauthorized'},{status:error==='Forbidden'?403:401})
  const {id}=await params
  const db=serviceClient()
