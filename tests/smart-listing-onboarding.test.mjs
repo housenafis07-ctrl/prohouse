@@ -220,3 +220,34 @@ test('Google Play test OTP is not exposed in browser messages or environment exa
   assert.match(authEnvExample, /GOOGLE_PLAY_TEST_PHONE=/)
   assert.match(authEnvExample, /GOOGLE_PLAY_TEST_OTP=/)
 })
+
+
+const serviceWizard = await readFile(new URL('../app/listings/new/service/wizard-v2.tsx', import.meta.url), 'utf8')
+const serviceNavigation = await readFile(new URL('../app/components/GlobalNavigationFix.tsx', import.meta.url), 'utf8')
+const buildHome = await readFile(new URL('../app/uy-qurish/page.tsx', import.meta.url), 'utf8')
+
+test('listing wizard exposes services and construction service routes without mixing property categories', () => {
+  assert.match(smartWizard, /services:'Xizmatlar'/)
+  assert.match(smartWizard, /build_house:'Uy qurish xizmatlari'/)
+  assert.match(smartWizard, /router\.push\('\/listings\/new\/service'\)/)
+  assert.match(smartWizard, /taxonomy=services_construction&source=build_house/)
+})
+
+test('service wizard preselects a requested service category from its URL', () => {
+  assert.doesNotMatch(serviceWizard, /useSearchParams/)
+  assert.match(serviceWizard, /new URLSearchParams\(window\.location\.search\)\.get\('taxonomy'\)/)
+  assert.match(serviceWizard, /setSelectedCode\(requestedCategory\.code\)/)
+  assert.match(serviceWizard, /setForm\(current => \(\{ \.\.\.current, taxonomy_code: requestedCategory\.code \}\)\)/)
+})
+
+test('services modal provides a direct service-ad publishing action while preserving browse links', () => {
+  assert.match(serviceNavigation, /publishServiceLink\.href = '\/listings\/new\/service'/)
+  assert.match(serviceNavigation, /Xizmat e’lonini joylashtirish/)
+  assert.match(serviceNavigation, /\/listings\?tab=all&taxonomy=/)
+})
+
+test('home construction page links contractors to the construction service listing wizard', () => {
+  assert.match(buildHome, /publishService: 'Qurilish xizmatini e’lon qilish'/)
+  assert.match(buildHome, /href="\/listings\/new\/service\?taxonomy=services_construction&source=build_house"/)
+  assert.match(buildHome, /href="#projects"/)
+})

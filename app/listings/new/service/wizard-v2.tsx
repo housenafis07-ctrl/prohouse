@@ -69,6 +69,12 @@ export default function ServiceListingWizardV2() {
         if (!active) return
         setCategories(serviceCategories)
         setPartnerType(d.partnerType || null)
+        const requestedTaxonomy = new URLSearchParams(window.location.search).get('taxonomy')
+        const requestedCategory = requestedTaxonomy ? serviceCategories.find((category: Category) => category.code === requestedTaxonomy) : null
+        if (requestedCategory) {
+          setSelectedCode(requestedCategory.code)
+          setForm(current => ({ ...current, taxonomy_code: requestedCategory.code }))
+        }
         if (!serviceCategories.length) throw new Error(t('Hozircha xizmat yo‘nalishlari topilmadi.', 'Сейчас нет доступных направлений услуг.'))
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : t('Yuklashda xatolik', 'Ошибка загрузки'))
