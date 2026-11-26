@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 type ConsentInfo={ownerName:string|null;phoneHint:string;listing:{title:string;city:string;district:string;price:number|null;currency:string}}
-export default function ListingImportConsentPage(){
+function ConsentContent(){
  const params=useSearchParams(),token=params.get('token')||''
  const [info,setInfo]=useState<ConsentInfo|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('')
  useEffect(()=>{let active=true;(async()=>{try{const r=await fetch('/api/listing-import-consent?token='+encodeURIComponent(token),{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'Rozilik havolasi yaroqsiz');if(active)setInfo(d)}catch(e){if(active)setError(e instanceof Error?e.message:'Havola tekshirilmadi')}finally{if(active)setLoading(false)}})();return()=>{active=false}},[token])
@@ -17,4 +17,8 @@ export default function ListingImportConsentPage(){
  {error&&<p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}{success&&<p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{success}</p>}
  <p className="mt-5 text-xs text-slate-400">Rozilik tokeni bir martalik va 72 soat amal qiladi.</p>
  </section></main>
+}
+
+export default function ListingImportConsentPage(){
+ return <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Havola yuklanmoqda...</main>}><ConsentContent /></Suspense>
 }
