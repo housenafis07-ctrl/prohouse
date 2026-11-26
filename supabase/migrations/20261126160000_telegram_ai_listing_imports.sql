@@ -6,6 +6,7 @@ create table if not exists public.telegram_listing_imports (
   source_chat_id text not null,
   source_message_id bigint not null,
   media_group_id text,
+  source_message_ids bigint[] not null default '{}'::bigint[],
   submitter_profile_id uuid references public.profiles(id) on delete set null,
   source_forward_origin jsonb not null default '{}'::jsonb,
   source_text text not null default '',
@@ -33,7 +34,7 @@ create index if not exists telegram_listing_imports_submitter_created_idx
   on public.telegram_listing_imports (submitter_profile_id, created_at desc);
 create index if not exists telegram_listing_imports_status_created_idx
   on public.telegram_listing_imports (status, created_at desc);
-create index if not exists telegram_listing_imports_media_group_idx
+create unique index if not exists telegram_listing_imports_media_group_uidx
   on public.telegram_listing_imports (telegram_user_id, source_chat_id, media_group_id)
   where media_group_id is not null;
 
