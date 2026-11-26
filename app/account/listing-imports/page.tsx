@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 
 type ImportRow = {
   id: string
+  listing_id: string | null
   ai_extracted: Record<string, any>
   status: string
   authorization_status: string
@@ -43,7 +44,7 @@ export default function ListingImportsPage() {
     catch(e){setError(e instanceof Error?e.message:'Xatolik')}finally{setBusy('')}
   }
   const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);setMessage('Havola nusxalandi.')}catch{setMessage(value)}}
-  const stateLabel=(row:ImportRow)=>row.authorization_status==='verified'?'Vakolat tasdiqlangan':row.authorization_document_path?'Admin tekshiruvida':'Rozilik kutilmoqda'
+  const stateLabel=(row:ImportRow)=>row.status==='ready_for_moderation'?'Moderatsiyaga yuborilgan':row.authorization_status==='verified'?'Vakolat tasdiqlangan':row.authorization_document_path?'Admin tekshiruvida':'Rozilik kutilmoqda'
   return <main className="min-h-screen bg-slate-50 text-slate-900">
     <header className="border-b bg-white"><div className="mx-auto max-w-5xl px-4 py-5"><Link href="/account" className="text-sm font-bold text-emerald-700">← Shaxsiy kabinet</Link><h1 className="mt-3 text-2xl font-black sm:text-3xl">Telegram AI import qoralamalari</h1><p className="mt-2 text-sm text-slate-500">Mulk egasi roziligi yoki vakillik hujjatini tasdiqlash uchun yuboring. Tasdiqlanmaguncha e’lon joylashtirilmaydi.</p></div></header>
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-7">
@@ -62,7 +63,7 @@ export default function ListingImportsPage() {
             <section className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4"><h3 className="font-black">1. Mulk egasining SMS roziligi</h3><p className="mt-1 text-xs text-slate-600">Havolani egasiga yuboring. U o‘z telefon raqami bilan SMS OTP orqali kirib, roziligini tasdiqlaydi.</p><button disabled={busy===row.id} onClick={()=>void requestConsent(row.id)} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">{busy===row.id?'Tayyorlanmoqda...':'Rozilik havolasini yaratish'}</button>{consentUrl[row.id]&&<div className="mt-3 break-all rounded-lg bg-white p-2 text-xs">{consentUrl[row.id]}<button onClick={()=>void copy(consentUrl[row.id])} className="mt-2 block font-bold text-emerald-700">Havolani nusxalash</button></div>}</section>
             <section className="rounded-xl border bg-slate-50 p-4"><h3 className="font-black">2. Vakillik hujjati</h3><p className="mt-1 text-xs text-slate-600">Ishonchnoma yoki mulk egasining yozma roziligini yuklang. Admin tekshiradi.</p><input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setDocuments(v=>({...v,[row.id]:e.target.files?.[0]||null}))} className="mt-3 block w-full text-xs"/><button disabled={busy===row.id} onClick={()=>void submitDocument(row.id)} className="mt-3 w-full rounded-xl border bg-white px-4 py-3 text-sm font-bold disabled:opacity-50">{busy===row.id?'Yuborilmoqda...':'Hujjatni admin tekshiruviga yuborish'}</button></section>
           </div>}
-          {row.authorization_status==='verified'&&<div className="mt-4 rounded-xl bg-emerald-50 p-4"><p className="text-sm font-bold text-emerald-800">Vakolat tasdiqlandi. Endi e’lon ma’lumotlarini tekshirib, tahrirlashingiz va moderatsiyaga yuborishingiz mumkin.</p><Link href={`/listings/new?importId=${encodeURIComponent(row.id)}`} className="mt-3 inline-flex rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">E’lonni tekshirish va davom ettirish →</Link></div>}
+          {row.authorization_status==='verified'&&row.status==='authorized'&&!row.listing_id&&<div className="mt-4 rounded-xl bg-emerald-50 p-4"><p className="text-sm font-bold text-emerald-800">Vakolat tasdiqlandi. Endi e’lon ma’lumotlarini tekshirib, tahrirlashingiz va moderatsiyaga yuborishingiz mumkin.</p><Link href={`/listings/new?importId=${encodeURIComponent(row.id)}`} className="mt-3 inline-flex rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">E’lonni tekshirish va davom ettirish →</Link></div>}
         </article>
       })}
     </div>
