@@ -115,7 +115,7 @@ test('listing quota exhaustion offers one-time listing purchase or realtor verif
   assert.match(wizard, /LISTING_LIMIT_REACHED/i)
   assert.match(wizard, /Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi/)
   assert.match(wizard, /product=extra_listing/)
-  assert.match(wizard, /realtors\\/cabinet\\?mode=register/)
+  assert.match(wizard, /realtors\/cabinet\?mode=register/)
   assert.match(wizard, /Bitta qo‘shimcha e’lonni xarid qilish/)
   assert.match(wizard, /Hamkor tariflarini ko‘rish/)
 })
