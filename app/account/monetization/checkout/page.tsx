@@ -68,8 +68,6 @@ export default function MonetizationCheckoutPage() {
   const [success, setSuccess] = useState('')
   const [walletBalances, setWalletBalances] = useState({ balance: 0, bonus_balance: 0 })
   const [usingBonus, setUsingBonus] = useState(false)
-  const [pendingCheckoutUrl, setPendingCheckoutUrl] = useState('')
-  const [pendingCheckoutProvider, setPendingCheckoutProvider] = useState<'click' | 'payme' | null>(null)
 
   const money = (value: number | null | undefined) => `${new Intl.NumberFormat(lang === 'ru' ? 'ru-RU' : 'uz-UZ').format(Number(value || 0))} ${t('sum')}`
 
@@ -225,26 +223,18 @@ export default function MonetizationCheckoutPage() {
       const data = await response.json()
       if (!response.ok || !data.checkoutUrl) throw new Error(data?.error || t('paymentNotReady'))
       if (provider === 'payme') {
-        setPendingCheckoutUrl(data.checkoutUrl)
-        setPendingCheckoutProvider('payme')
-        setPaying(null)
-        return
+        const telegramWebApp = (window as Window & { Telegram?: { WebApp?: { openLink?: (url: string) => void } } }).Telegram?.WebApp
+        if (typeof telegramWebApp?.openLink === 'function') {
+          telegramWebApp.openLink(data.checkoutUrl)
+          return
+        }
       }
-      window.location.href = data.checkoutUrl
+      // Open hosted checkout immediately after provider selection; no second click.
+      window.location.assign(data.checkoutUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('paymentNotReady'))
       setPaying(null)
     }
-  }
-
-  const openPendingCheckout = () => {
-    if (!pendingCheckoutUrl || !pendingCheckoutProvider) return
-    const telegramWebApp = (window as Window & { Telegram?: { WebApp?: { openLink?: (url: string) => void } } }).Telegram?.WebApp
-    if (pendingCheckoutProvider === 'payme' && typeof telegramWebApp?.openLink === 'function') {
-      telegramWebApp.openLink(pendingCheckoutUrl)
-      return
-    }
-    window.location.assign(pendingCheckoutUrl)
   }
 
   if (loading) return <main className="min-h-screen bg-slate-50 p-8 text-center">{t('loading')}</main>
@@ -291,7 +281,6 @@ export default function MonetizationCheckoutPage() {
             {product && <div className="mt-5 border-t border-white/10 pt-5"><div className="flex items-end justify-between"><span className="text-sm text-slate-400">{t('total')}</span><b className="text-2xl">{money(product.price_uzs)}</b></div>{success && <div className="mt-4 rounded-xl bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">{success}</div>}{!success && !order && <><button type="button" disabled={submitting || !listingId || !selectedListing?.is_promotable} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{submitting ? t('creatingOrder') : t('createOrder')}</button>{needsListing && walletBalances.bonus_balance > 0 && walletBalances.balance + walletBalances.bonus_balance >= Number(product.price_uzs) && <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4"><p className="text-sm font-bold text-emerald-100">{lang === 'ru' ? 'Бонусный баланс: ' : 'Bonus balansi: '}{money(walletBalances.bonus_balance)}</p><p className="mt-1 text-xs leading-5 text-slate-300">{lang === 'ru' ? 'Бонус сначала списывается на продвижение; остаток при необходимости списывается с основного счёта.' : 'Avval bonus balansi ishlatiladi, yetmagan qismi bo‘lsa asosiy balansdan yechiladi.'}</p><button type="button" disabled={usingBonus || !listingId || !selectedListing?.is_promotable} onClick={() => void buyWithPromotionBonus()} className="mt-3 w-full rounded-xl bg-white px-4 py-3 text-sm font-black text-emerald-800 disabled:opacity-50">{usingBonus ? (lang === 'ru' ? 'Оплата…' : 'To‘lanmoqda…') : (lang === 'ru' ? 'Оплатить бонусом' : 'Bonus bilan to‘lash')}</button></div>}</>}{success && <Link href="/account/listings" className="mt-4 block rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-white">{lang === 'ru' ? 'Вернуться к объявлениям' : 'E’lonlarimga qaytish'}</Link>}</div>}
 
             {order && <div className="mt-5 rounded-3xl bg-white p-4 text-slate-950"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">{clickEnabled && <button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center font-black">Click</div><ClickLogo /></button>}<button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-emerald-400 disabled:opacity-60"><div className="text-center font-black">Payme</div><PaymeLogo /></button></div></div>}
-            {pendingCheckoutUrl && <button type="button" onClick={openPendingCheckout} className="mt-3 w-full rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">{lang === 'ru' ? 'Открыть страницу оплаты Payme' : 'Payme to‘lov sahifasini ochish'}</button>}
             {error && <div className="mt-4 rounded-2xl bg-red-500/10 p-3 text-sm font-semibold text-red-200">{error}</div>}
           </aside>
         </section> : (
