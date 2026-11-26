@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     if (productError) return NextResponse.json({ error: productError.message }, { status: 500 })
     if (!product) return NextResponse.json({ error: 'PRODUCT_NOT_AVAILABLE' }, { status: 400 })
 
-    const listingRequired = ['top', 'up', 'highlight', 'premium'].includes(product.product_type || '')
+    const listingRequired = ['top', 'up', 'bump', 'highlight', 'premium'].includes(product.product_type || '')
     if (listingRequired && !listingId) {
       return NextResponse.json({ error: 'LISTING_REQUIRED' }, { status: 400 })
     }
