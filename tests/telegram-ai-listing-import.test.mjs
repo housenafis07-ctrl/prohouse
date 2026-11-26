@@ -89,7 +89,7 @@ test('realtor partner application requires a private qualification document and 
 test('fourth individual listing offers one-time purchase or verified realtor application', () => {
   assert.match(listingWizard, /product=extra_listing/)
   assert.match(listingWizard, /realtors\/cabinet\?mode=register/)
-  assert.match(listingWizard, /3 ta bepul e’lon limiti tugadi/)
+  assert.match(listingWizard, /Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi/)
 })
 
 test('verified realtors retain three free listings and can buy existing partner subscriptions', () => {
