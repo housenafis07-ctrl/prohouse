@@ -17,6 +17,7 @@ export async function POST(request:NextRequest){
   const body=await request.json();const listingId=String(body.listingId||'');const checkIn=String(body.checkIn||'');const checkOut=String(body.checkOut||'');const guests=Math.max(1,Number(body.guests||1))
   if(!listingId||!/^(?:\d{4})-\d{2}-\d{2}$/.test(checkIn)||!/^(?:\d{4})-\d{2}-\d{2}$/.test(checkOut)||checkOut<=checkIn)return NextResponse.json({error:'Sanalar noto‘g‘ri tanlangan'},{status:400})
   const requestedProvider=String(body.paymentProvider||'payme').toLowerCase();const paymentProvider=requestedProvider==='click'?'click':'payme'
+  if(paymentProvider==='click'&&process.env.CLICK_ENABLED!=='true')return NextResponse.json({error:'CLICK_DISABLED: Click to‘lovlari hali faollashtirilmagan.'},{status:503})
   const paymeMerchantId=process.env.PAYME_MERCHANT_ID?.trim();const clickServiceId=process.env.CLICK_SERVICE_ID?.trim();const clickMerchantId=process.env.CLICK_MERCHANT_ID?.trim()
   if(paymentProvider==='payme'&&(!paymeMerchantId||!process.env.PAYME_MERCHANT_KEY?.trim()))return NextResponse.json({error:'PAYMENT_NOT_CONFIGURED: Payme to‘lov sozlamalari to‘liq emas. Bron yaratilmadi.'},{status:503})
   if(paymentProvider==='click'&&(!clickServiceId||!clickMerchantId||!process.env.CLICK_SECRET_KEY?.trim()))return NextResponse.json({error:'CLICK_NOT_CONFIGURED: Click merchant sozlamalari to‘liq emas. Bron yaratilmadi.'},{status:503})
