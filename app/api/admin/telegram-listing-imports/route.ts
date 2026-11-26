@@ -42,7 +42,7 @@ export async function PATCH(request: NextRequest) {
     authorization_method: 'admin_review',
     authorized_at: approved ? now : null,
     authorized_by: approved ? admin.user.id : null,
-    status: approved ? 'ready_for_moderation' : 'rejected',
+    status: approved ? 'authorized' : 'rejected',
     last_error_code: approved ? null : (note || 'AUTHORIZATION_REJECTED'),
     updated_at: now,
   }).eq('id', id).select('id,authorization_status,status').single()
