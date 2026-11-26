@@ -9,9 +9,13 @@ test('Click callback validates signatures and dispatches monetization and rental
   assert.match(source, /signatureBase/)
   assert.match(source, /timingSafeEqual/)
   assert.match(source, /complete_click_monetization_payment/)
-  assert.match(source, /CLICK_ENABLED !== 'true'/)
   assert.match(source, /complete_click_rental_payment/)
   assert.match(source, /allocate_click_prepare_id/)
+})
+
+test('Click checkout API stays disabled until merchant activation is explicitly enabled', () => {
+  const source = read('../app/api/monetization/payments/click/route.ts')
+  assert.match(source, /CLICK_ENABLED !== 'true'/)
 })
 
 test('rental booking keeps Payme as default and supports Click hosted checkout', () => {
