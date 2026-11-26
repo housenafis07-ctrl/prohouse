@@ -31,7 +31,7 @@ type History = {
   new_active: boolean
   created_at: string
 }
-type Payload = { products: Product[]; history: History[] }
+type Payload = { products: Product[]; history: History[]; auditReady?: boolean; auditMessage?: string | null }
 type Draft = { priceUzs: string; durationDays: string; active: boolean }
 
 const money = (value: number | string) => new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(Number(value) || 0) + ' so‘m'
@@ -40,7 +40,7 @@ export default function MonetizationPricingPage() {
   const { lang, setLang } = useI18n()
   const ru = lang === 'ru'
   const t = (uz: string, ruText: string) => ru ? ruText : uz
-  const [data, setData] = useState<Payload>({ products: [], history: [] })
+  const [data, setData] = useState<Payload>({ products: [], history: [], auditReady: false })
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -139,6 +139,8 @@ export default function MonetizationPricingPage() {
       </div>
 
       {error && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {data.products.length > 0 && data.auditReady === false && !loading && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{t('Mavjud tariflar ko‘rsatilmoqda. Narxlarni o‘zgartirish hozircha bloklangan: audit migratsiyasi hali Production bazasiga qo‘llanmagan. Migratsiya tasdiqlangach, saqlash imkoniyati avtomatik ochiladi.', 'Текущие тарифы отображаются. Изменение цен пока заблокировано: миграция аудита ещё не применена к Production. После её утверждения сохранение станет доступно.')}</div>}
+
       {notice && <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
       {loading && <div className="mt-6 rounded-2xl bg-white p-8 text-center text-sm text-slate-500">Yuklanmoqda…</div>}
 
@@ -158,7 +160,7 @@ export default function MonetizationPricingPage() {
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={draft.active} onChange={e => change(product.code, { active: e.target.checked })} className="h-4 w-4 accent-emerald-600" />{t('Tarifni faollashtirish', 'Активировать тариф')}</label>
-                <button onClick={() => void save(product)} disabled={saving === product.code} className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50">{saving === product.code ? t('Saqlanmoqda…', 'Сохранение…') : t('Saqlash', 'Сохранить')}</button>
+                <button onClick={() => void save(product)} disabled={saving === product.code || data.auditReady === false} className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50">{saving === product.code ? t('Saqlanmoqda…', 'Сохранение…') : t('Saqlash', 'Сохранить')}</button>
               </div>
             </article>
           })}
