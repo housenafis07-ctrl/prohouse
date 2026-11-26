@@ -138,3 +138,13 @@ $$;
 
 revoke all on function public.consume_telegram_listing_import_consent(text, uuid) from public, anon, authenticated;
 grant execute on function public.consume_telegram_listing_import_consent(text, uuid) to service_role;
+
+
+-- Realtor partner applications must include an actual qualification document, not only a typed certificate number.
+alter table public.realtor_profiles
+  add column if not exists certificate_document_path text;
+
+insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
+values ('partner-verification-documents','partner-verification-documents',false,12582912,array['application/pdf','image/jpeg','image/png','image/webp'])
+on conflict (id) do update
+set public=false,file_size_limit=12582912,allowed_mime_types=excluded.allowed_mime_types;
