@@ -123,3 +123,8 @@ test('source contact data is never silently treated as verified owner identity',
   assert.match(importer, /owner_phone: null/)
   assert.match(importDetailApi, /submitterIsOwner/)
 })
+
+test('structured listing limit response opens the two-path quota choice', () => {
+  assert.match(listingWizard, /data\.error==='LISTING_LIMIT_REACHED'/)
+  assert.match(listingWizard, /setLimitReached\(true\)/)
+})
