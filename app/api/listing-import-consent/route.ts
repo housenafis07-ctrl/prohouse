@@ -4,7 +4,6 @@ import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
 import { ACCOUNT_SESSION_COOKIE, readAccountSession } from '@/utils/auth/account-session'
 
-const normalizePhone = (value: unknown) => String(value || '').replace(/\D/g, '').replace(/^998/, '998')
 const tokenHash = (value: string) => createHash('sha256').update(value).digest('hex')
 
 export async function GET(request: Request) {
