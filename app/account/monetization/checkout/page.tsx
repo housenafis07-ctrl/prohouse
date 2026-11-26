@@ -31,6 +31,7 @@ type Listing = {
   district: string | null
   status: string
   image_url?: string | null
+  is_promotable: boolean
 }
 
 type Order = {
@@ -63,6 +64,7 @@ export default function MonetizationCheckoutPage() {
   const [paying, setPaying] = useState<'click' | 'payme' | null>(null)
   const [order, setOrder] = useState<Order | null>(null)
   const [error, setError] = useState('')
+  const [listingLoadError, setListingLoadError] = useState('')
   const [success, setSuccess] = useState('')
   const [walletBalances, setWalletBalances] = useState({ balance: 0, bonus_balance: 0 })
   const [usingBonus, setUsingBonus] = useState(false)
@@ -107,6 +109,10 @@ export default function MonetizationCheckoutPage() {
       const requestedOrderId = params.get('orderId') || ''
       const requestedProduct = params.get('product') || ''
       const requestedListing = params.get('listingId') || ''
+      if (!requestedProduct && requestedListing && !requestedOrderId) {
+        window.location.replace(`/account/monetization?listingId=${encodeURIComponent(requestedListing)}`)
+        return
+      }
       setProductCode(requestedProduct)
       setListingId(requestedListing)
 
@@ -126,14 +132,23 @@ export default function MonetizationCheckoutPage() {
       const { data: walletData } = await db.from('wallet_accounts').select('balance,bonus_balance').eq('user_id', user.id).maybeSingle()
       setWalletBalances({ balance: Number(walletData?.balance || 0), bonus_balance: Number(walletData?.bonus_balance || 0) })
 
-      const listingsPayload = listingsResponse.ok ? await listingsResponse.json() : { listings: [] }
-      const ownListings = Array.isArray(listingsPayload.listings) ? listingsPayload.listings as Listing[] : []
+      const listingsPayload = await listingsResponse.json().catch(() => ({}))
+      if (!listingsResponse.ok) {
+        setListingLoadError(lang === 'ru' ? 'Не удалось загрузить ваши объявления. Обновите страницу или попробуйте позже.' : 'E’lonlaringizni yuklab bo‘lmadi. Sahifani yangilang yoki keyinroq urinib ko‘ring.')
+      }
+      const ownListings = listingsResponse.ok && Array.isArray(listingsPayload.listings) ? listingsPayload.listings as Listing[] : []
       setProducts((productRows || []) as Product[])
       setListings(ownListings)
 
-      if (requestedListing && !ownListings.some((item) => item.id === requestedListing)) {
-        setListingId('')
-        setError(lang === 'ru' ? 'Можно продвигать только свои объявления.' : 'Faqat o‘zingiz joylagan e’lonni ilgari surishingiz mumkin.')
+      if (requestedListing) {
+        const requested = ownListings.find((item) => item.id === requestedListing)
+        if (!requested) {
+          setListingId('')
+          setError(lang === 'ru' ? 'Это объявление не найдено в вашем кабинете.' : 'Bu e’lon shaxsiy kabinetingizdan topilmadi.')
+        } else if (!requested.is_promotable) {
+          setListingId('')
+          setError(lang === 'ru' ? 'Объявление пока нельзя продвигать: сначала опубликуйте его и дождитесь модерации.' : 'Bu e’lonni hozircha ilgari surib bo‘lmaydi. Avval e’lonni faollashtiring yoki moderatsiya yakunlanishini kuting.')
+        }
       }
 
       if (requestedOrderId && orderResponse) {
@@ -146,7 +161,7 @@ export default function MonetizationCheckoutPage() {
   }, [lang])
 
   const product = useMemo(() => products.find((item) => item.code === productCode) || null, [products, productCode])
-  const needsListing = !!product && ['top', 'up', 'highlight', 'premium'].includes(product.product_type || '')
+  const needsListing = !!product && ['top', 'up', 'bump', 'highlight', 'premium'].includes(product.product_type || '')
 
   const filteredListings = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
@@ -180,7 +195,7 @@ export default function MonetizationCheckoutPage() {
   }
 
   const buyWithPromotionBonus = async () => {
-    if (!product || !listingId || !['top', 'up', 'highlight', 'premium'].includes(product.product_type || '')) return
+    if (!product || !listingId || !selectedListing?.is_promotable || !['top', 'up', 'bump', 'highlight', 'premium'].includes(product.product_type || '')) return
     setError('')
     setSuccess('')
     setUsingBonus(true)
@@ -256,14 +271,14 @@ export default function MonetizationCheckoutPage() {
           <div className="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-black text-slate-950">1. {lang === 'ru' ? 'Ваши объявления' : 'Sizning e’lonlaringiz'}</h2><p className="mt-1 text-sm text-slate-500">{lang === 'ru' ? `${listings.length} объявлений доступно для продвижения` : `${listings.length} ta e’lonni ilgari surish mumkin`}</p></div><div className="relative w-full sm:max-w-xs"><span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={lang === 'ru' ? 'Поиск по названию или району...' : 'Nomi yoki tumani bo‘yicha qidiring...'} className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white" /></div></div>
 
-            {listings.length === 0 ? <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center"><div className="text-4xl">🏠</div><h3 className="mt-3 font-black">{t('noListings')}</h3><p className="mt-1 text-sm text-slate-500">{lang === 'ru' ? 'У вас пока нет активных объявлений.' : 'Hozircha faol e’lonlaringiz yo‘q.'}</p></div> : filteredListings.length === 0 ? <div className="mt-6 rounded-3xl bg-slate-50 p-10 text-center text-sm font-semibold text-slate-500">{lang === 'ru' ? 'По вашему запросу объявления не найдены.' : 'Qidiruv bo‘yicha e’lon topilmadi.'}</div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {listingLoadError ? <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{listingLoadError}</div> : listings.length === 0 ? <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center"><div className="text-4xl">🏠</div><h3 className="mt-3 font-black">{t('noListings')}</h3><p className="mt-1 text-sm text-slate-500">{lang === 'ru' ? 'В вашем кабинете пока нет объявлений.' : 'Shaxsiy kabinetingizda hozircha e’lonlar yo‘q.'}</p></div> : filteredListings.length === 0 ? <div className="mt-6 rounded-3xl bg-slate-50 p-10 text-center text-sm font-semibold text-slate-500">{lang === 'ru' ? 'По вашему запросу объявления не найдены.' : 'Qidiruv bo‘yicha e’lon topilmadi.'}</div> : <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filteredListings.map((listing) => {
                 const selected = listing.id === listingId
                 const title = pickLocalized(lang, listing.title, listing.title_ru) || t('noName')
                 const location = [localizeLocation(listing.city), localizeLocation(listing.district)].filter(Boolean).join(', ')
-                return <button key={listing.id} type="button" onClick={() => { setListingId(listing.id); setOrder(null); setError('') }} className={`group overflow-hidden rounded-3xl border-2 bg-white text-left transition hover:-translate-y-0.5 hover:shadow-lg ${selected ? 'border-emerald-500 ring-4 ring-emerald-100' : 'border-slate-100 hover:border-slate-300'}`}>
+                return <button key={listing.id} type="button" disabled={!listing.is_promotable} onClick={() => { setListingId(listing.id); setOrder(null); setError('') }} className={`group overflow-hidden rounded-3xl border-2 bg-white text-left transition ${listing.is_promotable ? 'hover:-translate-y-0.5 hover:shadow-lg' : 'cursor-not-allowed opacity-65'} ${selected ? 'border-emerald-500 ring-4 ring-emerald-100' : 'border-slate-100 hover:border-slate-300'}`}>
                   <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">{listing.image_url ? <img src={listing.image_url} alt={title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-5xl text-slate-300">🏠</div>}{selected && <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-lg">✓ {lang === 'ru' ? 'Выбрано' : 'Tanlandi'}</span>}</div>
-                  <div className="p-4"><h3 className="line-clamp-2 min-h-12 font-black leading-5 text-slate-950">{title}</h3><div className="mt-2 text-xs font-semibold text-slate-500">⌖ {location || (lang === 'ru' ? 'Адрес не указан' : 'Manzil ko‘rsatilmagan')}</div><div className="mt-3 flex items-center justify-between gap-3"><span className="text-lg font-black text-emerald-700">{listing.price ? money(listing.price) : (lang === 'ru' ? 'Цена не указана' : 'Narx ko‘rsatilmagan')}</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">{listing.status === 'active' ? (lang === 'ru' ? 'Активно' : 'Faol') : (lang === 'ru' ? 'На модерации' : 'Moderatsiyada')}</span></div></div>
+                  <div className="p-4"><h3 className="line-clamp-2 min-h-12 font-black leading-5 text-slate-950">{title}</h3><div className="mt-2 text-xs font-semibold text-slate-500">⌖ {location || (lang === 'ru' ? 'Адрес не указан' : 'Manzil ko‘rsatilmagan')}</div><div className="mt-3 flex items-center justify-between gap-3"><span className="text-lg font-black text-emerald-700">{listing.price ? money(listing.price) : (lang === 'ru' ? 'Цена не указана' : 'Narx ko‘rsatilmagan')}</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">{listing.status === 'active' ? (lang === 'ru' ? 'Активно' : 'Faol') : listing.status === 'moderation' ? (lang === 'ru' ? 'На модерации' : 'Moderatsiyada') : listing.status === 'draft' ? (lang === 'ru' ? 'Черновик' : 'Qoralama') : listing.status === 'archived' ? (lang === 'ru' ? 'В архиве' : 'Arxivda') : listing.status}</span></div></div>
                 </button>
               })}
             </div>}
@@ -273,7 +288,7 @@ export default function MonetizationCheckoutPage() {
             <div className="flex items-center justify-between"><h2 className="text-lg font-black">2. {lang === 'ru' ? 'Проверьте заказ' : 'Buyurtmani tekshiring'}</h2><span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black">{product?.name}</span></div>
             {selectedListing ? <div className="mt-5 overflow-hidden rounded-3xl bg-white/10 ring-1 ring-white/10"><div className="relative aspect-[16/9] bg-white/5">{selectedListing.image_url ? <img src={selectedListing.image_url} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-4xl">🏠</div>}</div><div className="p-4"><div className="text-xs font-bold uppercase tracking-wider text-slate-400">{lang === 'ru' ? 'Объявление' : 'E’lon'}</div><div className="mt-1 font-black leading-5">{pickLocalized(lang, selectedListing.title, selectedListing.title_ru) || t('noName')}</div>{selectedListing.price ? <div className="mt-2 font-black text-emerald-300">{money(selectedListing.price)}</div> : null}</div></div> : <div className="mt-5 rounded-3xl border border-dashed border-white/20 bg-white/5 p-6 text-center"><div className="text-3xl">👆</div><p className="mt-3 text-sm leading-6 text-slate-300">{lang === 'ru' ? 'Выберите объявление слева.' : 'Chap tomondan e’lonni tanlang.'}</p></div>}
 
-            {product && <div className="mt-5 border-t border-white/10 pt-5"><div className="flex items-end justify-between"><span className="text-sm text-slate-400">{t('total')}</span><b className="text-2xl">{money(product.price_uzs)}</b></div>{success && <div className="mt-4 rounded-xl bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">{success}</div>}{!success && !order && <><button type="button" disabled={submitting || !listingId} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{submitting ? t('creatingOrder') : t('createOrder')}</button>{needsListing && walletBalances.bonus_balance > 0 && walletBalances.balance + walletBalances.bonus_balance >= Number(product.price_uzs) && <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4"><p className="text-sm font-bold text-emerald-100">{lang === 'ru' ? 'Бонусный баланс: ' : 'Bonus balansi: '}{money(walletBalances.bonus_balance)}</p><p className="mt-1 text-xs leading-5 text-slate-300">{lang === 'ru' ? 'Бонус сначала списывается на продвижение; остаток при необходимости списывается с основного счёта.' : 'Avval bonus balansi ishlatiladi, yetmagan qismi bo‘lsa asosiy balansdan yechiladi.'}</p><button type="button" disabled={usingBonus || !listingId} onClick={() => void buyWithPromotionBonus()} className="mt-3 w-full rounded-xl bg-white px-4 py-3 text-sm font-black text-emerald-800 disabled:opacity-50">{usingBonus ? (lang === 'ru' ? 'Оплата…' : 'To‘lanmoqda…') : (lang === 'ru' ? 'Оплатить бонусом' : 'Bonus bilan to‘lash')}</button></div>}</>}{success && <Link href="/account/listings" className="mt-4 block rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-white">{lang === 'ru' ? 'Вернуться к объявлениям' : 'E’lonlarimga qaytish'}</Link>}</div>}
+            {product && <div className="mt-5 border-t border-white/10 pt-5"><div className="flex items-end justify-between"><span className="text-sm text-slate-400">{t('total')}</span><b className="text-2xl">{money(product.price_uzs)}</b></div>{success && <div className="mt-4 rounded-xl bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">{success}</div>}{!success && !order && <><button type="button" disabled={submitting || !listingId || !selectedListing?.is_promotable} onClick={() => void createOrder()} className="mt-5 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-black text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{submitting ? t('creatingOrder') : t('createOrder')}</button>{needsListing && walletBalances.bonus_balance > 0 && walletBalances.balance + walletBalances.bonus_balance >= Number(product.price_uzs) && <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4"><p className="text-sm font-bold text-emerald-100">{lang === 'ru' ? 'Бонусный баланс: ' : 'Bonus balansi: '}{money(walletBalances.bonus_balance)}</p><p className="mt-1 text-xs leading-5 text-slate-300">{lang === 'ru' ? 'Бонус сначала списывается на продвижение; остаток при необходимости списывается с основного счёта.' : 'Avval bonus balansi ishlatiladi, yetmagan qismi bo‘lsa asosiy balansdan yechiladi.'}</p><button type="button" disabled={usingBonus || !listingId || !selectedListing?.is_promotable} onClick={() => void buyWithPromotionBonus()} className="mt-3 w-full rounded-xl bg-white px-4 py-3 text-sm font-black text-emerald-800 disabled:opacity-50">{usingBonus ? (lang === 'ru' ? 'Оплата…' : 'To‘lanmoqda…') : (lang === 'ru' ? 'Оплатить бонусом' : 'Bonus bilan to‘lash')}</button></div>}</>}{success && <Link href="/account/listings" className="mt-4 block rounded-xl bg-emerald-500 px-4 py-3 text-center text-sm font-black text-white">{lang === 'ru' ? 'Вернуться к объявлениям' : 'E’lonlarimga qaytish'}</Link>}</div>}
 
             {order && <div className="mt-5 rounded-3xl bg-white p-4 text-slate-950"><div className="font-black">{t('paymentMethod')}</div><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">{clickEnabled && <button type="button" onClick={() => void startPayment('click')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-400 disabled:opacity-60"><div className="text-center font-black">Click</div><ClickLogo /></button>}<button type="button" onClick={() => void startPayment('payme')} disabled={!!paying} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-emerald-400 disabled:opacity-60"><div className="text-center font-black">Payme</div><PaymeLogo /></button></div></div>}
             {pendingCheckoutUrl && <button type="button" onClick={openPendingCheckout} className="mt-3 w-full rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">{lang === 'ru' ? 'Открыть страницу оплаты Payme' : 'Payme to‘lov sahifasini ochish'}</button>}
