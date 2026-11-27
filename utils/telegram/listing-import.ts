@@ -19,7 +19,7 @@ export type TelegramListingImportMessage = {
 type ExtractedListing = {
   title: string
   description: string
-  listing_type: 'sale' | 'rent' | 'daily'
+  listing_type: 'sale' | 'rent' | 'daily' | 'unknown'
   property_type: 'apartment' | 'house' | 'land' | 'commercial' | 'new_building' | 'dacha' | 'unknown'
   taxonomy_code: string
   attribute_values: Array<{ code: string; value: string; confidence: 'low' | 'medium' | 'high' }>
@@ -119,7 +119,7 @@ async function extractListing(text: string, images: Array<{ dataUrl: string }>):
     additionalProperties: false,
     properties: {
       title: { type: 'string' }, description: { type: 'string' },
-      listing_type: { type: 'string', enum: ['sale', 'rent', 'daily'] },
+      listing_type: { type: 'string', enum: ['sale', 'rent', 'daily', 'unknown'] },
       property_type: { type: 'string', enum: ['apartment', 'house', 'land', 'commercial', 'new_building', 'dacha', 'unknown'] },
       taxonomy_code: { type: 'string' },
       attribute_values: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { code: { type: 'string' }, value: { type: 'string' }, confidence: { type: 'string', enum: ['low','medium','high'] } }, required: ['code','value','confidence'] } },
