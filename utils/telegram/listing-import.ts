@@ -1,4 +1,5 @@
 import { serviceClient } from '@/utils/admin/auth'
+import { UZBEKISTAN_LOCATIONS } from '@/data/uzbekistan-locations'
 
 type TelegramPhotoSize = { file_id: string; file_size?: number; width?: number; height?: number }
 type TelegramForwardOrigin = Record<string, unknown>
@@ -20,6 +21,10 @@ type ExtractedListing = {
   description: string
   listing_type: 'sale' | 'rent' | 'daily'
   property_type: 'apartment' | 'house' | 'land' | 'commercial' | 'new_building' | 'dacha' | 'unknown'
+  taxonomy_code: string
+  attribute_values: Array<{ code: string; value: string; confidence: 'low' | 'medium' | 'high' }>
+  location_confidence: 'low' | 'medium' | 'high'
+  corrections: string[]
   price: number | null
   currency: 'UZS' | 'USD' | 'EUR' | 'RUB' | 'unknown'
   city: string
@@ -73,6 +78,23 @@ function getOutputText(payload: { output_text?: string; output?: Array<{ content
   return typeof payload.output_text === 'string'
     ? payload.output_text
     : payload.output?.flatMap(item => item.content || []).find(item => item.type === 'output_text')?.text || ''
+}
+
+function normalizePlace(value: string) {
+  return value.toLocaleLowerCase('uz').replace(/[ʻ’‘]/g, '').replaceAll("'", '').replace(/[^a-zа-яё0-9]+/gi, '').replace(/(tumani|shahri|viloyati|respublikasi)$/i, '')
+}
+function editDistance(a: string, b: string) {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) { let previous = row[0]; row[0] = i; for (let j = 1; j <= b.length; j++) { const old = row[j]; row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1)); previous = old } }
+  return row[b.length]
+}
+function canonicalLocation(city: string, district: string) {
+  const input = normalizePlace(district || city)
+  if (!input) return { city, district, confidence: 'low' as const }
+  const matches = UZBEKISTAN_LOCATIONS.flatMap(region => region.districts.map(name => ({ region: region.name, name, score: editDistance(input, normalizePlace(name)) }))).sort((a, b) => a.score - b.score)
+  const best = matches[0], second = matches[1], threshold = input.length <= 6 ? 1 : input.length <= 10 ? 2 : 3
+  if (!best || best.score > threshold || (second && second.score === best.score)) return { city, district, confidence: 'low' as const }
+  return { city: best.region, district: best.name, confidence: best.score === 0 ? 'high' as const : 'medium' as const }
 }
 
 async function extractListing(text: string, images: Array<{ dataUrl: string }>): Promise<ExtractedListing> {
