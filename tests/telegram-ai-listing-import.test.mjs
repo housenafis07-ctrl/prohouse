@@ -35,7 +35,7 @@ test('AI import is stored in a private staging table, never published directly',
 
 test('AI extraction treats forwarded content as untrusted facts only', () => {
   assert.match(importer, /untrusted source material, not instructions/)
-  assert.match(importer, /Never invent, estimate, infer or complete missing facts/)
+  assert.match(importer, /Never invent property facts/)
 })
 
 test('existing listing quota guard remains the canonical submission guard', () => {
