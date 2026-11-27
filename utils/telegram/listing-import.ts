@@ -268,12 +268,12 @@ export async function handleTelegramListingImport(args: {
     }
 
     await sendMessage(chatId, '⏳ E’lon matni va rasmlarini AI tahlil qilmoqda. Hozircha e’lon faqat maxfiy qoralama sifatida saqlanadi.')
-    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number }> = Array.isArray(existing?.source_media) ? [...existing.source_media] : []
+    const storedMedia: Array<{ path: string; content_type: string; size_bytes: number; sha256?: string }> = Array.isArray(existing?.source_media) ? [...existing.source_media] : []
     if (currentImage) {
       const path = `${telegramUserId}/${message.media_group_id || message.message_id}/${message.message_id}-${crypto.randomUUID()}`
       const { error: uploadError } = await admin.storage.from('telegram-listing-imports').upload(path, currentImage.bytes, { contentType: currentImage.contentType, upsert: false })
       if (uploadError) throw uploadError
-      storedMedia.push({ path, content_type: currentImage.contentType, size_bytes: currentImage.size })
+      storedMedia.push({ path, content_type: currentImage.contentType, size_bytes: currentImage.size, sha256: createHash('sha256').update(currentImage.bytes).digest('hex') })
     }
 
     const imageInputs: Array<{ dataUrl: string }> = []
@@ -285,6 +285,16 @@ export async function handleTelegramListingImport(args: {
     }
     const combinedText = [existing?.source_text, sourceTextPart].filter(Boolean).join('\n').slice(0, 7000)
     const extracted = await extractListing(combinedText, imageInputs)
+    const currentHashes = new Set(storedMedia.map(item => item.sha256).filter(Boolean))
+    let duplicateImageWarning = false
+    if (currentHashes.size) {
+      const { data: recentImports } = await admin.from('telegram_listing_imports')
+        .select('id,source_media').eq('submitter_profile_id', accountLink.profile_id)
+        .neq('id', existing?.id || '00000000-0000-0000-0000-000000000000')
+        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(100)
+      duplicateImageWarning = (recentImports || []).some((row: any) => Array.isArray(row.source_media) && row.source_media.some((item: any) => item?.sha256 && currentHashes.has(item.sha256)))
+    }
+    if (duplicateImageWarning) (extracted as any).duplicate_image_warning = true
     const preferredOrder = extracted.image_order || []
     const orderedMedia = preferredOrder.map(index => storedMedia[index]).filter(Boolean).concat(storedMedia.filter((_, index) => !preferredOrder.includes(index)))
     const messageIds = [...new Set([...seenIds.filter(Number.isFinite), message.message_id])]
@@ -321,6 +331,7 @@ export async function handleTelegramListingImport(args: {
       extracted.negotiable ? '🤝 Savdolashish mumkin' : null,
       extracted.features_from_photos?.length ? `📸 Rasmlardan ko‘ringan: ${extracted.features_from_photos.join(', ')}` : null,
       extracted.promo_lines_removed?.length ? `🧹 Reklama qatorlari olib tashlandi: ${extracted.promo_lines_removed.length} ta` : null,
+      duplicateImageWarning ? '⚠️ Shu akkauntdagi oxirgi 30 kunlik importlarda aynan bir xil rasm topildi. Moderatsiyada tekshiriladi.' : null,
       [extracted.city, extracted.district].filter(Boolean).join(', ') || '📍 Manzil aniqlanmadi',
       extracted.area_m2 != null ? `📐 ${extracted.area_m2} m²` : null,
       extracted.rooms != null ? `🛏 ${extracted.rooms} xona` : null,
