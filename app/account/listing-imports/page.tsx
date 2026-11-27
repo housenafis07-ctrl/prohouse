@@ -54,6 +54,8 @@ export default function ListingImportsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">{stateLabel(row)}</span><span className="text-xs text-slate-400">{new Date(row.created_at).toLocaleString('uz-UZ')}</span></div>
           <h2 className="mt-3 text-lg font-black">{x.title||'Ko‘chmas mulk e’loni'}</h2>
           <p className="mt-1 text-sm text-slate-500">{[x.city,x.district].filter(Boolean).join(', ')} {x.price!=null?'· '+new Intl.NumberFormat('uz-UZ').format(x.price)+' '+(x.currency||''):''}</p>
+          {Array.isArray(x.corrections)&&x.corrections.length>0&&<p className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-800">AI yozuvni normallashtirdi: {x.corrections.join('; ')}</p>}
+          {x.location_confidence==='low'&&<p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Joylashuvni aniqlashtirish kerak — e’lon formasida to‘g‘ri hududni tanlang.</p>}
           {row.authorization_status!=='verified'&&<div className="mt-4 space-y-4">
             <section className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
               <h3 className="font-black">Vakil sifatida javobgarlikni tasdiqlash</h3>
