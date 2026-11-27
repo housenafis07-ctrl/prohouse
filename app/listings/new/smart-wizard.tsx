@@ -110,10 +110,16 @@ export default function SmartListingWizard(){
   const firstMissing=questions.findIndex((q)=>{
    if(q==='city')return !answers.city
    if(q==='district')return !answers.district
+   if(q==='neighborhood')return !answers.neighborhood
+   if(q==='address')return !answers.address
+   if(q==='description')return !answers.description.trim()
+   if(q==='ownership')return !answers.ownership_type
+   if(q==='mortgage')return !answers.mortgage
+   if(q==='rental')return !answers.rental_booking
    if(q==='map')return answers.latitude===null||answers.longitude===null
    if(q==='title')return !answers.title.trim()
    if(q==='price')return !answers.price
-   if(q.startsWith('attr:')){const a=categoryAttributes.find(x=>x.code===q.slice(5));return !!a?.is_required&&!answers.attributes[a.code]?.trim()}
+   if(q.startsWith('attr:')){const a=categoryAttributes.find(x=>x.code===q.slice(5));return !!a&&!answers.attributes[a.code]?.trim()}
    if(q==='images')return images.length===0
    return false
   })
@@ -432,7 +438,7 @@ export default function SmartListingWizard(){
       currency:x.currency==='USD'?'USD':'UZS',
       attributes:{...current.attributes,...extractedAttributes},
       ownership_type:imported.authorizationMethod==='owner_sms_otp'?(imported.submitterIsOwner?'owner':'representative'):'power_of_attorney',
-      mortgage:'false',
+      mortgage:current.mortgage,
     }))
     const imageItems=await Promise.all((imported.images||[]).slice(0,10).map(async(image:any,index:number)=>{
       const imageResponse=await fetch(image.url,{cache:'no-store'})
