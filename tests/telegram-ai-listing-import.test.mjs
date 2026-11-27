@@ -134,3 +134,24 @@ test('partner subscriptions are shown only to partner accounts or verified realt
   assert.match(monetizationPage, /accountType==='partner'\|\|isVerifiedRealtor/)
   assert.match(monetizationPage, /plans=useMemo/)
 })
+
+test('AI import normalizes Uzbekistan location typos and resolves official region', () => {
+  assert.match(importer, /chlanzar: 'Chilonzor tumani'/)
+  assert.match(importer, /UZBEKISTAN_LOCATIONS/)
+  assert.match(importer, /location_confidence/)
+  assert.match(importer, /OFFICIAL UZBEKISTAN REGIONS AND DISTRICTS/)
+})
+
+test('AI import uses live listing taxonomy and category-specific attributes', () => {
+  assert.match(importer, /from\('listing_categories'\)/)
+  assert.match(importer, /from\('category_attributes'\)/)
+  assert.match(importer, /taxonomy_code/)
+  assert.match(importer, /attribute_values/)
+  assert.match(listingWizard, /x\.taxonomy_code/)
+  assert.match(listingWizard, /x\.attribute_values/)
+})
+
+test('AI import asks unresolved required questions rather than skipping to final review', () => {
+  assert.match(listingWizard, /firstMissing/)
+  assert.match(listingWizard, /a\?\.is_required/)
+})
