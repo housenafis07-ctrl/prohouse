@@ -105,7 +105,22 @@ export default function SmartListingWizard(){
  const current=questions[question]||'section'
  const currentAttribute=current.startsWith('attr:')?categoryAttributes.find(x=>x.code===current.slice(5))||null:null
  const progress=Math.round(((question+1)/questions.length)*100)
- useEffect(()=>{if(!pendingImportReview||!selected)return;const reviewIndex=questions.indexOf('review');if(reviewIndex>=0){setQuestion(reviewIndex);setPendingImportReview(false)}},[pendingImportReview,selected,questions])
+ useEffect(()=>{
+  if(!pendingImportReview||!selected)return
+  const firstMissing=questions.findIndex((q)=>{
+   if(q==='city')return !answers.city
+   if(q==='district')return !answers.district
+   if(q==='map')return answers.latitude===null||answers.longitude===null
+   if(q==='title')return !answers.title.trim()
+   if(q==='price')return !answers.price
+   if(q.startsWith('attr:')){const a=categoryAttributes.find(x=>x.code===q.slice(5));return !!a?.is_required&&!answers.attributes[a.code]?.trim()}
+   if(q==='images')return images.length===0
+   return false
+  })
+  const reviewIndex=questions.indexOf('review')
+  setQuestion(firstMissing>=0?firstMissing:reviewIndex>=0?reviewIndex:0)
+  setPendingImportReview(false)
+ },[pendingImportReview,selected,questions,answers,categoryAttributes,images.length])
  const setAnswer=(key:keyof Answer,value:any)=>setAnswers(x=>({...x,[key]:value}))
  const setAttribute=(code:string,value:string)=>setAnswers(x=>({...x,attributes:{...x.attributes,[code]:value}}))
  const restricted=(c:Category)=>!allowedCategories.has(c.code)
