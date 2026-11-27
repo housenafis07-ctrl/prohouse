@@ -397,9 +397,9 @@ export default function SmartListingWizard(){
     if(!importResponse.ok||!importData.import)throw new Error(importData.message||importData.error||'AI qoralama topilmadi yoki vakolat tasdiqlanmagan.')
     const imported=importData.import
     const x=imported.aiExtracted||{}
-    const listingType=String(x.listing_type||'sale')
+    const listingType=String(x.listing_type||'unknown')
     const propertyType=String(x.property_type||'unknown')
-    const categoryCode=String(x.taxonomy_code||'') || (listingType==='sale'
+    const categoryCode=String(x.taxonomy_code||'') || (listingType==='unknown'?'':listingType==='sale'
       ? ({apartment:'sale_apartment',house:'sale_house',land:'sale_land',commercial:'sale_commercial',new_building:'sale_new_building',dacha:'sale_dacha'} as Record<string,string>)[propertyType]
       : listingType==='daily'
         ? (propertyType==='house'||propertyType==='dacha'?'rent_dacha':'rent_daily')
@@ -410,7 +410,7 @@ export default function SmartListingWizard(){
       if(allowedCodes.has(found.code)){setSelected(found);setPendingImportReview(true)}
       else{setRestrictedSelection(found);setQuestion(1)}
     }else{
-      setSelectedSection(listingType==='sale'?'sale':'rent')
+      setSelectedSection(listingType==='sale'?'sale':listingType==='rent'||listingType==='daily'?'rent':null)
       setQuestion(1)
       setError('AI e’lon turini to‘liq aniqlay olmadi. Davom etishdan oldin e’lon kategoriyasini tanlang.')
     }
@@ -420,6 +420,7 @@ export default function SmartListingWizard(){
     if(x.floor!=null)extractedAttributes.floor=String(x.floor)
     if(x.floors_total!=null)extractedAttributes.floors_total=String(x.floors_total)
     if(x.land_area!=null)extractedAttributes.land_area=String(x.land_area)
+    for(const item of (Array.isArray(x.attribute_values)?x.attribute_values:[])){if(item?.code&&item?.value!=null)extractedAttributes[String(item.code)]=String(item.value)}
     setAnswers(current=>({
       ...current,
       city:x.city||current.city,
