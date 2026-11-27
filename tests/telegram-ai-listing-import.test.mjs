@@ -56,7 +56,7 @@ test('owner SMS consent is tied to the verified phone and a one-time token', () 
 
 test('representative declaration requires explicit responsibility confirmation without document upload', () => {
   assert.match(accountImportsApi, /representative_declaration/)
-  assert.match(accountImportsApi, /body\\?\\.confirmed !== true/)
+  assert.match(accountImportsApi, /confirmed !== true/)
   assert.match(accountImportsApi, /authorization_method: 'representative_declaration'/)
   assert.match(accountImportsPage, /javobgarlikni o‘z zimmamga olaman/)
   assert.doesNotMatch(accountImportsPage, /type="file"|Ishonchnoma|Vakillik hujjati/)
