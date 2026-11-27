@@ -155,3 +155,29 @@ test('AI import asks unresolved required questions rather than skipping to final
   assert.match(listingWizard, /firstMissing/)
   assert.match(listingWizard, /a\?\.is_required/)
 })
+
+test('AI import flags ambiguous prices and never assumes a currency', () => {
+  assert.match(importer, /price_confidence/)
+  assert.match(importer, /140тыс without currency/)
+  assert.match(importer, /Do not infer USD/)
+  assert.match(accountImportsPage, /Narx yoki valyuta noaniq/)
+})
+
+test('AI removes unrelated channel promotions and produces a fact-only Russian description', () => {
+  assert.match(importer, /promo_lines_removed/)
+  assert.match(importer, /description_ru/)
+  assert.match(importer, /channel subscription requests/)
+  assert.match(accountImportsPage, /Rus tilidagi tavsifni ko‘rish/)
+})
+
+test('AI selects a cover and orders imported images using indexed visual analysis', () => {
+  assert.match(importer, /recommended_cover_index/)
+  assert.match(importer, /IMAGE INDEX/)
+  assert.match(importer, /const orderedMedia/)
+})
+
+test('exact repeated source images are flagged for moderation, not silently republished', () => {
+  assert.match(importer, /createHash\('sha256'\)/)
+  assert.match(importer, /duplicateImageWarning/)
+  assert.match(accountImportsPage, /aynan bir xil rasm topildi/)
+})
