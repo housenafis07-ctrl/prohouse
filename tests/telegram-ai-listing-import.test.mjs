@@ -153,7 +153,7 @@ test('AI import uses live listing taxonomy and category-specific attributes', ()
 
 test('AI import asks unresolved required questions rather than skipping to final review', () => {
   assert.match(listingWizard, /firstMissing/)
-  assert.match(listingWizard, /a\?\.is_required/)
+  assert.match(listingWizard, /currentAttribute\?\.is_required/)
 })
 
 test('AI import flags ambiguous prices and never assumes a currency', () => {
