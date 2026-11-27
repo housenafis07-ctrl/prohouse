@@ -89,6 +89,12 @@ function editDistance(a: string, b: string) {
   return row[b.length]
 }
 function canonicalLocation(city: string, district: string) {
+  const aliases: Record<string, string> = { chlanzar: 'Chilonzor tumani', chilanzar: 'Chilonzor tumani', 'чиланзар': 'Chilonzor tumani', 'чилонзор': 'Chilonzor tumani' }
+  const alias = aliases[normalizePlace(district || city)]
+  if (alias) {
+    const region = UZBEKISTAN_LOCATIONS.find(item => item.districts.includes(alias))
+    if (region) return { city: region.name, district: alias, confidence: 'medium' as const }
+  }
   const input = normalizePlace(district || city)
   if (!input) return { city, district, confidence: 'low' as const }
   const matches = UZBEKISTAN_LOCATIONS.flatMap(region => region.districts.map(name => ({ region: region.name, name, score: editDistance(input, normalizePlace(name)) }))).sort((a, b) => a.score - b.score)
