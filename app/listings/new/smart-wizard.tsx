@@ -399,11 +399,11 @@ export default function SmartListingWizard(){
     const x=imported.aiExtracted||{}
     const listingType=String(x.listing_type||'sale')
     const propertyType=String(x.property_type||'unknown')
-    const categoryCode=listingType==='sale'
+    const categoryCode=String(x.taxonomy_code||'') || (listingType==='sale'
       ? ({apartment:'sale_apartment',house:'sale_house',land:'sale_land',commercial:'sale_commercial',new_building:'sale_new_building',dacha:'sale_dacha'} as Record<string,string>)[propertyType]
       : listingType==='daily'
         ? (propertyType==='house'||propertyType==='dacha'?'rent_dacha':'rent_daily')
-        : ({apartment:'rent_long_term',house:'rent_dacha',commercial:'rent_commercial',dacha:'rent_dacha'} as Record<string,string>)[propertyType]
+        : ({apartment:'rent_long_term',house:'rent_dacha',commercial:'rent_commercial',dacha:'rent_dacha'} as Record<string,string>)[propertyType])
     const found=categoryCode?list.find(item=>item.code===categoryCode):undefined
     if(found){
       setSelectedSection(found.section_code)
