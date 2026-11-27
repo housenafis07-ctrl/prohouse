@@ -54,14 +54,13 @@ test('owner SMS consent is tied to the verified phone and a one-time token', () 
   assert.match(consentPage, /SMS OTP/)
 })
 
-test('representative documents are private and admin-reviewed', () => {
-  assert.match(migration, /public = false/)
-  assert.match(accountImportsApi, /authorization_document_path/)
-  assert.match(accountImportsApi, /telegram-listing-imports/)
-  assert.match(adminImportsApi, /requireAdmin/)
-  assert.match(adminImportsApi, /createSignedUrl/)
-  assert.match(adminImportsApi, /authorization_status: approved \? 'verified' : 'rejected'/)
-  assert.match(accountImportsPage, /Ishonchnoma/)
+test('representative declaration requires explicit responsibility confirmation without document upload', () => {
+  assert.match(accountImportsApi, /representative_declaration/)
+  assert.match(accountImportsApi, /body\\?\\.confirmed !== true/)
+  assert.match(accountImportsApi, /authorization_method: 'representative_declaration'/)
+  assert.match(accountImportsPage, /javobgarlikni o‘z zimmamga olaman/)
+  assert.doesNotMatch(accountImportsPage, /type="file"|Ishonchnoma|Vakillik hujjati/)
+  assert.match(migration, /representative_declaration/)
 })
 
 test('Telegram album messages are grouped and deduplicated', () => {
