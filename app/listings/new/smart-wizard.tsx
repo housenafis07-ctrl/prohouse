@@ -411,7 +411,7 @@ export default function SmartListingWizard(){
       else{setRestrictedSelection(found);setQuestion(1)}
     }else{
       setSelectedSection(listingType==='sale'?'sale':listingType==='rent'||listingType==='daily'?'rent':null)
-      setQuestion(1)
+      setQuestion(listingType==='unknown'?0:1)
       setError('AI e’lon turini to‘liq aniqlay olmadi. Davom etishdan oldin e’lon kategoriyasini tanlang.')
     }
     const extractedAttributes:Record<string,string>={...answers.attributes}
