@@ -17,7 +17,7 @@ create table if not exists public.telegram_listing_imports (
   authorization_status text not null default 'pending'
     check (authorization_status in ('pending','verified','rejected')),
   authorization_method text
-    check (authorization_method is null or authorization_method in ('owner_sms_otp','owner_consent_link','power_of_attorney_review','admin_review')),
+    check (authorization_method is null or authorization_method in ('owner_sms_otp','owner_consent_link','power_of_attorney_review','admin_review','representative_declaration')),
   owner_full_name text,
   owner_phone text,
   authorization_document_path text,
@@ -43,7 +43,7 @@ revoke all on table public.telegram_listing_imports from public, anon, authentic
 grant all on table public.telegram_listing_imports to service_role;
 
 comment on table public.telegram_listing_imports is
-  'Private staging queue for AI-parsed Telegram listings. Never public; requires verified owner/representative authority before conversion into listings.';
+  'Private staging queue for AI-parsed Telegram listings. Never public; requires owner SMS consent or representative responsibility declaration before conversion into listings.';
 
 -- Original media is retained in a private bucket for the later authorization and moderation workflow.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
