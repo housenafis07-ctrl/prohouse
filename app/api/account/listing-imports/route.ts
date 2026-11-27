@@ -21,7 +21,7 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED' }, { status: 401 })
   const db = serviceClient()
   const { data, error } = await db.from('telegram_listing_imports')
-    .select('id,listing_id,ai_extracted,status,authorization_status,authorization_method,owner_full_name,owner_phone,authorization_document_path,created_at,authorized_at')
+    .select('id,listing_id,ai_extracted,status,authorization_status,authorization_method,owner_full_name,owner_phone,created_at,authorized_at')
     .eq('submitter_profile_id', userId)
     .order('created_at', { ascending: false })
     .limit(50)
