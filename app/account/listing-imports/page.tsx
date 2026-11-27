@@ -12,7 +12,6 @@ type ImportRow = {
   authorization_method: string | null
   owner_full_name: string | null
   owner_phone: string | null
-  authorization_document_path: string | null
   created_at: string
   authorized_at: string | null
 }
@@ -44,7 +43,7 @@ export default function ListingImportsPage() {
     catch(e){setError(e instanceof Error?e.message:'Xatolik')}finally{setBusy('')}
   }
   const copy=async(value:string)=>{try{await navigator.clipboard.writeText(value);setMessage('Havola nusxalandi.')}catch{setMessage(value)}}
-  const stateLabel=(row:ImportRow)=>row.status==='ready_for_moderation'?'Moderatsiyaga yuborilgan':row.authorization_status==='rejected'?'Vakolat rad etildi':row.authorization_status==='verified'?'Vakolat tasdiqlangan':row.authorization_method==='representative_declaration'?'Javobgarlik tasdiqlangan':'Rozilik kutilmoqda'
+  const stateLabel=(row:ImportRow)=>row.status==='ready_for_moderation'?'Moderatsiyaga yuborilgan':row.authorization_status==='rejected'?'Vakolat rad etildi':row.authorization_status==='verified'?(row.authorization_method==='representative_declaration'?'Javobgarlik tasdiqlangan':'Mulk egasi roziligi tasdiqlangan'):'Rozilik kutilmoqda'
   return <main className="min-h-screen bg-slate-50 text-slate-900">
     <header className="border-b bg-white"><div className="mx-auto max-w-5xl px-4 py-5"><Link href="/account" className="text-sm font-bold text-emerald-700">← Shaxsiy kabinet</Link><h1 className="mt-3 text-2xl font-black sm:text-3xl">Telegram AI import qoralamalari</h1><p className="mt-2 text-sm text-slate-500">E’lon ma’lumotlarini tekshiring va javobgarlikni tasdiqlang. Mulk egasi nomidan joylashtirilsa, uning SMS OTP roziligi talab qilinadi.</p></div></header>
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-7">
@@ -55,10 +54,6 @@ export default function ListingImportsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">{stateLabel(row)}</span><span className="text-xs text-slate-400">{new Date(row.created_at).toLocaleString('uz-UZ')}</span></div>
           <h2 className="mt-3 text-lg font-black">{x.title||'Ko‘chmas mulk e’loni'}</h2>
           <p className="mt-1 text-sm text-slate-500">{[x.city,x.district].filter(Boolean).join(', ')} {x.price!=null?'· '+new Intl.NumberFormat('uz-UZ').format(x.price)+' '+(x.currency||''):''}</p>
-          {row.authorization_status!=='verified'&&<div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-bold">Mulk egasining F.I.O.<input value={ownerName[row.id]??row.owner_full_name??''} onChange={e=>setOwnerName(v=>({...v,[row.id]:e.target.value}))} className="mt-1 w-full rounded-xl border px-3 py-3 font-normal" placeholder="F.I.O."/></label>
-            <label className="text-sm font-bold">Mulk egasining telefoni<input value={ownerPhone[row.id]??row.owner_phone??''} onChange={e=>setOwnerPhone(v=>({...v,[row.id]:e.target.value}))} className="mt-1 w-full rounded-xl border px-3 py-3 font-normal" placeholder="+998 90 123 45 67"/></label>
-          </div>}
           {row.authorization_status!=='verified'&&<div className="mt-4 space-y-4">
             <section className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
               <h3 className="font-black">Vakil sifatida javobgarlikni tasdiqlash</h3>
