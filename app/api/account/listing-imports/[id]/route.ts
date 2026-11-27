@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: Context) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!item) return NextResponse.json({ error: 'IMPORT_NOT_FOUND' }, { status: 404 })
   if (item.authorization_status !== 'verified' || item.status !== 'authorized') {
-    return NextResponse.json({ error: 'IMPORT_NOT_AUTHORIZED', message: 'Avval mulk egasi roziligi yoki vakillik hujjati tasdiqlanishi kerak.' }, { status: 403 })
+    return NextResponse.json({ error: 'IMPORT_NOT_AUTHORIZED', message: 'Avval javobgarlik deklaratsiyasini yoki mulk egasining SMS OTP roziligini tasdiqlang.' }, { status: 403 })
   }
   const media = Array.isArray(item.source_media) ? item.source_media : []
   const images = await Promise.all(media.map(async (file: { path?: string; content_type?: string; size_bytes?: number }) => {
@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: Context) {
       id: item.id,
       aiExtracted: item.ai_extracted || {},
       authorizationMethod: item.authorization_method,
-      submitterIsOwner: item.authorized_by === item.submitter_profile_id,
+      submitterIsOwner: item.authorization_method === 'owner_sms_otp' && item.authorized_by === item.submitter_profile_id,
       ownerName: item.owner_full_name,
       ownerPhone: item.owner_phone,
       images: images.filter(Boolean),
