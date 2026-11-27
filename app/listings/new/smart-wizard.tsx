@@ -73,10 +73,12 @@ export default function SmartListingWizard(){
  const [otp,setOtp]=useState('')
  const [verified,setVerified]=useState(false)
  const [listingId,setListingId]=useState<string|null>(null)
+ const [importId,setImportId]=useState<string|null>(null)
+ const [pendingImportReview,setPendingImportReview]=useState(false)
  const [videoStatus,setVideoStatus]=useState<VideoState>('idle')
  const [success,setSuccess]=useState('')
  const [videoError,setVideoError]=useState('')
- const [accountProfile,setAccountProfile]=useState<{user_id:string;phone:string;full_name:string;account_type?:string}|null>(null)
+ const [accountProfile,setAccountProfile]=useState<{user_id:string;phone:string;full_name:string;account_type?:string;is_verified_realtor?:boolean}|null>(null)
  const wizardRef=useRef<HTMLElement|null>(null)
  const [keyboardInset,setKeyboardInset]=useState(0)
 
@@ -103,6 +105,28 @@ export default function SmartListingWizard(){
  const current=questions[question]||'section'
  const currentAttribute=current.startsWith('attr:')?categoryAttributes.find(x=>x.code===current.slice(5))||null:null
  const progress=Math.round(((question+1)/questions.length)*100)
+ useEffect(()=>{
+  if(!pendingImportReview||!selected)return
+  const firstMissing=questions.findIndex((q)=>{
+   if(q==='city')return !answers.city
+   if(q==='district')return !answers.district
+   if(q==='neighborhood')return !answers.neighborhood
+   if(q==='address')return !answers.address
+   if(q==='description')return !answers.description.trim()
+   if(q==='ownership')return !answers.ownership_type
+   if(q==='mortgage')return !answers.mortgage
+   if(q==='rental')return !answers.rental_booking
+   if(q==='map')return answers.latitude===null||answers.longitude===null
+   if(q==='title')return !answers.title.trim()
+   if(q==='price')return !answers.price
+   if(q.startsWith('attr:')){const a=categoryAttributes.find(x=>x.code===q.slice(5));return !!a&&!answers.attributes[a.code]?.trim()}
+   if(q==='images')return images.length===0
+   return false
+  })
+  const reviewIndex=questions.indexOf('review')
+  setQuestion(firstMissing>=0?firstMissing:reviewIndex>=0?reviewIndex:0)
+  setPendingImportReview(false)
+ },[pendingImportReview,selected,questions,answers,categoryAttributes,images.length])
  const setAnswer=(key:keyof Answer,value:any)=>setAnswers(x=>({...x,[key]:value}))
  const setAttribute=(code:string,value:string)=>setAnswers(x=>({...x,attributes:{...x.attributes,[code]:value}}))
  const restricted=(c:Category)=>!allowedCategories.has(c.code)
@@ -335,7 +359,15 @@ export default function SmartListingWizard(){
   setBusy(true);setError('');setLimitReached(false)
   try{
    const response=await fetch('/api/listings/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listingId,step:7,data:payload(),status:'moderation'})})
-   const data=await response.json();if(!response.ok)throw new Error(data.message||data.error||'E’lon moderatsiyaga yuborilmadi.')
+   const data=await response.json()
+   if(!response.ok){
+    if(data.error==='LISTING_LIMIT_REACHED'){setLimitReached(true);setError('');return}
+    throw new Error(data.message||data.error||'E’lon moderatsiyaga yuborilmadi.')
+   }
+   if(importId){
+    const linked=await fetch('/api/account/listing-imports/'+encodeURIComponent(importId),{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({listingId:data.listing.id})})
+    if(!linked.ok){const linkError=await linked.json().catch(()=>({}));console.error('[telegram-import] listing submitted but import link update failed',linkError)}
+   }
    setSuccess('E’lon moderatsiyaga yuborildi: '+(data.listing.listing_code||data.listing.id))
    setTimeout(()=>router.push('/account/listings'),1000)
   }catch(e){
@@ -356,15 +388,74 @@ export default function SmartListingWizard(){
    const attrs=(meta.attributes||[]) as Attribute[]
    const profile=meta.accountProfile
    if(profile?.user_id&&profile?.phone){
-    setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual'})
+    setAccountProfile({user_id:profile.user_id,phone:profile.phone,full_name:profile.full_name||'',account_type:profile.account_type||'individual',is_verified_realtor:profile.is_verified_realtor===true})
     setAnswers(current=>({...current,phone:profile.phone,fullName:profile.full_name||''}))
    }
-   setCategories(list);setAttributes(attrs);setAllowedCategories(new Set((meta.allowedCategoryCodes||[]) as string[]))
+   const allowedCodes=new Set((meta.allowedCategoryCodes||[]) as string[])
+   setCategories(list);setAttributes(attrs);setAllowedCategories(allowedCodes)
    const requested=params.get('taxonomy')
    if(requested){const found=list.find(x=>x.code===requested);if(found){setSelected(found);setSelectedSection(found.section_code);setQuestion(2)}}
+   const requestedImport=params.get('importId')
+   if(requestedImport){
+    const importResponse=await fetch('/api/account/listing-imports/'+encodeURIComponent(requestedImport),{cache:'no-store',credentials:'same-origin'})
+    const importData=await importResponse.json().catch(()=>({}))
+    if(importResponse.status===401){router.replace('/account/login?next='+encodeURIComponent('/listings/new?importId='+requestedImport));return}
+    if(!importResponse.ok||!importData.import)throw new Error(importData.message||importData.error||'AI qoralama topilmadi yoki vakolat tasdiqlanmagan.')
+    const imported=importData.import
+    const x=imported.aiExtracted||{}
+    const listingType=String(x.listing_type||'unknown')
+    const propertyType=String(x.property_type||'unknown')
+    const categoryCode=String(x.taxonomy_code||'') || (listingType==='unknown'?'':listingType==='sale'
+      ? ({apartment:'sale_apartment',house:'sale_house',land:'sale_land',commercial:'sale_commercial',new_building:'sale_new_building',dacha:'sale_dacha'} as Record<string,string>)[propertyType]
+      : listingType==='daily'
+        ? (propertyType==='house'||propertyType==='dacha'?'rent_dacha':'rent_daily')
+        : ({apartment:'rent_long_term',house:'rent_dacha',commercial:'rent_commercial',dacha:'rent_dacha'} as Record<string,string>)[propertyType])
+    const found=categoryCode?list.find(item=>item.code===categoryCode):undefined
+    if(found){
+      setSelectedSection(found.section_code)
+      if(allowedCodes.has(found.code)){setSelected(found);setPendingImportReview(true)}
+      else{setRestrictedSelection(found);setQuestion(1)}
+    }else{
+      setSelectedSection(listingType==='sale'?'sale':listingType==='rent'||listingType==='daily'?'rent':null)
+      setQuestion(listingType==='unknown'?0:1)
+      setError('AI e’lon turini to‘liq aniqlay olmadi. Davom etishdan oldin e’lon kategoriyasini tanlang.')
+    }
+    const extractedAttributes:Record<string,string>={...answers.attributes}
+    if(x.rooms!=null)extractedAttributes.rooms=String(x.rooms)
+    if(x.area_m2!=null)extractedAttributes.area_m2=String(x.area_m2)
+    if(x.floor!=null)extractedAttributes.floor=String(x.floor)
+    if(x.floors_total!=null)extractedAttributes.floors_total=String(x.floors_total)
+    if(x.land_area!=null)extractedAttributes.land_area=String(x.land_area)
+    for(const item of (Array.isArray(x.attribute_values)?x.attribute_values:[])){if(item?.code&&item?.value!=null)extractedAttributes[String(item.code)]=String(item.value)}
+    setAnswers(current=>({
+      ...current,
+      city:x.city||current.city,
+      district:x.district||current.district,
+      address:x.address||current.address,
+      title:x.title||current.title,
+      description:x.description||current.description,
+      price:x.price!=null&&['USD','UZS'].includes(x.currency)?String(x.price):current.price,
+      currency:x.currency==='USD'?'USD':'UZS',
+      attributes:{...current.attributes,...extractedAttributes},
+      ownership_type:imported.authorizationMethod==='owner_sms_otp'?(imported.submitterIsOwner?'owner':'representative'):'power_of_attorney',
+      mortgage:current.mortgage,
+    }))
+    const imageItems=await Promise.all((imported.images||[]).slice(0,10).map(async(image:any,index:number)=>{
+      const imageResponse=await fetch(image.url,{cache:'no-store'})
+      if(!imageResponse.ok)throw new Error('Import rasmini yuklab bo‘lmadi.')
+      const blob=await imageResponse.blob()
+      const mime=image.contentType||blob.type||'image/jpeg'
+      const extension=mime==='image/png'?'png':mime==='image/webp'?'webp':'jpg'
+      const file=new File([blob],`telegram-import-${index+1}.${extension}`,{type:mime})
+      return {file,preview:URL.createObjectURL(file)}
+    }))
+    if(!live){imageItems.forEach(item=>URL.revokeObjectURL(item.preview));return}
+    setImportId(requestedImport)
+    setImages(imageItems)
+   }
   }catch(e){if(live)setError(e instanceof Error?e.message:'E’lon turlarini yuklashda xatolik.')}
   finally{if(live)setLoading(false)}
- })();return()=>{live=false}},[db,params])
+ })();return()=>{live=false}},[db,params,router])
  useEffect(()=>{imagesRef.current=images},[images])
  useEffect(()=>()=>imagesRef.current.forEach(x=>URL.revokeObjectURL(x.preview)),[])
 
@@ -410,11 +501,27 @@ export default function SmartListingWizard(){
     {current==='name'&&<div><h2 className="text-lg font-extrabold">Ism va familiyangiz nima?</h2><input value={answers.fullName} onChange={e=>setAnswer('fullName',e.target.value)} className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="Masalan: Ali Valiyev"/><p className="mt-2 text-xs text-slate-500">Bu ma’lumot profilingizda saqlanadi.</p></div>}
     {current==='phone'&&<div><h2 className="text-lg font-extrabold">Telefon raqamingizni SMS orqali tasdiqlang</h2><input value={answers.phone} onChange={e=>handlePhoneChange(e.target.value)} type="tel" className="mt-4 w-full rounded-xl border p-4 text-lg" placeholder="+998 90 123 45 67"/>{otpSent&&!verified&&<div className="mt-4"><label className="text-sm font-bold">SMS kodi</label><input value={otp} onChange={e=>setOtp(phoneDigits(e.target.value).slice(0,6))} inputMode="numeric" autoComplete="one-time-code" className="mt-2 w-full rounded-xl border p-4 text-center text-2xl tracking-[.4em]" placeholder="000000"/><div className="mt-3 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-slate-500">{resendCountdown>0?`Yangi kodni ${resendCountdown} soniyadan keyin so‘rashingiz mumkin.`:"SMS kelmadimi? Kodni qayta yuborishingiz mumkin."}</span><button type="button" onClick={()=>void sendCode()} disabled={busy||resendCountdown>0} className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-bold text-emerald-700 disabled:opacity-40">{busy?"Yuborilmoqda…":resendCountdown>0?`Qayta yuborish (${resendCountdown}s)`:"SMS kodni qayta yuborish"}</button></div></div>}{verified&&listingId&&<div className="mt-5 space-y-3"><div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Telefon tasdiqlandi. E’lon qoralamasi saqlandi.</div><ListingVideoUploader listingId={listingId} ru={false} onStatusChange={status=>setVideoStatus(status)}/><ListingQualityCard listingId={listingId} imageCountOverride={images.length} listing={{...answers,property_type:selected?.property_type||'apartment',listing_type:selected?.listing_type||'sale',attributes:answers.attributes}} language="uz"/></div>}</div>}
     {limitReached?<div role="alert" className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm sm:p-6">
-     <div className="flex items-start gap-3"><span aria-hidden="true" className="text-3xl">⚠️</span><div className="min-w-0">
+     <div className="flex items-start gap-3"><span aria-hidden="true" className="text-3xl">⚠️</span><div className="min-w-0 flex-1">
       <p className="text-xs font-black uppercase tracking-wider text-amber-800">E’lon joylashtirish limiti</p>
-      <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{accountProfile?.account_type==='partner'?'Hamkor tarifingizdagi e’lon limiti tugadi':'Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi'}</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-700">E’lonni joylashtirish uchun tarif paketini sotib oling. Mos tarifni tanlab, e’lon joylashtirishni davom ettirishingiz mumkin.</p>
-      <Link href="/account/monetization" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800">Tarif paketlarini tanlash <span className="ml-2" aria-hidden="true">→</span></Link>
+      <h2 className="mt-1 text-xl font-black leading-tight text-slate-950 sm:text-2xl">{accountProfile?.account_type==='partner'?'Hamkor tarifingizdagi e’lon limiti tugadi':'Jismoniy shaxs uchun bepul belgilangan limitingiz tugadi (3 ta e’lon)'}</h2>
+      {accountProfile?.account_type==='partner'||accountProfile?.is_verified_realtor?<>
+       <p className="mt-2 text-sm leading-6 text-slate-700">{accountProfile?.is_verified_realtor?'Rieltor maqomingiz tasdiqlangan. 3 ta bepul e’loningizdan keyin mavjud hamkor tariflaridan birini tanlab, limitni kengaytiring.':'Hamkor tarifingiz limitini kengaytirish uchun mavjud tarif paketlarini ko‘rib chiqing.'}</p>
+       <Link href="/account/monetization" className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white">Hamkor tariflarini ko‘rish <span className="ml-2" aria-hidden="true">→</span></Link>
+      </>:<>
+       <p className="mt-2 text-sm leading-6 text-slate-700">Dastlabki 3 ta e’lon bepul. 4-e’lon uchun quyidagi ikki yo‘ldan birini tanlang:</p>
+       <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+         <p className="text-sm font-black text-slate-950">1. Har bir qo‘shimcha e’lon uchun to‘lov</p>
+         <p className="mt-1 text-xs leading-5 text-slate-600">Jismoniy shaxs maqomingiz saqlanadi. Rieltor hujjatlari talab qilinmaydi.</p>
+         <Link href="/account/monetization/checkout?product=extra_listing" className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-950 px-4 py-3 text-center text-sm font-extrabold text-white">Bitta qo‘shimcha e’lonni xarid qilish</Link>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-white p-4">
+         <p className="text-sm font-black text-slate-950">2. Rieltor hamkoriga aylanish</p>
+         <p className="mt-1 text-xs leading-5 text-slate-600">Malaka sertifikati yoki vakolat hujjatini yuboring. Admin tasdiqlagach, rieltorlar uchun mavjud tariflardan foydalanishingiz mumkin.</p>
+         <Link href="/realtors/cabinet?mode=register" className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-center text-sm font-extrabold text-white">Rieltor sifatida ariza berish</Link>
+        </div>
+       </div>
+      </>}
      </div></div>
     </div>:error&&<div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
     {success&&<div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div>}

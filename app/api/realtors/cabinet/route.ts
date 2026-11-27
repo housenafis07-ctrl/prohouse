@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { serviceClient } from '@/utils/admin/auth'
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     const db = serviceClient()
     const [{ data: profile }, { data: realtor }] = await Promise.all([
       db.from('profiles').select('phone').eq('id', userId).maybeSingle(),
-      db.from('realtor_profiles').select('id,verification_status').eq('user_id', userId).maybeSingle(),
+      db.from('realtor_profiles').select('id,verification_status,certificate_document_path').eq('user_id', userId).maybeSingle(),
     ])
     const authorizedResponse = NextResponse.json({
       authorized: true,
@@ -107,7 +107,10 @@ export async function POST(request: Request) {
   const userId = await getUserId()
   if (!userId) return NextResponse.json({ error: 'AUTH_REQUIRED', message: 'Sessiya topilmadi. SMS orqali qayta tasdiqlang.' }, { status: 401 })
 
-  const body = await request.json().catch(() => null)
+  const isMultipart = (request.headers.get('content-type') || '').includes('multipart/form-data')
+  const form = isMultipart ? await request.formData() : null
+  const body = form ? Object.fromEntries(form.entries()) : await request.json().catch(() => null)
+  const certificateFile = form?.get('certificate_document') instanceof File ? form.get('certificate_document') as File : null
 
   // Create a short-lived, signed, account-bound handoff from the main cabinet.
   if (body?.intent === 'handoff') {
@@ -127,46 +130,62 @@ export async function POST(request: Request) {
   const phone = phoneDigits(body?.phone)
   const experience = Number(body?.experience_years ?? 0)
   const agencyName = typeof body?.agency_name === 'string' ? body.agency_name.trim() : ''
-  const serviceAreas = Array.isArray(body?.service_areas)
-    ? body.service_areas.filter((v: unknown): v is string => typeof v === 'string').map((v: string) => v.trim()).filter(Boolean).slice(0, 20)
+  let rawServiceAreas: unknown = body?.service_areas
+  if (typeof rawServiceAreas === 'string') { try { rawServiceAreas = JSON.parse(rawServiceAreas) } catch { rawServiceAreas = [] } }
+  const serviceAreas = Array.isArray(rawServiceAreas)
+    ? rawServiceAreas.filter((v: unknown): v is string => typeof v === 'string').map((v: string) => v.trim()).filter(Boolean).slice(0, 20)
     : []
 
   if (!displayName) return NextResponse.json({ error: 'F.I.O. ni kiriting.' }, { status: 400 })
   if (!certificate) return NextResponse.json({ error: 'Malaka sertifikati raqamini kiriting.' }, { status: 400 })
+  if (!certificateFile) return NextResponse.json({ error: 'Malaka sertifikati yoki rieltorlik vakolat hujjatini PDF, JPG yoki PNG formatida yuklang.' }, { status: 400 })
+  if (certificateFile.size <= 0 || certificateFile.size > 12 * 1024 * 1024) return NextResponse.json({ error: 'Hujjat 12 MB dan kichik bo‘lishi kerak.' }, { status: 400 })
+  if (!['application/pdf','image/jpeg','image/png'].includes(certificateFile.type)) return NextResponse.json({ error: 'Faqat PDF, JPG yoki PNG hujjat qabul qilinadi.' }, { status: 400 })
   if (!phone.startsWith('998') || phone.length !== 12) return NextResponse.json({ error: 'Telefon raqami noto‘g‘ri.' }, { status: 400 })
   if (!Number.isInteger(experience) || experience < 0 || experience > 80) return NextResponse.json({ error: 'Tajriba yilini tekshiring.' }, { status: 400 })
 
   const db = serviceClient()
   const { data: existing, error: lookupError } = await db.from('realtor_profiles')
-    .select('id,verification_status').eq('user_id', userId).maybeSingle()
+    .select('id,verification_status,certificate_document_path').eq('user_id', userId).maybeSingle()
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
-  if (existing) {
+  if (existing?.verification_status === 'verified') {
     return NextResponse.json({
       error: 'REALTOR_PROFILE_EXISTS',
-      message: 'Bu akkaunt uchun rieltor profili allaqachon mavjud.',
+      message: 'Bu akkaunt uchun rieltor profili allaqachon tasdiqlangan.',
       verificationStatus: existing.verification_status,
     }, { status: 409 })
   }
 
-  const { data, error } = await db.from('realtor_profiles').insert({
-    user_id: userId,
+  const documentPath = `${userId}/realtor-certificate/${Date.now()}-${randomBytes(12).toString('hex')}`
+  const { error: uploadError } = await db.storage.from('partner-verification-documents').upload(documentPath, certificateFile, {
+    contentType: certificateFile.type, upsert: false,
+  })
+  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
+
+  const applicationFields = {
     display_name: displayName,
     phone: '+' + phone,
     certificate_number: certificate,
+    certificate_document_path: documentPath,
     experience_years: experience,
     verification_status: 'pending',
-    rating: 0,
-    reviews_count: 0,
+    verification_rejection_reason: null,
+    rating: existing ? undefined : 0,
+    reviews_count: existing ? undefined : 0,
     agency_id: null,
     agency_name: agencyName || null,
     service_areas: serviceAreas,
     bio: 'Royalhouse rieltorlik kabineti orqali yuborilgan ariza.',
-  }).select('id,verification_status').single()
+  }
+  const { data, error } = existing
+    ? await db.from('realtor_profiles').update(applicationFields).eq('id', existing.id).select('id,verification_status').single()
+    : await db.from('realtor_profiles').insert({ user_id: userId, ...applicationFields }).select('id,verification_status').single()
 
   if (error) {
-    // Convert database errors into safe, actionable user-facing messages.
+    await db.storage.from('partner-verification-documents').remove([documentPath])
     if (error.code === '23505') return NextResponse.json({ error: 'REALTOR_PROFILE_EXISTS', message: 'Bu akkaunt uchun ariza avval yuborilgan.' }, { status: 409 })
     return NextResponse.json({ error: 'REALTOR_APPLICATION_FAILED', message: error.message, code: error.code || null }, { status: 400 })
   }
-  return NextResponse.json({ ok: true, realtor: data }, { status: 201 })
+  if (existing?.certificate_document_path) await db.storage.from('partner-verification-documents').remove([existing.certificate_document_path])
+  return NextResponse.json({ ok: true, realtor: data, updated: Boolean(existing) }, { status: existing ? 200 : 201 })
 }

@@ -1,10 +1,10 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { serviceClient } from '@/utils/admin/auth'
+import { handleTelegramListingImport, type TelegramListingImportMessage } from '@/utils/telegram/listing-import'
 
 type TelegramUpdate = {
-  message?: {
-    text?: string
+  message?: TelegramListingImportMessage & {
     chat?: { id?: number; type?: string }
     from?: { id?: number; username?: string; first_name?: string; last_name?: string; language_code?: string }
     contact?: { phone_number?: string; user_id?: number }
@@ -200,6 +200,16 @@ export async function POST(request: NextRequest) {
       await sendTelegramMessage(chatId, '🔐 Telegram orqali kirish va ro‘yxatdan o‘tish o‘chirilgan. RoyalHouse akkauntiga faqat telefon raqami va SMS OTP kodi orqali kiring. E’lon joylashtirishni boshlash uchun quyidagi tugma orqali Mini App’ni oching.', true)
       return NextResponse.json({ ok: true })
 
+    }
+
+    if (message.chat?.type === 'private' && telegramUserId && (message.forward_origin || message.forward_date || message.forward_from || message.forward_from_chat)) {
+      const handled = await handleTelegramListingImport({
+        message,
+        telegramUserId,
+        chatId,
+        sendMessage: sendTelegramMessage,
+      })
+      if (handled) return NextResponse.json({ ok: true })
     }
 
     const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ').trim()
