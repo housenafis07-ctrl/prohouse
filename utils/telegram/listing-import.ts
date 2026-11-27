@@ -162,7 +162,7 @@ async function extractListing(text: string, images: Array<{ dataUrl: string }>):
       instructions,
       input: [{ role: 'user', content: inputContent }],
       text: { format: { type: 'json_schema', name: 'royalhouse_telegram_listing', strict: true, schema } },
-      max_output_tokens: 1200,
+      max_output_tokens: 2200,
     }),
     cache: 'no-store',
     signal: AbortSignal.timeout(30000),
