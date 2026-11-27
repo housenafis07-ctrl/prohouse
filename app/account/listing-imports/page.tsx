@@ -56,6 +56,12 @@ export default function ListingImportsPage() {
           <p className="mt-1 text-sm text-slate-500">{[x.city,x.district].filter(Boolean).join(', ')} {x.price!=null?'· '+new Intl.NumberFormat('uz-UZ').format(x.price)+' '+(x.currency||''):''}</p>
           {Array.isArray(x.corrections)&&x.corrections.length>0&&<p className="mt-2 rounded-lg bg-blue-50 p-2 text-xs text-blue-800">AI yozuvni normallashtirdi: {x.corrections.join('; ')}</p>}
           {x.location_confidence==='low'&&<p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Joylashuvni aniqlashtirish kerak — e’lon formasida to‘g‘ri hududni tanlang.</p>}
+          {x.price_confidence==='low'&&<p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Narx yoki valyuta noaniq — e’lonni davom ettirishdan oldin tekshiring.</p>}
+          {x.negotiable&&<p className="mt-1 text-xs font-semibold text-emerald-700">Savdolashish mumkin</p>}
+          {x.phone_in_text&&<p className="mt-2 rounded-lg border p-2 text-xs text-slate-600">Manba e’londagi aloqa raqami: {x.phone_in_text}. Bu raqam mulk egasining tasdig‘i hisoblanmaydi.</p>}
+          {x.duplicate_image_warning&&<p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">Shu akkauntdagi boshqa import bilan aynan bir xil rasm topildi. Moderator tekshirishi kerak.</p>}
+          {x.promo_lines_removed?.length>0&&<p className="mt-2 text-xs text-slate-500">AI e’longa aloqasiz {x.promo_lines_removed.length} ta reklama qatorini olib tashladi.</p>}
+          {x.description_ru&&<details className="mt-2 rounded-lg border p-3"><summary className="cursor-pointer text-xs font-bold">Rus tilidagi tavsifni ko‘rish</summary><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{x.description_ru}</p></details>}
           {row.authorization_status!=='verified'&&<div className="mt-4 space-y-4">
             <section className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
               <h3 className="font-black">Vakil sifatida javobgarlikni tasdiqlash</h3>
