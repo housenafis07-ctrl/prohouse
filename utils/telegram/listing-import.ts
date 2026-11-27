@@ -285,12 +285,15 @@ export async function handleTelegramListingImport(args: {
     }
     const details = [
       `🏠 ${extracted.title || 'Sarlavha aniqlanmadi'}`,
+      extracted.taxonomy_code ? `🗂 Kategoriya: ${extracted.taxonomy_code}` : '🗂 Kategoriya: aniqlashtirish kerak',
+      extracted.corrections?.length ? `✍️ Tuzatilgan yozuvlar: ${extracted.corrections.join('; ')}` : null,
       extracted.price != null ? `💰 ${new Intl.NumberFormat('uz-UZ').format(extracted.price)} ${extracted.currency}` : '💰 Narx aniqlanmadi',
       [extracted.city, extracted.district].filter(Boolean).join(', ') || '📍 Manzil aniqlanmadi',
       extracted.area_m2 != null ? `📐 ${extracted.area_m2} m²` : null,
       extracted.rooms != null ? `🛏 ${extracted.rooms} xona` : null,
       `\nIshonchlilik: ${extracted.confidence === 'high' ? 'yuqori' : extracted.confidence === 'medium' ? 'o‘rta' : 'past'}`,
       `Yetishmayotgan ma’lumotlar: ${extracted.missing_fields.length ? extracted.missing_fields.join(', ') : 'aniqlanmadi'}`,
+      `Joylashuv ishonchliligi: ${extracted.location_confidence === 'high' ? 'yuqori' : extracted.location_confidence === 'medium' ? 'o‘rta' : 'past'}`,
     ].filter(Boolean)
     await sendMessage(chatId, `${details.join('\n')}\n\n🔒 Bu hali e’lon emas — maxfiy AI qoralamasi. Mulk egasi yoki qonuniy vakil roziligi tasdiqlanmaguncha e’lon hech kim nomidan yuborilmaydi.\n\nQoralamani shaxsiy kabinetda ko‘ring: ${SITE_URL}/account/listing-imports`)
   } catch (error) {
